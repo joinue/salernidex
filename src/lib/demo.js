@@ -326,9 +326,12 @@ export const demoTasks = [
   { ...taskBase, id: 't-call-david', title: 'Call David about the polisher quote', assignee: 'me', due_date: dateIn(-2), recurrence: null, parent_id: null, privacy_level: 'shared', notes: 'He asked about consumables pricing.' },
   { ...taskBase, id: 't-nina-bday', title: "Plan Nina's birthday gift", assignee: 'either', due_date: dateIn(7), recurrence: null, parent_id: null },
   { ...taskBase, id: 't-faucet', title: 'Fix the leaky bathroom faucet', assignee: 'me', due_date: dateIn(3), recurrence: null, parent_id: null, is_project: true, notes: 'Master bath — drips overnight. Marco quoted $180 if we want him to do it.' },
-  { ...taskBase, id: 't-faucet-1', title: 'Buy replacement cartridge', assignee: 'me', due_date: null, recurrence: null, parent_id: 't-faucet', completed_at: daysAgo(1) },
-  { ...taskBase, id: 't-faucet-2', title: 'Shut off water supply', assignee: 'me', due_date: null, recurrence: null, parent_id: 't-faucet' },
-  { ...taskBase, id: 't-faucet-3', title: 'Replace cartridge & test', assignee: 'me', due_date: null, recurrence: null, parent_id: 't-faucet' },
+  // headings group the subtasks that follow them (Things-style sections)
+  { ...taskBase, id: 't-faucet-h1', title: 'Get parts', assignee: 'me', due_date: null, recurrence: null, parent_id: 't-faucet', is_heading: true, sort_order: 1 },
+  { ...taskBase, id: 't-faucet-1', title: 'Buy replacement cartridge', assignee: 'me', due_date: null, recurrence: null, parent_id: 't-faucet', completed_at: daysAgo(1), sort_order: 2 },
+  { ...taskBase, id: 't-faucet-h2', title: 'The fix', assignee: 'me', due_date: null, recurrence: null, parent_id: 't-faucet', is_heading: true, sort_order: 3 },
+  { ...taskBase, id: 't-faucet-2', title: 'Shut off water supply', assignee: 'me', due_date: null, recurrence: null, parent_id: 't-faucet', sort_order: 4 },
+  { ...taskBase, id: 't-faucet-3', title: 'Replace cartridge & test', assignee: 'me', due_date: null, recurrence: null, parent_id: 't-faucet', sort_order: 5 },
   { ...taskBase, id: 't-hvac', title: 'Schedule HVAC tune-up', assignee: 'either', due_date: null, recurrence: null, parent_id: null, privacy_level: 'shared' },
   { ...taskBase, id: 't-cards', title: 'Mail thank-you cards', assignee: 'either', due_date: null, recurrence: null, parent_id: null, completed_at: daysAgo(1) },
 ]

@@ -43,6 +43,10 @@ function download(filename, content, mime) {
 
 export default function ImportExport({ data }) {
   const { people, orgs, relationships, interactions, groups, tasks, completions, taskLinks, lists, listItems, families, keyDates, reminderSnoozes, importPeople, restoreBackup } = data
+  // Backup is lossless on purpose: it uses the unfiltered all* arrays, so
+  // "Private — only me" rows survive the round-trip. CSV/vCard exports use
+  // the filtered arrays above — they only ever contain what YOU can see.
+  const { allPeople, allOrgs, allTasks, allLists, allListItems } = data
   const csvRef = useRef(null)
   const jsonRef = useRef(null)
   const [parsed, setParsed] = useState(null) // { headers, rows }
@@ -59,18 +63,18 @@ export default function ImportExport({ data }) {
       app: 'salernidex',
       backup_version: BACKUP_VERSION,
       exported_at: new Date().toISOString(),
-      people, // includes soft-deleted, so restore is lossless
-      organizations: orgs,
+      people: allPeople, // includes soft-deleted + private, so restore is lossless
+      organizations: allOrgs,
       relationships,
       interactions,
       families,
       key_dates: keyDates,
       groups,
-      tasks,
+      tasks: allTasks,
       task_completions: completions,
       task_links: taskLinks,
-      lists,
-      list_items: listItems,
+      lists: allLists,
+      list_items: allListItems,
       reminder_snoozes: reminderSnoozes,
       settings: { members: memberNames(), notifications: getAllPrefs() },
     }
@@ -115,21 +119,32 @@ export default function ImportExport({ data }) {
   }
 
   // ---- CSV (people only, for moving between tools) ----
+  // Spreadsheet formula injection guard: a field starting with = + - @ would
+  // execute as a formula when the CSV opens in Excel/Sheets. Prefix with an
+  // apostrophe (the spreadsheet convention for "literal text") — except
+  // phone-shaped values, so "+1 520…" numbers stay clean.
+  const PHONE_SHAPE = /^\+?[\d\s().-]+$/
+  const csvSafe = (value) => {
+    const s = String(value ?? '')
+    if (/^[=+\-@\t\r]/.test(s) && !PHONE_SHAPE.test(s)) return `'${s}`
+    return s
+  }
+
   const exportCsv = () => {
     const csv = Papa.unparse(
       active.map((p) => ({
-        name: p.name,
-        organization: p.organization || '',
-        role: p.role || '',
-        email: p.email || '',
-        phone: p.phone || '',
+        name: csvSafe(p.name),
+        organization: csvSafe(p.organization || ''),
+        role: csvSafe(p.role || ''),
+        email: csvSafe(p.email || ''),
+        phone: csvSafe(p.phone || ''),
         birthday: p.birthday || '',
-        address: p.address || '',
+        address: csvSafe(p.address || ''),
         tier: p.tier || '',
-        tags: (p.tags || []).join('; '),
+        tags: csvSafe((p.tags || []).join('; ')),
         keep_in_touch_days: p.keep_in_touch_days || '',
         privacy_level: p.privacy_level,
-        notes: p.notes || '',
+        notes: csvSafe(p.notes || ''),
       }))
     )
     download('salernidex-people.csv', csv, 'text/csv')

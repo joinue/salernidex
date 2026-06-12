@@ -1,11 +1,14 @@
-import { Home, Users as PeopleIcon, CheckSquare, List, Briefcase, Users, Share2, DownloadCloud, Settings, LogOut } from 'react-feather'
+import { Home, Users as PeopleIcon, CheckSquare, List, Briefcase, Users, Share2, DownloadCloud, Settings, LogOut, Search } from 'react-feather'
 import ThemeToggle from './ThemeToggle'
+
+const isMac = /Mac/.test(navigator.platform)
 
 // Desktop sidebar — pure destinations, grouped by domain. "Today / Tasks / Lists"
 // is the daily household side; "Network" is the rolodex (people and how they
 // connect); "System" is housekeeping. Adds live on each page's header, not here.
-export default function Sidebar({ active, go, onLogout, badge = 0 }) {
-  const Item = ({ id, icon: Icon, text, onClick, count = 0 }) => (
+// Today's badge is red (needs attention); other counts are quiet gray (volume).
+export default function Sidebar({ active, go, onSearch, onLogout, badge = 0, counts = {} }) {
+  const Item = ({ id, icon: Icon, text, onClick, count = 0, quiet = false }) => (
     <button
       className={`nav-item ${active === id ? 'active' : ''}`}
       onClick={onClick || (() => go(id === 'today' ? '' : id))}
@@ -13,7 +16,7 @@ export default function Sidebar({ active, go, onLogout, badge = 0 }) {
     >
       <Icon size={18} />
       <span className="nav-text">{text}</span>
-      {count > 0 && <span className="nav-badge">{count}</span>}
+      {count > 0 && <span className={quiet ? 'nav-count' : 'nav-badge'}>{count}</span>}
     </button>
   )
 
@@ -24,9 +27,15 @@ export default function Sidebar({ active, go, onLogout, badge = 0 }) {
         <span>Salernidex</span>
       </div>
 
+      <button className="nav-item" onClick={onSearch} title="Quick Find">
+        <Search size={18} />
+        <span className="nav-text">Search</span>
+        <span className="nav-kbd">{isMac ? '⌘K' : 'Ctrl K'}</span>
+      </button>
+
       <Item id="today" icon={Home} text="Today" count={badge} />
-      <Item id="tasks" icon={CheckSquare} text="Tasks" />
-      <Item id="lists" icon={List} text="Lists" />
+      <Item id="tasks" icon={CheckSquare} text="Tasks" count={counts.tasks} quiet />
+      <Item id="lists" icon={List} text="Lists" count={counts.lists} quiet />
 
       <div className="nav-group">Network</div>
       <Item id="people" icon={PeopleIcon} text="People" />

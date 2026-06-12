@@ -1,19 +1,22 @@
 import { useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Check, Plus, Trash2, Edit2 } from 'react-feather'
 import SwipeRow from './SwipeRow'
+import ReorderableList from './ReorderableList'
+import { byOrder, moveUpdates } from '../lib/order'
 import haptics from '../lib/haptics'
 
 // A single list: rapid add at top, tap a row (or its circle) to check/uncheck,
-// swipe to delete. Unchecked items first; checked sink to the bottom, struck.
+// swipe to delete, drag (long-press on touch) to reorder. Unchecked items
+// first; checked sink to the bottom, struck.
 export default function ListDetail({ data, listId, onBack, onEdit }) {
-  const { lists, listItems, addListItem, toggleListItem, deleteListItem, clearCheckedItems, deleteList } = data
+  const { lists, listItems, addListItem, toggleListItem, deleteListItem, clearCheckedItems, deleteList, reorderListItems } = data
   const list = lists.find((l) => l.id === listId)
   const [draft, setDraft] = useState('')
   const inputRef = useRef(null)
 
   const items = useMemo(() => {
     const mine = listItems.filter((it) => it.list_id === listId)
-    const open = mine.filter((it) => !it.checked_at).sort((a, b) => (a.created_at < b.created_at ? -1 : 1))
+    const open = mine.filter((it) => !it.checked_at).sort(byOrder)
     const done = mine.filter((it) => it.checked_at).sort((a, b) => (a.checked_at < b.checked_at ? 1 : -1))
     return { open, done }
   }, [listItems, listId])
@@ -89,7 +92,13 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
         <p className="empty">Nothing here yet. Add the first item above.</p>
       ) : (
         <>
-          {items.open.length > 0 && <div className="list">{items.open.map((it) => <Item key={it.id} it={it} />)}</div>}
+          {items.open.length > 0 && (
+            <ReorderableList
+              items={items.open}
+              onMove={(from, to) => reorderListItems(moveUpdates(items.open, from, to))}
+              renderItem={(it) => <Item it={it} />}
+            />
+          )}
           {items.done.length > 0 && (
             <>
               <div className="section-label">Got it · {items.done.length}</div>

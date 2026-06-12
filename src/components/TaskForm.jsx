@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ChevronRight } from 'react-feather'
 import Modal from './Modal'
 import Segmented from './Segmented'
 import RecurrencePicker from './RecurrencePicker'
@@ -11,6 +12,10 @@ import { nextOccurrence } from '../lib/recurrence'
 // Create or edit a single task. Flagging it a project unlocks the full-page
 // detail view (subtasks + linked contacts); subtasks themselves are added from
 // there, so this form stays focused on one item's fields.
+//
+// Progressive disclosure: most tasks are a title and maybe a date, so that's
+// all the form shows. Who/Repeat/Visibility/Notes live behind "More options",
+// auto-expanded when editing a task that already uses any of them.
 export default function TaskForm({ task, onSave, onClose }) {
   const [form, setForm] = useState({
     title: task?.title || '',
@@ -21,6 +26,13 @@ export default function TaskForm({ task, onSave, onClose }) {
     privacy_level: task?.privacy_level || 'shared',
     notes: task?.notes || '',
   })
+  const [more, setMore] = useState(
+    !!task &&
+      (normalizeAssignee(task.assignee) !== 'anyone' ||
+        !!task.recurrence ||
+        (task.privacy_level && task.privacy_level !== 'shared') ||
+        !!task.notes)
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -64,10 +76,6 @@ export default function TaskForm({ task, onSave, onClose }) {
           <input value={form.title} onChange={set('title')} required autoFocus placeholder={form.is_project ? 'What are we tackling?' : 'What needs doing?'} />
         </div>
         <div className="field">
-          <label className="label">Who</label>
-          <AssigneePicker value={form.assignee} onChange={(v) => setForm({ ...form, assignee: v })} />
-        </div>
-        <div className="field">
           <label className="label">Due</label>
           <input type="date" value={form.due_date} onChange={set('due_date')} />
           <div className="chips" style={{ marginTop: 8 }}>
@@ -77,26 +85,42 @@ export default function TaskForm({ task, onSave, onClose }) {
             {form.due_date && <button type="button" className="chip" onClick={() => setForm({ ...form, due_date: '' })}>Clear</button>}
           </div>
         </div>
-        <div className="field">
-          <label className="label">Repeat</label>
-          <RecurrencePicker
-            value={form.recurrence}
-            dueDate={form.due_date}
-            onChange={(recurrence) => setForm({ ...form, recurrence })}
-          />
-        </div>
-        <div className="field">
-          <label className="label">Visibility</label>
-          <select value={form.privacy_level} onChange={set('privacy_level')}>
-            {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label className="label">Notes <span className="muted">(optional)</span></label>
-          <textarea value={form.notes} onChange={set('notes')} />
-        </div>
+
+        {!more ? (
+          <button type="button" className="form-more-btn" onClick={() => setMore(true)}>
+            <ChevronRight size={15} />
+            More options
+            <span className="form-more-hint">who · repeat · visibility · notes</span>
+          </button>
+        ) : (
+          <>
+            <div className="field">
+              <label className="label">Who</label>
+              <AssigneePicker value={form.assignee} onChange={(v) => setForm({ ...form, assignee: v })} />
+            </div>
+            <div className="field">
+              <label className="label">Repeat</label>
+              <RecurrencePicker
+                value={form.recurrence}
+                dueDate={form.due_date}
+                onChange={(recurrence) => setForm({ ...form, recurrence })}
+              />
+            </div>
+            <div className="field">
+              <label className="label">Visibility</label>
+              <select value={form.privacy_level} onChange={set('privacy_level')}>
+                {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label className="label">Notes <span className="muted">(optional)</span></label>
+              <textarea value={form.notes} onChange={set('notes')} />
+            </div>
+          </>
+        )}
+
         <button className="btn-primary" disabled={busy}>
           {busy ? <span className="dots">Saving</span> : task ? 'Save changes' : form.is_project ? 'Add project' : 'Add task'}
         </button>

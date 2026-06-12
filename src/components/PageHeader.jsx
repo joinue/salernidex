@@ -1,7 +1,8 @@
-import { Plus } from 'react-feather'
+import { Plus, Search } from 'react-feather'
 
 // iOS-style large title with up to two trailing round action buttons. The
 // `secondaryAction` (if any) sits to the left of the primary `action`.
+// `onSearch` (mobile) adds a leading Quick Find button before both.
 // `subtitle` shows a quiet count/summary under the title.
 export default function PageHeader({
   title,
@@ -12,6 +13,7 @@ export default function PageHeader({
   secondaryAction,
   secondaryActionIcon: SecondaryIcon,
   secondaryActionLabel,
+  onSearch,
 }) {
   return (
     <header className="page-header">
@@ -19,8 +21,13 @@ export default function PageHeader({
         <h1 className="large-title">{title}</h1>
         {subtitle && <p className="page-subtitle">{subtitle}</p>}
       </div>
-      {(action || secondaryAction) && (
+      {(action || secondaryAction || onSearch) && (
         <div className="header-actions">
+          {onSearch && (
+            <button className="header-action neutral" onClick={onSearch} aria-label="Quick Find" title="Quick Find">
+              <Search size={20} />
+            </button>
+          )}
           {secondaryAction && SecondaryIcon && (
             <button className="header-action neutral" onClick={secondaryAction} aria-label={secondaryActionLabel || 'Options'} title={secondaryActionLabel}>
               <SecondaryIcon size={20} />

@@ -3,17 +3,19 @@ import { useEffect } from 'react'
 // iOS-style edge-swipe back: drag right from the left screen edge on a
 // detail page to go back, with the content tracking your finger. Installed
 // PWAs don't get Safari's native gesture, so we provide it.
+//
+// Listeners live on window, not the content element — the gesture starts at
+// the literal screen edge, which page gutters/margins may not cover.
 export function useEdgeBack(ref, enabled, onBack) {
   useEffect(() => {
-    const el = ref.current
-    if (!el || !enabled) return
+    if (!enabled) return
 
     let startX = 0
     let startY = 0
     let active = false
     let intent = false // horizontal drag confirmed (vs vertical scroll)
 
-    const content = () => el.querySelector('.content')
+    const content = () => ref.current?.querySelector('.content')
 
     const down = (e) => {
       if (e.clientX > 24) return
@@ -54,15 +56,15 @@ export function useEdgeBack(ref, enabled, onBack) {
       if (intent && dx > 80) onBack()
     }
 
-    el.addEventListener('pointerdown', down)
-    el.addEventListener('pointermove', move)
-    el.addEventListener('pointerup', end)
-    el.addEventListener('pointercancel', end)
+    window.addEventListener('pointerdown', down)
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
     return () => {
-      el.removeEventListener('pointerdown', down)
-      el.removeEventListener('pointermove', move)
-      el.removeEventListener('pointerup', end)
-      el.removeEventListener('pointercancel', end)
+      window.removeEventListener('pointerdown', down)
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
     }
   }, [ref, enabled, onBack])
 }

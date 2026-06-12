@@ -58,10 +58,9 @@ export default function OrgForm({ org, onSave, onClose }) {
         <div className="field">
           <label className="label">Privacy</label>
           <select value={form.privacy_level} onChange={set('privacy_level')}>
-            <option value="marc_only">Marc only</option>
-            <option value="shared">Shared</option>
-            <option value="family_shared">Family shared</option>
-            <option value="public">Public</option>
+            {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
           </select>
         </div>
         <button className="btn-primary" disabled={busy}>

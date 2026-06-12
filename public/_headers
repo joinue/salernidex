@@ -1,0 +1,10 @@
+# Security headers (Netlify format; mirror in vercel.json if deploying there).
+# CSP notes: style 'unsafe-inline' is required (React style attributes);
+# connect-src covers Supabase REST + realtime websockets; no other origins
+# exist — the app makes zero third-party requests by design.
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'

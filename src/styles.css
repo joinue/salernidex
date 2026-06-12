@@ -135,7 +135,7 @@ body,
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
   font-size: 16px;
   line-height: 1.45;
   color: var(--text);
@@ -229,6 +229,21 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Quiet count (Things-style): how much lives behind a destination,
+   without shouting for attention the way .nav-badge does. */
+.nav-count {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.nav-item.active .nav-count {
+  color: var(--accent);
+  opacity: 0.7;
 }
 
 .tab {
@@ -1627,6 +1642,10 @@ select.rec-select + .segmented {
   color: var(--danger);
 }
 
+.text-btn.quiet {
+  color: var(--text-2);
+}
+
 /* ---------- modal (right sheet on desktop, bottom sheet on mobile) ---------- */
 
 .modal-overlay {
@@ -2338,4 +2357,459 @@ select.rec-select + .segmented {
 }
 .member-name-input:focus {
   border-bottom: 1px solid var(--accent);
+}
+
+/* ---------- drag-to-reorder ---------- */
+
+.reorder-row {
+  position: relative;
+}
+
+/* dividers re-homed onto the wrapper's content (the bare :not(:last-child)
+   row rules can't see through the wrapper) */
+.list > .reorder-row:not(:last-child) > .list-row,
+.list > .reorder-row:not(:last-child) > div > .list-row:last-child,
+.list > .reorder-row:not(:last-child) .swipe-content {
+  border-bottom: 0.5px solid var(--separator);
+}
+
+.reorder-row.lifted {
+  z-index: 5;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  cursor: grabbing;
+}
+
+.reorder-row.lifted > .list-row,
+.reorder-row.lifted .swipe-content {
+  border-bottom: none !important;
+}
+
+/* reorder group nested inside an existing .list card (project subtasks) */
+.reorder-plain > .reorder-row:not(:last-child) > .list-row,
+.reorder-plain > .reorder-row:not(:last-child) > div > .list-row:last-child {
+  border-bottom: 0.5px solid var(--separator);
+}
+
+/* ---------- project headings (Things-style sections inside a project) ---------- */
+
+.heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px 14px 4px;
+  background: var(--surface);
+}
+
+.heading-row .heading-title {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent-soft);
+  padding-bottom: 3px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* the heading's delete control stays out of the way until needed */
+.heading-row .icon-btn {
+  width: 26px;
+  height: 26px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.heading-row:hover .icon-btn,
+.reorder-row.lifted .heading-row .icon-btn {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .heading-row .icon-btn {
+    opacity: 1;
+  }
+}
+
+/* ---------- progressive disclosure in forms ---------- */
+
+.form-more-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 0 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--accent);
+  text-align: left;
+}
+
+.form-more-btn svg {
+  flex-shrink: 0;
+}
+
+.form-more-hint {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+/* ---------- toasts (transient confirmations + undo) ---------- */
+
+.toasts {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 70;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  max-width: 420px;
+  background: #2c2c2e; /* dark pill in both themes, iOS-style */
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-pop);
+  font-size: 14px;
+  animation: toast-in 240ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.toast.leaving {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.toast.error {
+  background: var(--danger);
+}
+
+.toast-msg {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast-action {
+  flex-shrink: 0;
+  margin-left: 14px;
+  color: #7db8ff; /* readable accent on the dark pill */
+  font-size: 14px;
+  font-weight: 600;
+  padding: 2px 0;
+}
+
+.toast.error .toast-action {
+  color: #fff;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+}
+
+@media (max-width: 720px) {
+  /* clear the tabbar + FAB */
+  .toasts {
+    bottom: calc(98px + env(safe-area-inset-bottom));
+  }
+}
+
+/* ---------- view transitions (route changes cross-fade + drift) ---------- */
+
+/* Only the content column animates; chrome (sidebar, tabbar) stays put. */
+.main {
+  view-transition-name: main-content;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+::view-transition-old(main-content) {
+  animation: vt-out 140ms ease-in forwards;
+}
+
+::view-transition-new(main-content) {
+  animation: vt-in 200ms ease-out;
+}
+
+@keyframes vt-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes vt-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ---------- Quick Find (global ⌘K palette) ---------- */
+
+/* Tappable stand-in for an iOS search bar (Today, mobile) — looks like the
+   People search field, acts as the Quick Find trigger. */
+.search-bar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  height: 38px;
+  margin-bottom: 18px;
+  background: var(--fill);
+  border-radius: 10px;
+  color: var(--text-2);
+  font-size: 16px;
+}
+
+.search-bar-btn svg {
+  flex-shrink: 0;
+}
+
+.qf-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 65; /* above sheets/modals, below toasts */
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 13vh;
+  animation: fade-in 150ms ease-out;
+}
+
+.qf-panel {
+  display: flex;
+  flex-direction: column;
+  width: 580px;
+  max-width: calc(100% - 32px);
+  max-height: 62vh;
+  background: var(--bg);
+  border-radius: 16px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  animation: qf-pop 180ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+@keyframes qf-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-10px);
+  }
+}
+
+.qf-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 0.5px solid var(--separator);
+  flex-shrink: 0;
+}
+
+.qf-input-row > svg {
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+
+.qf-input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 17px;
+  color: var(--text);
+}
+
+.qf-input::placeholder {
+  color: var(--text-2);
+}
+
+.qf-cancel {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-size: 17px;
+  padding: 2px 2px 2px 8px;
+}
+
+.qf-results {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px 8px 10px;
+}
+
+.qf-section {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-2);
+  padding: 10px 10px 5px;
+}
+
+.qf-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.qf-row.selected {
+  background: var(--fill);
+}
+
+.qf-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--fill);
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+
+.qf-emoji {
+  font-size: 17px;
+  background: var(--fill);
+}
+
+.qf-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.qf-row-title {
+  font-size: 15.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qf-mark {
+  background: none;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.qf-row-sub {
+  font-size: 12.5px;
+  color: var(--text-2);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qf-row-enter {
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.qf-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-2);
+  font-size: 15px;
+}
+
+.qf-footer {
+  display: flex;
+  gap: 16px;
+  padding: 9px 16px;
+  border-top: 0.5px solid var(--separator);
+  color: var(--text-2);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.qf-kbd {
+  display: inline-block;
+  background: var(--fill);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 11px;
+}
+
+/* sidebar shortcut hint on the Search item */
+.nav-kbd {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--text-3);
+  background: var(--fill);
+  border-radius: 5px;
+  padding: 2px 6px;
+}
+
+/* Mobile: full-screen search, input pinned top, results scroll under it. */
+@media (max-width: 720px) {
+  .qf-overlay {
+    padding-top: 0;
+    background: var(--bg);
+    animation: none;
+  }
+
+  .qf-panel {
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    flex: 1;
+    border-radius: 0;
+    box-shadow: none;
+    padding-top: env(safe-area-inset-top);
+    animation: fade-in 150ms ease-out;
+  }
+
+  .qf-input-row {
+    padding: 12px 16px;
+  }
+
+  .qf-results {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+
+  .qf-row {
+    min-height: 56px;
+    padding: 8px 12px;
+  }
+
+  .qf-row-title {
+    font-size: 16px;
+  }
+
+  .qf-row-sub {
+    font-size: 13.5px;
+  }
 }

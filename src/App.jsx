@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { supabase } from './lib/supabase'
 import { demoMode } from './lib/demo'
 import { buildAttention, badgeCount } from './lib/reminders'
@@ -12,6 +13,7 @@ import Sidebar from './components/Sidebar'
 import MobileNav from './components/MobileNav'
 import MoreSheet from './components/MoreSheet'
 import ConfirmDialog from './components/ConfirmDialog'
+import QuickFind from './components/QuickFind'
 import TodayView from './components/TodayView'
 import ActivityView from './components/ActivityView'
 import PullToRefresh from './components/PullToRefresh'
@@ -26,6 +28,7 @@ import GroupsView from './components/GroupsView'
 import RelationshipsView from './components/RelationshipsView'
 import SettingsView from './components/SettingsView'
 import ErrorBoundary from './components/ErrorBoundary'
+import Toasts from './components/Toasts'
 
 // Lazy: Import/Export carries the CSV parser — no reason to ship it on
 // every app open when it's visited once a month.
@@ -39,7 +42,8 @@ import RelationshipForm from './components/RelationshipForm'
 
 // Hash routing: #/ (today), #/activity, #/people, #/person/<id>, #/tasks,
 // #/project/<id>, #/lists, #/list/<id>, #/orgs, #/groups, #/relationships,
-// #/import.
+// #/import. Quick Find can append an id to list pages (#/tasks/<id>,
+// #/orgs/<id>, #/groups/<id>) to land with that row expanded.
 function parseHash() {
   const [name, id] = window.location.hash.replace(/^#\/?/, '').split('/')
   return { name: name || 'today', id }
@@ -91,13 +95,27 @@ function Shell({ session, onLogout }) {
   const [editingList, setEditingList] = useState(null) // null | 'new' | list
   const [relationshipFrom, setRelationshipFrom] = useState(null) // null | 'new' | person
   const [moreOpen, setMoreOpen] = useState(null) // null | 'global' | 'people'
+  const [quickFind, setQuickFind] = useState(false)
   const [confirmLogout, setConfirmLogout] = useState(false)
   const searchRef = useRef(null)
   const mainRef = useRef(null)
   const isMobile = useMediaQuery('(max-width: 720px)')
 
   useEffect(() => {
-    const onHash = () => setRoute(parseHash())
+    // Route changes cross-fade via the View Transitions API where available
+    // (flushSync so the new view is painted inside the transition frame).
+    // Reduced-motion users and other browsers get the plain instant swap.
+    const onHash = () => {
+      const apply = () => setRoute(parseHash())
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      // document.hidden: a hidden tab gets no animation frames, so a started
+      // transition would never finish and its overlay would eat all input.
+      if (document.startViewTransition && !reduceMotion && !document.hidden) {
+        document.startViewTransition(() => flushSync(apply))
+      } else {
+        apply()
+      }
+    }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
@@ -143,21 +161,51 @@ function Shell({ session, onLogout }) {
   const openProject = (id) => go(`project/${id}`)
   const requestLogout = () => setConfirmLogout(true)
 
+  // ⌘K / Ctrl+K toggles Quick Find; "/" opens it too (outside text fields);
+  // ⌘N still jumps straight to a new person.
   useEffect(() => {
+    const isEditable = (el) =>
+      el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable)
     const onKey = (e) => {
-      if (!(e.metaKey || e.ctrlKey)) return
-      if (e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
-        go('people')
-        setTimeout(() => searchRef.current?.focus(), 50)
-      } else if (e.key === 'n') {
+        setQuickFind((v) => !v)
+      } else if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault()
+        setQuickFind(false)
         setEditingPerson('new')
+      } else if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey && !isEditable(e.target)) {
+        e.preventDefault()
+        setQuickFind(true)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  // Quick Find → where each result type lands. Orgs/groups/plain tasks carry
+  // the id in the hash so the page opens with that row expanded.
+  const pickQuickFind = (entry) => {
+    setQuickFind(false)
+    if (entry.type === 'person') openPerson(entry.id)
+    else if (entry.type === 'project') openProject(entry.id)
+    else if (entry.type === 'task') (entry.parentId ? openProject(entry.parentId) : go(`tasks/${entry.id}`))
+    else if (entry.type === 'list') openList(entry.id)
+    else if (entry.type === 'org') go(`orgs/${entry.id}`)
+    else if (entry.type === 'group') go(`groups/${entry.id}`)
+    else if (entry.type === 'nav') go(entry.route)
+    else if (entry.type === 'action') {
+      const open = {
+        person: () => setEditingPerson('new'),
+        task: () => setEditingTask('new'),
+        list: () => setEditingList('new'),
+        org: () => setEditingOrg('new'),
+        group: () => setEditingGroup('new'),
+        relationship: () => setRelationshipFrom('new'),
+      }
+      open[entry.action]?.()
+    }
+  }
 
   const allTags = [...new Set(data.people.flatMap((p) => p.tags || []))].sort()
 
@@ -172,6 +220,15 @@ function Shell({ session, onLogout }) {
     if (badge > 0) navigator.setAppBadge?.(badge)
     else navigator.clearAppBadge?.()
   }, [badge])
+
+  // Quiet sidebar counts: open top-level tasks, unchecked list items.
+  const navCounts = useMemo(
+    () => ({
+      tasks: data.tasks.filter((t) => !t.parent_id && !t.completed_at && !t.is_heading).length,
+      lists: data.listItems.filter((it) => !it.checked_at).length,
+    }),
+    [data.tasks, data.listItems]
+  )
 
   const activeNav =
     route.name === 'person' ? 'people' : route.name === 'list' ? 'lists' : route.name === 'project' ? 'tasks' : route.name === 'activity' ? 'today' : route.name
@@ -189,7 +246,7 @@ function Shell({ session, onLogout }) {
   return (
     <div className="layout">
       {!isMobile && (
-        <Sidebar active={activeNav} go={go} onLogout={requestLogout} badge={badge} />
+        <Sidebar active={activeNav} go={go} onSearch={() => setQuickFind(true)} onLogout={requestLogout} badge={badge} counts={navCounts} />
       )}
       <main className="main" ref={mainRef}>
         <PullToRefresh onRefresh={data.refresh}>
@@ -202,19 +259,19 @@ function Shell({ session, onLogout }) {
           )}
           {data.error && <p className="error-text">{data.error}</p>}
           {route.name === 'today' && (
-            <TodayView data={data} onOpenPerson={openPerson} onOpenList={openList} onOpenTasks={() => go('tasks')} onOpenActivity={() => go('activity')} onMore={isMobile ? () => setMoreOpen('global') : undefined} onSettings={isMobile ? () => go('settings') : undefined} />
+            <TodayView data={data} onOpenPerson={openPerson} onOpenList={openList} onOpenTasks={() => go('tasks')} onOpenActivity={() => go('activity')} onMore={isMobile ? () => setMoreOpen('global') : undefined} onSettings={isMobile ? () => go('settings') : undefined} onSearch={isMobile ? () => setQuickFind(true) : undefined} />
           )}
           {route.name === 'activity' && (
             <ActivityView data={data} onBack={() => go('today')} onOpenPerson={openPerson} onOpenList={openList} onOpenTasks={() => go('tasks')} />
           )}
           {route.name === 'tasks' && (
-            <TasksView data={data} onAdd={() => setEditingTask('new')} onEdit={(t) => setEditingTask(t)} onOpenProject={openProject} />
+            <TasksView data={data} expandId={route.id} onAdd={() => setEditingTask('new')} onEdit={(t) => setEditingTask(t)} onOpenProject={openProject} onSearch={isMobile ? () => setQuickFind(true) : undefined} />
           )}
           {route.name === 'project' && (
             <ProjectDetail data={data} taskId={route.id} onBack={() => window.history.back()} onEdit={(t) => setEditingTask(t)} onOpenPerson={openPerson} />
           )}
           {route.name === 'lists' && (
-            <ListsView data={data} onOpenList={openList} onAdd={() => setEditingList('new')} />
+            <ListsView data={data} onOpenList={openList} onAdd={() => setEditingList('new')} onSearch={isMobile ? () => setQuickFind(true) : undefined} />
           )}
           {route.name === 'list' && (
             <ListDetail data={data} listId={route.id} onBack={() => go('lists')} onEdit={(l) => setEditingList(l)} />
@@ -242,11 +299,12 @@ function Shell({ session, onLogout }) {
             />
           )}
           {route.name === 'orgs' && (
-            <OrgsView data={data} onEdit={(o) => setEditingOrg(o)} onAdd={() => setEditingOrg('new')} />
+            <OrgsView data={data} openId={route.id} onEdit={(o) => setEditingOrg(o)} onAdd={() => setEditingOrg('new')} />
           )}
           {route.name === 'groups' && (
             <GroupsView
               data={data}
+              openId={route.id}
               onOpenPerson={openPerson}
               onAdd={() => setEditingGroup('new')}
               onEdit={(g) => setEditingGroup(g)}
@@ -264,6 +322,12 @@ function Shell({ session, onLogout }) {
         </div>
         </PullToRefresh>
       </main>
+
+      <Toasts />
+
+      {quickFind && (
+        <QuickFind data={data} onPick={pickQuickFind} onClose={() => setQuickFind(false)} />
+      )}
 
       {isMobile && <MobileNav active={activeNav} adds={adds} badge={badge} />}
       {isMobile && moreOpen && (

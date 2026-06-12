@@ -1,12 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ChevronRight, Plus, CheckSquare } from 'react-feather'
 import { taskBucket, completionsFor, isProject } from '../lib/tasks'
 import { relativeTime } from '../lib/contact'
 import { members, assigneeLabel, normalizeAssignee } from '../lib/household'
+import { byOrder, moveUpdates } from '../lib/order'
 import haptics from '../lib/haptics'
 import PageHeader from './PageHeader'
 import Segmented from './Segmented'
 import TaskRow from './TaskRow'
+import ReorderableList from './ReorderableList'
 
 const BUCKETS = [
   { id: 'overdue', label: 'Overdue' },
@@ -15,12 +17,17 @@ const BUCKETS = [
   { id: 'someday', label: 'Someday' },
 ]
 
-export default function TasksView({ data, onAdd, onEdit, onOpenProject }) {
-  const { tasks, completions, addTask, deleteTask, completeTask } = data
+export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject, onSearch }) {
+  const { tasks, completions, addTask, deleteTask, completeTask, reorderTasks } = data
   const [filter, setFilter] = useState('all')
-  const [expanded, setExpanded] = useState(null)
+  const [expanded, setExpanded] = useState(expandId || null)
   const [showDone, setShowDone] = useState(false)
   const [draftSub, setDraftSub] = useState('')
+
+  // Deep link from Quick Find (#/tasks/<id>): land with that task expanded.
+  useEffect(() => {
+    if (expandId) setExpanded(expandId)
+  }, [expandId])
 
   const filterOptions = [
     { value: 'all', label: 'Everyone' },
@@ -34,7 +41,7 @@ export default function TasksView({ data, onAdd, onEdit, onOpenProject }) {
   }
 
   const topOpen = useMemo(
-    () => tasks.filter((t) => !t.parent_id && !t.completed_at && matches(t)),
+    () => tasks.filter((t) => !t.parent_id && !t.completed_at && matches(t)).sort(byOrder),
     [tasks, filter]
   )
   const done = useMemo(
@@ -47,7 +54,7 @@ export default function TasksView({ data, onAdd, onEdit, onOpenProject }) {
     return g
   }, [topOpen])
 
-  const subtasks = (id) => tasks.filter((t) => t.parent_id === id)
+  const subtasks = (id) => tasks.filter((t) => t.parent_id === id && !t.is_heading)
 
   const toggle = (t) => {
     if (!t.completed_at) haptics.success()
@@ -138,7 +145,7 @@ export default function TasksView({ data, onAdd, onEdit, onOpenProject }) {
 
   return (
     <div>
-      <PageHeader title="Tasks" action={onAdd} actionLabel="New task" />
+      <PageHeader title="Tasks" action={onAdd} actionLabel="New task" onSearch={onSearch} />
 
       <Segmented options={filterOptions} value={filter} onChange={setFilter} />
 
@@ -153,7 +160,11 @@ export default function TasksView({ data, onAdd, onEdit, onOpenProject }) {
           grouped[b.id].length ? (
             <div key={b.id}>
               <div className="section-label">{b.label}</div>
-              <div className="list">{grouped[b.id].map(renderTask)}</div>
+              <ReorderableList
+                items={grouped[b.id]}
+                onMove={(from, to) => reorderTasks(moveUpdates(grouped[b.id], from, to))}
+                renderItem={renderTask}
+              />
             </div>
           ) : null
         )

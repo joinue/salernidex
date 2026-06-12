@@ -1,13 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Users, ChevronRight, Plus } from 'react-feather'
 import { groupMembers, describeGroup } from '../lib/groups'
 import { downloadVcf } from '../lib/vcard'
 import Avatar from './Avatar'
 import PageHeader from './PageHeader'
 
-export default function GroupsView({ data, onOpenPerson, onAdd, onEdit }) {
+export default function GroupsView({ data, openId, onOpenPerson, onAdd, onEdit }) {
   const { groups, people, loading, deleteGroup } = data
-  const [expandedId, setExpandedId] = useState(null)
+  const [expandedId, setExpandedId] = useState(openId || null)
+
+  // Deep link from Quick Find (#/groups/<id>): land with that group expanded.
+  useEffect(() => {
+    if (openId) setExpandedId(openId)
+  }, [openId])
 
   if (loading) return <p className="empty dots">Loading</p>
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Gift, Calendar, ChevronRight, Sun, MoreHorizontal, Settings, MessageCircle, Clock, BellOff, Check } from 'react-feather'
+import { Gift, Calendar, ChevronRight, Sun, MoreHorizontal, Settings, MessageCircle, Clock, BellOff, Check, Search } from 'react-feather'
 import { relativeTime } from '../lib/contact'
 import { buildAttention } from '../lib/reminders'
 import { buildActivityFeed } from '../lib/activity'
@@ -46,7 +46,7 @@ function checkInSub(item) {
 
 const DAY = 86400000
 
-export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks, onOpenActivity, onMore, onSettings }) {
+export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks, onOpenActivity, onMore, onSettings, onSearch }) {
   const { addInteraction, completeTask, snoozeReminder, ownerId } = data
   const [prefs] = useNotificationPrefs(ownerId)
   const [logPerson, setLogPerson] = useState(null)
@@ -102,6 +102,15 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
         secondaryActionIcon={Settings}
         secondaryActionLabel="Settings"
       />
+
+      {/* iOS-style search bar under the large title — opens Quick Find.
+          Keeps the header to two quiet actions instead of squeezing three. */}
+      {onSearch && (
+        <button className="search-bar-btn" onClick={onSearch} aria-label="Quick Find">
+          <Search size={16} />
+          Search
+        </button>
+      )}
 
       {nothing && (
         <div className="empty">

@@ -1,11 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Briefcase, ChevronRight, Plus } from 'react-feather'
 import Avatar from './Avatar'
 import PageHeader from './PageHeader'
 
-export default function OrgsView({ data, onEdit, onAdd }) {
+export default function OrgsView({ data, openId, onEdit, onAdd }) {
   const { orgs, people, loading, deleteOrg } = data
-  const [expandedId, setExpandedId] = useState(null)
+  const [expandedId, setExpandedId] = useState(openId || null)
+
+  // Deep link from Quick Find (#/orgs/<id>): land with that org expanded.
+  useEffect(() => {
+    if (openId) setExpandedId(openId)
+  }, [openId])
 
   if (loading) return <p className="empty dots">Loading</p>
 

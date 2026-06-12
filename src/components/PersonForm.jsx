@@ -3,7 +3,7 @@ import { AlertTriangle } from 'react-feather'
 import Modal from './Modal'
 import TagInput from './TagInput'
 import Avatar from './Avatar'
-import { KEEP_IN_TOUCH_OPTIONS, TIERS } from '../lib/constants'
+import { KEEP_IN_TOUCH_OPTIONS, TIERS, PRIVACY_LABELS } from '../lib/constants'
 import { findDuplicates } from '../lib/duplicates'
 
 const NEW_FAMILY = '__new__'
@@ -190,10 +190,9 @@ export default function PersonForm({ person, orgs, people = [], families = [], e
         <div className="field">
           <label className="label">Privacy</label>
           <select value={form.privacy_level} onChange={set('privacy_level')}>
-            <option value="marc_only">Marc only</option>
-            <option value="shared">Shared</option>
-            <option value="family_shared">Family shared</option>
-            <option value="public">Public</option>
+            {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
           </select>
         </div>
         <div className="field">

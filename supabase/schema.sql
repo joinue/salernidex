@@ -41,7 +41,7 @@ create table public.people (
   family_id     uuid references public.families(id) on delete set null,
   privacy_level privacy_level not null default 'shared',
   notes         text,
-  keep_in_touch_days integer,              -- stay-in-touch cadence in days; null/0 = off
+  keep_in_touch_days integer check (keep_in_touch_days is null or keep_in_touch_days >= 0),  -- cadence in days; null/0 = off
   deleted_at    timestamptz,                -- soft delete: null = active
   created_by    uuid default auth.uid(),
   updated_by    uuid,
@@ -139,7 +139,10 @@ create table public.tasks (
   due_date      date,
   recurrence    jsonb,                              -- null = one-off; RRULE-lite (see lib/recurrence.js)
   parent_id     uuid references public.tasks(id) on delete cascade,  -- subtask of a project
+  constraint no_self_parent check (parent_id <> id),
   is_project    boolean not null default false,     -- explicit project flag (also implied by having subtasks)
+  is_heading    boolean not null default false,     -- Things-style section row inside a project; groups the subtasks that follow it in manual order
+  sort_order    double precision,                   -- manual drag order (fractional ranks, lib/order.js); null = never placed, sorts after ranked rows by created_at
   privacy_level privacy_level not null default 'shared',
   completed_at  timestamptz,                         -- null = open
   created_by    uuid default auth.uid(),
@@ -200,6 +203,7 @@ create table public.list_items (
   list_id     uuid not null references public.lists(id) on delete cascade,
   text        text not null,
   checked_at  timestamptz,                          -- null = not yet got/done
+  sort_order  double precision,                     -- manual drag order (see tasks.sort_order)
   created_by  uuid default auth.uid(),
   created_at  timestamptz not null default now()
 );
@@ -328,16 +332,24 @@ create policy "authenticated full access" on public.relationships
   for all to authenticated using (true) with check (true);
 create policy "authenticated full access" on public.groups
   for all to authenticated using (true) with check (true);
-create policy "authenticated read audit" on public.audit_log
-  for select to authenticated using (true);
+-- audit_log: NO client policies on purpose. The log captures full row
+-- contents; no app surface reads it, and post-multitenancy a blanket read
+-- policy would leak other households' data through the change history.
+-- RLS enabled + zero policies = service-role/support access only.
 
 -- ------------------------------------------------------------
 -- Helpful indexes for search
 -- ------------------------------------------------------------
 create index people_name_idx on public.people using gin (to_tsvector('simple', name));
 create index people_tags_idx on public.people using gin (tags);
+create index people_family_idx on public.people (family_id);
+create index key_dates_person_idx on public.key_dates (person_id);
 create index relationships_a_idx on public.relationships (person_a_id);
 create index relationships_b_idx on public.relationships (person_b_id);
+
+-- One row per pair+type regardless of direction (A knows B == B knows A).
+create unique index relationships_pair_idx on public.relationships
+  (least(person_a_id, person_b_id), greatest(person_a_id, person_b_id), relationship_type);
 create index interactions_person_idx on public.interactions (person_id, occurred_at desc);
 create index tasks_due_idx on public.tasks (due_date) where completed_at is null;
 create index tasks_parent_idx on public.tasks (parent_id);
@@ -374,10 +386,13 @@ alter publication supabase_realtime add table public.list_items;
 -- ============================================================
 
 -- A tenant. join_code lets someone join via a shareable code/link.
+-- 6 random bytes (12 hex chars): join_household() is an open RPC, so the
+-- code IS the credential — keep it unguessable, and regenerate after each
+-- successful join (the app already offers regeneration).
 create table public.households (
   id          uuid primary key default gen_random_uuid(),
   name        text not null default 'Our Household',
-  join_code   text not null unique default encode(gen_random_bytes(4), 'hex'),
+  join_code   text not null unique default encode(gen_random_bytes(6), 'hex'),
   created_by  uuid default auth.uid(),
   created_at  timestamptz not null default now()
 );
@@ -390,10 +405,13 @@ create table public.household_members (
   household_id  uuid not null references public.households(id) on delete cascade,
   user_id       uuid not null references auth.users(id) on delete cascade,
   display_name  text not null default '',
-  role          text not null default 'member',  -- owner | member
+  role          text not null default 'member' check (role in ('owner', 'member')),
   joined_at     timestamptz not null default now(),
   unique (household_id, user_id)
 );
+
+-- "my memberships" lookups (the unique above only serves household-first)
+create index household_members_user_idx on public.household_members (user_id);
 
 -- Membership tests, used by RLS policies. SECURITY DEFINER is what breaks
 -- the recursion: policies on household_members can't subquery
@@ -457,6 +475,9 @@ begin
   return m;
 end $$;
 
+-- The join/create RPCs are the front door — signed-in users only.
+revoke execute on function public.create_household(text, text) from anon;
+
 -- EVERY data table gets `household_id uuid not null references households(id)`
 -- and is scoped by it. (people, organizations, relationships, interactions,
 -- groups, tasks, task_completions, task_links, lists, list_items.) Example:
@@ -468,10 +489,14 @@ end $$;
 --   alter table public.people enable row level security;
 --   drop policy if exists "authenticated full access" on public.people;
 --   create policy "household members" on public.people for all to authenticated
---     using (public.is_member(household_id))
+--     using (public.is_member(household_id)
+--            and (privacy_level <> 'marc_only' or created_by = auth.uid()))
 --     with check (public.is_member(household_id));
 --
--- Repeat for all data tables. Two extra catches when threading household_id:
+-- Repeat for all data tables. The privacy clause (on tables that have
+-- privacy_level: people, organizations, tasks, lists) makes "Private — only
+-- me" rows invisible to other household members AT THE DATABASE — the app
+-- enforces the same rule client-side today (lib/privacy.js). Two extra catches when threading household_id:
 --   - organizations.name is GLOBALLY unique above; two households will both
 --     have "Pima County". Replace it:
 --       alter table public.organizations drop constraint organizations_name_key;
@@ -507,6 +532,8 @@ begin
   returning * into m;
   return m;
 end $$;
+
+revoke execute on function public.join_household(text, text) from anon;
 
 -- Member renames / joins sync live across devices (RLS filters events):
 alter publication supabase_realtime add table public.households;
@@ -550,10 +577,13 @@ create table public.notification_prefs (
   nudges          boolean not null default true,
   dates           boolean not null default true,
   fyi             boolean not null default false,
-  dates_lead_days integer not null default 7,
+  dates_lead_days integer not null default 7 check (dates_lead_days between 1 and 60),
   digest_time     time not null default '08:00',
   updated_at      timestamptz not null default now()
 );
+
+create trigger notification_prefs_touch before update on public.notification_prefs
+  for each row execute function public.touch_updated_at();
 
 -- Web-push subscriptions, one per browser/device a member enabled push on.
 -- endpoint is unique per subscription; a member can hold several (phone,
@@ -567,6 +597,8 @@ create table public.push_subscriptions (
   user_agent  text,                         -- debugging aid ("which device is this?")
   created_at  timestamptz not null default now()
 );
+
+create index push_subscriptions_member_idx on public.push_subscriptions (member_id);
 
 -- Send-dedupe log so the scheduler never pings twice about the same item on
 -- the same day (it runs every 15 min). sent_for is the local calendar date

@@ -1,7 +1,10 @@
 import { Phone, MessageCircle, Mail, Coffee, Edit3 } from 'react-feather'
 
+// 'marc_only' is the legacy enum value; it now means "Private — only me":
+// rows with it are hidden from other household members (lib/privacy.js).
+// The enum value itself gets renamed to 'private' at the go-live migration.
 export const PRIVACY_LABELS = {
-  marc_only: 'Marc only',
+  marc_only: 'Private — only me',
   shared: 'Shared',
   family_shared: 'Family shared',
   public: 'Public',

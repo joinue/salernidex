@@ -4,7 +4,7 @@ import PageHeader from './PageHeader'
 
 // All household lists. Tap one to open it. The chrome (add) is driven by the
 // page-aware FAB on mobile and the header action on desktop.
-export default function ListsView({ data, onOpenList, onAdd }) {
+export default function ListsView({ data, onOpenList, onAdd, onSearch }) {
   const { lists, listItems } = data
 
   const counts = useMemo(() => {
@@ -15,7 +15,7 @@ export default function ListsView({ data, onOpenList, onAdd }) {
 
   return (
     <div>
-      <PageHeader title="Lists" action={onAdd} actionLabel="New list" />
+      <PageHeader title="Lists" action={onAdd} actionLabel="New list" onSearch={onSearch} />
       {lists.length === 0 ? (
         <div className="empty">
           <ShoppingCart size={28} className="empty-icon" />

@@ -4,21 +4,30 @@ import { completionsFor, dueLabel, dueState } from '../lib/tasks'
 import { relativeTime } from '../lib/contact'
 import { assigneeLabel, normalizeAssignee } from '../lib/household'
 import { describeRecurrence } from '../lib/recurrence'
+import { byOrder, moveUpdates } from '../lib/order'
 import haptics from '../lib/haptics'
 import Avatar from './Avatar'
 import TaskRow from './TaskRow'
+import ReorderableList from './ReorderableList'
 import LinkEntityForm from './LinkEntityForm'
 
 // Full-page view for a project (a task flagged is_project and/or with
 // subtasks). Adds two things a plain task doesn't get: linked people/orgs
 // (the rolodex bridge) and a roomy place to manage subtasks.
+//
+// Subtasks can be grouped Things-style: a heading is just a subtask row with
+// is_heading set, and the tasks that follow it (in manual order) sit under it.
+// Dragging rows across a heading re-files them; deleting a heading merges its
+// tasks into the section above.
 export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPerson }) {
-  const { tasks, completions, taskLinks, people, orgs, addTask, deleteTask, completeTask, addTaskLink, deleteTaskLink } = data
+  const { tasks, completions, taskLinks, people, orgs, addTask, deleteTask, completeTask, reorderTasks, addTaskLink, deleteTaskLink } = data
   const task = tasks.find((t) => t.id === taskId)
   const [draftSub, setDraftSub] = useState('')
   const [linking, setLinking] = useState(false)
 
-  const subs = useMemo(() => tasks.filter((t) => t.parent_id === taskId), [tasks, taskId])
+  // headings + tasks interleaved, in manual order
+  const subs = useMemo(() => tasks.filter((t) => t.parent_id === taskId).sort(byOrder), [tasks, taskId])
+  const realSubs = useMemo(() => subs.filter((s) => !s.is_heading), [subs])
 
   const links = useMemo(() => {
     const peopleById = new Map(people.map((p) => [p.id, p]))
@@ -44,7 +53,7 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
     )
   }
 
-  const progress = subs.length ? { done: subs.filter((s) => s.completed_at).length, total: subs.length } : null
+  const progress = realSubs.length ? { done: realSubs.filter((s) => s.completed_at).length, total: realSubs.length } : null
   const history = completionsFor(task.id, completions)
   const dl = dueLabel(task.due_date)
   const ds = dueState(task.due_date)
@@ -54,10 +63,14 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
     completeTask(t, !t.completed_at)
   }
 
-  const addSub = () => {
+  const addSub = (asHeading = false) => {
     const title = draftSub.trim()
     if (!title) return
-    addTask({ title, parent_id: task.id, assignee: task.assignee, privacy_level: task.privacy_level })
+    addTask(
+      asHeading
+        ? { title, parent_id: task.id, is_heading: true, privacy_level: task.privacy_level }
+        : { title, parent_id: task.id, assignee: task.assignee, privacy_level: task.privacy_level }
+    )
     setDraftSub('')
   }
 
@@ -106,14 +119,30 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
       <div className="section-label">Subtasks</div>
       <div className="list">
         {subs.length === 0 && <p className="empty-inline">No subtasks yet — break the project down below.</p>}
-        {subs.map((s) => (
-          <div className="list-row sub" key={s.id}>
-            <TaskRow task={s} onToggle={toggle} size="sm" />
-            <button className="icon-btn danger" onClick={() => deleteTask(s.id)} aria-label="Delete subtask">
-              <X size={15} />
-            </button>
-          </div>
-        ))}
+        {subs.length > 0 && (
+          <ReorderableList
+            className="reorder-plain"
+            items={subs}
+            onMove={(from, to) => reorderTasks(moveUpdates(subs, from, to))}
+            renderItem={(s) =>
+              s.is_heading ? (
+                <div className="heading-row">
+                  <span className="heading-title">{s.title}</span>
+                  <button className="icon-btn danger" onClick={() => deleteTask(s.id)} aria-label="Delete heading">
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <div className="list-row sub">
+                  <TaskRow task={s} onToggle={toggle} size="sm" />
+                  <button className="icon-btn danger" onClick={() => deleteTask(s.id)} aria-label="Delete subtask">
+                    <X size={15} />
+                  </button>
+                </div>
+              )
+            }
+          />
+        )}
         <div className="subtask-add">
           <input
             value={draftSub}
@@ -126,7 +155,10 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
               }
             }}
           />
-          <button className="text-btn" onClick={addSub}>Add</button>
+          <button className="text-btn" onClick={() => addSub()}>Add</button>
+          <button className="text-btn quiet" onClick={() => addSub(true)} title="Group the subtasks that follow it">
+            Heading
+          </button>
         </div>
       </div>
 

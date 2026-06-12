@@ -64,8 +64,9 @@ export function lastCompletion(taskId, completions = []) {
 }
 
 // Subtask progress for a project, or null if it has no children.
+// Heading rows are structure, not work — they never count.
 export function projectProgress(taskId, all) {
-  const children = all.filter((t) => t.parent_id === taskId)
+  const children = all.filter((t) => t.parent_id === taskId && !t.is_heading)
   if (!children.length) return null
   return { done: children.filter((t) => t.completed_at).length, total: children.length }
 }
