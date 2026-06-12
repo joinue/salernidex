@@ -17,7 +17,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - **Design system** — iOS-native primitives (Avatar, grouped lists, Segmented, large titles, frosted bars), light/dark.
 - **CRM heart** — interactions (touchpoints), keep-in-touch cadence, "last contacted" / overdue signals.
 - **Portability** — full round-trippable JSON backup + restore; CSV people import/export. (No vendor lock-in.)
-- **Today hub** — greeting, To-do (due tasks), Needs-a-nudge, Birthdays, Recent activity.
+- **Today hub** — greeting, To-do (due tasks), Birthdays, Recent activity. (Needs-a-nudge moved to Phase 6 with the rest of proactive reminders.)
 - **Tasks** — one model for to-dos + recurring chores + projects; **recurrence engine** (RRULE-lite: the 20th, first Monday, etc.); **completion history** (who/when, for accountability).
 - **Lists** — shared household lists (groceries/etc.), rapid add, check-off, "Got it" section.
 - **Gesture groundwork** — `useDrag`/`useLongPress`, haptics, SwipeRow, drag-to-dismiss sheets, pull-to-refresh, long-press action sheets.

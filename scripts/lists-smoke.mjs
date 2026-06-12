@@ -57,8 +57,8 @@ try {
   await m.waitForSelector('.tabbar')
   const tabs = await m.$$eval('.tab span', (els) => els.map((e) => e.textContent.trim()))
   console.log('mobile tabs:', tabs.join(' · '))
-  // More gear on Today header
-  await m.locator('.header-action').click()
+  // More button on Today header (sits next to the Settings gear)
+  await m.locator('.header-action[aria-label="More"]').click()
   await m.waitForSelector('.sheet-item')
   const more = await m.$$eval('.sheet-item', (els) => els.map((e) => e.textContent.trim()))
   console.log('More sheet:', more.join(' | '))

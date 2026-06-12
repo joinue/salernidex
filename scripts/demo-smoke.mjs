@@ -23,15 +23,16 @@ async function run(label, viewport, mobile) {
   await page.waitForTimeout(250)
   await page.screenshot({ path: `${shots}/${label}-1-today.png` })
 
-  // 2. Log a touchpoint straight from Today (the Check button in "Needs a nudge")
-  const before = (await page.$$('.list .row-title')).length
-  await page.locator('.icon-btn[aria-label^="Log touchpoint"]').first().click()
+  // 2. Log a touchpoint from a person page (the "Log a touchpoint" quick-chips)
+  await page.goto('http://localhost:5173/#/person/p-elena')
+  await page.waitForSelector('.quick-chip')
+  await page.locator('.quick-chip').first().click()
   await page.waitForSelector('.modal-title, .sheet')
-  await page.locator('textarea').fill('Logged from Today')
+  await page.locator('textarea').fill('Logged from person page')
   await page.getByRole('button', { name: 'Log it' }).click()
   await page.waitForTimeout(300)
-  console.log(`[${label}] logged from Today OK`)
-  await page.screenshot({ path: `${shots}/${label}-2-today-after-log.png` })
+  console.log(`[${label}] logged touchpoint OK`)
+  await page.screenshot({ path: `${shots}/${label}-2-after-log.png` })
 
   // 2b. Long-press a Today row → action sheet (touch only)
   if (mobile) {
@@ -55,8 +56,8 @@ async function run(label, viewport, mobile) {
     await page.waitForTimeout(200)
   }
 
-  // 3. Search tab
-  await page.goto('http://localhost:5173/#/search')
+  // 3. People tab
+  await page.goto('http://localhost:5173/#/people')
   await page.waitForSelector('.search-input')
   console.log(`[${label}] search results: ${(await page.$$('.list .row-title')).length}`)
   await page.waitForTimeout(200)
