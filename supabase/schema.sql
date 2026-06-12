@@ -1,7 +1,12 @@
 -- ============================================================
 -- SALERNIDEX — Supabase schema
 -- Run this in the Supabase SQL Editor (Dashboard -> SQL Editor)
+-- as ONE migration at go-live, top to bottom.
 -- ============================================================
+
+-- gen_random_bytes (households.join_code) lives in pgcrypto. Usually enabled
+-- on Supabase, but don't bet a migration on "usually".
+create extension if not exists pgcrypto with schema extensions;
 
 -- Privacy enum
 create type privacy_level as enum ('marc_only', 'shared', 'family_shared', 'public');
@@ -117,17 +122,20 @@ create table public.groups (
 
 -- ------------------------------------------------------------
 -- tasks (one object covers to-dos, recurring chores, and projects)
---   - recurring chore: recur_days > 0 (rolls forward on completion)
+--   - recurring chore: recurrence jsonb set (RRULE-lite; rolls forward
+--     on completion — see lib/recurrence.js)
 --   - project: a task with subtasks (children via parent_id) and/or
 --     is_project = true; projects get the richer ProjectDetail page and can
 --     have people/orgs attached via task_links (e.g. a contractor)
---   - assignee: which household member ('either' | 'me' | 'partner')
+--   - assignee: a household_member id or 'anyone' (legacy demo labels
+--     'either|me|partner' are mapped on read; becomes a uuid FK at the
+--     multitenancy migration below)
 -- ------------------------------------------------------------
 create table public.tasks (
   id            uuid primary key default gen_random_uuid(),
   title         text not null,
   notes         text,
-  assignee      text not null default 'either',     -- either | me | partner
+  assignee      text not null default 'anyone',     -- member id | 'anyone'
   due_date      date,
   recurrence    jsonb,                              -- null = one-off; RRULE-lite (see lib/recurrence.js)
   parent_id     uuid references public.tasks(id) on delete cascade,  -- subtask of a project
@@ -149,7 +157,7 @@ create table public.task_completions (
   id           uuid primary key default gen_random_uuid(),
   task_id      uuid not null references public.tasks(id) on delete cascade,
   completed_at timestamptz not null default now(),
-  completed_by text,                              -- me | partner | null (either/unknown)
+  completed_by text,                              -- member id | null (unknown)
   created_at   timestamptz not null default now()
 );
 
@@ -213,7 +221,7 @@ create table public.audit_log (
 -- updated_at maintenance
 -- ------------------------------------------------------------
 create or replace function public.touch_updated_at()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql set search_path = public as $$
 begin
   new.updated_at = now();
   if to_jsonb(new) ? 'updated_by' then
@@ -238,8 +246,10 @@ create trigger lists_touch before update on public.lists
 -- ------------------------------------------------------------
 -- audit trigger
 -- ------------------------------------------------------------
+-- security definer (writes bypass audit_log's read-only RLS); search_path is
+-- pinned, as it must be on every definer function.
 create or replace function public.write_audit()
-returns trigger language plpgsql security definer as $$
+returns trigger language plpgsql security definer set search_path = public as $$
 begin
   insert into public.audit_log (user_id, action, table_name, record_id, changes)
   values (
@@ -257,6 +267,10 @@ begin
 end $$;
 
 create trigger people_audit after insert or update or delete on public.people
+  for each row execute function public.write_audit();
+create trigger families_audit after insert or update or delete on public.families
+  for each row execute function public.write_audit();
+create trigger key_dates_audit after insert or update or delete on public.key_dates
   for each row execute function public.write_audit();
 create trigger interactions_audit after insert or update or delete on public.interactions
   for each row execute function public.write_audit();
@@ -381,14 +395,67 @@ create table public.household_members (
   unique (household_id, user_id)
 );
 
--- Membership test, used by every table's RLS policy.
+-- Membership tests, used by RLS policies. SECURITY DEFINER is what breaks
+-- the recursion: policies on household_members can't subquery
+-- household_members directly (infinite RLS recursion), but a definer
+-- function reads it as the owner, bypassing RLS. search_path pinned.
 create or replace function public.is_member(hid uuid)
-returns boolean language sql security definer stable as $$
+returns boolean language sql security definer stable set search_path = public as $$
   select exists (
     select 1 from public.household_members m
     where m.household_id = hid and m.user_id = auth.uid()
   );
 $$;
+
+create or replace function public.is_owner(hid uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from public.household_members m
+    where m.household_id = hid and m.user_id = auth.uid() and m.role = 'owner'
+  );
+$$;
+
+-- RLS for the tenancy tables themselves. Without this, ANY signed-in user
+-- could read every household's join_code and membership list.
+alter table public.households enable row level security;
+alter table public.household_members enable row level security;
+
+-- households: members only. No insert/delete policy — creation goes through
+-- create_household() below (a bare insert would strand the creator: they
+-- aren't a member yet, so they couldn't even select the row back); deleting
+-- a household is a service-role/support operation.
+create policy "members read" on public.households
+  for select to authenticated using (public.is_member(id));
+create policy "members update" on public.households
+  for update to authenticated using (public.is_member(id)) with check (public.is_member(id));
+
+-- household_members: co-members see each other; you can rename yourself or
+-- leave; owners can rename/remove anyone in their household. Joining goes
+-- through join_household() below.
+create policy "co-members read" on public.household_members
+  for select to authenticated using (public.is_member(household_id));
+create policy "self or owner update" on public.household_members
+  for update to authenticated
+  using (user_id = auth.uid() or public.is_owner(household_id))
+  with check (public.is_member(household_id));
+create policy "self leave or owner remove" on public.household_members
+  for delete to authenticated
+  using (user_id = auth.uid() or public.is_owner(household_id));
+
+-- Create a household and its owner membership atomically (RLS-safe).
+create or replace function public.create_household(household_name text default 'Our Household', member_name text default '')
+returns public.household_members language plpgsql security definer set search_path = public as $$
+declare h public.households; m public.household_members;
+begin
+  if auth.uid() is null then raise exception 'Sign in first'; end if;
+  insert into public.households (name, created_by)
+  values (coalesce(nullif(household_name, ''), 'Our Household'), auth.uid())
+  returning * into h;
+  insert into public.household_members (household_id, user_id, display_name, role)
+  values (h.id, auth.uid(), coalesce(member_name, ''), 'owner')
+  returning * into m;
+  return m;
+end $$;
 
 -- EVERY data table gets `household_id uuid not null references households(id)`
 -- and is scoped by it. (people, organizations, relationships, interactions,
@@ -404,24 +471,32 @@ $$;
 --     using (public.is_member(household_id))
 --     with check (public.is_member(household_id));
 --
--- Repeat for all data tables. households: members can select/update their own
--- (owner to update); household_members: members can see co-members.
+-- Repeat for all data tables. Two extra catches when threading household_id:
+--   - organizations.name is GLOBALLY unique above; two households will both
+--     have "Pima County". Replace it:
+--       alter table public.organizations drop constraint organizations_name_key;
+--       alter table public.organizations add unique (household_id, name);
+--   - demo data restored from a JSON backup carries localStorage member ids
+--     ('m-1', 'm-2') in tasks.assignee, task_completions.completed_by, and
+--     reminder_snoozes.member_id — map them to the real household_members
+--     uuids during the restore, BEFORE the column conversions below.
 
 -- assignee / completed_by become household_member references instead of the
--- 'either|me|partner' text used in the demo:
+-- label text used in the demo (USING must cast — bare `using null` is a
+-- syntax error):
 --   alter table public.tasks
 --     alter column assignee drop default,
---     alter column assignee type uuid using null,   -- null = "anyone"
+--     alter column assignee type uuid using nullif(assignee, 'anyone')::uuid,  -- null = "anyone"
 --     add constraint tasks_assignee_fk
 --       foreign key (assignee) references public.household_members(id) on delete set null;
 --   alter table public.task_completions
---     alter column completed_by type uuid using null,
+--     alter column completed_by type uuid using completed_by::uuid,
 --     add constraint completions_by_fk
 --       foreign key (completed_by) references public.household_members(id) on delete set null;
 
 -- Join a household by code (run as the signed-in user). Returns the membership.
 create or replace function public.join_household(code text, name text default '')
-returns public.household_members language plpgsql security definer as $$
+returns public.household_members language plpgsql security definer set search_path = public as $$
 declare h public.households; m public.household_members;
 begin
   select * into h from public.households where join_code = code;
@@ -432,6 +507,10 @@ begin
   returning * into m;
   return m;
 end $$;
+
+-- Member renames / joins sync live across devices (RLS filters events):
+alter publication supabase_realtime add table public.households;
+alter publication supabase_realtime add table public.household_members;
 
 -- Note: the privacy_level enum value 'marc_only' should be renamed to a generic
 -- 'private' as part of this migration (it's couple-specific). Also consider a
@@ -510,7 +589,7 @@ alter table public.push_subscriptions enable row level security;
 alter table public.notification_log enable row level security;
 
 create or replace function public.is_own_member(mid uuid)
-returns boolean language sql security definer stable as $$
+returns boolean language sql security definer stable set search_path = public as $$
   select exists (
     select 1 from public.household_members m
     where m.id = mid and m.user_id = auth.uid()

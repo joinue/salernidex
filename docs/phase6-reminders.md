@@ -124,7 +124,11 @@ in the repo; only deployment against a live project remains:
 
 ### Go-live runbook (the only remaining 6b work)
 
-1. Apply the multitenancy + Phase 6 sections of `supabase/schema.sql`.
+1. Apply `supabase/schema.sql` top-to-bottom as one migration. Restoring demo
+   data afterwards? Map the localStorage member ids (`m-1`, `m-2`) in
+   `tasks.assignee`, `task_completions.completed_by`, and
+   `reminder_snoozes.member_id` to the real `household_members` uuids
+   **before** running the commented assignee/completed_by column conversions.
 2. `npx web-push generate-vapid-keys` → set `VITE_VAPID_PUBLIC_KEY` in the
    deploy env; private key to function secrets.
 3. `supabase functions deploy send-reminders`
