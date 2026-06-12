@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Users, ChevronRight, Plus } from 'react-feather'
 import { groupMembers, describeGroup } from '../lib/groups'
+import { downloadVcf } from '../lib/vcard'
 import Avatar from './Avatar'
 import PageHeader from './PageHeader'
 
@@ -61,6 +62,11 @@ export default function GroupsView({ data, onOpenPerson, onAdd, onEdit }) {
                     )}
                     <div style={{ display: 'flex', gap: 16 }}>
                       <button className="text-btn" onClick={() => onEdit(group)}>Edit rules</button>
+                      {members.length > 0 && (
+                        <button className="text-btn" onClick={() => downloadVcf(group.name, members)}>
+                          Export contacts
+                        </button>
+                      )}
                       <button
                         className="text-btn danger"
                         onClick={() => window.confirm(`Delete group "${group.name}"? (People are not affected.)`) && deleteGroup(group.id)}

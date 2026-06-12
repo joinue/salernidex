@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { ArrowLeft, Mail, Phone, MapPin, Gift, Edit2, UserPlus, Archive, Trash2, RotateCcw, Lock, X, Bell, Calendar, Plus, Home } from 'react-feather'
+import { ArrowLeft, Mail, Phone, MapPin, Gift, Edit2, UserPlus, Archive, Trash2, RotateCcw, Lock, X, Bell, Calendar, Plus, Home, Download } from 'react-feather'
+import { downloadVcf } from '../lib/vcard'
 import { PRIVACY_LABELS, KEEP_IN_TOUCH_LABELS, TIER_LABELS, INTERACTION_TYPES, INTERACTION_BY_ID, formatDate } from '../lib/constants'
 import { lastInteraction, relativeTime } from '../lib/contact'
 import { memberName } from '../lib/household'
@@ -87,6 +88,13 @@ export default function PersonPage({ data, personId, onOpenPerson, onBack, onEdi
           </button>
           <button className="pill-btn neutral" onClick={() => onConnect(person)}>
             <UserPlus size={15} /> Connect
+          </button>
+          <button
+            className="pill-btn neutral"
+            onClick={() => downloadVcf(person.name, [person])}
+            title="Download a .vcf for your phone's address book"
+          >
+            <Download size={15} /> Save contact
           </button>
           {person.deleted_at ? (
             <>

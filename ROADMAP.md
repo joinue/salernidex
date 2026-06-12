@@ -29,6 +29,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - **Polish (ongoing)** — logo mark, ConfirmDialog (iOS-style confirms), live duplicate detection in the add-person form (`lib/duplicates.js`).
 - **Phase 7 — richer relationships** — tiers (inner circle / close / network: form picker, profile badge, People filter + "closest first" sort), contact **family units** ("The Parks": assign or create inline in the form, bidirectional family section on profiles, distinct from the household/tenant model), and **key dates** beyond birthday (annual or one-off, "N years" counting, add/remove on the profile) merged with birthdays into Today's **Dates** section. All in backup v3 + CSV (tier).
 - **Phase 6a — in-app reminders** — the attention engine (`lib/reminders.js`, one pure function feeding every surface), Today's **Check in** section (warm copy — "It's been a while", never salesy/CRM language per Marc), per-member swipe-to-snooze on all attention rows (3d / 1w / never via action sheet, `reminder_snoozes` in backup v4), badges on the Today tab/sidebar + app icon (Badging API), and Settings → Notifications (per-member category toggles, FYIs off by default, date lead-time picker). Push delivery is 6b.
+- **Phase 8a — vCard export** (`lib/vcard.js`): "Save contact" on every profile, per-group "Export contacts", and an all-people .vcf in Import/Export — vCard 3.0 with stable UIDs (`salernidex-<id>`, so re-imports update rather than duplicate, and CardDAV-ready for 8b). Imports straight into iPhone/Google contacts.
 
 ### 🟡 Partial
 - **Reminders + notifications** — in-app layer (6a) done; **web-push delivery** (6b) waits on Supabase go-live.
@@ -36,7 +37,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 
 ### ⬜ Remaining
 - **Phase 6b — push delivery**: **code-complete, deploy-only.** Client half shipped and tested (service worker, Settings enable flow, real subscriptions, local test notifications); the send-reminders Edge Function is fully implemented (server-side attention port, morning digest, day-of pings, dedupe, dead-sub pruning) but unexercised against a live project. Remaining work = the 7-step go-live runbook in `docs/phase6-reminders.md` (apply schema, fresh VAPID keys, deploy, cron, enable on phones).
-- **Phase 8 — Contact bridge**: vCard export → CardDAV, so data can flow back to the phone's address book (mitigates "phone gravity").
+- **Phase 8b — CardDAV sync**: live address-book sync (needs a CardDAV server — weigh whether recurring vCard exports already cover the value before building this).
 - **Multitenancy go-live**: real signup/login UI, join-by-code screen, household switcher, thread `household_id` into every insert. (Activates when Supabase is wired.)
 - **Final polish + branding pass.**
 
@@ -57,4 +58,4 @@ node scripts/tasks-smoke.mjs   # + lists-smoke.mjs / demo-smoke.mjs (Playwright,
 ```
 
 ## Recommended next
-**Phase 6 (reminders + notifications)** — Today now surfaces dates and due tasks; the natural next step is making the app proactive (in-app nudge layer for keep-in-touch cadence + key dates, then web-push on the installed PWA). Alternative: **Phase 8 (vCard/CardDAV bridge)**.
+**Go-live.** The demo-buildable backlog is done (phases 1–8a). Everything left — push delivery, per-user accounts, join-by-code, the household actually using it from phones — is parked behind wiring Supabase: apply the schema, real signup/login, thread `household_id` into inserts, deploy send-reminders per the runbook in `docs/phase6-reminders.md`. Migration path for demo data: JSON backup export → restore into live.

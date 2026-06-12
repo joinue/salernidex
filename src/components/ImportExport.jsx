@@ -5,6 +5,7 @@ import PageHeader from './PageHeader'
 import Segmented from './Segmented'
 import { memberNames, setMemberNames } from '../lib/household'
 import { getAllPrefs, setAllPrefs } from '../lib/notifyPrefs'
+import { downloadVcf } from '../lib/vcard'
 import { findDuplicates } from '../lib/duplicates'
 
 // Bump when the backup shape changes so future imports can migrate if needed.
@@ -247,6 +248,20 @@ export default function ImportExport({ data }) {
         </button>
       </div>
       <input ref={jsonRef} type="file" accept=".json,application/json" onChange={onBackupFile} style={{ display: 'none' }} />
+
+      <div className="section-label">Phone contacts</div>
+      <div className="list">
+        <button className="list-row" onClick={() => downloadVcf('salernidex-contacts', active)}>
+          <span className="activity-icon"><Download size={16} /></span>
+          <div className="row-body">
+            <div className="row-title">Export vCard (.vcf)</div>
+            <div className="row-sub">
+              All {active.length} active {active.length === 1 ? 'person' : 'people'} — imports straight into iPhone or Google contacts.
+            </div>
+          </div>
+          <Download size={18} className="row-chevron" />
+        </button>
+      </div>
 
       <div className="section-label">Spreadsheet (people)</div>
       <div className="list">
