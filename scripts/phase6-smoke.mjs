@@ -33,8 +33,15 @@ async function run(label, viewport, mobile) {
   await page.waitForTimeout(250)
   await page.screenshot({ path: `${shots}/${label}-p6-today.png` })
 
-  // 3. Quick check-in from the row logs a touchpoint
-  await page.locator('.icon-btn[aria-label^="Check in with"]').first().click()
+  // 3. Quick check-in from the row logs a touchpoint. Touch: the inline
+  //    button; desktop: the hover cluster (inline is hidden there).
+  if (mobile) {
+    await page.locator('.icon-btn[aria-label^="Check in with"]').first().click()
+  } else {
+    const row = page.locator('.swipe-wrap', { has: page.locator('[aria-label^="Check in with"]') }).first()
+    await row.hover()
+    await row.locator('.row-hover-actions [aria-label="Check in"]').click()
+  }
   await page.waitForSelector('.modal-title, .sheet')
   await page.locator('textarea').fill('Caught up — all good')
   await page.getByRole('button', { name: 'Log it' }).click()
@@ -56,6 +63,19 @@ async function run(label, viewport, mobile) {
   const afterRows = (await page.$$('.list .list-row')).length
   console.log(`[${label}] snooze hides a row: ${afterRows < beforeRows} (${beforeRows} → ${afterRows})`)
   await page.screenshot({ path: `${shots}/${label}-p6-after-snooze.png` })
+
+  // 4b. Desktop: actions surface on hover (no mouse-dragging), and Clear
+  //     quiets a check-in for a cadence cycle without logging anything.
+  if (!mobile) {
+    const interactionsBefore = await page.$$eval('.activity-row', (els) => els.length)
+    const row = page.locator('.swipe-wrap', { has: page.locator('[aria-label^="Check in with"]') }).first()
+    await row.hover()
+    await row.locator('.row-hover-actions [aria-label="Clear"]').click()
+    await page.waitForTimeout(350)
+    const afterClear = (await page.$$('.list .list-row')).length
+    const interactionsAfter = await page.$$eval('.activity-row', (els) => els.length)
+    console.log(`[${label}] hover-Clear hides a check-in: ${afterClear < afterRows} (${afterRows} → ${afterClear}); no touchpoint logged: ${interactionsAfter === interactionsBefore}`)
+  }
 
   // 5. Settings: toggling Check-ins off empties the section
   await page.goto('http://localhost:5173/#/settings')

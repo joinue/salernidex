@@ -941,20 +941,43 @@ select {
   background: var(--text-2);
 }
 
-/* On hover-capable devices, reveal a compact action affordance instead */
+/* On hover-capable devices, swipe actions surface as a compact icon cluster
+   pinned to the row's right edge instead (rendered by SwipeRow). The
+   surface-colored glow masks whatever sits underneath it. */
 @media (hover: hover) {
   .row-hover-actions {
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    z-index: 2;
     display: flex;
     gap: 2px;
+    padding: 3px;
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: 0 0 10px 8px var(--surface);
     opacity: 0;
+    pointer-events: none;
     transition: opacity 120ms ease;
   }
+  .swipe-wrap:hover .row-hover-actions,
   .list-row:hover .row-hover-actions {
     opacity: 1;
+    pointer-events: auto;
   }
 }
 @media (hover: none) {
   .row-hover-actions {
+    display: none;
+  }
+}
+
+/* Touch-only quick buttons inside rows: redundant with (and covered by) the
+   hover cluster on fine-pointer devices. (.icon-btn.touch-quick out-ranks
+   .icon-btn's display:flex declared later.) */
+@media (hover: hover) {
+  .icon-btn.touch-quick {
     display: none;
   }
 }

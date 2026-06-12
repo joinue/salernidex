@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Gift, Calendar, ChevronRight, Sun, MoreHorizontal, Settings, MessageCircle, Clock, BellOff } from 'react-feather'
+import { Gift, Calendar, ChevronRight, Sun, MoreHorizontal, Settings, MessageCircle, Clock, BellOff, Check } from 'react-feather'
 import { relativeTime } from '../lib/contact'
 import { buildAttention } from '../lib/reminders'
 import { buildActivityFeed } from '../lib/activity'
@@ -76,6 +76,14 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
   // Swipe action: "Later" → sheet with gentle snooze choices.
   const later = (item) => ({ label: 'Later', icon: Clock, onClick: () => setLaterItem(item) })
 
+  // "We're caught up, nothing worth logging" — quiets the check-in for one
+  // full cadence cycle without inventing a touchpoint.
+  const clearCheckIn = (item) => {
+    const days = item.person.keep_in_touch_days || 30
+    haptics.light()
+    snoozeReminder({ kind: 'nudge', target_key: item.key, until: new Date(Date.now() + days * DAY).toISOString() })
+  }
+
   const snoozeChoices = laterItem && [
     { label: 'Remind me in 3 days', icon: Clock, onClick: () => snoozeReminder({ kind: laterItem.kind, target_key: laterItem.key, until: new Date(Date.now() + 3 * DAY).toISOString() }) },
     { label: 'Remind me next week', icon: Clock, onClick: () => snoozeReminder({ kind: laterItem.kind, target_key: laterItem.key, until: new Date(Date.now() + 7 * DAY).toISOString() }) },
@@ -126,6 +134,7 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
                 key={item.key}
                 actions={[
                   { label: 'Check in', icon: MessageCircle, onClick: () => setLogPerson(item.person) },
+                  { label: 'Clear', icon: Check, variant: 'neutral', onClick: () => clearCheckIn(item) },
                   later(item),
                 ]}
                 onClick={() => onOpenPerson(item.person.id)}
@@ -139,7 +148,7 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
                   </div>
                   <div className="row-meta">
                     <button
-                      className="icon-btn accent"
+                      className="icon-btn accent touch-quick"
                       aria-label={`Check in with ${item.person.name}`}
                       onClick={(e) => {
                         e.stopPropagation()

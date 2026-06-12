@@ -4,11 +4,16 @@ import haptics from '../lib/haptics'
 
 // iOS swipe-to-reveal row, built on the shared useDrag pipeline. Swipe left to
 // expose trailing actions; flick respects velocity; opening one row auto-closes
-// any other open row. On non-touch devices the actions surface on hover (CSS).
-// `onLongPress` (optional) fires a press-and-hold without a separate listener.
-// A tap that didn't drag falls through to `onClick`.
+// any other open row. `onLongPress` (optional) fires a press-and-hold without a
+// separate listener. A tap that didn't drag falls through to `onClick`.
+//
+// Mouse users never discover sideways-dragging — on fine-pointer devices the
+// same actions surface as a compact icon cluster on hover instead, and drag
+// handling is disabled entirely so rows can't be smeared around by accident.
 const CLOSE_EVENT = 'swiperow-close-others'
 let nextId = 0
+
+const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches
 
 export default function SwipeRow({ actions = [], onClick, onLongPress, children }) {
   const idRef = useRef(++nextId)
@@ -101,10 +106,28 @@ export default function SwipeRow({ actions = [], onClick, onLongPress, children 
           transform: `translateX(${offset}px)`,
           transition: dragging ? 'none' : 'transform 280ms cubic-bezier(0.32,0.72,0,1)',
         }}
-        {...handlers}
+        {...(finePointer ? {} : handlers)}
         onClick={handleClick}
       >
         {children}
+        {finePointer && actions.length > 0 && (
+          <div className="row-hover-actions">
+            {actions.map((a) => (
+              <button
+                key={a.label}
+                className={`icon-btn ${a.variant || ''}`}
+                title={a.label}
+                aria-label={a.label}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  a.onClick()
+                }}
+              >
+                {a.icon && <a.icon size={16} />}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
