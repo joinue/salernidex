@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { ChevronRight, DownloadCloud, Plus, X, Check, Copy, LogOut } from 'react-feather'
+import { ChevronRight, DownloadCloud, Plus, X, Check, Copy, LogOut, Bell } from 'react-feather'
 import PageHeader from './PageHeader'
 import Segmented from './Segmented'
 import Avatar from './Avatar'
+import { useNotificationPrefs } from '../hooks/useNotificationPrefs'
 import {
   getHousehold,
   members as getMembers,
@@ -21,6 +22,33 @@ const THEME_OPTIONS = [
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
 ]
+
+const LEAD_OPTIONS = [
+  { value: 3, label: '3 days' },
+  { value: 7, label: '1 week' },
+  { value: 14, label: '2 weeks' },
+]
+
+function Toggle({ label, sub, on, onChange }) {
+  return (
+    <div className="value-row">
+      <div className="row-body">
+        <div className="row-title" style={{ fontSize: 15 }}>{label}</div>
+        {sub && <div className="row-sub">{sub}</div>}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label={label}
+        className={`switch ${on ? 'on' : ''}`}
+        onClick={() => onChange(!on)}
+      >
+        <span className="knob" />
+      </button>
+    </div>
+  )
+}
 
 function applyTheme(t) {
   if (t === 'system') delete document.documentElement.dataset.theme
@@ -42,6 +70,7 @@ export default function SettingsView({ go }) {
   const [draft, setDraft] = useState('')
   const [copied, setCopied] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('salernidex-theme') || 'system')
+  const [prefs, updatePrefs] = useNotificationPrefs(meId)
 
   const saveName = () => {
     setHouseholdName(name.trim() || 'Our Household')
@@ -126,6 +155,53 @@ export default function SettingsView({ go }) {
 
       <div className="section-label">Appearance</div>
       <Segmented options={THEME_OPTIONS} value={theme} onChange={(t) => { setTheme(t); applyTheme(t) }} />
+
+      <div className="section-label">Notifications</div>
+      <p className="muted" style={{ fontSize: 13, margin: '0 4px 10px' }}>
+        What shows in Today's sections and the badge. Yours alone — other members set their own.
+      </p>
+      <div className="list">
+        <Toggle
+          label="Tasks"
+          sub="Chores and to-dos that are due or overdue"
+          on={prefs.tasks}
+          onChange={(v) => updatePrefs({ tasks: v })}
+        />
+        <Toggle
+          label="Check-ins"
+          sub="People you haven't caught up with in a while"
+          on={prefs.nudges}
+          onChange={(v) => updatePrefs({ nudges: v })}
+        />
+        <Toggle
+          label="Birthdays & key dates"
+          on={prefs.dates}
+          onChange={(v) => updatePrefs({ dates: v })}
+        />
+        <Toggle
+          label="Household activity"
+          sub="What others did — included once notifications arrive"
+          on={prefs.fyi}
+          onChange={(v) => updatePrefs({ fyi: v })}
+        />
+      </div>
+      {prefs.dates && (
+        <>
+          <p className="muted" style={{ fontSize: 13, margin: '12px 4px 8px' }}>Heads-up before a date</p>
+          <Segmented
+            options={LEAD_OPTIONS}
+            value={prefs.dates_lead_days}
+            onChange={(v) => updatePrefs({ dates_lead_days: v })}
+          />
+        </>
+      )}
+      <div className="list" style={{ marginTop: 12 }}>
+        <div className="value-row">
+          <Bell size={18} />
+          <span className="v-label">Push notifications</span>
+          <span className="v-value muted">Arrives with live accounts</span>
+        </div>
+      </div>
 
       <div className="section-label">Data</div>
       <div className="list">

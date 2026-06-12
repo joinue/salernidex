@@ -1,6 +1,9 @@
 # Phase 6 — Reminders & notifications (agreed scope)
 
 _Agreed 2026-06-12 (Marc + Claude). Build 6a demo-first; 6b activates with Supabase._
+_**6a shipped 2026-06-12.** One naming change from this spec: the section is
+"Check in" with warm copy ("It's been a while", "say hi"), never "Needs a
+nudge" — Marc cut that framing as too salesy. Internal kind stays 'nudge'._
 
 ## Decisions (locked)
 

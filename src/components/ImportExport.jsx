@@ -4,11 +4,13 @@ import { Download, Upload, Database, FileText, RotateCcw } from 'react-feather'
 import PageHeader from './PageHeader'
 import Segmented from './Segmented'
 import { memberNames, setMemberNames } from '../lib/household'
+import { getAllPrefs, setAllPrefs } from '../lib/notifyPrefs'
 import { findDuplicates } from '../lib/duplicates'
 
 // Bump when the backup shape changes so future imports can migrate if needed.
 // v3: adds families, key_dates, and people.tier/family_id (Phase 7).
-const BACKUP_VERSION = 3
+// v4: adds reminder_snoozes + settings.notifications (Phase 6a).
+const BACKUP_VERSION = 4
 
 const SCHEMA_FIELDS = ['', 'name', 'organization', 'role', 'email', 'phone', 'birthday', 'address', 'tier', 'tags', 'notes']
 
@@ -39,7 +41,7 @@ function download(filename, content, mime) {
 }
 
 export default function ImportExport({ data }) {
-  const { people, orgs, relationships, interactions, groups, tasks, completions, taskLinks, lists, listItems, families, keyDates, importPeople, restoreBackup } = data
+  const { people, orgs, relationships, interactions, groups, tasks, completions, taskLinks, lists, listItems, families, keyDates, reminderSnoozes, importPeople, restoreBackup } = data
   const csvRef = useRef(null)
   const jsonRef = useRef(null)
   const [parsed, setParsed] = useState(null) // { headers, rows }
@@ -68,7 +70,8 @@ export default function ImportExport({ data }) {
       task_links: taskLinks,
       lists,
       list_items: listItems,
-      settings: { members: memberNames() },
+      reminder_snoozes: reminderSnoozes,
+      settings: { members: memberNames(), notifications: getAllPrefs() },
     }
     const stamp = new Date().toISOString().slice(0, 10)
     download(`salernidex-backup-${stamp}.json`, JSON.stringify(backup, null, 2), 'application/json')
@@ -92,7 +95,7 @@ export default function ImportExport({ data }) {
         setStatus('This does not look like a Salernidex backup.')
         return
       }
-      const counts = ['people', 'organizations', 'relationships', 'interactions', 'families', 'key_dates', 'groups', 'tasks', 'task_completions', 'task_links', 'lists', 'list_items']
+      const counts = ['people', 'organizations', 'relationships', 'interactions', 'families', 'key_dates', 'groups', 'tasks', 'task_completions', 'task_links', 'lists', 'list_items', 'reminder_snoozes']
         .map((k) => (backup[k] || []).length)
         .reduce((a, b) => a + b, 0)
       if (!window.confirm(`Restore ${counts} records from this backup? Existing records with the same id are overwritten; the rest are kept.`)) return
@@ -100,6 +103,7 @@ export default function ImportExport({ data }) {
       try {
         await restoreBackup(backup)
         if (backup.settings?.members) setMemberNames(backup.settings.members)
+        if (backup.settings?.notifications) setAllPrefs(backup.settings.notifications)
         setStatus(`Restored backup from ${backup.exported_at?.slice(0, 10) || 'file'}.`)
       } catch (err) {
         setStatus(`Restore failed: ${err.message}`)

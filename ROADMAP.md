@@ -28,13 +28,14 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - **Activity feed** — unified household log (touchpoints + task completions + lists) at `#/activity` (`lib/activity.js`).
 - **Polish (ongoing)** — logo mark, ConfirmDialog (iOS-style confirms), live duplicate detection in the add-person form (`lib/duplicates.js`).
 - **Phase 7 — richer relationships** — tiers (inner circle / close / network: form picker, profile badge, People filter + "closest first" sort), contact **family units** ("The Parks": assign or create inline in the form, bidirectional family section on profiles, distinct from the household/tenant model), and **key dates** beyond birthday (annual or one-off, "N years" counting, add/remove on the profile) merged with birthdays into Today's **Dates** section. All in backup v3 + CSV (tier).
+- **Phase 6a — in-app reminders** — the attention engine (`lib/reminders.js`, one pure function feeding every surface), Today's **Check in** section (warm copy — "It's been a while", never salesy/CRM language per Marc), per-member swipe-to-snooze on all attention rows (3d / 1w / never via action sheet, `reminder_snoozes` in backup v4), badges on the Today tab/sidebar + app icon (Badging API), and Settings → Notifications (per-member category toggles, FYIs off by default, date lead-time picker). Push delivery is 6b.
 
 ### 🟡 Partial
-- **Reminders + notifications** — the activity *log* ("what happened") exists; proactive **reminders/nudges + web-push** do not.
+- **Reminders + notifications** — in-app layer (6a) done; **web-push delivery** (6b) waits on Supabase go-live.
 - **Branding/polish** — underway, not a final pass.
 
 ### ⬜ Remaining
-- **Phase 6 — Reminders + notifications**: scope agreed and locked in `docs/phase6-reminders.md` — 6a in-app attention layer now (engine, Needs-a-nudge, per-member snooze/dismiss, badges, Settings toggles, backup v4), 6b web-push + morning digest at Supabase go-live (iOS 16.4+ installed PWA; Vibration API absent on iOS web — haptics no-op there by design). 6b live design already scaffolded: snooze/prefs/subscription/dedupe tables + RLS in `supabase/schema.sql`, Edge Function skeleton in `supabase/functions/send-reminders/`.
+- **Phase 6b — push delivery**: web-push + morning digest at Supabase go-live (iOS 16.4+ installed PWA; Vibration API absent on iOS web — haptics no-op there by design). Spec in `docs/phase6-reminders.md`; live design scaffolded: snooze/prefs/subscription/dedupe tables + RLS in `supabase/schema.sql`, Edge Function skeleton in `supabase/functions/send-reminders/` (main work item: port `lib/reminders.js` server-side).
 - **Phase 8 — Contact bridge**: vCard export → CardDAV, so data can flow back to the phone's address book (mitigates "phone gravity").
 - **Multitenancy go-live**: real signup/login UI, join-by-code screen, household switcher, thread `household_id` into every insert. (Activates when Supabase is wired.)
 - **Final polish + branding pass.**

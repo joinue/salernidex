@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
-import { Gift, Calendar, ChevronRight, Sun, MoreHorizontal, Settings } from 'react-feather'
-import { upcomingDates } from '../lib/contact'
-import { taskBucket } from '../lib/tasks'
+import { Gift, Calendar, ChevronRight, Sun, MoreHorizontal, Settings, MessageCircle, Clock, BellOff } from 'react-feather'
+import { relativeTime } from '../lib/contact'
+import { buildAttention } from '../lib/reminders'
 import { buildActivityFeed } from '../lib/activity'
 import { personActions } from '../lib/personActions'
+import { useNotificationPrefs } from '../hooks/useNotificationPrefs'
 import haptics from '../lib/haptics'
 import Avatar from './Avatar'
 import PageHeader from './PageHeader'
-import PressableRow from './PressableRow'
+import SwipeRow from './SwipeRow'
 import TaskRow from './TaskRow'
 import ActivityRow from './ActivityRow'
 import ActionSheet from './ActionSheet'
@@ -36,38 +37,50 @@ function dateSub(entry) {
   return entry.years ? `${entry.label} · ${entry.years} years` : entry.label
 }
 
+// Warm, human phrasing — this is staying close to people, not working a
+// pipeline. Never "overdue", never "cadence".
+function checkInSub(item) {
+  if (item.state === 'never') return 'No catch-ups logged yet — say hi'
+  return `It's been a while · last catch-up ${relativeTime(item.lastIso)}`
+}
+
+const DAY = 86400000
+
 export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks, onOpenActivity, onMore, onSettings }) {
-  const { people, addInteraction, tasks, completeTask, keyDates } = data
+  const { addInteraction, completeTask, snoozeReminder, ownerId } = data
+  const [prefs] = useNotificationPrefs(ownerId)
   const [logPerson, setLogPerson] = useState(null)
   const [actionPerson, setActionPerson] = useState(null)
+  const [laterItem, setLaterItem] = useState(null) // attention item picking a snooze
 
-  const active = useMemo(() => people.filter((p) => !p.deleted_at), [people])
-
-  // Open top-level tasks that are overdue or due today — the household's "do it
-  // now" list.
-  const dueTasks = useMemo(
-    () =>
-      tasks
-        .filter((t) => !t.parent_id && !t.completed_at && ['overdue', 'today'].includes(taskBucket(t)))
-        .sort((a, b) => (a.due_date < b.due_date ? -1 : 1)),
-    [tasks]
+  const attention = useMemo(
+    () => buildAttention(data, prefs, data.reminderSnoozes, ownerId),
+    [data.people, data.tasks, data.interactions, data.keyDates, data.reminderSnoozes, prefs, ownerId]
   )
+  const dueTasks = attention.filter((i) => i.kind === 'task')
+  const checkIns = attention.filter((i) => i.kind === 'nudge')
+  const dates = attention.filter((i) => i.kind === 'date')
 
   const toggleTask = (t) => {
     if (!t.completed_at) haptics.success()
     completeTask(t, !t.completed_at)
   }
 
-  // Birthdays + key dates (anniversaries etc.) in the next 30 days, merged
-  // and soonest first.
-  const dates = useMemo(() => upcomingDates(active, keyDates, 30), [active, keyDates])
-
   // Head of the shared household-activity feed (touchpoints, completed tasks,
   // list activity). The full log lives behind "See all".
   const feed = useMemo(() => buildActivityFeed(data), [data])
   const recent = useMemo(() => feed.slice(0, 6), [feed])
 
-  const nothing = dueTasks.length === 0 && dates.length === 0 && recent.length === 0
+  const nothing = attention.length === 0 && recent.length === 0
+
+  // Swipe action: "Later" → sheet with gentle snooze choices.
+  const later = (item) => ({ label: 'Later', icon: Clock, onClick: () => setLaterItem(item) })
+
+  const snoozeChoices = laterItem && [
+    { label: 'Remind me in 3 days', icon: Clock, onClick: () => snoozeReminder({ kind: laterItem.kind, target_key: laterItem.key, until: new Date(Date.now() + 3 * DAY).toISOString() }) },
+    { label: 'Remind me next week', icon: Clock, onClick: () => snoozeReminder({ kind: laterItem.kind, target_key: laterItem.key, until: new Date(Date.now() + 7 * DAY).toISOString() }) },
+    { label: "Don't remind me about this", icon: BellOff, danger: true, onClick: () => snoozeReminder({ kind: laterItem.kind, target_key: laterItem.key, until: null }) },
+  ]
 
   return (
     <div>
@@ -93,10 +106,51 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
         <>
           <div className="section-label">To-do</div>
           <div className="list">
-            {dueTasks.map((t) => (
-              <div className="list-row" key={t.id}>
-                <TaskRow task={t} onToggle={toggleTask} />
-              </div>
+            {dueTasks.map((item) => (
+              <SwipeRow key={item.key} actions={[later(item)]}>
+                <div className="list-row">
+                  <TaskRow task={item.task} onToggle={toggleTask} />
+                </div>
+              </SwipeRow>
+            ))}
+          </div>
+        </>
+      )}
+
+      {checkIns.length > 0 && (
+        <>
+          <div className="section-label">Check in</div>
+          <div className="list">
+            {checkIns.map((item) => (
+              <SwipeRow
+                key={item.key}
+                actions={[
+                  { label: 'Check in', icon: MessageCircle, onClick: () => setLogPerson(item.person) },
+                  later(item),
+                ]}
+                onClick={() => onOpenPerson(item.person.id)}
+                onLongPress={() => setActionPerson(item.person)}
+              >
+                <div className="list-row">
+                  <Avatar name={item.person.name} size={42} />
+                  <div className="row-body">
+                    <div className="row-title">{item.person.name}</div>
+                    <div className="row-sub">{checkInSub(item)}</div>
+                  </div>
+                  <div className="row-meta">
+                    <button
+                      className="icon-btn accent"
+                      aria-label={`Check in with ${item.person.name}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setLogPerson(item.person)
+                      }}
+                    >
+                      <MessageCircle size={17} />
+                    </button>
+                  </div>
+                </div>
+              </SwipeRow>
             ))}
           </div>
         </>
@@ -106,27 +160,31 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
         <>
           <div className="section-label">Dates</div>
           <div className="list">
-            {dates.map((entry) => {
+            {dates.map((item) => {
+              const entry = item.entry
               const Icon = entry.kind === 'birthday' ? Gift : Calendar
               return (
-                <PressableRow
-                  key={entry.kind === 'birthday' ? `b-${entry.person.id}` : entry.keyDate.id}
+                <SwipeRow
+                  key={item.key}
+                  actions={[later(item)]}
                   onClick={() => onOpenPerson(entry.person.id)}
                   onLongPress={() => setActionPerson(entry.person)}
                 >
-                  <Avatar name={entry.person.name} size={42} />
-                  <div className="row-body">
-                    <div className="row-title">{entry.person.name}</div>
-                    <div className="row-sub">
-                      <Icon size={12} style={{ verticalAlign: '-1px', marginRight: 4 }} />
-                      {dateSub(entry)}
+                  <div className="list-row">
+                    <Avatar name={entry.person.name} size={42} />
+                    <div className="row-body">
+                      <div className="row-title">{entry.person.name}</div>
+                      <div className="row-sub">
+                        <Icon size={12} style={{ verticalAlign: '-1px', marginRight: 4 }} />
+                        {dateSub(entry)}
+                      </div>
+                    </div>
+                    <div className="row-meta">
+                      <span className={`row-time ${entry.daysUntil <= 3 ? 'warn' : ''}`}>{dateWhen(entry)}</span>
+                      <ChevronRight size={18} className="row-chevron" />
                     </div>
                   </div>
-                  <div className="row-meta">
-                    <span className={`row-time ${entry.daysUntil <= 3 ? 'warn' : ''}`}>{dateWhen(entry)}</span>
-                    <ChevronRight size={18} className="row-chevron" />
-                  </div>
-                </PressableRow>
+                </SwipeRow>
               )
             })}
           </div>
@@ -173,6 +231,9 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
           onSave={addInteraction}
           onClose={() => setLogPerson(null)}
         />
+      )}
+      {laterItem && (
+        <ActionSheet title="Remind me later" actions={snoozeChoices} onClose={() => setLaterItem(null)} />
       )}
     </div>
   )

@@ -7,7 +7,7 @@ import { useLongPress } from '../hooks/useLongPress'
 // a tap creates the obvious thing for the current tab; a long-press opens the
 // full add menu so you can cross-create from anywhere. "More" lives in the
 // Today header now, not the bar.
-export default function MobileNav({ active, adds }) {
+export default function MobileNav({ active, adds, badge = 0 }) {
   const { go, onAddPerson, onAddTask, onAddList, onAddOrg, onAddGroup, onAddRelationship } = adds
   const [sheet, setSheet] = useState(false)
   const close = () => setSheet(false)
@@ -21,17 +21,18 @@ export default function MobileNav({ active, adds }) {
   const onFab = () => (primary ? primary() : setSheet(true))
   const longPress = useLongPress(() => setSheet(true))
 
-  const Tab = ({ id, icon: Icon, text }) => (
+  const Tab = ({ id, icon: Icon, text, count = 0 }) => (
     <button className={`tab ${active === id ? 'active' : ''}`} onClick={() => go(id === 'today' ? '' : id)}>
       <Icon size={22} />
       <span>{text}</span>
+      {count > 0 && <span className="tab-badge">{count}</span>}
     </button>
   )
 
   return (
     <>
       <nav className="tabbar">
-        <Tab id="today" icon={Home} text="Today" />
+        <Tab id="today" icon={Home} text="Today" count={badge} />
         <Tab id="people" icon={PeopleIcon} text="People" />
         <button className="tab-add" onClick={onFab} aria-label="Add" {...longPress}>
           <span className="add-circle">

@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './lib/supabase'
 import { demoMode } from './lib/demo'
+import { buildAttention, badgeCount } from './lib/reminders'
 import { useData } from './hooks/useData'
 import { useMediaQuery } from './hooks/useMediaQuery'
+import { useNotificationPrefs } from './hooks/useNotificationPrefs'
 import Login from './components/Login'
 import Sidebar from './components/Sidebar'
 import MobileNav from './components/MobileNav'
@@ -123,6 +125,18 @@ function Shell({ session, onLogout }) {
 
   const allTags = [...new Set(data.people.flatMap((p) => p.tags || []))].sort()
 
+  // Attention badge: overdue/today items for the signed-in member, mirrored on
+  // the Today tab/sidebar item and the app icon (installed PWA, iOS 16.4+).
+  const [prefs] = useNotificationPrefs(data.ownerId)
+  const badge = useMemo(
+    () => badgeCount(buildAttention(data, prefs, data.reminderSnoozes, data.ownerId)),
+    [data.people, data.tasks, data.interactions, data.keyDates, data.reminderSnoozes, prefs, data.ownerId]
+  )
+  useEffect(() => {
+    if (badge > 0) navigator.setAppBadge?.(badge)
+    else navigator.clearAppBadge?.()
+  }, [badge])
+
   const activeNav =
     route.name === 'person' ? 'people' : route.name === 'list' ? 'lists' : route.name === 'project' ? 'tasks' : route.name === 'activity' ? 'today' : route.name
 
@@ -139,7 +153,7 @@ function Shell({ session, onLogout }) {
   return (
     <div className="layout">
       {!isMobile && (
-        <Sidebar active={activeNav} go={go} onLogout={requestLogout} />
+        <Sidebar active={activeNav} go={go} onLogout={requestLogout} badge={badge} />
       )}
       <main className="main" ref={mainRef}>
         <PullToRefresh onRefresh={data.refresh}>
@@ -210,7 +224,7 @@ function Shell({ session, onLogout }) {
         </PullToRefresh>
       </main>
 
-      {isMobile && <MobileNav active={activeNav} adds={adds} />}
+      {isMobile && <MobileNav active={activeNav} adds={adds} badge={badge} />}
       {isMobile && moreOpen && (
         <MoreSheet
           go={go}

@@ -13,10 +13,11 @@ const dateIn = (n) => {
   const d = new Date(Date.now() + n * 86400000)
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
-// A birthday ~9 days out (fixed birth year) so the Today "Birthdays" section
-// always has something to show in the demo, whatever today's date is.
+// A birthday ~5 days out (fixed birth year) so the Today "Dates" section
+// always has something inside the default 7-day heads-up window, whatever
+// today's date is.
 const soonBirthday = (() => {
-  const d = new Date(Date.now() + 9 * 86400000)
+  const d = new Date(Date.now() + 5 * 86400000)
   return `1990-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 })()
 const base = { deleted_at: null, created_at: now, updated_at: now, privacy_level: 'shared', birthday: null, address: '', keep_in_touch_days: null, tier: null, family_id: null, created_by: 'm-1' }
@@ -235,16 +236,16 @@ export const demoFamilies = [
   { id: 'f-park', name: 'The Parks', notes: 'Neighbors at 1314 E 5th St.', created_at: now, updated_at: now },
 ]
 
-// Dates that matter beyond birthdays. The Parks' anniversary lands ~12 days
-// out so the Today "Dates" section always demos the merge; Rita's retirement
-// party is a one-off.
+// Dates that matter beyond birthdays, all inside the default 7-day heads-up
+// window so the Today "Dates" merge always demos. Rita's retirement party is
+// a one-off.
 const annivDate = (() => {
-  const d = new Date(Date.now() + 12 * 86400000)
+  const d = new Date(Date.now() + 6 * 86400000)
   return `2015-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 })()
 export const demoKeyDates = [
   { id: 'kd-park-anniv', person_id: 'p-nina', label: 'Wedding anniversary', date: annivDate, annual: true, created_at: now },
-  { id: 'kd-rita-retire', person_id: 'p-rita', label: 'Retirement party', date: dateIn(5), annual: false, created_at: now },
+  { id: 'kd-rita-retire', person_id: 'p-rita', label: 'Retirement party', date: dateIn(2), annual: false, created_at: now },
 ]
 
 export const demoGroups = [

@@ -23,6 +23,7 @@ export function useData(session) {
   const [listItems, setListItems] = useState(demoMode ? demoListItems : [])
   const [families, setFamilies] = useState(demoMode ? demoFamilies : [])
   const [keyDates, setKeyDates] = useState(demoMode ? demoKeyDates : [])
+  const [reminderSnoozes, setReminderSnoozes] = useState([])
   const [loading, setLoading] = useState(!demoMode)
   const [error, setError] = useState(null)
 
@@ -427,6 +428,25 @@ export function useData(session) {
     await refresh()
   }
 
+  // Quiet an attention item for the current member only (their partner still
+  // sees it). until = null means "don't remind me about this again";
+  // otherwise hidden through that timestamp. Upserts per (member, item).
+  // Live counterpart: reminder_snoozes (schema.sql Phase 6 section).
+  const snoozeReminder = async ({ kind, target_key, until }) => {
+    if (demoMode) {
+      setReminderSnoozes((prev) => [
+        ...prev.filter((s) => !(s.member_id === ownerId && s.target_key === target_key)),
+        { id: uuid(), member_id: ownerId, kind, target_key, until, created_at: now() },
+      ])
+      return
+    }
+    const { error } = await supabase
+      .from('reminder_snoozes')
+      .upsert({ member_id: ownerId, kind, target_key, until }, { onConflict: 'member_id,kind,target_key' })
+    if (error) throw error
+    await refresh()
+  }
+
   const saveGroup = async (fields, id) => {
     if (demoMode) {
       setGroups((prev) =>
@@ -484,6 +504,7 @@ export function useData(session) {
       task_links: backup.task_links,
       lists: backup.lists,
       list_items: backup.list_items,
+      reminder_snoozes: backup.reminder_snoozes,
     }
     if (demoMode) {
       const merge = (prev, incoming) => {
@@ -504,6 +525,7 @@ export function useData(session) {
       if (tables.task_links) setTaskLinks((prev) => merge(prev, tables.task_links))
       if (tables.lists) setLists((prev) => merge(prev, tables.lists))
       if (tables.list_items) setListItems((prev) => merge(prev, tables.list_items))
+      if (tables.reminder_snoozes) setReminderSnoozes((prev) => merge(prev, tables.reminder_snoozes))
       return
     }
     // Live: upsert in dependency order (parents before their children).
@@ -529,6 +551,7 @@ export function useData(session) {
     listItems,
     families,
     keyDates,
+    reminderSnoozes,
     loading,
     error,
     ownerId,
@@ -561,6 +584,7 @@ export function useData(session) {
     deleteFamily,
     addKeyDate,
     deleteKeyDate,
+    snoozeReminder,
     importPeople,
     restoreBackup,
   }

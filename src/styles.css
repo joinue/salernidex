@@ -176,6 +176,82 @@ select {
   color: var(--text);
 }
 
+/* ---------- attention badges (Today tab / sidebar / nav) ---------- */
+
+.nav-badge {
+  margin-left: auto;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab {
+  position: relative;
+}
+
+.tab-badge {
+  position: absolute;
+  top: 4px;
+  left: calc(50% + 6px);
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--surface);
+}
+
+/* ---------- iOS switch (Settings toggles) ---------- */
+
+.switch {
+  position: relative;
+  width: 50px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  transition: background 180ms ease;
+}
+
+.switch.on {
+  background: var(--green);
+}
+
+.switch .knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-thumb);
+  transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.switch.on .knob {
+  transform: translateX(20px);
+}
+
+/* Accent quick-action inside a row (e.g. "check in" on Today) */
+.icon-btn.accent {
+  color: var(--accent);
+}
+
 /* ---------- relationship tier chips ---------- */
 
 .chip.tier-inner {
