@@ -94,6 +94,7 @@ export default function SearchView({ data, searchRef, query, setQuery, onOpen, o
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           autoFocus={window.matchMedia('(min-width: 721px)').matches}
+          enterKeyHint="search"
         />
       </div>
 

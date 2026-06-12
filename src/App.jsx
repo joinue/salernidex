@@ -5,6 +5,8 @@ import { buildAttention, badgeCount } from './lib/reminders'
 import { useData } from './hooks/useData'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { useNotificationPrefs } from './hooks/useNotificationPrefs'
+import { useEdgeBack } from './hooks/useEdgeBack'
+import InstallHint from './components/InstallHint'
 import Login from './components/Login'
 import Sidebar from './components/Sidebar'
 import MobileNav from './components/MobileNav'
@@ -102,6 +104,10 @@ function Shell({ session, onLogout }) {
   const go = (path) => {
     window.location.hash = '/' + path
   }
+
+  // iOS-style edge-swipe back on detail pages (mobile only).
+  const DETAIL_ROUTES = ['person', 'project', 'list', 'activity', 'settings']
+  useEdgeBack(mainRef, isMobile && DETAIL_ROUTES.includes(route.name), () => window.history.back())
   const openPerson = (id) => go(`person/${id}`)
   const openList = (id) => go(`list/${id}`)
   const openProject = (id) => go(`project/${id}`)
@@ -158,6 +164,7 @@ function Shell({ session, onLogout }) {
       <main className="main" ref={mainRef}>
         <PullToRefresh onRefresh={data.refresh}>
         <div className="content">
+          {isMobile && <InstallHint />}
           {demoMode && (
             <p className="demo-banner">
               Demo mode — sample data, nothing is saved. Connect Supabase (see README) to go live.

@@ -176,6 +176,32 @@ select {
   color: var(--text);
 }
 
+/* ---------- iOS install hint card ---------- */
+
+.install-hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+
+/* ---------- iOS standalone (installed PWA) ---------- */
+
+/* black-translucent status bar: content draws underneath; pad it back */
+@media (display-mode: standalone) {
+  .main {
+    padding-top: calc(14px + env(safe-area-inset-top));
+  }
+
+  .sidebar {
+    padding-top: calc(28px + env(safe-area-inset-top));
+  }
+}
+
 /* ---------- attention badges (Today tab / sidebar / nav) ---------- */
 
 .nav-badge {
@@ -2119,6 +2145,14 @@ select.rec-select + .segmented {
 @media (max-width: 720px) {
   .main {
     padding: 12px 14px calc(92px + env(safe-area-inset-bottom));
+    touch-action: pan-y; /* vertical scroll native; horizontal stays ours (edge-back) */
+  }
+
+  /* iOS Safari zooms the page when focusing inputs under 16px — never let
+     a text input drop below that on touch screens. */
+  input,
+  textarea {
+    font-size: 16px;
   }
 
   .content {
