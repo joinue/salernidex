@@ -917,6 +917,16 @@ select {
   bottom: 0;
   display: flex;
   z-index: 0;
+  /* Hidden until the row actually opens — the translucent hairline divider
+     otherwise lets the accent panel bleed through as a colored line. The
+     delay keeps it visible while the row slides back closed. */
+  visibility: hidden;
+  transition: visibility 0s 320ms;
+}
+
+.swipe-wrap.open .swipe-actions {
+  visibility: visible;
+  transition: visibility 0s 0s;
 }
 
 .swipe-action {
