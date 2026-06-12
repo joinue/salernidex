@@ -309,7 +309,7 @@ function Shell({ session, onLogout, household }) {
       <main className="main" ref={mainRef}>
         <PullToRefresh onRefresh={data.refresh}>
         <div className="content">
-          {isMobile && <InstallHint />}
+          <InstallHint />{/* self-gates: Install button on Chrome/Edge, Add-to-Home-Screen on iOS */}
           {/* Mirror useData's demo condition exactly so the notice can never
               drift from the data: shown for runtime demo AND build-time demo,
               never for a real signed-in session. */}

@@ -16,6 +16,19 @@ if ('serviceWorker' in navigator) {
   })
 }
 
+// Capture the install prompt globally — it can fire before any component that
+// wants it (InstallHint) has mounted (e.g. while still on the auth screen).
+// Stash it on window + announce it so the hint can offer an Install button.
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault()
+  window.__deferredInstallPrompt = e
+  window.dispatchEvent(new Event('pwa-installable'))
+})
+window.addEventListener('appinstalled', () => {
+  window.__deferredInstallPrompt = null
+  window.dispatchEvent(new Event('pwa-installed'))
+})
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
