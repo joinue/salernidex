@@ -238,8 +238,10 @@ function Shell({ session, onLogout }) {
           person={editingPerson === 'new' ? null : editingPerson}
           orgs={data.orgs}
           people={data.people}
+          families={data.families}
           existingTags={allTags}
           onSave={data.savePerson}
+          onCreateFamily={data.saveFamily}
           onClose={() => setEditingPerson(null)}
           onOpenPerson={openPerson}
         />

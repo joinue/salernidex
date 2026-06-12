@@ -43,6 +43,50 @@ export function upcomingBirthday(person, withinDays = 30) {
   return { date: next, daysUntil, turning: y ? next.getFullYear() - y : null }
 }
 
+// All upcoming dates for the Today hub: birthdays merged with key dates
+// (anniversaries etc.), soonest first. Each entry: { kind, person, daysUntil,
+// label, turning?, years?, keyDate? }. Annual key dates roll forward each
+// year ("years" = how many, when the original year is meaningful); one-offs
+// appear until their date passes.
+export function upcomingDates(people, keyDates = [], withinDays = 30) {
+  const byId = new Map(people.map((p) => [p.id, p]))
+  const out = []
+
+  for (const p of people) {
+    const b = upcomingBirthday(p, withinDays)
+    if (b) out.push({ kind: 'birthday', person: p, daysUntil: b.daysUntil, turning: b.turning, label: 'Birthday' })
+  }
+
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  for (const kd of keyDates) {
+    const person = byId.get(kd.person_id)
+    if (!person || person.deleted_at) continue
+    const [y, m, d] = (kd.date || '').split('-').map(Number)
+    if (!m || !d) continue
+    let next
+    if (kd.annual) {
+      next = new Date(today.getFullYear(), m - 1, d)
+      if (next < today) next = new Date(today.getFullYear() + 1, m - 1, d)
+    } else {
+      next = new Date(y, m - 1, d)
+      if (next < today) continue // past one-off: done with
+    }
+    const daysUntil = Math.round((next - today) / 86400000)
+    if (daysUntil > withinDays) continue
+    out.push({
+      kind: 'keydate',
+      person,
+      keyDate: kd,
+      daysUntil,
+      label: kd.label,
+      years: kd.annual && y ? next.getFullYear() - y : null,
+    })
+  }
+
+  return out.sort((a, b) => a.daysUntil - b.daysUntil)
+}
+
 // Follow-up status for a person given their last-contact date. Returns null
 // when no cadence is set. Otherwise: 'never' (cadence but nothing logged),
 // 'overdue' (past the cadence window), or 'ok' (within it).

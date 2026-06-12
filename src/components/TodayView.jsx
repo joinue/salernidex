@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Gift, ChevronRight, Sun, MoreHorizontal, Settings } from 'react-feather'
-import { upcomingBirthday } from '../lib/contact'
+import { Gift, Calendar, ChevronRight, Sun, MoreHorizontal, Settings } from 'react-feather'
+import { upcomingDates } from '../lib/contact'
 import { taskBucket } from '../lib/tasks'
 import { buildActivityFeed } from '../lib/activity'
 import { personActions } from '../lib/personActions'
@@ -24,14 +24,20 @@ function greeting() {
 const longDate = () =>
   new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
 
-function birthdayWhen(b) {
-  if (b.daysUntil === 0) return 'Today 🎂'
-  if (b.daysUntil === 1) return 'Tomorrow'
-  return `in ${b.daysUntil}d`
+function dateWhen(entry) {
+  if (entry.daysUntil === 0) return entry.kind === 'birthday' ? 'Today 🎂' : 'Today'
+  if (entry.daysUntil === 1) return 'Tomorrow'
+  return `in ${entry.daysUntil}d`
+}
+
+// "Turns 36" / "Wedding anniversary · 9 years" / "Retirement party"
+function dateSub(entry) {
+  if (entry.kind === 'birthday') return entry.turning ? `Turns ${entry.turning}` : 'Birthday'
+  return entry.years ? `${entry.label} · ${entry.years} years` : entry.label
 }
 
 export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks, onOpenActivity, onMore, onSettings }) {
-  const { people, addInteraction, tasks, completeTask } = data
+  const { people, addInteraction, tasks, completeTask, keyDates } = data
   const [logPerson, setLogPerson] = useState(null)
   const [actionPerson, setActionPerson] = useState(null)
 
@@ -52,23 +58,16 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
     completeTask(t, !t.completed_at)
   }
 
-  // Birthdays in the next 30 days, soonest first.
-  const birthdays = useMemo(() => {
-    return active
-      .map((p) => {
-        const b = upcomingBirthday(p, 30)
-        return b ? { p, b } : null
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.b.daysUntil - b.b.daysUntil)
-  }, [active])
+  // Birthdays + key dates (anniversaries etc.) in the next 30 days, merged
+  // and soonest first.
+  const dates = useMemo(() => upcomingDates(active, keyDates, 30), [active, keyDates])
 
   // Head of the shared household-activity feed (touchpoints, completed tasks,
   // list activity). The full log lives behind "See all".
   const feed = useMemo(() => buildActivityFeed(data), [data])
   const recent = useMemo(() => feed.slice(0, 6), [feed])
 
-  const nothing = dueTasks.length === 0 && birthdays.length === 0 && recent.length === 0
+  const nothing = dueTasks.length === 0 && dates.length === 0 && recent.length === 0
 
   return (
     <div>
@@ -103,26 +102,33 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
         </>
       )}
 
-      {birthdays.length > 0 && (
+      {dates.length > 0 && (
         <>
-          <div className="section-label">Birthdays</div>
+          <div className="section-label">Dates</div>
           <div className="list">
-            {birthdays.map(({ p, b }) => (
-              <PressableRow key={p.id} onClick={() => onOpenPerson(p.id)} onLongPress={() => setActionPerson(p)}>
-                <Avatar name={p.name} size={42} />
-                <div className="row-body">
-                  <div className="row-title">{p.name}</div>
-                  <div className="row-sub">
-                    <Gift size={12} style={{ verticalAlign: '-1px', marginRight: 4 }} />
-                    {b.turning ? `Turns ${b.turning}` : 'Birthday'}
+            {dates.map((entry) => {
+              const Icon = entry.kind === 'birthday' ? Gift : Calendar
+              return (
+                <PressableRow
+                  key={entry.kind === 'birthday' ? `b-${entry.person.id}` : entry.keyDate.id}
+                  onClick={() => onOpenPerson(entry.person.id)}
+                  onLongPress={() => setActionPerson(entry.person)}
+                >
+                  <Avatar name={entry.person.name} size={42} />
+                  <div className="row-body">
+                    <div className="row-title">{entry.person.name}</div>
+                    <div className="row-sub">
+                      <Icon size={12} style={{ verticalAlign: '-1px', marginRight: 4 }} />
+                      {dateSub(entry)}
+                    </div>
                   </div>
-                </div>
-                <div className="row-meta">
-                  <span className={`row-time ${b.daysUntil <= 3 ? 'warn' : ''}`}>{birthdayWhen(b)}</span>
-                  <ChevronRight size={18} className="row-chevron" />
-                </div>
-              </PressableRow>
-            ))}
+                  <div className="row-meta">
+                    <span className={`row-time ${entry.daysUntil <= 3 ? 'warn' : ''}`}>{dateWhen(entry)}</span>
+                    <ChevronRight size={18} className="row-chevron" />
+                  </div>
+                </PressableRow>
+              )
+            })}
           </div>
         </>
       )}

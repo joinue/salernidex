@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { demoMode, demoPeople, demoOrgs, demoRelationships, demoGroups, demoInteractions, demoTasks, demoCompletions, demoTaskLinks, demoLists, demoListItems } from '../lib/demo'
+import { demoMode, demoPeople, demoOrgs, demoRelationships, demoGroups, demoInteractions, demoTasks, demoCompletions, demoTaskLinks, demoLists, demoListItems, demoFamilies, demoKeyDates } from '../lib/demo'
 import { completionFields } from '../lib/tasks'
 import { currentMember, currentMemberId } from '../lib/household'
 
@@ -21,6 +21,8 @@ export function useData(session) {
   const [taskLinks, setTaskLinks] = useState(demoMode ? demoTaskLinks : [])
   const [lists, setLists] = useState(demoMode ? demoLists : [])
   const [listItems, setListItems] = useState(demoMode ? demoListItems : [])
+  const [families, setFamilies] = useState(demoMode ? demoFamilies : [])
+  const [keyDates, setKeyDates] = useState(demoMode ? demoKeyDates : [])
   const [loading, setLoading] = useState(!demoMode)
   const [error, setError] = useState(null)
 
@@ -31,7 +33,7 @@ export function useData(session) {
 
   const refresh = useCallback(async () => {
     if (demoMode) return
-    const [p, o, r, i, g, t, c, tl, l, li] = await Promise.all([
+    const [p, o, r, i, g, t, c, tl, l, li, f, kd] = await Promise.all([
       supabase.from('people').select('*').order('name'),
       supabase.from('organizations').select('*').order('name'),
       supabase.from('relationships').select('*'),
@@ -42,8 +44,10 @@ export function useData(session) {
       supabase.from('task_links').select('*'),
       supabase.from('lists').select('*').order('created_at'),
       supabase.from('list_items').select('*').order('created_at'),
+      supabase.from('families').select('*').order('name'),
+      supabase.from('key_dates').select('*').order('date'),
     ])
-    const firstError = p.error || o.error || r.error || i.error || g.error || t.error || c.error || tl.error || l.error || li.error
+    const firstError = p.error || o.error || r.error || i.error || g.error || t.error || c.error || tl.error || l.error || li.error || f.error || kd.error
     if (firstError) {
       setError(firstError.message)
     } else {
@@ -58,6 +62,8 @@ export function useData(session) {
       setTaskLinks(tl.data)
       setLists(l.data)
       setListItems(li.data)
+      setFamilies(f.data)
+      setKeyDates(kd.data)
     }
     setLoading(false)
   }, [])
@@ -131,6 +137,7 @@ export function useData(session) {
       setRelationships((prev) => prev.filter((r) => r.person_a_id !== id && r.person_b_id !== id))
       setInteractions((prev) => prev.filter((i) => i.person_id !== id))
       setTaskLinks((prev) => prev.filter((tl) => !(tl.entity_type === 'person' && tl.entity_id === id)))
+      setKeyDates((prev) => prev.filter((kd) => kd.person_id !== id))
       return
     }
     await supabase.from('task_links').delete().eq('entity_type', 'person').eq('entity_id', id)
@@ -368,6 +375,58 @@ export function useData(session) {
     await refresh()
   }
 
+  // Contact family units ("The Parks"). saveFamily returns the saved row so
+  // callers (e.g. PersonForm's inline "new family") can link to it right away.
+  const saveFamily = async (fields, id) => {
+    if (demoMode) {
+      const row = id
+        ? { ...families.find((f) => f.id === id), ...fields, updated_at: now() }
+        : { created_at: now(), updated_at: now(), ...fields, id: uuid() }
+      setFamilies((prev) => (id ? prev.map((f) => (f.id === id ? row : f)) : [...prev, row]))
+      return row
+    }
+    const query = id
+      ? supabase.from('families').update(fields).eq('id', id).select().single()
+      : supabase.from('families').insert(fields).select().single()
+    const { data: row, error } = await query
+    if (error) throw error
+    await refresh()
+    return row
+  }
+
+  // Deleting a family never deletes its people — they just become familyless
+  // (mirrors the FK's on-delete-set-null).
+  const deleteFamily = async (id) => {
+    if (demoMode) {
+      setFamilies((prev) => prev.filter((f) => f.id !== id))
+      setPeople((prev) => prev.map((p) => (p.family_id === id ? { ...p, family_id: null } : p)))
+      return
+    }
+    const { error } = await supabase.from('families').delete().eq('id', id)
+    if (error) throw error
+    await refresh()
+  }
+
+  const addKeyDate = async (fields) => {
+    if (demoMode) {
+      setKeyDates((prev) => [...prev, { annual: true, ...fields, id: uuid(), created_at: now() }])
+      return
+    }
+    const { error } = await supabase.from('key_dates').insert(fields)
+    if (error) throw error
+    await refresh()
+  }
+
+  const deleteKeyDate = async (id) => {
+    if (demoMode) {
+      setKeyDates((prev) => prev.filter((kd) => kd.id !== id))
+      return
+    }
+    const { error } = await supabase.from('key_dates').delete().eq('id', id)
+    if (error) throw error
+    await refresh()
+  }
+
   const saveGroup = async (fields, id) => {
     if (demoMode) {
       setGroups((prev) =>
@@ -413,10 +472,12 @@ export function useData(session) {
   // Upserts by id so re-importing a backup is idempotent and merges cleanly.
   const restoreBackup = async (backup) => {
     const tables = {
+      families: backup.families,
       organizations: backup.organizations,
       people: backup.people,
       relationships: backup.relationships,
       interactions: backup.interactions,
+      key_dates: backup.key_dates,
       groups: backup.groups,
       tasks: backup.tasks,
       task_completions: backup.task_completions,
@@ -431,8 +492,10 @@ export function useData(session) {
         for (const row of incoming) map.set(row.id, { ...map.get(row.id), ...row })
         return [...map.values()]
       }
+      if (tables.families) setFamilies((prev) => merge(prev, tables.families))
       if (tables.organizations) setOrgs((prev) => merge(prev, tables.organizations))
       if (tables.people) setPeople((prev) => merge(prev, tables.people))
+      if (tables.key_dates) setKeyDates((prev) => merge(prev, tables.key_dates))
       if (tables.relationships) setRelationships((prev) => merge(prev, tables.relationships))
       if (tables.interactions) setInteractions((prev) => merge(prev, tables.interactions))
       if (tables.groups) setGroups((prev) => merge(prev, tables.groups))
@@ -444,7 +507,7 @@ export function useData(session) {
       return
     }
     // Live: upsert in dependency order (parents before their children).
-    for (const name of ['organizations', 'people', 'relationships', 'interactions', 'groups', 'tasks', 'task_completions', 'task_links', 'lists', 'list_items']) {
+    for (const name of ['families', 'organizations', 'people', 'relationships', 'interactions', 'key_dates', 'groups', 'tasks', 'task_completions', 'task_links', 'lists', 'list_items']) {
       const rows = tables[name]
       if (!rows?.length) continue
       const { error } = await supabase.from(name).upsert(rows)
@@ -464,6 +527,8 @@ export function useData(session) {
     taskLinks,
     lists,
     listItems,
+    families,
+    keyDates,
     loading,
     error,
     ownerId,
@@ -492,6 +557,10 @@ export function useData(session) {
     clearCheckedItems,
     saveGroup,
     deleteGroup,
+    saveFamily,
+    deleteFamily,
+    addKeyDate,
+    deleteKeyDate,
     importPeople,
     restoreBackup,
   }

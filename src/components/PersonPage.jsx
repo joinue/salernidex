@@ -1,17 +1,19 @@
 import { useMemo, useState } from 'react'
-import { ArrowLeft, Mail, Phone, MapPin, Gift, Edit2, UserPlus, Archive, Trash2, RotateCcw, Lock, X, Bell } from 'react-feather'
-import { PRIVACY_LABELS, KEEP_IN_TOUCH_LABELS, INTERACTION_TYPES, INTERACTION_BY_ID, formatDate } from '../lib/constants'
+import { ArrowLeft, Mail, Phone, MapPin, Gift, Edit2, UserPlus, Archive, Trash2, RotateCcw, Lock, X, Bell, Calendar, Plus, Home } from 'react-feather'
+import { PRIVACY_LABELS, KEEP_IN_TOUCH_LABELS, TIER_LABELS, INTERACTION_TYPES, INTERACTION_BY_ID, formatDate } from '../lib/constants'
 import { lastInteraction, relativeTime } from '../lib/contact'
 import { memberName } from '../lib/household'
 import Avatar from './Avatar'
 import InteractionForm from './InteractionForm'
+import KeyDateForm from './KeyDateForm'
 import ConfirmDialog from './ConfirmDialog'
 
 export default function PersonPage({ data, personId, onOpenPerson, onBack, onEdit, onConnect }) {
-  const { people, relationships, interactions, deletePerson, restorePerson, purgePerson, ownerId, deleteRelationship, addInteraction, deleteInteraction } = data
+  const { people, relationships, interactions, families, keyDates, deletePerson, restorePerson, purgePerson, ownerId, deleteRelationship, addInteraction, deleteInteraction, addKeyDate, deleteKeyDate } = data
   const person = people.find((p) => p.id === personId)
   const byId = useMemo(() => new Map(people.map((p) => [p.id, p])), [people])
   const [logType, setLogType] = useState(null) // null | type id → opens InteractionForm
+  const [addingDate, setAddingDate] = useState(false)
   const [confirmPurge, setConfirmPurge] = useState(false) // permanent-delete confirmation
 
   const timeline = useMemo(
@@ -43,6 +45,13 @@ export default function PersonPage({ data, personId, onOpenPerson, onBack, onEdi
 
   const last = lastInteraction(person.id, interactions)
   const hasContact = person.email || person.phone || person.address || person.birthday
+  const family = person.family_id ? families.find((f) => f.id === person.family_id) : null
+  const familyMembers = family
+    ? people.filter((p) => p.family_id === family.id && p.id !== person.id && !p.deleted_at)
+    : []
+  const personDates = keyDates
+    .filter((kd) => kd.person_id === person.id)
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
   // Ownership: only the creator may permanently delete. Null created_by (legacy
   // data) counts as yours so it isn't stranded.
   const mine = !person.created_by || person.created_by === ownerId
@@ -65,6 +74,7 @@ export default function PersonPage({ data, personId, onOpenPerson, onBack, onEdi
         )}
 
         <div className="chips" style={{ justifyContent: 'center', marginTop: 10 }}>
+          {person.tier && <span className={`chip tier-${person.tier}`}>{TIER_LABELS[person.tier]}</span>}
           {last && <span className="chip">Last contact · {relativeTime(last.occurred_at)}</span>}
           {(person.tags || []).map((t) => (
             <span className="chip accent" key={t}>{t}</span>
@@ -144,6 +154,55 @@ export default function PersonPage({ data, personId, onOpenPerson, onBack, onEdi
                 <span className="v-value">{formatDate(person.birthday)}</span>
               </div>
             )}
+          </div>
+        </>
+      )}
+
+      {/* Key dates — anniversaries and the like, beyond birthday */}
+      <div className="section-head">
+        <div className="section-label">Key dates</div>
+        <button className="see-all" onClick={() => setAddingDate(true)}>
+          <Plus size={14} style={{ verticalAlign: '-2px' }} /> Add
+        </button>
+      </div>
+      <div className="list">
+        {personDates.length === 0 ? (
+          <p className="empty-inline">No key dates yet — anniversaries, memorials, big days.</p>
+        ) : (
+          personDates.map((kd) => (
+            <div className="value-row" key={kd.id}>
+              <Calendar size={18} />
+              <span className="v-label">{kd.label}</span>
+              <span className="v-value">
+                {formatDate(kd.date)}
+                <span className="muted"> · {kd.annual ? 'every year' : 'one-time'}</span>
+              </span>
+              <button className="icon-btn danger" onClick={() => deleteKeyDate(kd.id)} aria-label={`Delete ${kd.label}`}>
+                <X size={15} />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      {family && familyMembers.length > 0 && (
+        <>
+          <div className="section-label">
+            <Home size={13} style={{ verticalAlign: '-2px', marginRight: 5 }} />
+            {family.name}
+          </div>
+          <div className="list">
+            {familyMembers.map((m) => (
+              <div className="list-row" key={m.id} onClick={() => onOpenPerson(m.id)}>
+                <Avatar name={m.name} size={38} />
+                <div className="row-body">
+                  <div className="row-title">{m.name}</div>
+                  {(m.role || m.organization) && (
+                    <div className="row-sub">{[m.role, m.organization].filter(Boolean).join(' · ')}</div>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </>
       )}
@@ -238,6 +297,10 @@ export default function PersonPage({ data, personId, onOpenPerson, onBack, onEdi
           onSave={addInteraction}
           onClose={() => setLogType(null)}
         />
+      )}
+
+      {addingDate && (
+        <KeyDateForm person={person} onSave={addKeyDate} onClose={() => setAddingDate(false)} />
       )}
 
       {confirmPurge && (

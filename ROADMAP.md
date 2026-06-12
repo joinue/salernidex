@@ -1,6 +1,6 @@
 # Salernidex — roadmap & status
 
-_Last updated: 2026-06-12_
+_Last updated: 2026-06-12 (Phase 7 shipped)_
 
 **Vision:** a joint **household operating system** — the shared layer next to Apple Calendar.
 You share the *when* (Calendar); this owns the shared **who** (rolodex), **to-do**
@@ -27,6 +27,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - **Project ↔ contact bridge** — link people/orgs to a project (`task_links`, LinkEntityForm, ProjectDetail). The integration a generic to-do app can't do.
 - **Activity feed** — unified household log (touchpoints + task completions + lists) at `#/activity` (`lib/activity.js`).
 - **Polish (ongoing)** — logo mark, ConfirmDialog (iOS-style confirms), live duplicate detection in the add-person form (`lib/duplicates.js`).
+- **Phase 7 — richer relationships** — tiers (inner circle / close / network: form picker, profile badge, People filter + "closest first" sort), contact **family units** ("The Parks": assign or create inline in the form, bidirectional family section on profiles, distinct from the household/tenant model), and **key dates** beyond birthday (annual or one-off, "N years" counting, add/remove on the profile) merged with birthdays into Today's **Dates** section. All in backup v3 + CSV (tier).
 
 ### 🟡 Partial
 - **Reminders + notifications** — the activity *log* ("what happened") exists; proactive **reminders/nudges + web-push** do not.
@@ -34,7 +35,6 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 
 ### ⬜ Remaining
 - **Phase 6 — Reminders + notifications**: in-app due/nudge layer, then web-push on installed PWA (iOS 16.4+; Vibration API absent on iOS web — haptics no-op there by design).
-- **Phase 7 — Richer relationships**: tiers (inner/close/network), households/family units, key dates beyond birthday.
 - **Phase 8 — Contact bridge**: vCard export → CardDAV, so data can flow back to the phone's address book (mitigates "phone gravity").
 - **Multitenancy go-live**: real signup/login UI, join-by-code screen, household switcher, thread `household_id` into every insert. (Activates when Supabase is wired.)
 - **Final polish + branding pass.**
@@ -56,4 +56,4 @@ node scripts/tasks-smoke.mjs   # + lists-smoke.mjs / demo-smoke.mjs (Playwright,
 ```
 
 ## Recommended next
-**Phase 7 (richer relationships)** — deepens the rolodex half (now the thinnest), all demo-testable, and key dates/tiers feed Today directly. Alternative: **Phase 6 (reminders)** to make the app proactive.
+**Phase 6 (reminders + notifications)** — Today now surfaces dates and due tasks; the natural next step is making the app proactive (in-app nudge layer for keep-in-touch cadence + key dates, then web-push on the installed PWA). Alternative: **Phase 8 (vCard/CardDAV bridge)**.

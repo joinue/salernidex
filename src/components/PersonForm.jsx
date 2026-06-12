@@ -3,10 +3,12 @@ import { AlertTriangle } from 'react-feather'
 import Modal from './Modal'
 import TagInput from './TagInput'
 import Avatar from './Avatar'
-import { KEEP_IN_TOUCH_OPTIONS } from '../lib/constants'
+import { KEEP_IN_TOUCH_OPTIONS, TIERS } from '../lib/constants'
 import { findDuplicates } from '../lib/duplicates'
 
-export default function PersonForm({ person, orgs, people = [], existingTags, onSave, onClose, onOpenPerson }) {
+const NEW_FAMILY = '__new__'
+
+export default function PersonForm({ person, orgs, people = [], families = [], existingTags, onSave, onCreateFamily, onClose, onOpenPerson }) {
   const [form, setForm] = useState({
     name: person?.name || '',
     organization: person?.organization || '',
@@ -16,10 +18,13 @@ export default function PersonForm({ person, orgs, people = [], existingTags, on
     birthday: person?.birthday || '',
     address: person?.address || '',
     tags: person?.tags || [],
+    tier: person?.tier || '',
+    family_id: person?.family_id || '',
     keep_in_touch_days: person?.keep_in_touch_days || 0,
     privacy_level: person?.privacy_level || 'shared',
     notes: person?.notes || '',
   })
+  const [newFamilyName, setNewFamilyName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -37,8 +42,26 @@ export default function PersonForm({ person, orgs, people = [], existingTags, on
     setBusy(true)
     setError(null)
     try {
+      // "New family…" creates the family first, then links the person to it.
+      let familyId = form.family_id || null
+      if (familyId === NEW_FAMILY) {
+        const name = newFamilyName.trim()
+        if (!name) {
+          setError('Give the new family a name (e.g. "The Parks").')
+          setBusy(false)
+          return
+        }
+        const family = await onCreateFamily({ name })
+        familyId = family.id
+      }
       await onSave(
-        { ...form, birthday: form.birthday || null, keep_in_touch_days: Number(form.keep_in_touch_days) || null },
+        {
+          ...form,
+          birthday: form.birthday || null,
+          tier: form.tier || null,
+          family_id: familyId,
+          keep_in_touch_days: Number(form.keep_in_touch_days) || null,
+        },
         person?.id
       )
       onClose()
@@ -127,6 +150,34 @@ export default function PersonForm({ person, orgs, people = [], existingTags, on
             onChange={(tags) => setForm({ ...form, tags })}
             suggestions={existingTags}
           />
+        </div>
+        <div className="field">
+          <label className="label">Tier</label>
+          <select value={form.tier} onChange={set('tier')}>
+            <option value="">Not sorted yet</option>
+            {TIERS.map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label className="label">Family</label>
+          <select value={form.family_id} onChange={set('family_id')}>
+            <option value="">None</option>
+            {families.map((f) => (
+              <option key={f.id} value={f.id}>{f.name}</option>
+            ))}
+            <option value={NEW_FAMILY}>+ New family…</option>
+          </select>
+          {form.family_id === NEW_FAMILY && (
+            <input
+              style={{ marginTop: 8 }}
+              placeholder='Family name — "The Parks"'
+              value={newFamilyName}
+              onChange={(e) => setNewFamilyName(e.target.value)}
+              autoFocus
+            />
+          )}
         </div>
         <div className="field">
           <label className="label">Keep in touch</label>

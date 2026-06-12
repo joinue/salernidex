@@ -7,9 +7,10 @@ import { memberNames, setMemberNames } from '../lib/household'
 import { findDuplicates } from '../lib/duplicates'
 
 // Bump when the backup shape changes so future imports can migrate if needed.
-const BACKUP_VERSION = 2
+// v3: adds families, key_dates, and people.tier/family_id (Phase 7).
+const BACKUP_VERSION = 3
 
-const SCHEMA_FIELDS = ['', 'name', 'organization', 'role', 'email', 'phone', 'birthday', 'address', 'tags', 'notes']
+const SCHEMA_FIELDS = ['', 'name', 'organization', 'role', 'email', 'phone', 'birthday', 'address', 'tier', 'tags', 'notes']
 
 // Auto-map CSV headers to schema fields by loose name match
 function guessField(header) {
@@ -21,6 +22,7 @@ function guessField(header) {
   if (h.includes('phone') || h.includes('mobile') || h.includes('cell')) return 'phone'
   if (h.includes('birth') || h.includes('bday') || h === 'dob') return 'birthday'
   if (h.includes('address') || h.includes('street')) return 'address'
+  if (h.includes('tier') || h.includes('circle')) return 'tier'
   if (h.includes('tag') || h.includes('label') || h.includes('group')) return 'tags'
   if (h.includes('note') || h.includes('comment') || h.includes('context')) return 'notes'
   return ''
@@ -37,7 +39,7 @@ function download(filename, content, mime) {
 }
 
 export default function ImportExport({ data }) {
-  const { people, orgs, relationships, interactions, groups, tasks, completions, taskLinks, lists, listItems, importPeople, restoreBackup } = data
+  const { people, orgs, relationships, interactions, groups, tasks, completions, taskLinks, lists, listItems, families, keyDates, importPeople, restoreBackup } = data
   const csvRef = useRef(null)
   const jsonRef = useRef(null)
   const [parsed, setParsed] = useState(null) // { headers, rows }
@@ -58,6 +60,8 @@ export default function ImportExport({ data }) {
       organizations: orgs,
       relationships,
       interactions,
+      families,
+      key_dates: keyDates,
       groups,
       tasks,
       task_completions: completions,
@@ -88,7 +92,7 @@ export default function ImportExport({ data }) {
         setStatus('This does not look like a Salernidex backup.')
         return
       }
-      const counts = ['people', 'organizations', 'relationships', 'interactions', 'groups', 'tasks', 'task_completions', 'task_links', 'lists', 'list_items']
+      const counts = ['people', 'organizations', 'relationships', 'interactions', 'families', 'key_dates', 'groups', 'tasks', 'task_completions', 'task_links', 'lists', 'list_items']
         .map((k) => (backup[k] || []).length)
         .reduce((a, b) => a + b, 0)
       if (!window.confirm(`Restore ${counts} records from this backup? Existing records with the same id are overwritten; the rest are kept.`)) return
@@ -116,6 +120,7 @@ export default function ImportExport({ data }) {
         phone: p.phone || '',
         birthday: p.birthday || '',
         address: p.address || '',
+        tier: p.tier || '',
         tags: (p.tags || []).join('; '),
         keep_in_touch_days: p.keep_in_touch_days || '',
         privacy_level: p.privacy_level,

@@ -7,6 +7,19 @@
 create type privacy_level as enum ('marc_only', 'shared', 'family_shared', 'public');
 
 -- ------------------------------------------------------------
+-- families (contact family units — "The Parks". A grouping of
+-- *contacts*, distinct from the household/tenant model below.)
+-- ------------------------------------------------------------
+create table public.families (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  notes       text,
+  created_by  uuid default auth.uid(),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+-- ------------------------------------------------------------
 -- people
 -- ------------------------------------------------------------
 create table public.people (
@@ -19,6 +32,8 @@ create table public.people (
   birthday      date,
   address       text,
   tags          text[] not null default '{}',
+  tier          text check (tier in ('inner', 'close', 'network')),  -- relationship tier; null = unsorted
+  family_id     uuid references public.families(id) on delete set null,
   privacy_level privacy_level not null default 'shared',
   notes         text,
   keep_in_touch_days integer,              -- stay-in-touch cadence in days; null/0 = off
@@ -27,6 +42,20 @@ create table public.people (
   updated_by    uuid,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
+);
+
+-- ------------------------------------------------------------
+-- key_dates (dates that matter beyond birthday — anniversaries,
+-- memorials, "started new job". Annual by default; one-offs allowed.)
+-- ------------------------------------------------------------
+create table public.key_dates (
+  id          uuid primary key default gen_random_uuid(),
+  person_id   uuid not null references public.people(id) on delete cascade,
+  label       text not null,                -- e.g. 'Wedding anniversary'
+  date        date not null,                -- original date; its year drives "N years"
+  annual      boolean not null default true, -- repeats yearly vs one-off
+  created_by  uuid default auth.uid(),
+  created_at  timestamptz not null default now()
 );
 
 -- ------------------------------------------------------------
@@ -193,6 +222,8 @@ begin
   return new;
 end $$;
 
+create trigger families_touch before update on public.families
+  for each row execute function public.touch_updated_at();
 create trigger people_touch before update on public.people
   for each row execute function public.touch_updated_at();
 create trigger organizations_touch before update on public.organizations
@@ -245,7 +276,9 @@ create trigger task_links_audit after insert or update or delete on public.task_
 -- Single shared account model: any authenticated user has full
 -- access. privacy_level filtering happens in the app UI.
 -- ------------------------------------------------------------
+alter table public.families enable row level security;
 alter table public.people enable row level security;
+alter table public.key_dates enable row level security;
 alter table public.organizations enable row level security;
 alter table public.relationships enable row level security;
 alter table public.interactions enable row level security;
@@ -258,6 +291,10 @@ alter table public.list_items enable row level security;
 alter table public.audit_log enable row level security;
 
 create policy "authenticated full access" on public.people
+  for all to authenticated using (true) with check (true);
+create policy "authenticated full access" on public.families
+  for all to authenticated using (true) with check (true);
+create policy "authenticated full access" on public.key_dates
   for all to authenticated using (true) with check (true);
 create policy "authenticated full access" on public.interactions
   for all to authenticated using (true) with check (true);
@@ -298,6 +335,8 @@ create index list_items_list_idx on public.list_items (list_id, created_at);
 -- Realtime (so edits sync live across devices)
 -- ------------------------------------------------------------
 alter publication supabase_realtime add table public.people;
+alter publication supabase_realtime add table public.families;
+alter publication supabase_realtime add table public.key_dates;
 alter publication supabase_realtime add table public.organizations;
 alter publication supabase_realtime add table public.relationships;
 alter publication supabase_realtime add table public.interactions;

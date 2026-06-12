@@ -176,6 +176,23 @@ select {
   color: var(--text);
 }
 
+/* ---------- relationship tier chips ---------- */
+
+.chip.tier-inner {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.chip.tier-close {
+  background: rgba(52, 199, 89, 0.14);
+  color: var(--green);
+}
+
+.chip.tier-network {
+  background: var(--fill);
+  color: var(--text-2);
+}
+
 /* ---------- layout ---------- */
 
 .layout {

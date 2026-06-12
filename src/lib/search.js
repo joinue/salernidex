@@ -49,11 +49,20 @@ export function searchPeople(people, query) {
 export const PEOPLE_SORTS = [
   { value: 'name', label: 'Name (A–Z)' },
   { value: 'recent', label: 'Recent activity' },
+  { value: 'tier', label: 'Tier (closest first)' },
 ]
+
+const TIER_SORT_RANK = { inner: 0, close: 1, network: 2 }
 
 export function sortPeople(people, sort, lastByPerson) {
   if (sort === 'relevance') return people // keep searchPeople's match ranking
   const byName = (a, b) => (a.name || '').localeCompare(b.name || '')
+
+  if (sort === 'tier') {
+    // Inner circle → close → network → unsorted, alphabetical within each.
+    const rank = (p) => TIER_SORT_RANK[p.tier] ?? 3
+    return [...people].sort((a, b) => rank(a) - rank(b) || byName(a, b))
+  }
 
   if (sort === 'recent') {
     // Most recently contacted first; never-contacted sink to the bottom.

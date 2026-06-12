@@ -19,6 +19,17 @@ export const INTERACTION_TYPES = [
 
 export const INTERACTION_BY_ID = Object.fromEntries(INTERACTION_TYPES.map((t) => [t.id, t]))
 
+// Relationship tiers — how close someone is, independent of tags/groups.
+// null/'' = unsorted. Order matters: closest first (drives the tier sort).
+export const TIERS = [
+  { value: 'inner', label: 'Inner circle' },
+  { value: 'close', label: 'Close' },
+  { value: 'network', label: 'Network' },
+]
+
+export const TIER_LABELS = Object.fromEntries(TIERS.map((t) => [t.value, t.label]))
+export const TIER_RANK = Object.fromEntries(TIERS.map((t, i) => [t.value, i]))
+
 // "Keep in touch" cadence presets, stored as days (0 = no reminder).
 export const KEEP_IN_TOUCH_OPTIONS = [
   { value: 0, label: 'No reminder' },

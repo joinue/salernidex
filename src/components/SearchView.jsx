@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Search, ChevronRight, Edit2, Archive, RotateCcw, Trash2, Users, MoreHorizontal, Sliders, UserPlus, Check, ArrowDown } from 'react-feather'
 import { searchPeople, sortPeople, PEOPLE_SORTS } from '../lib/search'
 import { groupMembers } from '../lib/groups'
-import { PRIVACY_LABELS } from '../lib/constants'
+import { PRIVACY_LABELS, TIERS } from '../lib/constants'
 import { lastInteraction, relativeTime } from '../lib/contact'
 import { personActions } from '../lib/personActions'
 import Avatar from './Avatar'
@@ -17,6 +17,7 @@ export default function SearchView({ data, searchRef, query, setQuery, onOpen, o
   const [orgFilter, setOrgFilter] = useState('')
   const [tagFilter, setTagFilter] = useState('')
   const [groupFilter, setGroupFilter] = useState('')
+  const [tierFilter, setTierFilter] = useState('')
   const [privacyFilter, setPrivacyFilter] = useState('')
   const [showDeleted, setShowDeleted] = useState(false)
   const [sort, setSort] = useState(() => localStorage.getItem('salernidex-people-sort') || 'name')
@@ -58,16 +59,18 @@ export default function SearchView({ data, searchRef, query, setQuery, onOpen, o
         pool = pool.filter((p) => ids.has(p.id))
       }
     }
+    if (tierFilter) pool = pool.filter((p) => p.tier === tierFilter)
     if (privacyFilter) pool = pool.filter((p) => p.privacy_level === privacyFilter)
     return sortPeople(searchPeople(pool, query), searching ? 'relevance' : sort, lastByPerson)
-  }, [people, groups, query, orgFilter, tagFilter, groupFilter, privacyFilter, showDeleted, sort, searching, lastByPerson])
+  }, [people, groups, query, orgFilter, tagFilter, groupFilter, tierFilter, privacyFilter, showDeleted, sort, searching, lastByPerson])
 
-  const activeCount = [orgFilter, tagFilter, groupFilter, privacyFilter, showDeleted].filter(Boolean).length
+  const activeCount = [orgFilter, tagFilter, groupFilter, tierFilter, privacyFilter, showDeleted].filter(Boolean).length
 
   const clearAll = () => {
     setOrgFilter('')
     setTagFilter('')
     setGroupFilter('')
+    setTierFilter('')
     setPrivacyFilter('')
     setShowDeleted(false)
   }
@@ -186,6 +189,13 @@ export default function SearchView({ data, searchRef, query, setQuery, onOpen, o
               <select value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
                 <option value="">All tags</option>
                 {allTags.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label className="label">Tier</label>
+              <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value)}>
+                <option value="">All tiers</option>
+                {TIERS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
             <div className="field">
