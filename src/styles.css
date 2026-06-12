@@ -1,0 +1,879 @@
+/* ============================================================
+   SALERNIDEX — iOS elegance, minimal modernism
+   Whitespace as structure. No cards-in-cards. Restraint.
+   ============================================================ */
+
+:root {
+  --bg: #ffffff;
+  --text: #1a1a1a;
+  --text-2: #6b7280;
+  --accent: #0066cc;
+  --divider: #e5e7eb;
+  --hover: #f9fafb;
+  --danger: #b91c1c;
+  --mono: 'Monaco', 'Menlo', 'Consolas', monospace;
+}
+
+/* Manual dark choice */
+:root[data-theme='dark'] {
+  --bg: #0f0f0f;
+  --text: #e5e7eb;
+  --text-2: #9ca3af;
+  --accent: #3b82f6;
+  --divider: #2d3748;
+  --hover: #1a1a1a;
+  --danger: #f87171;
+}
+
+/* System preference (unless user chose light explicitly) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0f0f0f;
+    --text: #e5e7eb;
+    --text-2: #9ca3af;
+    --accent: #3b82f6;
+    --divider: #2d3748;
+    --hover: #1a1a1a;
+    --danger: #f87171;
+  }
+}
+
+/* Subtle, theme-aware scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--divider) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--divider);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-2);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: var(--text);
+}
+
+/* ---------- layout ---------- */
+
+.layout {
+  display: flex;
+  height: 100%;
+}
+
+/* The main area scrolls full-width so the scrollbar sits at the
+   window edge; the content column stays readable inside it. */
+.main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px 40px 80px;
+}
+
+.content {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* ---------- sidebar ---------- */
+
+.sidebar {
+  width: 180px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 32px 0 24px;
+  border-right: 1px solid var(--divider);
+}
+
+.sidebar .brand {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  padding: 0 20px 28px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 20px;
+  font-size: 14px;
+  color: var(--text-2);
+  border-left: 2px solid transparent;
+  text-align: left;
+}
+
+.nav-item:hover {
+  background: var(--hover);
+}
+
+.nav-item.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+}
+
+.sidebar .spacer {
+  flex: 1;
+}
+
+/* ---------- typography ---------- */
+
+.label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  margin-bottom: 24px;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.muted {
+  color: var(--text-2);
+}
+
+/* ---------- search ---------- */
+
+.search-wrap {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.search-wrap svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-2);
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px 0 38px;
+  background: var(--hover);
+  border: none;
+  border-radius: 8px;
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: var(--text-2);
+}
+
+.search-input:focus {
+  box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.2);
+}
+
+/* ---------- filters ---------- */
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.filter-select {
+  height: 30px;
+  padding: 0 8px;
+  font-size: 13px;
+  color: var(--text-2);
+  background: var(--bg);
+  border: 1px solid var(--divider);
+  border-radius: 6px;
+  outline: none;
+}
+
+.filter-clear {
+  font-size: 13px;
+  color: var(--accent);
+  padding: 4px 8px;
+}
+
+/* ---------- result list ---------- */
+
+.result-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--divider);
+  cursor: pointer;
+  animation: fade-in 200ms ease-out;
+}
+
+.result-item:last-child {
+  border-bottom: none;
+}
+
+.result-item:hover {
+  background: var(--hover);
+}
+
+.result-name {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.result-org {
+  font-size: 14px;
+  color: var(--text-2);
+  margin-top: 1px;
+}
+
+.result-tags {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---------- person detail (instant context reveal) ---------- */
+
+.detail {
+  padding: 8px 0 24px;
+  animation: fade-in 200ms ease-out;
+  cursor: default;
+}
+
+.detail-section {
+  margin-top: 20px;
+}
+
+.detail .contact-line {
+  font-family: var(--mono);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.detail .notes {
+  white-space: pre-wrap;
+  font-size: 14px;
+}
+
+.connection {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 14px;
+}
+
+.connection .conn-type {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.connection .conn-name {
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.connection .conn-name:hover {
+  text-decoration: underline;
+}
+
+.connection .conn-remove {
+  font-size: 12px;
+  color: var(--text-2);
+  opacity: 0;
+}
+
+.connection:hover .conn-remove {
+  opacity: 1;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.text-btn {
+  font-size: 14px;
+  color: var(--accent);
+  padding: 6px 0;
+}
+
+.text-btn.danger {
+  color: var(--danger);
+}
+
+/* ---------- person page ---------- */
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text-2);
+  margin-bottom: 24px;
+  padding: 4px 0;
+}
+
+.back-btn:hover {
+  color: var(--accent);
+}
+
+.person-name {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+
+.person-sub {
+  font-size: 15px;
+  color: var(--text-2);
+  margin-top: 2px;
+}
+
+/* ---------- groups ---------- */
+
+.rule-text {
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+/* ---------- pills (tags) ---------- */
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.pill button {
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+}
+
+/* ---------- forms ---------- */
+
+.field {
+  margin-bottom: 20px;
+}
+
+.field input,
+.field textarea,
+.field select {
+  width: 100%;
+  height: 40px;
+  background: var(--bg);
+  border: none;
+  border-bottom: 1px solid var(--divider);
+  outline: none;
+  padding: 0 2px;
+}
+
+.field textarea {
+  height: auto;
+  min-height: 80px;
+  padding: 8px 2px;
+  resize: vertical;
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
+  border-bottom-color: var(--accent);
+}
+
+.btn-primary {
+  width: 100%;
+  height: 44px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 500;
+  border-radius: 4px;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ---------- modal ---------- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 50;
+}
+
+.modal {
+  width: 420px;
+  max-width: 100%;
+  height: 100%;
+  background: var(--bg);
+  padding: 32px;
+  overflow-y: auto;
+  animation: slide-in 300ms ease-out;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -12px -12px -12px 0;
+  color: var(--text-2);
+  border-radius: 8px;
+}
+
+.modal-close:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+/* ---------- loading dots ---------- */
+
+.dots::after {
+  content: '';
+  animation: dots 1.2s steps(4) infinite;
+}
+
+@keyframes dots {
+  0% {
+    content: '';
+  }
+  25% {
+    content: '.';
+  }
+  50% {
+    content: '..';
+  }
+  75% {
+    content: '...';
+  }
+}
+
+/* ---------- demo banner ---------- */
+
+.demo-banner {
+  font-size: 13px;
+  color: var(--text-2);
+  background: var(--hover);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 20px;
+}
+
+/* ---------- empty state ---------- */
+
+.empty {
+  color: var(--text-2);
+  font-size: 14px;
+  padding: 32px 0;
+}
+
+/* ---------- login ---------- */
+
+.login-wrap {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-box {
+  width: 320px;
+}
+
+.login-box h1 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  margin-bottom: 32px;
+}
+
+.error-text {
+  color: var(--danger);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+/* ---------- relationships view ---------- */
+
+.rel-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--divider);
+  font-size: 14px;
+}
+
+.rel-row .arrow {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+/* ---------- import/export ---------- */
+
+.map-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.map-row .csv-col {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.section-gap {
+  margin-top: 32px;
+}
+
+/* ---------- mobile bottom tab bar ---------- */
+
+.tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  align-items: stretch;
+  background: var(--bg);
+  border-top: 1px solid var(--divider);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 0 10px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  color: var(--text-2);
+}
+
+.tab.active {
+  color: var(--accent);
+}
+
+.tab-add {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.add-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  margin-top: -18px;
+  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.35);
+}
+
+/* ---------- bottom sheets ---------- */
+
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.sheet {
+  background: var(--bg);
+  border-radius: 16px 16px 0 0;
+  padding: 6px 16px calc(16px + env(safe-area-inset-bottom));
+  animation: sheet-up 250ms ease-out;
+}
+
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--divider);
+  margin: 6px auto 14px;
+}
+
+.sheet-title {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-2);
+  padding: 0 10px 8px;
+}
+
+.sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 10px;
+  font-size: 16px;
+  color: var(--text);
+  border-radius: 10px;
+  text-align: left;
+}
+
+.sheet-item:active {
+  background: var(--hover);
+}
+
+.sheet-item svg {
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* ---------- mobile ---------- */
+
+@media (max-width: 720px) {
+  body {
+    font-size: 16px;
+  }
+
+  .main {
+    padding: 12px 16px calc(86px + env(safe-area-inset-bottom));
+  }
+
+  .demo-banner {
+    font-size: 12px;
+    padding: 6px 10px;
+    margin-bottom: 12px;
+  }
+
+  /* Search pinned to the top while results scroll under it */
+  .search-wrap {
+    position: sticky;
+    top: -12px;
+    z-index: 10;
+    background: var(--bg);
+    padding: 12px 0 10px;
+    margin: -12px 0 8px;
+  }
+
+  .search-input {
+    height: 44px;
+    border-radius: 10px;
+  }
+
+  /* Filters: one swipeable row, no wrapping, hidden scrollbar */
+  .filter-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin: 0 -16px 12px;
+    padding: 0 16px;
+  }
+
+  .filter-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filter-select,
+  .filter-clear {
+    flex-shrink: 0;
+    height: 34px;
+  }
+
+  /* Denser, one-line result rows */
+  .result-item {
+    padding: 14px 0;
+  }
+
+  .result-name {
+    font-size: 17px;
+  }
+
+  .result-org,
+  .result-tags {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .page-title {
+    font-size: 22px;
+    margin-bottom: 16px;
+  }
+
+  /* Forms become bottom sheets */
+  .modal-overlay {
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  .modal {
+    width: 100%;
+    height: auto;
+    max-height: 92%;
+    border-radius: 16px 16px 0 0;
+    padding: 20px 20px calc(24px + env(safe-area-inset-bottom));
+    animation: sheet-up 300ms ease-out;
+  }
+
+  .detail-actions .text-btn {
+    min-height: 44px;
+  }
+
+  /* Connection rows: keep "works with Maria Fuentes" on one line,
+     let org/context wrap underneath */
+  .connection {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    padding: 8px 0;
+  }
+
+  .conn-type,
+  .conn-name {
+    white-space: nowrap;
+  }
+}
+
+/* Touch devices: no hover, so show actions and use :active feedback */
+@media (hover: none) {
+  .conn-remove {
+    opacity: 1;
+  }
+
+  .result-item:active {
+    background: var(--hover);
+  }
+}
