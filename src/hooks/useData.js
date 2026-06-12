@@ -5,6 +5,26 @@ import { completionFields } from '../lib/tasks'
 import { currentMember, currentMemberId, getHousehold } from '../lib/household'
 import { showToast } from '../lib/toast'
 import { filterVisible } from '../lib/privacy'
+import { hydrateAppPrefs, bindAppPrefsRemote } from '../lib/appPrefs'
+
+// member_preferences row (snake_case; task_filter is a uuid/null FK) <-> the
+// client appPrefs shape (camelCase; taskFilter uses the 'all' sentinel).
+const fromPrefRow = (r) => ({
+  taskPrivacy: r.default_task_privacy,
+  listPrivacy: r.default_list_privacy,
+  personPrivacy: r.default_person_privacy,
+  taskFilter: r.task_filter || 'all',
+  showCompleted: r.show_completed,
+  peopleSort: r.people_sort,
+})
+const toPrefRow = (p) => ({
+  default_task_privacy: p.taskPrivacy,
+  default_list_privacy: p.listPrivacy,
+  default_person_privacy: p.personPrivacy,
+  task_filter: p.taskFilter === 'all' ? null : p.taskFilter,
+  show_completed: p.showCompleted,
+  people_sort: p.peopleSort,
+})
 
 const uuid = () => crypto.randomUUID()
 const now = () => new Date().toISOString()
@@ -99,15 +119,43 @@ export function useData(session) {
     setLoading(false)
   }, [isDemo])
 
+  // App preferences are loaded apart from the main data pull so a pref-specific
+  // failure — most likely the member_preferences table not existing yet because
+  // its migration hasn't been run — degrades to localStorage defaults instead
+  // of blocking the whole app. Result is folded into the appPrefs cache.
+  const refreshPrefs = useCallback(async () => {
+    if (isDemo || !memberId) return
+    const { data, error: prefErr } = await supabase
+      .from('member_preferences')
+      .select('*')
+      .eq('member_id', memberId)
+      .maybeSingle()
+    if (!prefErr && data) hydrateAppPrefs(memberId, fromPrefRow(data))
+  }, [isDemo, memberId])
+
   useEffect(() => {
     if (!session || isDemo) return
     refresh()
+    refreshPrefs()
+    // Writes from the client mirror to the table; the cache stays the source the
+    // UI reads (bindAppPrefsRemote pushes the full merged prefs on each change).
+    bindAppPrefsRemote((mid, prefs) =>
+      sync(() =>
+        supabase
+          .from('member_preferences')
+          .upsert({ member_id: mid, ...toPrefRow(prefs) }, { onConflict: 'member_id' })
+      )
+    )
     const channel = supabase
       .channel('salernidex-sync')
       .on('postgres_changes', { event: '*', schema: 'public' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'member_preferences' }, refreshPrefs)
       .subscribe()
-    return () => supabase.removeChannel(channel)
-  }, [session, refresh])
+    return () => {
+      bindAppPrefsRemote(null)
+      supabase.removeChannel(channel)
+    }
+  }, [session, refresh, refreshPrefs])
 
   // Background write. `op` returns a Supabase query (thenable resolving to
   // { error }) or a promise from a multi-step async fn that throws on failure.

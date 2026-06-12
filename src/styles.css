@@ -372,6 +372,40 @@ select {
   flex-shrink: 0;
 }
 
+/* The sidebar Search is a control, not a destination — give it the look of a
+   search field (bordered, rounded, muted placeholder text) so it reads apart
+   from the flat nav buttons below it, echoing the mobile Quick Find input. */
+.nav-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-2);
+  background: var(--fill);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-sm);
+  text-align: left;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.nav-search svg {
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.nav-search-text {
+  flex: 1;
+}
+
+.nav-search:hover {
+  background: var(--fill-2);
+  border-color: var(--text-3);
+}
+
 .nav-item {
   display: flex;
   align-items: center;

@@ -16,14 +16,14 @@ import { nextOccurrence } from '../lib/recurrence'
 // Progressive disclosure: most tasks are a title and maybe a date, so that's
 // all the form shows. Who/Repeat/Visibility/Notes live behind "More options",
 // auto-expanded when editing a task that already uses any of them.
-export default function TaskForm({ task, onSave, onClose }) {
+export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shared' }) {
   const [form, setForm] = useState({
     title: task?.title || '',
     is_project: task?.is_project || false,
     assignee: normalizeAssignee(task?.assignee),
     due_date: task?.due_date || '',
     recurrence: task?.recurrence || null,
-    privacy_level: task?.privacy_level || 'shared',
+    privacy_level: task?.privacy_level || defaultPrivacy,
     notes: task?.notes || '',
   })
   const [more, setMore] = useState(

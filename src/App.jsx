@@ -7,7 +7,9 @@ import { useData } from './hooks/useData'
 import { useHousehold } from './hooks/useHousehold'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { useNotificationPrefs } from './hooks/useNotificationPrefs'
+import { useAppPrefs } from './hooks/useAppPrefs'
 import { useEdgeBack } from './hooks/useEdgeBack'
+import { currentMemberId } from './lib/household'
 import InstallHint from './components/InstallHint'
 import AuthScreen from './components/AuthScreen'
 import Onboarding from './components/Onboarding'
@@ -157,6 +159,13 @@ function Shell({ session, onLogout, household }) {
   const searchRef = useRef(null)
   const mainRef = useRef(null)
   const isMobile = useMediaQuery('(max-width: 720px)')
+
+  // Per-member defaults (new-item visibility + Tasks view). Keyed the same way
+  // SettingsView writes them: the DB member id when live, the localStorage one
+  // in demo — so reads here match what Settings saved.
+  const isDemo = !!(demoMode || session?.demo)
+  const meId = isDemo ? currentMemberId() : household?.memberId
+  const [appPrefs] = useAppPrefs(meId)
 
   useEffect(() => {
     // Route changes cross-fade via the View Transitions API where available
@@ -326,7 +335,7 @@ function Shell({ session, onLogout, household }) {
             <ActivityView data={data} onBack={() => go('today')} onOpenPerson={openPerson} onOpenList={openList} onOpenTasks={() => go('tasks')} />
           )}
           {route.name === 'tasks' && (
-            <TasksView data={data} expandId={route.id} onAdd={() => setEditingTask('new')} onEdit={(t) => setEditingTask(t)} onOpenProject={openProject} onSearch={isMobile ? () => setQuickFind(true) : undefined} />
+            <TasksView data={data} expandId={route.id} onAdd={() => setEditingTask('new')} onEdit={(t) => setEditingTask(t)} onOpenProject={openProject} onSearch={isMobile ? () => setQuickFind(true) : undefined} defaultFilter={appPrefs.taskFilter} defaultShowCompleted={appPrefs.showCompleted} />
           )}
           {route.name === 'project' && (
             <ProjectDetail data={data} taskId={route.id} onBack={() => window.history.back()} onEdit={(t) => setEditingTask(t)} onOpenPerson={openPerson} />
@@ -347,6 +356,7 @@ function Shell({ session, onLogout, household }) {
               onEdit={(p) => setEditingPerson(p)}
               onAdd={() => setEditingPerson('new')}
               onMore={isMobile ? () => setMoreOpen('people') : undefined}
+              memberId={meId}
             />
           )}
           {route.name === 'person' && (
@@ -427,6 +437,7 @@ function Shell({ session, onLogout, household }) {
           onCreateFamily={data.saveFamily}
           onClose={() => setEditingPerson(null)}
           onOpenPerson={openPerson}
+          defaultPrivacy={appPrefs.personPrivacy}
         />
       )}
       {editingOrg && (
@@ -445,6 +456,7 @@ function Shell({ session, onLogout, household }) {
           task={editingTask === 'new' ? null : editingTask}
           onSave={(fields, id) => (id ? data.updateTask(id, fields) : data.addTask(fields))}
           onClose={() => setEditingTask(null)}
+          defaultPrivacy={appPrefs.taskPrivacy}
         />
       )}
       {editingList && (
@@ -452,6 +464,7 @@ function Shell({ session, onLogout, household }) {
           list={editingList === 'new' ? null : editingList}
           onSave={data.saveList}
           onClose={() => setEditingList(null)}
+          defaultPrivacy={appPrefs.listPrivacy}
         />
       )}
       {relationshipFrom && (

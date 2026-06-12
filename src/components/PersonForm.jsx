@@ -8,7 +8,7 @@ import { findDuplicates } from '../lib/duplicates'
 
 const NEW_FAMILY = '__new__'
 
-export default function PersonForm({ person, orgs, people = [], families = [], existingTags, onSave, onCreateFamily, onClose, onOpenPerson }) {
+export default function PersonForm({ person, orgs, people = [], families = [], existingTags, onSave, onCreateFamily, onClose, onOpenPerson, defaultPrivacy = 'shared' }) {
   const [form, setForm] = useState({
     name: person?.name || '',
     organization: person?.organization || '',
@@ -21,7 +21,7 @@ export default function PersonForm({ person, orgs, people = [], families = [], e
     tier: person?.tier || '',
     family_id: person?.family_id || '',
     keep_in_touch_days: person?.keep_in_touch_days || 0,
-    privacy_level: person?.privacy_level || 'shared',
+    privacy_level: person?.privacy_level || defaultPrivacy,
     notes: person?.notes || '',
   })
   const [newFamilyName, setNewFamilyName] = useState('')

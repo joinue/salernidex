@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Search, ChevronRight, Edit2, Archive, RotateCcw, Trash2, Users, MoreHorizontal, Sliders, UserPlus, Check, ArrowDown } from 'react-feather'
 import { searchPeople, sortPeople, PEOPLE_SORTS } from '../lib/search'
 import { groupMembers } from '../lib/groups'
@@ -12,22 +12,25 @@ import SwipeRow from './SwipeRow'
 import ActionSheet from './ActionSheet'
 import InteractionForm from './InteractionForm'
 import ConfirmDialog from './ConfirmDialog'
+import { useAppPrefs } from '../hooks/useAppPrefs'
 
-export default function SearchView({ data, searchRef, query, setQuery, onOpen, onEdit, onAdd, onMore }) {
+export default function SearchView({ data, searchRef, query, setQuery, onOpen, onEdit, onAdd, onMore, memberId }) {
   const [orgFilter, setOrgFilter] = useState('')
   const [tagFilter, setTagFilter] = useState('')
   const [groupFilter, setGroupFilter] = useState('')
   const [tierFilter, setTierFilter] = useState('')
   const [privacyFilter, setPrivacyFilter] = useState('')
   const [showDeleted, setShowDeleted] = useState(false)
-  const [sort, setSort] = useState(() => localStorage.getItem('salernidex-people-sort') || 'name')
   const [filterOpen, setFilterOpen] = useState(false)
   const [sortOpen, setSortOpen] = useState(false)
   const [actionPerson, setActionPerson] = useState(null)
   const [logPerson, setLogPerson] = useState(null)
   const [purgePersonTarget, setPurgePersonTarget] = useState(null) // person pending permanent delete
 
-  useEffect(() => { localStorage.setItem('salernidex-people-sort', sort) }, [sort])
+  // People sort is a per-member preference (shared app-prefs store).
+  const [appPrefs, updateAppPrefs] = useAppPrefs(memberId)
+  const sort = appPrefs.peopleSort
+  const setSort = (v) => updateAppPrefs({ peopleSort: v })
 
   const { people, interactions, groups, loading, deletePerson, restorePerson, purgePerson, userId, addInteraction } = data
 

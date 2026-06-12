@@ -5,10 +5,10 @@ import { PRIVACY_LABELS } from '../lib/constants'
 const ICONS = ['🛒', '🛍️', '🔧', '🧳', '📝', '🎁', '🏠', '🍽️']
 
 // Create or edit a list (name + an emoji icon for quick recognition).
-export default function ListForm({ list, onSave, onClose }) {
+export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'family_shared' }) {
   const [name, setName] = useState(list?.name || '')
   const [icon, setIcon] = useState(list?.icon || '🛒')
-  const [privacy, setPrivacy] = useState(list?.privacy_level || 'family_shared')
+  const [privacy, setPrivacy] = useState(list?.privacy_level || defaultPrivacy)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 

@@ -17,11 +17,14 @@ const BUCKETS = [
   { id: 'someday', label: 'Someday' },
 ]
 
-export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject, onSearch }) {
+export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject, onSearch, defaultFilter = 'all', defaultShowCompleted = false }) {
   const { tasks, completions, addTask, deleteTask, completeTask, reorderTasks } = data
-  const [filter, setFilter] = useState('all')
+  // Default view from settings; fall back to 'all' if the saved member is gone.
+  const [filter, setFilter] = useState(() =>
+    defaultFilter === 'all' || members().some((m) => m.id === defaultFilter) ? defaultFilter : 'all'
+  )
   const [expanded, setExpanded] = useState(expandId || null)
-  const [showDone, setShowDone] = useState(false)
+  const [showDone, setShowDone] = useState(defaultShowCompleted)
   const [draftSub, setDraftSub] = useState('')
 
   // Deep link from Quick Find (#/tasks/<id>): land with that task expanded.

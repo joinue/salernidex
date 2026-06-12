@@ -5,13 +5,15 @@ import PageHeader from './PageHeader'
 import Segmented from './Segmented'
 import { memberNames, setMemberNames } from '../lib/household'
 import { getAllPrefs, setAllPrefs } from '../lib/notifyPrefs'
+import { getAllAppPrefs, setAllAppPrefs } from '../lib/appPrefs'
 import { downloadVcf } from '../lib/vcard'
 import { findDuplicates } from '../lib/duplicates'
 
 // Bump when the backup shape changes so future imports can migrate if needed.
 // v3: adds families, key_dates, and people.tier/family_id (Phase 7).
 // v4: adds reminder_snoozes + settings.notifications (Phase 6a).
-const BACKUP_VERSION = 4
+// v5: adds settings.preferences (per-member default visibility + Tasks view).
+const BACKUP_VERSION = 5
 
 const SCHEMA_FIELDS = ['', 'name', 'organization', 'role', 'email', 'phone', 'birthday', 'address', 'tier', 'tags', 'notes']
 
@@ -78,7 +80,7 @@ export default function ImportExport({ data }) {
       lists: allLists,
       list_items: allListItems,
       reminder_snoozes: reminderSnoozes,
-      settings: { members: memberNames(), notifications: getAllPrefs() },
+      settings: { members: memberNames(), notifications: getAllPrefs(), preferences: getAllAppPrefs() },
     }
     const stamp = new Date().toISOString().slice(0, 10)
     download(`salernidex-backup-${stamp}.json`, JSON.stringify(backup, null, 2), 'application/json')
@@ -111,6 +113,7 @@ export default function ImportExport({ data }) {
         await restoreBackup(backup)
         if (backup.settings?.members) setMemberNames(backup.settings.members)
         if (backup.settings?.notifications) setAllPrefs(backup.settings.notifications)
+        if (backup.settings?.preferences) setAllAppPrefs(backup.settings.preferences)
         setStatus(`Restored backup from ${backup.exported_at?.slice(0, 10) || 'file'}.`)
       } catch (err) {
         setStatus(`Restore failed: ${err.message}`)

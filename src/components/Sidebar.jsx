@@ -27,9 +27,9 @@ export default function Sidebar({ active, go, onSearch, onLogout, badge = 0, cou
         <span>Salernidex</span>
       </div>
 
-      <button className="nav-item" onClick={onSearch} title="Quick Find">
-        <Search size={18} />
-        <span className="nav-text">Search</span>
+      <button className="nav-search" onClick={onSearch} title="Quick Find">
+        <Search size={16} />
+        <span className="nav-search-text">Search</span>
         <span className="nav-kbd">{isMac ? '⌘K' : 'Ctrl K'}</span>
       </button>
 

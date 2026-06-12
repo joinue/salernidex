@@ -585,6 +585,27 @@ create table public.notification_prefs (
 create trigger notification_prefs_touch before update on public.notification_prefs
   for each row execute function public.touch_updated_at();
 
+-- Per-member app preferences: the visibility new items start with, how the
+-- Tasks page opens, and the People-page sort. One row per member. Client mirror
+-- is src/lib/appPrefs.js (localStorage until this is wired at go-live, same as
+-- notification_prefs). Theme is deliberately NOT here — it's per-device.
+-- task_filter null = "Everyone"; set to a member to default that page to them
+-- (on delete set null falls back to Everyone, matching the client guard).
+create table public.member_preferences (
+  id                     uuid primary key default gen_random_uuid(),
+  member_id              uuid not null unique references public.household_members(id) on delete cascade,
+  default_task_privacy   privacy_level not null default 'shared',
+  default_list_privacy   privacy_level not null default 'family_shared',
+  default_person_privacy privacy_level not null default 'shared',
+  task_filter            uuid references public.household_members(id) on delete set null,
+  show_completed         boolean not null default false,
+  people_sort            text not null default 'name' check (people_sort in ('name', 'recent', 'tier')),
+  updated_at             timestamptz not null default now()
+);
+
+create trigger member_preferences_touch before update on public.member_preferences
+  for each row execute function public.touch_updated_at();
+
 -- Web-push subscriptions, one per browser/device a member enabled push on.
 -- endpoint is unique per subscription; a member can hold several (phone,
 -- laptop). Stale endpoints (410 Gone on send) are deleted by the sender.
@@ -617,6 +638,7 @@ create table public.notification_log (
 -- their devices); the membership join keeps it inside the household model.
 alter table public.reminder_snoozes enable row level security;
 alter table public.notification_prefs enable row level security;
+alter table public.member_preferences enable row level security;
 alter table public.push_subscriptions enable row level security;
 alter table public.notification_log enable row level security;
 
@@ -632,6 +654,8 @@ create policy "own rows" on public.reminder_snoozes for all to authenticated
   using (public.is_own_member(member_id)) with check (public.is_own_member(member_id));
 create policy "own rows" on public.notification_prefs for all to authenticated
   using (public.is_own_member(member_id)) with check (public.is_own_member(member_id));
+create policy "own rows" on public.member_preferences for all to authenticated
+  using (public.is_own_member(member_id)) with check (public.is_own_member(member_id));
 create policy "own rows" on public.push_subscriptions for all to authenticated
   using (public.is_own_member(member_id)) with check (public.is_own_member(member_id));
 create policy "own rows read" on public.notification_log for select to authenticated
@@ -641,6 +665,7 @@ create policy "own rows read" on public.notification_log for select to authentic
 -- Snoozes sync across a member's devices live:
 alter publication supabase_realtime add table public.reminder_snoozes;
 alter publication supabase_realtime add table public.notification_prefs;
+alter publication supabase_realtime add table public.member_preferences;
 
 -- Scheduler (6b): pg_cron invokes the send-reminders Edge Function every
 -- 15 minutes. The function recomputes the same attention rules as

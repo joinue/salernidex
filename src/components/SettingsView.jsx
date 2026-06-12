@@ -4,6 +4,8 @@ import PageHeader from './PageHeader'
 import Segmented from './Segmented'
 import Avatar from './Avatar'
 import { useNotificationPrefs } from '../hooks/useNotificationPrefs'
+import { useAppPrefs } from '../hooks/useAppPrefs'
+import { PRIVACY_LABELS } from '../lib/constants'
 import { pushSupport, permissionState, deviceEnabled, enablePush, disablePush, sendTestNotification } from '../lib/push'
 import {
   getHousehold,
@@ -314,6 +316,13 @@ export default function SettingsView({ go, household, isDemo = false }) {
   const [copied, setCopied] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('salernidex-theme') || 'system')
   const [prefs, updatePrefs] = useNotificationPrefs(meId)
+  const [appPrefs, updateAppPrefs] = useAppPrefs(meId)
+
+  // Mirror the who-filter on the Tasks page (same member source it uses).
+  const taskFilterOptions = [
+    { value: 'all', label: 'Everyone' },
+    ...getMembers().map((m) => ({ value: m.id, label: m.name })),
+  ]
 
   const joinCode = isDemo ? getHousehold().join_code : household?.household?.join_code
   const copyCode = () => {
@@ -346,6 +355,56 @@ export default function SettingsView({ go, household, isDemo = false }) {
 
       <div className="section-label">Appearance</div>
       <Segmented options={THEME_OPTIONS} value={theme} onChange={(t) => { setTheme(t); applyTheme(t) }} />
+
+      <div className="section-label">New item visibility</div>
+      <p className="muted" style={{ fontSize: 13, margin: '0 4px 10px' }}>
+        The visibility new items start with. You can still change any item's visibility when you create or edit it.
+      </p>
+      <div className="field">
+        <label className="label">New tasks</label>
+        <select value={appPrefs.taskPrivacy} onChange={(e) => updateAppPrefs({ taskPrivacy: e.target.value })}>
+          {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
+            <option key={v} value={v}>{l}</option>
+          ))}
+        </select>
+      </div>
+      <div className="field">
+        <label className="label">New lists</label>
+        <select value={appPrefs.listPrivacy} onChange={(e) => updateAppPrefs({ listPrivacy: e.target.value })}>
+          {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
+            <option key={v} value={v}>{l}</option>
+          ))}
+        </select>
+      </div>
+      <div className="field">
+        <label className="label">New people</label>
+        <select value={appPrefs.personPrivacy} onChange={(e) => updateAppPrefs({ personPrivacy: e.target.value })}>
+          {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
+            <option key={v} value={v}>{l}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="section-label">Tasks view</div>
+      <p className="muted" style={{ fontSize: 13, margin: '0 4px 10px' }}>
+        How the Tasks page opens. Yours alone — other members set their own.
+      </p>
+      <div className="field">
+        <label className="label">Show tasks for</label>
+        <Segmented
+          options={taskFilterOptions}
+          value={appPrefs.taskFilter}
+          onChange={(v) => updateAppPrefs({ taskFilter: v })}
+        />
+      </div>
+      <div className="list">
+        <Toggle
+          label="Show completed by default"
+          sub="Start with the Done section expanded"
+          on={appPrefs.showCompleted}
+          onChange={(v) => updateAppPrefs({ showCompleted: v })}
+        />
+      </div>
 
       <div className="section-label">Notifications</div>
       <p className="muted" style={{ fontSize: 13, margin: '0 4px 10px' }}>
