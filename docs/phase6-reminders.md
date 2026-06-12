@@ -84,13 +84,25 @@ backup round-trips snoozes. Plus the four existing suites.
 
 ## 6b — push delivery (at Supabase go-live)
 
-- Service worker + permission flow (asked from Settings, never on launch).
-- `push_subscriptions` table: `{ id, member_id, endpoint, keys, created_at }`.
-- Supabase Edge Function on pg_cron (every 15 min): evaluates the same
-  attention rules server-side, sends VAPID web push, respects per-member prefs
-  and snoozes; marks sent items to avoid repeats.
+**Scaffolded 2026-06-12** — the live design is written down, nothing deployed:
+
+- `supabase/schema.sql` (Phase 6 section): `reminder_snoozes`,
+  `notification_prefs`, `push_subscriptions`, `notification_log` (send-dedupe),
+  all per-member via `household_members(id)` with own-rows RLS
+  (`is_own_member()`), realtime on snoozes/prefs, and the pg_cron schedule.
+- `supabase/functions/send-reminders/index.ts`: Edge Function skeleton —
+  service-role auth, the 4-step pipeline (load members/prefs/snoozes →
+  recompute attention server-side → dedupe via notification_log → VAPID send
+  with dead-endpoint pruning). The attention recompute is the port of
+  `src/lib/reminders.js` and is the main 6b work item.
+
+Still to build at go-live:
+
+- Service worker + permission flow (asked from Settings, never on launch);
+  subscribe with `VITE_VAPID_PUBLIC_KEY` and store in `push_subscriptions`.
+- The attention recompute inside the Edge Function + pg_cron schedule.
 - **Morning digest** (default 8:00, per member): one notification summarizing
   the day ("3 things today: trash, Nina's birthday in 2d, call David") instead
   of a stream of pings. Individual day-of pushes only for day-of dates and
-  overdue-today tasks.
+  overdue-today tasks; lead-time heads-ups stay in-app only.
 - iOS: requires installed PWA (16.4+); manifest + icons already shipped.

@@ -437,3 +437,112 @@ end $$;
 -- 'private' as part of this migration (it's couple-specific). Also consider a
 -- `profiles` table (user_id, default_household_id) to remember the last-used
 -- household for the switcher.
+
+
+-- ============================================================
+-- PHASE 6 - reminders & notifications (live design; not yet wired)
+-- ============================================================
+-- The in-app attention layer (6a) runs demo-first: snoozes/prefs live in
+-- memory + localStorage and round-trip through the JSON backup. This section
+-- is the live counterpart, plus the push-delivery model (6b) that only makes
+-- sense with a server. Per-member references use household_members(id), so
+-- these tables assume the multitenancy section above is applied first.
+
+-- Per-member snooze/dismiss state for attention items. target_key is the
+-- engine's stable key (e.g. 'task:<id>', 'nudge:<person_id>',
+-- 'date:b-<person_id>' / 'date:<key_date_id>'). until = null means dismissed
+-- for good; otherwise hidden through that timestamp.
+create table public.reminder_snoozes (
+  id          uuid primary key default gen_random_uuid(),
+  member_id   uuid not null references public.household_members(id) on delete cascade,
+  kind        text not null check (kind in ('task', 'nudge', 'date', 'fyi')),
+  target_key  text not null,
+  until       timestamptz,                  -- null = dismissed forever
+  created_at  timestamptz not null default now(),
+  unique (member_id, kind, target_key)
+);
+
+-- Per-member notification preferences (one row per member, defaults match
+-- the agreed scope: everything on except partner FYIs).
+create table public.notification_prefs (
+  id              uuid primary key default gen_random_uuid(),
+  member_id       uuid not null unique references public.household_members(id) on delete cascade,
+  tasks           boolean not null default true,
+  nudges          boolean not null default true,
+  dates           boolean not null default true,
+  fyi             boolean not null default false,
+  dates_lead_days integer not null default 7,
+  digest_time     time not null default '08:00',
+  updated_at      timestamptz not null default now()
+);
+
+-- Web-push subscriptions, one per browser/device a member enabled push on.
+-- endpoint is unique per subscription; a member can hold several (phone,
+-- laptop). Stale endpoints (410 Gone on send) are deleted by the sender.
+create table public.push_subscriptions (
+  id          uuid primary key default gen_random_uuid(),
+  member_id   uuid not null references public.household_members(id) on delete cascade,
+  endpoint    text not null unique,
+  p256dh      text not null,                -- client public key
+  auth        text not null,                -- client auth secret
+  user_agent  text,                         -- debugging aid ("which device is this?")
+  created_at  timestamptz not null default now()
+);
+
+-- Send-dedupe log so the scheduler never pings twice about the same item on
+-- the same day (it runs every 15 min). sent_for is the local calendar date
+-- the notification was about; digest entries use kind = 'digest'.
+create table public.notification_log (
+  id          uuid primary key default gen_random_uuid(),
+  member_id   uuid not null references public.household_members(id) on delete cascade,
+  kind        text not null,                -- task | nudge | date | digest
+  target_key  text not null default '',     -- '' for digest
+  sent_for    date not null,
+  sent_at     timestamptz not null default now(),
+  unique (member_id, kind, target_key, sent_for)
+);
+
+-- RLS: a member manages only their own rows (their snoozes, their prefs,
+-- their devices); the membership join keeps it inside the household model.
+alter table public.reminder_snoozes enable row level security;
+alter table public.notification_prefs enable row level security;
+alter table public.push_subscriptions enable row level security;
+alter table public.notification_log enable row level security;
+
+create or replace function public.is_own_member(mid uuid)
+returns boolean language sql security definer stable as $$
+  select exists (
+    select 1 from public.household_members m
+    where m.id = mid and m.user_id = auth.uid()
+  );
+$$;
+
+create policy "own rows" on public.reminder_snoozes for all to authenticated
+  using (public.is_own_member(member_id)) with check (public.is_own_member(member_id));
+create policy "own rows" on public.notification_prefs for all to authenticated
+  using (public.is_own_member(member_id)) with check (public.is_own_member(member_id));
+create policy "own rows" on public.push_subscriptions for all to authenticated
+  using (public.is_own_member(member_id)) with check (public.is_own_member(member_id));
+create policy "own rows read" on public.notification_log for select to authenticated
+  using (public.is_own_member(member_id));
+-- notification_log inserts happen via the service-role sender, not clients.
+
+-- Snoozes sync across a member's devices live:
+alter publication supabase_realtime add table public.reminder_snoozes;
+alter publication supabase_realtime add table public.notification_prefs;
+
+-- Scheduler (6b): pg_cron invokes the send-reminders Edge Function every
+-- 15 minutes. The function recomputes the same attention rules as
+-- src/lib/reminders.js server-side, applies prefs + snoozes, dedupes via
+-- notification_log, and web-pushes (VAPID) to each member's subscriptions:
+--
+--   select cron.schedule('send-reminders', '*/15 * * * *', $$
+--     select net.http_post(
+--       url    := '<project>.supabase.co/functions/v1/send-reminders',
+--       headers:= jsonb_build_object('Authorization', 'Bearer <service-role-key>')
+--     )
+--   $$);
+--
+-- Skeleton: supabase/functions/send-reminders/index.ts. VAPID keys live in
+-- function secrets (SUPABASE_VAPID_PUBLIC/PRIVATE), the public key is also
+-- exposed to the client as VITE_VAPID_PUBLIC_KEY for subscribe().
