@@ -35,7 +35,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - **Branding/polish** — underway, not a final pass.
 
 ### ⬜ Remaining
-- **Phase 6b — push delivery**: web-push + morning digest at Supabase go-live (iOS 16.4+ installed PWA; Vibration API absent on iOS web — haptics no-op there by design). Spec in `docs/phase6-reminders.md`; live design scaffolded: snooze/prefs/subscription/dedupe tables + RLS in `supabase/schema.sql`, Edge Function skeleton in `supabase/functions/send-reminders/` (main work item: port `lib/reminders.js` server-side).
+- **Phase 6b — push delivery**: **code-complete, deploy-only.** Client half shipped and tested (service worker, Settings enable flow, real subscriptions, local test notifications); the send-reminders Edge Function is fully implemented (server-side attention port, morning digest, day-of pings, dedupe, dead-sub pruning) but unexercised against a live project. Remaining work = the 7-step go-live runbook in `docs/phase6-reminders.md` (apply schema, fresh VAPID keys, deploy, cron, enable on phones).
 - **Phase 8 — Contact bridge**: vCard export → CardDAV, so data can flow back to the phone's address book (mitigates "phone gravity").
 - **Multitenancy go-live**: real signup/login UI, join-by-code screen, household switcher, thread `household_id` into every insert. (Activates when Supabase is wired.)
 - **Final polish + branding pass.**

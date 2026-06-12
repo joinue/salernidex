@@ -4,6 +4,7 @@ import PageHeader from './PageHeader'
 import Segmented from './Segmented'
 import Avatar from './Avatar'
 import { useNotificationPrefs } from '../hooks/useNotificationPrefs'
+import { pushSupport, permissionState, deviceEnabled, enablePush, disablePush, sendTestNotification } from '../lib/push'
 import {
   getHousehold,
   members as getMembers,
@@ -28,6 +29,95 @@ const LEAD_OPTIONS = [
   { value: 7, label: '1 week' },
   { value: 14, label: '2 weeks' },
 ]
+
+// This-device notification state: permission + (when possible) a real push
+// subscription. Delivery starts at go-live; test notifications work today.
+function PushSection() {
+  const support = pushSupport()
+  const [perm, setPerm] = useState(permissionState())
+  const [enabled, setEnabled] = useState(deviceEnabled())
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState(null)
+
+  if (support === 'ios-install-first') {
+    return (
+      <p className="muted" style={{ fontSize: 13, margin: '10px 4px 0' }}>
+        On iPhone, add Salernidex to your Home Screen first (Share → Add to Home Screen) — then
+        notifications can be enabled here.
+      </p>
+    )
+  }
+  if (support === 'unsupported') {
+    return (
+      <p className="muted" style={{ fontSize: 13, margin: '10px 4px 0' }}>
+        This browser doesn't support notifications.
+      </p>
+    )
+  }
+  if (perm === 'denied') {
+    return (
+      <p className="muted" style={{ fontSize: 13, margin: '10px 4px 0' }}>
+        Notifications are blocked for this site in your browser settings.
+      </p>
+    )
+  }
+
+  const enable = async () => {
+    setBusy(true)
+    setNote(null)
+    try {
+      const r = await enablePush(currentMemberId())
+      setPerm(r.permission)
+      setEnabled(r.permission === 'granted')
+      if (r.permission === 'granted' && !r.subscribed) {
+        setNote('Allowed. This device will finish registering for delivery at launch.')
+      }
+    } catch (err) {
+      setNote(err.message)
+    }
+    setBusy(false)
+  }
+
+  const disable = async () => {
+    setBusy(true)
+    await disablePush().catch(() => {})
+    setEnabled(false)
+    setBusy(false)
+  }
+
+  const ready = perm === 'granted' && enabled
+
+  return (
+    <div className="list" style={{ marginTop: 12 }}>
+      <div className="value-row">
+        <Bell size={18} />
+        <span className="v-label">This device</span>
+        {ready ? (
+          <span className="v-value" style={{ color: 'var(--green)' }}>Ready — delivery starts at launch</span>
+        ) : (
+          <button className="text-btn" onClick={enable} disabled={busy}>
+            {busy ? <span className="dots">Enabling</span> : 'Enable notifications'}
+          </button>
+        )}
+      </div>
+      {ready && (
+        <>
+          <button className="list-row" onClick={() => sendTestNotification().catch((e) => setNote(e.message))}>
+            <div className="row-body">
+              <div className="row-sub" style={{ color: 'var(--accent)' }}>Send a test notification</div>
+            </div>
+          </button>
+          <button className="list-row" onClick={disable} disabled={busy}>
+            <div className="row-body">
+              <div className="row-sub" style={{ color: 'var(--danger)' }}>Turn off on this device</div>
+            </div>
+          </button>
+        </>
+      )}
+      {note && <p className="muted" style={{ fontSize: 13, margin: '8px 4px 4px' }}>{note}</p>}
+    </div>
+  )
+}
 
 function Toggle({ label, sub, on, onChange }) {
   return (
@@ -195,13 +285,7 @@ export default function SettingsView({ go }) {
           />
         </>
       )}
-      <div className="list" style={{ marginTop: 12 }}>
-        <div className="value-row">
-          <Bell size={18} />
-          <span className="v-label">Push notifications</span>
-          <span className="v-value muted">Arrives with live accounts</span>
-        </div>
-      </div>
+      <PushSection />
 
       <div className="section-label">Data</div>
       <div className="list">

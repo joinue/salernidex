@@ -99,13 +99,40 @@ backup round-trips snoozes. Plus the four existing suites.
   with dead-endpoint pruning). The attention recompute is the port of
   `src/lib/reminders.js` and is the main 6b work item.
 
-Still to build at go-live:
+**Update 2026-06-12 — 6b is now code-complete.** Everything below is built and
+in the repo; only deployment against a live project remains:
 
-- Service worker + permission flow (asked from Settings, never on launch);
-  subscribe with `VITE_VAPID_PUBLIC_KEY` and store in `push_subscriptions`.
-- The attention recompute inside the Edge Function + pg_cron schedule.
-- **Morning digest** (default 8:00, per member): one notification summarizing
-  the day ("3 things today: trash, Nina's birthday in 2d, call David") instead
-  of a stream of pings. Individual day-of pushes only for day-of dates and
-  overdue-today tasks; lead-time heads-ups stay in-app only.
+- `public/sw.js` — push display + notification click-through (deep links into
+  the app, reuses an open window). Deliberately no offline caching. Registered
+  on app load from `main.jsx`.
+- `src/lib/push.js` — support detection (including the iOS install-first
+  case), permission flow, real push-subscription creation against the
+  browser's push service, demo/live storage, test notifications.
+- Settings → Notifications → **This device**: Enable notifications → "Ready —
+  delivery starts at launch", with **Send a test notification** (works today,
+  fully local) and turn-off. iPhones not yet installed to the Home Screen get
+  the Add-to-Home-Screen hint instead.
+- `supabase/functions/send-reminders/index.ts` — full implementation: loads
+  members/prefs/snoozes/data, recomputes attention server-side (same rules and
+  the same warm copy as `lib/reminders.js`), claims items in
+  `notification_log` (idempotent across runs), morning digest at each member's
+  digest_time ±15 min, individual pings for day-of dates and due/overdue
+  tasks only (check-ins ride the digest — "say hi" never interrupts a day),
+  dead-subscription pruning.
+- Dev VAPID public key committed for local subscribe-flow testing; its
+  private half was discarded. Go-live uses a fresh pair.
+
+### Go-live runbook (the only remaining 6b work)
+
+1. Apply the multitenancy + Phase 6 sections of `supabase/schema.sql`.
+2. `npx web-push generate-vapid-keys` → set `VITE_VAPID_PUBLIC_KEY` in the
+   deploy env; private key to function secrets.
+3. `supabase functions deploy send-reminders`
+4. `supabase secrets set VAPID_PUBLIC_KEY=… VAPID_PRIVATE_KEY=… VAPID_SUBJECT=mailto:marc@joinue.com TZ_NAME=America/Phoenix`
+5. Run the `cron.schedule('send-reminders', '*/15 * * * *', …)` block from
+   schema.sql (enable the pg_cron + pg_net extensions first).
+6. On each phone: install the PWA (iOS: Share → Add to Home Screen), then
+   Settings → Notifications → Enable → Send a test notification.
+7. Wait for the next morning's digest; check `notification_log` rows appeared.
+
 - iOS: requires installed PWA (16.4+); manifest + icons already shipped.
