@@ -2,8 +2,10 @@ import { isConfigured } from './supabase'
 import { nextOccurrence } from './recurrence'
 
 // Demo mode: active whenever Supabase isn't configured (or forced via
-// VITE_DEMO=true). Everything runs in-memory with sample data — nothing
-// is saved between reloads.
+// VITE_DEMO=true), OR at runtime when someone taps "Explore the demo" on the
+// auth screen (App passes session.demo through). Everything runs in-memory
+// with sample data — nothing is saved between reloads. Company and
+// neighborhood names here are fictional (a clean showcase, not real contacts).
 export const demoMode = !isConfigured || import.meta.env.VITE_DEMO === 'true'
 
 const now = new Date().toISOString()
@@ -29,14 +31,14 @@ export const demoPeople = [
     tier: 'close',
     keep_in_touch_days: 90,
     name: 'Elena Vasquez',
-    organization: 'Tucson Compass',
+    organization: 'Riverside Compass',
     role: 'Program Director',
-    email: 'elena@tucsoncompass.org',
-    phone: '(520) 555-0142',
+    email: 'elena@riversidecompass.org',
+    phone: '(555) 555-0142',
     birthday: '1984-03-14',
-    address: '2240 E Broadway Blvd, Tucson, AZ 85719',
-    tags: ['Tucson Compass partner'],
-    notes: 'Runs the workforce navigation program. Prefers email; responds fast. Interested in a PACE facility tour for her cohort.',
+    address: '2240 Riverside Ave, Riverside',
+    tags: ['Riverside Compass partner'],
+    notes: 'Runs the workforce navigation program. Prefers email; responds fast. Interested in a Northwind facility tour for her cohort.',
   },
   {
     ...base,
@@ -45,11 +47,11 @@ export const demoPeople = [
     tier: 'network',
     keep_in_touch_days: 30,
     name: 'David Chen',
-    organization: 'Desert Materials Lab',
+    organization: 'Summit Materials Lab',
     role: 'Metallography Lab Manager',
-    email: 'dchen@desertmaterials.com',
-    phone: '(520) 555-0177',
-    tags: ['PACE customer'],
+    email: 'dchen@summitmaterials.com',
+    phone: '(555) 555-0177',
+    tags: ['Northwind customer'],
     notes: 'Bought a grinder/polisher line in 2025. Asks detailed consumables questions — loop in support early.',
   },
   {
@@ -58,24 +60,24 @@ export const demoPeople = [
     tier: 'close',
     keep_in_touch_days: 90,
     name: 'Rita Delgado',
-    organization: 'Midtown Neighborhood Association',
+    organization: 'Oakline Neighborhood Association',
     role: 'Board President',
-    email: 'rita.delgado@midtownna.org',
-    phone: '(520) 555-0118',
+    email: 'rita.delgado@oaklinena.org',
+    phone: '(555) 555-0118',
     birthday: '1962-11-02',
-    tags: ['MNA board'],
+    tags: ['ONA board'],
     notes: 'Leads the monthly board meeting, first Tuesdays. Strong on zoning issues.',
   },
   {
     ...base,
     id: 'p-sam',
     name: 'Sam Whitfield',
-    organization: 'Pima County',
-    role: 'Ward 6 Council Aide',
-    email: 'sam.whitfield@pima.gov',
-    phone: '(520) 555-0163',
-    tags: ['Ward 6 contact', 'Pima County'],
-    notes: 'Go-to for constituent services and street/lighting requests. Met at the Ward 6 open house.',
+    organization: 'Lakeside County',
+    role: 'District 4 Council Aide',
+    email: 'sam.whitfield@lakeside.gov',
+    phone: '(555) 555-0163',
+    tags: ['District 4 contact', 'Lakeside County'],
+    notes: 'Go-to for constituent services and street/lighting requests. Met at the District 4 open house.',
   },
   {
     ...base,
@@ -83,12 +85,12 @@ export const demoPeople = [
     id: 'p-priya',
     keep_in_touch_days: 180,
     name: 'Priya Natarajan',
-    organization: 'University of Arizona',
+    organization: 'Riverbend University',
     role: 'Materials Science Professor',
-    email: 'priyan@arizona.edu',
-    phone: '(520) 555-0190',
-    tags: ['PACE customer', 'UA'],
-    notes: 'Teaching lab uses PACE equipment. Potential student internship pipeline.',
+    email: 'priyan@riverbend.edu',
+    phone: '(555) 555-0190',
+    tags: ['Northwind customer', 'University'],
+    notes: 'Teaching lab uses Northwind equipment. Potential student internship pipeline.',
   },
   {
     ...base,
@@ -99,41 +101,41 @@ export const demoPeople = [
     organization: 'Garrity & Sons Machining',
     role: 'Owner',
     email: 'tom@garritymachining.com',
-    phone: '(520) 555-0125',
-    tags: ['PACE customer'],
+    phone: '(555) 555-0125',
+    tags: ['Northwind customer'],
     notes: 'Small shop, long-time customer. Calls rather than emails.',
   },
   {
     ...base,
     id: 'p-maria',
     name: 'Maria Fuentes',
-    organization: 'Tucson Compass',
+    organization: 'Riverside Compass',
     role: 'Volunteer Coordinator',
-    email: 'maria@tucsoncompass.org',
-    phone: '(520) 555-0151',
-    tags: ['Tucson Compass partner'],
+    email: 'maria@riversidecompass.org',
+    phone: '(555) 555-0151',
+    tags: ['Riverside Compass partner'],
     notes: 'Coordinates volunteer events. Best reached Tue–Thu.',
   },
   {
     ...base,
     id: 'p-jack',
     name: 'Jack Osterman',
-    organization: 'Midtown Neighborhood Association',
+    organization: 'Oakline Neighborhood Association',
     role: 'Treasurer',
-    email: 'jack.o@midtownna.org',
-    phone: '(520) 555-0109',
-    tags: ['MNA board'],
+    email: 'jack.o@oaklinena.org',
+    phone: '(555) 555-0109',
+    tags: ['ONA board'],
     notes: 'Handles dues and the annual budget. Retired accountant.',
   },
   {
     ...base,
     id: 'p-lupe',
     name: 'Lupe Ortiz',
-    organization: 'Pima County',
+    organization: 'Lakeside County',
     role: 'Economic Development Specialist',
-    email: 'lupe.ortiz@pima.gov',
-    phone: '(520) 555-0136',
-    tags: ['Pima County'],
+    email: 'lupe.ortiz@lakeside.gov',
+    phone: '(555) 555-0136',
+    tags: ['Lakeside County'],
     notes: 'Point of contact for the small business incentive program.',
   },
   {
@@ -146,9 +148,9 @@ export const demoPeople = [
     organization: '',
     role: 'Neighbor',
     email: '',
-    phone: '(520) 555-0171',
+    phone: '(555) 555-0171',
     birthday: soonBirthday,
-    address: 'Two doors down — 1314 E 5th St',
+    address: 'Two doors down — 1314 Maple St',
     tags: ['Neighbor'],
     privacy_level: 'family_shared',
     notes: 'Two doors down. Has our spare key. Dog: Biscuit.',
@@ -159,12 +161,12 @@ export const demoPeople = [
     tier: 'inner',
     family_id: 'f-park',
     name: 'Theo Park',
-    organization: 'Tucson Unified School District',
+    organization: 'Oakline School District',
     role: 'Teacher',
-    email: 'theo.park@tusd1.org',
-    phone: '(520) 555-0172',
+    email: 'theo.park@oaklineschools.org',
+    phone: '(555) 555-0172',
     birthday: '1988-09-30',
-    address: 'Two doors down — 1314 E 5th St',
+    address: 'Two doors down — 1314 Maple St',
     tags: ['Neighbor'],
     privacy_level: 'family_shared',
     notes: "Nina's husband. Grills on Sundays — standing invite. Coaches Little League in spring.",
@@ -176,7 +178,7 @@ export const demoPeople = [
     organization: 'Reyes Home Services',
     role: 'Plumber',
     email: 'marco@reyeshome.com',
-    phone: '(520) 555-0188',
+    phone: '(555) 555-0188',
     tags: ['Contractor'],
     privacy_level: 'family_shared',
     notes: 'Did the water heater in 2024. Reliable, texts back fast.',
@@ -187,16 +189,16 @@ export const demoOrgs = [
   {
     ...base,
     id: 'o-pace',
-    name: 'PACE Technologies',
+    name: 'Northwind Instruments',
     type: 'Company',
-    description: 'Metallographic equipment and consumables. Home base.',
+    description: 'Lab instruments and consumables. Home base.',
     key_contacts: [],
     tags: ['work'],
   },
   {
     ...base,
     id: 'o-mna',
-    name: 'Midtown Neighborhood Association',
+    name: 'Oakline Neighborhood Association',
     type: 'Community',
     description: 'Neighborhood association. Board meets first Tuesday of the month.',
     key_contacts: [],
@@ -205,7 +207,7 @@ export const demoOrgs = [
   {
     ...base,
     id: 'o-compass',
-    name: 'Tucson Compass',
+    name: 'Riverside Compass',
     type: 'Nonprofit',
     description: 'Workforce navigation nonprofit; partnership on facility tours and internships.',
     key_contacts: [],
@@ -214,9 +216,9 @@ export const demoOrgs = [
   {
     ...base,
     id: 'o-pima',
-    name: 'Pima County',
+    name: 'Lakeside County',
     type: 'Government',
-    description: 'County government contacts — Ward 6 and economic development.',
+    description: 'County government contacts — District 4 and economic development.',
     key_contacts: [],
     tags: ['civic'],
   },
@@ -233,7 +235,7 @@ export const demoOrgs = [
 
 // Contact family units (distinct from the household/tenant model).
 export const demoFamilies = [
-  { id: 'f-park', name: 'The Parks', notes: 'Neighbors at 1314 E 5th St.', created_at: now, updated_at: now },
+  { id: 'f-park', name: 'The Parks', notes: 'Neighbors at 1314 Maple St.', created_at: now, updated_at: now },
 ]
 
 // Dates that matter beyond birthdays, all inside the default 7-day heads-up
@@ -251,8 +253,8 @@ export const demoKeyDates = [
 export const demoGroups = [
   {
     id: 'g-pace',
-    name: 'PACE Customers',
-    all_tags: ['PACE customer'],
+    name: 'Northwind Customers',
+    all_tags: ['Northwind customer'],
     any_tags: [],
     none_tags: [],
     created_at: now,
@@ -262,7 +264,7 @@ export const demoGroups = [
     id: 'g-civic',
     name: 'Civic Network',
     all_tags: [],
-    any_tags: ['MNA board', 'Tucson Compass partner', 'Ward 6 contact', 'Pima County'],
+    any_tags: ['ONA board', 'Riverside Compass partner', 'District 4 contact', 'Lakeside County'],
     none_tags: [],
     created_at: now,
     updated_at: now,
@@ -271,21 +273,21 @@ export const demoGroups = [
     id: 'g-civic-non-gov',
     name: 'Civic — outside government',
     all_tags: [],
-    any_tags: ['MNA board', 'Tucson Compass partner'],
-    none_tags: ['Pima County'],
+    any_tags: ['ONA board', 'Riverside Compass partner'],
+    none_tags: ['Lakeside County'],
     created_at: now,
     updated_at: now,
   },
 ]
 
 export const demoRelationships = [
-  { id: 'r1', person_a_id: 'p-elena', person_b_id: 'p-maria', relationship_type: 'works_with', notes: 'Both at Tucson Compass', created_at: now },
-  { id: 'r2', person_a_id: 'p-rita', person_b_id: 'p-jack', relationship_type: 'works_with', notes: 'MNA board', created_at: now },
-  { id: 'r3', person_a_id: 'p-sam', person_b_id: 'p-lupe', relationship_type: 'knows', notes: 'Both Pima County', created_at: now },
+  { id: 'r1', person_a_id: 'p-elena', person_b_id: 'p-maria', relationship_type: 'works_with', notes: 'Both at Riverside Compass', created_at: now },
+  { id: 'r2', person_a_id: 'p-rita', person_b_id: 'p-jack', relationship_type: 'works_with', notes: 'ONA board', created_at: now },
+  { id: 'r3', person_a_id: 'p-sam', person_b_id: 'p-lupe', relationship_type: 'knows', notes: 'Both Lakeside County', created_at: now },
   { id: 'r4', person_a_id: 'p-david', person_b_id: 'p-priya', relationship_type: 'knows', notes: 'Met at materials conference', created_at: now },
   { id: 'r5', person_a_id: 'p-elena', person_b_id: 'p-rita', relationship_type: 'connected_to', notes: 'Coalition meeting intro', created_at: now },
-  { id: 'r6', person_a_id: 'p-sam', person_b_id: 'p-rita', relationship_type: 'knows', notes: 'Ward 6 liaison to MNA', created_at: now },
-  { id: 'r7', person_a_id: 'p-tom', person_b_id: 'p-david', relationship_type: 'knows', notes: 'Referred Tom to Desert Materials for testing', created_at: now },
+  { id: 'r6', person_a_id: 'p-sam', person_b_id: 'p-rita', relationship_type: 'knows', notes: 'District 4 liaison to ONA', created_at: now },
+  { id: 'r7', person_a_id: 'p-tom', person_b_id: 'p-david', relationship_type: 'knows', notes: 'Referred Tom to Summit Materials for testing', created_at: now },
   { id: 'r8', person_a_id: 'p-elena', person_b_id: 'p-lupe', relationship_type: 'connected_to', notes: 'Workforce grant program', created_at: now },
 ]
 
@@ -293,20 +295,20 @@ export const demoRelationships = [
 // activity timelines look real. occurred_at drives "last contacted".
 export const demoInteractions = [
   // Elena — cadence 90d, last touch ~20d ago → on track
-  { id: 'i1', person_id: 'p-elena', type: 'meeting', occurred_at: daysAgo(52), note: 'Coffee at Exo. Walked through the facility-tour idea for her cohort.', created_at: daysAgo(52) },
+  { id: 'i1', person_id: 'p-elena', type: 'meeting', occurred_at: daysAgo(52), note: 'Coffee at the corner café. Walked through the facility-tour idea for her cohort.', created_at: daysAgo(52) },
   { id: 'i2', person_id: 'p-elena', type: 'email', occurred_at: daysAgo(34), note: 'Sent tour dates + parking info.', created_at: daysAgo(34) },
   { id: 'i3', person_id: 'p-elena', type: 'call', occurred_at: daysAgo(20), note: 'Confirmed 12 attendees for the tour.', created_at: daysAgo(20) },
   // David — cadence 30d, last touch ~45d ago → overdue
   { id: 'i4', person_id: 'p-david', type: 'email', occurred_at: daysAgo(45), note: 'Quoted replacement polishing pads.', created_at: daysAgo(45) },
   { id: 'i5', person_id: 'p-david', type: 'call', occurred_at: daysAgo(78), note: 'Consumables question — looped in support.', created_at: daysAgo(78) },
   // Rita — cadence 90d, last touch ~120d ago → overdue
-  { id: 'i6', person_id: 'p-rita', type: 'meeting', occurred_at: daysAgo(120), note: 'MNA board meeting — zoning discussion.', created_at: daysAgo(120) },
+  { id: 'i6', person_id: 'p-rita', type: 'meeting', occurred_at: daysAgo(120), note: 'ONA board meeting — zoning discussion.', created_at: daysAgo(120) },
   // Priya — cadence 180d, last touch ~12d ago → on track
   { id: 'i7', person_id: 'p-priya', type: 'email', occurred_at: daysAgo(12), note: 'Internship pipeline — sent her the intake form.', created_at: daysAgo(12) },
   // Nina — cadence 180d, last touch ~210d ago → overdue (neighbor we should check on)
   { id: 'i8', person_id: 'p-nina', type: 'text', occurred_at: daysAgo(210), note: 'Thanked her for watching the house.', created_at: daysAgo(210) },
   // Sam — no cadence, but recent activity
-  { id: 'i9', person_id: 'p-sam', type: 'call', occurred_at: daysAgo(6), note: 'Streetlight request for 5th St submitted.', created_at: daysAgo(6) },
+  { id: 'i9', person_id: 'p-sam', type: 'call', occurred_at: daysAgo(6), note: 'Streetlight request for Maple St submitted.', created_at: daysAgo(6) },
   // Maria — no cadence
   { id: 'i10', person_id: 'p-maria', type: 'meeting', occurred_at: daysAgo(28), note: 'Volunteer event planning.', created_at: daysAgo(28) },
   // Tom — cadence 30d, NOTHING logged → "never contacted" signal
@@ -340,7 +342,7 @@ export const demoTasks = [
 export const demoLists = [
   { id: 'l-grocery', name: 'Groceries', icon: '🛒', privacy_level: 'family_shared', created_at: now, updated_at: now },
   { id: 'l-hardware', name: 'Hardware store', icon: '🔧', privacy_level: 'family_shared', created_at: now, updated_at: now },
-  { id: 'l-trip', name: 'Packing — Sedona trip', icon: '🧳', privacy_level: 'family_shared', created_at: now, updated_at: now },
+  { id: 'l-trip', name: 'Packing — weekend trip', icon: '🧳', privacy_level: 'family_shared', created_at: now, updated_at: now },
 ]
 export const demoListItems = [
   { id: 'li1', list_id: 'l-grocery', text: 'Coffee beans', checked_at: null, created_at: daysAgo(1) },

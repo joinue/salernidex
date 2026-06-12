@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'react-feather'
 import { useMediaQuery } from '../hooks/useMediaQuery'
+import { useVisualViewport } from '../hooks/useVisualViewport'
+import { useScrollLock } from '../hooks/useScrollLock'
 import { useDrag } from '../hooks/useDrag'
 import haptics from '../lib/haptics'
 
@@ -10,6 +12,8 @@ import haptics from '../lib/haptics'
 // drag from the top grip while the body still scrolls underneath).
 export default function Modal({ title, onClose, children }) {
   const isMobile = useMediaQuery('(max-width: 720px)')
+  const viewport = useVisualViewport()
+  useScrollLock()
   const [y, setY] = useState(0)
   const [closing, setClosing] = useState(false)
 
@@ -38,7 +42,19 @@ export default function Modal({ title, onClose, children }) {
   })
 
   return createPortal(
-    <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div
+      className="modal-overlay"
+      style={
+        isMobile
+          ? {
+              ...(viewport || {}),
+              // Dim the backdrop in step with the drag, like a native sheet.
+              background: `rgba(0, 0, 0, ${0.4 * Math.max(0, 1 - y / (window.innerHeight * 0.6))})`,
+            }
+          : undefined
+      }
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
       <div
         className="modal"
         role="dialog"

@@ -31,7 +31,7 @@ const switchMember = async (label) => {
 
 try {
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Explore the demo' }).click()
   await page.waitForSelector('.large-title')
 
   // 1. As member 1 ("Me"): add a private contact

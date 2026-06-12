@@ -47,15 +47,15 @@ function checkInSub(item) {
 const DAY = 86400000
 
 export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks, onOpenActivity, onMore, onSettings, onSearch }) {
-  const { addInteraction, completeTask, snoozeReminder, ownerId } = data
-  const [prefs] = useNotificationPrefs(ownerId)
+  const { addInteraction, completeTask, snoozeReminder, memberId } = data
+  const [prefs] = useNotificationPrefs(memberId)
   const [logPerson, setLogPerson] = useState(null)
   const [actionPerson, setActionPerson] = useState(null)
   const [laterItem, setLaterItem] = useState(null) // attention item picking a snooze
 
   const attention = useMemo(
-    () => buildAttention(data, prefs, data.reminderSnoozes, ownerId),
-    [data.people, data.tasks, data.interactions, data.keyDates, data.reminderSnoozes, prefs, ownerId]
+    () => buildAttention(data, prefs, data.reminderSnoozes, memberId),
+    [data.people, data.tasks, data.interactions, data.keyDates, data.reminderSnoozes, prefs, memberId]
   )
   const dueTasks = attention.filter((i) => i.kind === 'task')
   const checkIns = attention.filter((i) => i.kind === 'nudge')

@@ -12,7 +12,7 @@ async function run(label, viewport, mobile) {
   page.on('console', (m) => m.type() === 'error' && !m.text().includes('404') && errors.push(m.text()))
 
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Explore the demo' }).click()
   await page.waitForSelector('.large-title')
 
   // Today leads with the To-do (tasks due) section
@@ -67,7 +67,7 @@ try {
   // Dark mode project detail
   const page = await browser.newPage({ viewport: { width: 1280, height: 950 } })
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Explore the demo' }).click()
   await page.waitForSelector('.large-title')
   await page.evaluate(() => { document.documentElement.dataset.theme = 'dark' })
   await page.goto('http://localhost:5173/#/project/t-faucet')

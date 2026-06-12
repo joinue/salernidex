@@ -103,7 +103,10 @@ export default function SwipeRow({ actions = [], onClick, onLongPress, children 
       <div
         className="swipe-content"
         style={{
-          transform: `translateX(${offset}px)`,
+          // No transform at rest: an always-on translateX(0) keeps every row
+          // on its own compositing layer, and layer snapping at fractional row
+          // heights randomly clips the 0.5px divider (visible at 1x DPR).
+          transform: offset ? `translateX(${offset}px)` : undefined,
           transition: dragging ? 'none' : 'transform 280ms cubic-bezier(0.32,0.72,0,1)',
         }}
         {...(finePointer ? {} : handlers)}

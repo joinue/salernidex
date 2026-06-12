@@ -18,7 +18,7 @@ page.on('pageerror', (e) => errors.push(e.message))
 
 try {
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Explore the demo' }).click()
   await page.waitForSelector('.large-title')
 
   // 1. Install hint shows on iPhone-Safari UA; dismiss persists across reload
@@ -26,7 +26,7 @@ try {
   console.log('install hint visible on iPhone UA:', Boolean(hint))
   await page.locator('.install-hint [aria-label="Dismiss"]').click()
   await page.reload({ waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Explore the demo' }).click()
   await page.waitForSelector('.large-title')
   console.log('hint gone after dismiss + reload:', !(await page.$('.install-hint')))
   await page.screenshot({ path: 'scripts/shots/ios-today.png' })

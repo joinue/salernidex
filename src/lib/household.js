@@ -19,6 +19,12 @@ function genCode() {
   return `${s.slice(0, 3)}-${s.slice(3)}`
 }
 
+// A fresh, friendly join code (ABC-DEF). Used by the live household hook when
+// regenerating the DB code, and by the demo regenerate below.
+export function newJoinCode() {
+  return genCode()
+}
+
 function defaults() {
   // Migrate names from the old two-field settings if present.
   let members = [{ id: 'm-1', name: 'Me' }, { id: 'm-2', name: 'Partner' }]

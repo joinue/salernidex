@@ -29,7 +29,7 @@ export default function SearchView({ data, searchRef, query, setQuery, onOpen, o
 
   useEffect(() => { localStorage.setItem('salernidex-people-sort', sort) }, [sort])
 
-  const { people, interactions, groups, loading, deletePerson, restorePerson, purgePerson, ownerId, addInteraction } = data
+  const { people, interactions, groups, loading, deletePerson, restorePerson, purgePerson, userId, addInteraction } = data
 
   // While searching, results are ordered by best match; the chosen sort governs
   // browsing (no query).
@@ -125,7 +125,7 @@ export default function SearchView({ data, searchRef, query, setQuery, onOpen, o
           {results.map((person) => {
             const sub = [person.role, person.organization].filter(Boolean).join(' · ')
             const last = lastInteraction(person.id, interactions)
-            const mine = !person.created_by || person.created_by === ownerId
+            const mine = !person.created_by || person.created_by === userId
             const actions = showDeleted
               ? [
                   { label: 'Restore', icon: RotateCcw, onClick: () => restorePerson(person.id) },

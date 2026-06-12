@@ -670,6 +670,11 @@ select {
   background: var(--accent-soft);
 }
 
+.filter-clear:active {
+  background: var(--accent-soft);
+  opacity: 0.6;
+}
+
 /* compact filter trigger + sheet */
 .filter-bar {
   display: flex;
@@ -690,6 +695,11 @@ select {
   background: var(--fill);
   border-radius: 999px;
   transition: background 120ms ease;
+}
+
+.filter-btn:active {
+  transform: scale(0.97);
+  opacity: 0.85;
 }
 
 .filter-btn svg {
@@ -920,7 +930,9 @@ select {
   position: relative;
   z-index: 1;
   background: var(--surface);
-  will-change: transform;
+  /* No will-change here: permanent layer promotion clips the hairline divider
+     on rows whose fractional height lands badly (see SwipeRow.jsx). The
+     browser still promotes during the swipe transition on its own. */
   /* let the browser own vertical scroll; we handle horizontal swipe in JS */
   touch-action: pan-y;
 }
@@ -956,6 +968,10 @@ select {
   font-weight: 500;
   color: #fff;
   background: var(--accent);
+}
+
+.swipe-action:active {
+  filter: brightness(0.9);
 }
 
 .swipe-action.danger {
@@ -1015,9 +1031,16 @@ select {
   height: 32px;
   border-radius: 8px;
   color: var(--text-2);
+  transition: transform 120ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .icon-btn:hover {
+  background: var(--fill);
+  color: var(--text);
+}
+
+.icon-btn:active {
+  transform: scale(0.86);
   background: var(--fill);
   color: var(--text);
 }
@@ -1778,14 +1801,20 @@ select.rec-select + .segmented {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   color: var(--text-2);
   background: var(--fill);
   border-radius: 50%;
+  transition: transform 120ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .modal-close:hover {
+  color: var(--text);
+}
+
+.modal-close:active {
+  transform: scale(0.88);
   color: var(--text);
 }
 
@@ -2000,12 +2029,433 @@ select.rec-select + .segmented {
   height: 64px;
   object-fit: contain;
   margin-bottom: 16px;
+  /* Lift the brand mark off the canvas — a soft navy-tinted shadow tied to the
+     logo's own color, so it reads as a crafted product mark, not a flat png. */
+  filter: drop-shadow(0 6px 14px rgba(45, 58, 79, 0.18));
 }
 
 .login-box h1 {
   font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.4px;
+}
+
+/* ---------- auth screen / landing ---------- */
+
+.auth-wrap {
+  height: 100%;
+  display: flex;
+  /* Center the hero + card as one band so the composition has equal margins on
+     both sides, rather than letting unequal flex push the card toward the edge. */
+  align-items: stretch;
+  justify-content: center;
+  gap: clamp(40px, 6vw, 96px);
+  /* Ambient wash: a cool accent glow top-right and a warm brand-navy glow
+     bottom-left, over the canvas. Adds depth without leaving the light look. */
+  background:
+    radial-gradient(85% 75% at 100% 0%, rgba(0, 122, 255, 0.06), transparent 58%),
+    radial-gradient(75% 70% at 0% 100%, rgba(45, 58, 79, 0.06), transparent 55%),
+    var(--bg);
+}
+
+@keyframes auth-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Left: brand hero (desktop landing). Hidden on narrow screens. Sized to its
+   content (not a flex fraction) so the centered band stays balanced. */
+.auth-hero {
+  flex: 0 1 380px;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: 48px 0;
+}
+
+.auth-hero-inner {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  animation: auth-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.auth-hero-title {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  margin-top: 18px;
+}
+
+.auth-hero-tag {
+  font-size: 17px;
+  color: var(--text-2);
+  margin-top: 10px;
+  line-height: 1.45;
+}
+
+.auth-values {
+  margin-top: 34px;
+  list-style: none;
+}
+
+.auth-values li {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.auth-value-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Crisp inner hairline + soft tinted lift — a small detail that reads as care. */
+  box-shadow: inset 0 0 0 1px rgba(0, 122, 255, 0.12), 0 2px 6px rgba(0, 122, 255, 0.1);
+}
+
+.auth-value-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.auth-value-body {
+  font-size: 14px;
+  color: var(--text-2);
+  line-height: 1.45;
+  margin-top: 2px;
+}
+
+/* Quiet maker's mark — present, not promoted. Pinned to the bottom of the hero
+   column so it sits out of the vertically-centered block (which would otherwise
+   grow past the viewport and clip). */
+.auth-hero-by {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--text-2);
+  opacity: 0.65;
+}
+
+.auth-hero-by img {
+  border-radius: 4px;
+  opacity: 0.85;
+}
+
+/* Mirror of the maker's mark for the single-column phone layout, where the
+   hero (and its mark) is hidden. Off on desktop so it shows in just one place. */
+.auth-card-by {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 22px;
+  font-size: 12px;
+  color: var(--text-2);
+  opacity: 0.65;
+}
+
+.auth-card-by img {
+  border-radius: 4px;
+  opacity: 0.85;
+}
+
+/* Dark mode: the text/badge wash out against black — lift both so the mark
+   stays legible without becoming loud. */
+:root[data-theme='dark'] .auth-hero-by,
+:root[data-theme='dark'] .auth-card-by {
+  opacity: 0.85;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .auth-hero-by,
+  :root:not([data-theme='light']) .auth-card-by {
+    opacity: 0.85;
+  }
+}
+:root[data-theme='dark'] .auth-hero-by img,
+:root[data-theme='dark'] .auth-card-by img {
+  opacity: 1;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .auth-hero-by img,
+  :root:not([data-theme='light']) .auth-card-by img {
+    opacity: 1;
+  }
+}
+
+/* Right: the auth card. */
+.auth-panel {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: 360px;
+  max-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--separator);
+  border-radius: 18px;
+  padding: 32px 30px;
+  /* Layered, multi-distance shadow reads as a real elevated surface rather than
+     a flat box with a single drop. The hairline border keeps the edge crisp. */
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 10px 24px rgba(0, 0, 0, 0.07),
+    0 28px 56px rgba(0, 0, 0, 0.05);
+  animation: auth-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.auth-card-brand {
+  display: none;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  margin-bottom: 22px;
+}
+
+/* In the card lockup the mark sits beside the wordmark, so it tracks the text
+   size rather than the standalone hero size. */
+.auth-card-brand .login-mark {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 0;
+}
+
+.auth-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  margin-bottom: 18px;
+}
+
+.auth-sub {
+  margin-bottom: 22px;
+  line-height: 1.45;
+  font-size: 14.5px;
+}
+
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.auth-inline-link {
+  font-size: 14px;
+  padding: 0;
+}
+
+.auth-switch {
+  margin-top: 18px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
+.auth-switch .auth-inline-link {
+  vertical-align: baseline;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--separator);
+}
+
+.auth-demo-btn {
+  width: 100%;
+  height: 48px;
+  background: var(--fill);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 15px;
+  border-radius: 12px;
+  transition: opacity 120ms ease, transform 100ms ease;
+}
+
+.auth-demo-btn:active {
+  transform: scale(0.99);
+  opacity: 0.9;
+}
+
+.auth-sent {
+  text-align: center;
+}
+
+.auth-sent .auth-title {
+  margin-bottom: 12px;
+}
+
+.auth-sent .btn-primary {
+  margin-top: 8px;
+}
+
+/* Single column on phones/narrow: drop the hero, show the in-card brand,
+   let the card breathe full-width with no shadow. */
+@media (max-width: 860px) {
+  .auth-hero {
+    display: none;
+  }
+  .auth-card-brand {
+    display: flex;
+  }
+  .auth-card {
+    box-shadow: none;
+    border: none;
+    background: transparent;
+    padding: 8px 4px;
+  }
+  .auth-card-by {
+    display: flex;
+  }
+}
+
+/* Assent line under the sign-in / create-account button (clickwrap notice). */
+.auth-consent {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.auth-consent a {
+  color: var(--text-2);
+  text-decoration: underline;
+}
+
+.auth-consent a:hover {
+  color: var(--accent);
+}
+
+/* Quiet legal links under the auth card. */
+.auth-legal {
+  margin-top: 18px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.auth-legal a {
+  color: var(--text-2);
+  text-decoration: none;
+}
+
+.auth-legal a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* ---------- legal pages (privacy / terms) ---------- */
+
+/* Standalone (logged-out) wrapper: no sidebar/nav, so center the column and
+   give it breathing room + safe-area padding like the rest of the app. */
+.legal-standalone {
+  overflow-y: auto;
+}
+
+.legal-standalone .content {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: max(24px, env(safe-area-inset-top)) 20px calc(40px + env(safe-area-inset-bottom));
+}
+
+.legal {
+  max-width: 680px;
+}
+
+.legal-doc h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  margin: 4px 0 2px;
+}
+
+.legal-date {
+  color: var(--text-2);
+  font-size: 13px;
+  margin-bottom: 22px;
+}
+
+.legal-doc h2 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  margin: 28px 0 8px;
+}
+
+.legal-doc p,
+.legal-doc li {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.legal-doc p {
+  margin: 0 0 12px;
+}
+
+.legal-doc ul {
+  margin: 0 0 12px;
+  padding-left: 22px;
+}
+
+.legal-doc li {
+  margin-bottom: 7px;
+}
+
+.legal-doc a {
+  color: var(--accent);
+}
+
+/* All-caps statutory blocks (warranty / liability) read a touch quieter. */
+.legal-caps {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.legal-meta {
+  margin-top: 36px;
+  padding-top: 18px;
+  border-top: 1px solid var(--separator);
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.legal-meta a {
+  color: var(--accent);
 }
 
 /* ---------- relationships ---------- */
@@ -2086,6 +2536,10 @@ select.rec-select + .segmented {
 
 .tab.active {
   color: var(--accent);
+}
+
+.tab:active {
+  opacity: 0.5;
 }
 
 .tab-add {
@@ -2208,7 +2662,11 @@ select.rec-select + .segmented {
 
 @media (max-width: 720px) {
   .main {
-    padding: 12px 14px calc(92px + env(safe-area-inset-bottom));
+    /* Top inset keeps content (esp. the Install hint, which only renders in
+       browser mode) clear of the notch/Dynamic Island. env() is 0 in normal
+       Safari-with-toolbar, so this is a no-op there and only kicks in when a
+       real top inset exists (standalone, device emulation). */
+    padding: calc(12px + env(safe-area-inset-top)) 14px calc(92px + env(safe-area-inset-bottom));
     touch-action: pan-y; /* vertical scroll native; horizontal stays ours (edge-back) */
   }
 

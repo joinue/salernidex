@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useDrag } from '../hooks/useDrag'
+import { useScrollLock } from '../hooks/useScrollLock'
 import haptics from '../lib/haptics'
 
 // Reusable iOS bottom sheet with drag-to-dismiss. Drag the grip (handle +
@@ -10,6 +11,7 @@ import haptics from '../lib/haptics'
 export default function Sheet({ title, onClose, children }) {
   const [y, setY] = useState(0)
   const [closing, setClosing] = useState(false)
+  useScrollLock()
 
   const dismiss = () => {
     if (closing) return
@@ -34,6 +36,7 @@ export default function Sheet({ title, onClose, children }) {
   return createPortal(
     <div
       className="sheet-overlay"
+      style={{ background: `rgba(0, 0, 0, ${0.4 * Math.max(0, 1 - y / (window.innerHeight * 0.6))})` }}
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
       onTouchStart={(e) => e.target === e.currentTarget && onClose()}
     >

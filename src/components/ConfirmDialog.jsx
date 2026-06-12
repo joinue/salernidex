@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { useScrollLock } from '../hooks/useScrollLock'
 
 // Centered "are you sure" alert (iOS UIAlertController style). Reusable for any
 // destructive confirm. `danger` tints the confirm button red. Cancel is the
@@ -13,6 +14,8 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
 }) {
+  useScrollLock()
+
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onCancel()
     window.addEventListener('keydown', onKey)

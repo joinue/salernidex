@@ -6,6 +6,7 @@ import {
 } from 'react-feather'
 import { buildIndex, searchIndex, groupResults, loadRecents, pushRecent, highlightSegments } from '../lib/quickFind'
 import { useMediaQuery } from '../hooks/useMediaQuery'
+import { useScrollLock } from '../hooks/useScrollLock'
 import haptics from '../lib/haptics'
 import Avatar from './Avatar'
 
@@ -36,6 +37,7 @@ export default function QuickFind({ data, onPick, onClose }) {
   const [sel, setSel] = useState(0)
   const inputRef = useRef(null)
   const resultsRef = useRef(null)
+  useScrollLock()
 
   const index = useMemo(() => buildIndex(data), [data])
 

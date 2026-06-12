@@ -59,5 +59,7 @@ export function downloadVcf(filename, people) {
   a.href = url
   a.download = filename.replace(/[\\/:*?"<>|]/g, '').trim() + '.vcf'
   a.click()
-  URL.revokeObjectURL(url)
+  // Defer the revoke: revoking synchronously can cancel the download before the
+  // browser has read the blob (more likely the larger the file).
+  setTimeout(() => URL.revokeObjectURL(url), 0)
 }

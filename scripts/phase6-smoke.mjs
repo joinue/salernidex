@@ -14,7 +14,7 @@ async function run(label, viewport, mobile) {
 
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
   await page.evaluate(() => localStorage.removeItem('salernidex-notify-prefs'))
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Explore the demo' }).click()
   await page.waitForSelector('.large-title')
 
   // 1. Check in section, warm copy only

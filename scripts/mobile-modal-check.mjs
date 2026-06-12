@@ -6,10 +6,13 @@ const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
 
 try {
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.waitForSelector('.search-input')
+  await page.getByRole('button', { name: 'Explore the demo' }).click()
+  await page.waitForSelector('.tabbar')
 
-  await page.getByTitle('Add Person').click()
+  // Add a person via the + tab → action sheet → Person (Today is the home now).
+  await page.getByLabel('Add').click()
+  await page.waitForSelector('.sheet')
+  await page.getByText('Person', { exact: true }).click()
   await page.waitForSelector('.modal')
   await page.waitForTimeout(350)
   await page.screenshot({ path: 'scripts/shots/5-mobile-modal.png' })

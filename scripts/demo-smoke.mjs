@@ -12,7 +12,7 @@ async function run(label, viewport, mobile) {
   page.on('console', (m) => m.type() === 'error' && !m.text().includes('404') && errors.push(m.text()))
 
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Explore the demo' }).click()
 
   // 1. Today is the home screen
   await page.waitForSelector('.large-title')
@@ -84,7 +84,7 @@ try {
   // Dark mode Today
   const page = await browser.newPage({ viewport: { width: 1280, height: 950 } })
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Explore the demo' }).click()
   await page.waitForSelector('.large-title')
   await page.evaluate(() => { document.documentElement.dataset.theme = 'dark' })
   await page.waitForTimeout(250)

@@ -4,11 +4,13 @@ import { supabase } from './lib/supabase'
 import { demoMode } from './lib/demo'
 import { buildAttention, badgeCount } from './lib/reminders'
 import { useData } from './hooks/useData'
+import { useHousehold } from './hooks/useHousehold'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { useNotificationPrefs } from './hooks/useNotificationPrefs'
 import { useEdgeBack } from './hooks/useEdgeBack'
 import InstallHint from './components/InstallHint'
-import Login from './components/Login'
+import AuthScreen from './components/AuthScreen'
+import Onboarding from './components/Onboarding'
 import Sidebar from './components/Sidebar'
 import MobileNav from './components/MobileNav'
 import MoreSheet from './components/MoreSheet'
@@ -27,6 +29,7 @@ import OrgsView from './components/OrgsView'
 import GroupsView from './components/GroupsView'
 import RelationshipsView from './components/RelationshipsView'
 import SettingsView from './components/SettingsView'
+import LegalView from './components/LegalView'
 import ErrorBoundary from './components/ErrorBoundary'
 import Toasts from './components/Toasts'
 
@@ -50,28 +53,61 @@ function parseHash() {
 }
 
 export default function App() {
+  // Runtime demo: the "Explore the demo" button works even when Supabase is
+  // configured (build-time demoMode can't capture that). A demo session
+  // bypasses auth + the household gate entirely.
+  const [demo, setDemo] = useState(false)
   return (
     <ErrorBoundary>
-      {demoMode ? <DemoFlow /> : <AuthedApp />}
+      {demo ? (
+        <Shell session={{ demo: true }} onLogout={() => setDemo(false)} />
+      ) : (
+        <AuthedApp onDemo={() => setDemo(true)} />
+      )}
     </ErrorBoundary>
   )
 }
 
-// Demo: no Supabase, any credentials sign in, data lives in memory.
-function DemoFlow() {
-  const [signedIn, setSignedIn] = useState(false)
-  if (!signedIn) return <Login demo onDemo={() => setSignedIn(true)} />
-  return <Shell session={{ demo: true }} onLogout={() => setSignedIn(false)} />
-}
-
-function AuthedApp() {
-  const [session, setSession] = useState(undefined) // undefined = checking
+function AuthedApp({ onDemo }) {
+  // No Supabase configured → nothing to sign into; jump straight to the
+  // demo-only auth screen (session stays null).
+  const [session, setSession] = useState(supabase ? undefined : null) // undefined = checking
+  const [route, setRoute] = useState(parseHash)
+  // A password-reset link logs the user in with a temporary recovery session.
+  // We intercept that (PASSWORD_RECOVERY) to show "choose a new password" instead
+  // of dropping them into the app, which would never let them set the password.
+  const [recovering, setRecovering] = useState(false)
 
   useEffect(() => {
+    if (!supabase) return
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s))
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      if (event === 'PASSWORD_RECOVERY') setRecovering(true)
+      setSession(s)
+    })
     return () => sub.subscription.unsubscribe()
   }, [])
+
+  // Track the hash so the legal pages are reachable without a session — they
+  // need to render before auth (App-store / privacy-link requirement), so we
+  // intercept them here, ahead of the loading and sign-in branches.
+  useEffect(() => {
+    const onHash = () => setRoute(parseHash())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
+  // Logged-out (or still-checking): show the legal page on its own. Once
+  // signed in, fall through so Shell renders it with the app chrome instead.
+  if (!session && (route.name === 'privacy' || route.name === 'terms')) {
+    return (
+      <main className="main legal-standalone">
+        <div className="content">
+          <LegalView doc={route.name} onBack={() => { window.location.hash = '/' }} />
+        </div>
+      </main>
+    )
+  }
 
   if (session === undefined) {
     return (
@@ -80,11 +116,32 @@ function AuthedApp() {
       </div>
     )
   }
-  if (!session) return <Login />
-  return <Shell session={session} onLogout={() => supabase.auth.signOut()} />
+  // Recovery link clicked: force the new-password screen even though a (temporary)
+  // session now exists. Clearing the flag on success drops them into the app.
+  if (recovering) return <AuthScreen recovery onRecovered={() => setRecovering(false)} onDemo={onDemo} />
+  if (!session) return <AuthScreen onDemo={onDemo} noAuth={!supabase} />
+  return <HouseholdGate session={session} onLogout={() => supabase.auth.signOut()} />
 }
 
-function Shell({ session, onLogout }) {
+// Between a valid session and the app: ensure the user belongs to a household
+// (creating/joining one if not), and hydrate the household cache before the
+// Shell — which reads members synchronously — mounts.
+function HouseholdGate({ session, onLogout }) {
+  const hh = useHousehold(session)
+  if (hh.status === 'loading') {
+    return (
+      <div className="login-wrap">
+        <span className="muted dots">Loading</span>
+      </div>
+    )
+  }
+  if (hh.status === 'none') {
+    return <Onboarding session={session} onDone={hh.refresh} onLogout={onLogout} />
+  }
+  return <Shell session={session} onLogout={onLogout} household={hh} />
+}
+
+function Shell({ session, onLogout, household }) {
   const data = useData(session)
   const [route, setRoute] = useState(parseHash)
   const [query, setQuery] = useState('') // lifted so Back returns to the same results
@@ -131,11 +188,11 @@ function Shell({ session, onLogout }) {
   }
 
   // iOS-style edge-swipe back on detail pages (mobile only).
-  const DETAIL_ROUTES = ['person', 'project', 'list', 'activity', 'settings']
+  const DETAIL_ROUTES = ['person', 'project', 'list', 'activity', 'settings', 'privacy', 'terms']
   useEdgeBack(mainRef, isMobile && DETAIL_ROUTES.includes(route.name), () => window.history.back())
 
   // Stale bookmarks / typo'd hashes land on Today, not a blank screen.
-  const KNOWN_ROUTES = ['today', 'activity', 'tasks', 'project', 'lists', 'list', 'people', 'person', 'orgs', 'groups', 'relationships', 'import', 'settings']
+  const KNOWN_ROUTES = ['today', 'activity', 'tasks', 'project', 'lists', 'list', 'people', 'person', 'orgs', 'groups', 'relationships', 'import', 'settings', 'privacy', 'terms']
   useEffect(() => {
     if (!KNOWN_ROUTES.includes(route.name)) window.location.hash = '/'
   }, [route.name])
@@ -153,6 +210,7 @@ function Shell({ session, onLogout }) {
                 activity: 'Activity', tasks: 'Tasks', lists: 'Lists', people: 'People',
                 orgs: 'Organizations', groups: 'Groups', relationships: 'Relationships',
                 import: 'Import / Export', settings: 'Settings',
+                privacy: 'Privacy Policy', terms: 'Terms of Use',
               }[route.name]
     document.title = named ? `${named} — Salernidex` : 'Salernidex'
   }, [route, data.people, data.lists, data.tasks])
@@ -211,10 +269,10 @@ function Shell({ session, onLogout }) {
 
   // Attention badge: overdue/today items for the signed-in member, mirrored on
   // the Today tab/sidebar item and the app icon (installed PWA, iOS 16.4+).
-  const [prefs] = useNotificationPrefs(data.ownerId)
+  const [prefs] = useNotificationPrefs(data.memberId)
   const badge = useMemo(
-    () => badgeCount(buildAttention(data, prefs, data.reminderSnoozes, data.ownerId)),
-    [data.people, data.tasks, data.interactions, data.keyDates, data.reminderSnoozes, prefs, data.ownerId]
+    () => badgeCount(buildAttention(data, prefs, data.reminderSnoozes, data.memberId)),
+    [data.people, data.tasks, data.interactions, data.keyDates, data.reminderSnoozes, prefs, data.memberId]
   )
   useEffect(() => {
     if (badge > 0) navigator.setAppBadge?.(badge)
@@ -252,9 +310,12 @@ function Shell({ session, onLogout }) {
         <PullToRefresh onRefresh={data.refresh}>
         <div className="content">
           {isMobile && <InstallHint />}
-          {demoMode && (
+          {/* Mirror useData's demo condition exactly so the notice can never
+              drift from the data: shown for runtime demo AND build-time demo,
+              never for a real signed-in session. */}
+          {(demoMode || session?.demo) && (
             <p className="demo-banner">
-              Demo mode — sample data, nothing is saved. Connect Supabase (see README) to go live.
+              Demo mode — sample data, nothing is saved. Create an account to start your own household.
             </p>
           )}
           {data.error && <p className="error-text">{data.error}</p>}
@@ -318,7 +379,10 @@ function Shell({ session, onLogout }) {
               <ImportExport data={data} />
             </Suspense>
           )}
-          {route.name === 'settings' && <SettingsView go={go} />}
+          {route.name === 'settings' && <SettingsView go={go} household={household} isDemo={!!(demoMode || session?.demo)} />}
+          {(route.name === 'privacy' || route.name === 'terms') && (
+            <LegalView doc={route.name} onBack={() => (window.history.length > 1 ? window.history.back() : go('today'))} />
+          )}
         </div>
         </PullToRefresh>
       </main>

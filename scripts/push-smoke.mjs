@@ -12,7 +12,7 @@ page.on('pageerror', (e) => errors.push(e.message))
 
 try {
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Explore the demo' }).click()
   await page.waitForSelector('.large-title')
 
   // 1. Service worker registered on load

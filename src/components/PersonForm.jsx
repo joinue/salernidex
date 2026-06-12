@@ -129,11 +129,11 @@ export default function PersonForm({ person, orgs, people = [], families = [], e
         </div>
         <div className="field">
           <label className="label">Email</label>
-          <input type="email" value={form.email} onChange={set('email')} />
+          <input type="email" value={form.email} onChange={set('email')} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
         </div>
         <div className="field">
           <label className="label">Phone</label>
-          <input value={form.phone} onChange={set('phone')} inputMode="tel" autoComplete="off" />
+          <input type="tel" value={form.phone} onChange={set('phone')} inputMode="tel" autoComplete="off" />
         </div>
         <div className="field">
           <label className="label">Birthday</label>

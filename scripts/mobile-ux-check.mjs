@@ -12,7 +12,7 @@ const page = await browser.newPage({
 
 try {
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Explore the demo' }).click()
   await page.waitForSelector('.tabbar')
   await page.waitForTimeout(300)
   await page.screenshot({ path: `${shots}/m1-search.png` })
@@ -31,15 +31,17 @@ try {
   await page.screenshot({ path: `${shots}/m3-form-sheet.png` })
   await page.getByLabel('Close').click()
 
-  // More sheet
-  await page.getByText('More').click()
+  // More sheet (icon button on the Today header, next to the Settings gear)
+  await page.locator('.header-action[aria-label="More"]').click()
   await page.waitForSelector('.sheet')
   await page.waitForTimeout(300)
   await page.screenshot({ path: `${shots}/m4-more-sheet.png` })
   await page.mouse.click(195, 200) // tap overlay to dismiss
   await page.waitForTimeout(200)
 
-  // Person page
+  // Person page (People tab now lists contacts; Today is the home screen)
+  await page.goto('http://localhost:5173/#/people')
+  await page.waitForSelector('.search-input')
   await page.getByText('Elena Vasquez').click()
   await page.waitForSelector('.person-name')
   await page.waitForTimeout(300)

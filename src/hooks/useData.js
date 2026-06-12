@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { demoMode, demoPeople, demoOrgs, demoRelationships, demoGroups, demoInteractions, demoTasks, demoCompletions, demoTaskLinks, demoLists, demoListItems, demoFamilies, demoKeyDates } from '../lib/demo'
 import { completionFields } from '../lib/tasks'
-import { currentMember, currentMemberId } from '../lib/household'
+import { currentMember, currentMemberId, getHousehold } from '../lib/household'
 import { showToast } from '../lib/toast'
 import { filterVisible } from '../lib/privacy'
 
@@ -19,29 +19,51 @@ const now = () => new Date().toISOString()
 // rolls the UI back to truth. Destructive actions raise an Undo toast.
 // In demo mode the local apply is the whole story — nothing persists.
 export function useData(session) {
-  const [people, setPeople] = useState(demoMode ? demoPeople : [])
-  const [orgs, setOrgs] = useState(demoMode ? demoOrgs : [])
-  const [relationships, setRelationships] = useState(demoMode ? demoRelationships : [])
-  const [interactions, setInteractions] = useState(demoMode ? demoInteractions : [])
-  const [groups, setGroups] = useState(demoMode ? demoGroups : [])
-  const [tasks, setTasks] = useState(demoMode ? demoTasks : [])
-  const [completions, setCompletions] = useState(demoMode ? demoCompletions : [])
-  const [taskLinks, setTaskLinks] = useState(demoMode ? demoTaskLinks : [])
-  const [lists, setLists] = useState(demoMode ? demoLists : [])
-  const [listItems, setListItems] = useState(demoMode ? demoListItems : [])
-  const [families, setFamilies] = useState(demoMode ? demoFamilies : [])
-  const [keyDates, setKeyDates] = useState(demoMode ? demoKeyDates : [])
+  // Demo can be on at build time (no Supabase / VITE_DEMO) or chosen at runtime
+  // via the auth screen's "Explore the demo" button (App passes session.demo).
+  const isDemo = demoMode || session?.demo
+  const [people, setPeople] = useState(isDemo ? demoPeople : [])
+  const [orgs, setOrgs] = useState(isDemo ? demoOrgs : [])
+  const [relationships, setRelationships] = useState(isDemo ? demoRelationships : [])
+  const [interactions, setInteractions] = useState(isDemo ? demoInteractions : [])
+  const [groups, setGroups] = useState(isDemo ? demoGroups : [])
+  const [tasks, setTasks] = useState(isDemo ? demoTasks : [])
+  const [completions, setCompletions] = useState(isDemo ? demoCompletions : [])
+  const [taskLinks, setTaskLinks] = useState(isDemo ? demoTaskLinks : [])
+  const [lists, setLists] = useState(isDemo ? demoLists : [])
+  const [listItems, setListItems] = useState(isDemo ? demoListItems : [])
+  const [families, setFamilies] = useState(isDemo ? demoFamilies : [])
+  const [keyDates, setKeyDates] = useState(isDemo ? demoKeyDates : [])
   const [reminderSnoozes, setReminderSnoozes] = useState([])
-  const [loading, setLoading] = useState(!demoMode)
+  const [loading, setLoading] = useState(!isDemo)
   const [error, setError] = useState(null)
 
-  // Who "I" am for ownership checks. Live: the signed-in auth user (matches the
-  // people.created_by default of auth.uid()). Demo: the current household member
-  // (no auth, so member ids stand in). Used to gate permanent deletes.
-  const ownerId = demoMode ? currentMemberId() : session?.user?.id || null
+  // Two distinct identities, deliberately kept apart (live mode used to conflate
+  // them, which broke privacy and snoozes):
+  //   userId   = the signed-in auth user (auth.uid()). Backs `created_by` and the
+  //              "Private — only me" check — people.created_by defaults to auth.uid().
+  //   memberId = my household_members row id in the active household. Backs
+  //              tasks.assignee, task_completions.completed_by, reminder_snoozes,
+  //              and the "for me" attention badge.
+  // In demo there's no auth, so both collapse to the localStorage member id (m-1).
+  const userId = isDemo ? currentMemberId() : session?.user?.id || null
+  const memberId = currentMemberId()
+
+  // Active household id (from the cache useHousehold hydrates before the Shell
+  // mounts). Every live insert is scoped to it; RLS rejects rows without it.
+  // Demo writes never reach the DB, so household_id is left off there.
+  const householdId = isDemo ? null : getHousehold()?.id || null
+  const stamp = (row) => (householdId ? { ...row, household_id: householdId } : row)
+
+  // Live, tasks.assignee / task_completions.completed_by are uuid FKs to
+  // household_members (null = "Anyone"). The form/local model uses the sentinel
+  // 'anyone' and member ids; map the sentinel to null on the way to the DB.
+  // (Demo never writes to the DB, so its local rows keep 'anyone' for display.)
+  const dbAssignee = (a) => (!a || a === 'anyone' ? null : a)
+  const isUuid = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
 
   const refresh = useCallback(async () => {
-    if (demoMode) return
+    if (isDemo) return
     const [p, o, r, i, g, t, c, tl, l, li, f, kd] = await Promise.all([
       supabase.from('people').select('*').order('name'),
       supabase.from('organizations').select('*').order('name'),
@@ -75,10 +97,10 @@ export function useData(session) {
       setKeyDates(kd.data)
     }
     setLoading(false)
-  }, [])
+  }, [isDemo])
 
   useEffect(() => {
-    if (!session || demoMode) return
+    if (!session || isDemo) return
     refresh()
     const channel = supabase
       .channel('salernidex-sync')
@@ -91,7 +113,7 @@ export function useData(session) {
   // { error }) or a promise from a multi-step async fn that throws on failure.
   // On error: toast + refresh, which snaps local state back to the server's.
   const sync = (op) => {
-    if (demoMode) return
+    if (isDemo) return
     Promise.resolve()
       .then(op)
       .then((res) => {
@@ -114,12 +136,12 @@ export function useData(session) {
     setPeople((prev) =>
       id
         ? prev.map((p) => (p.id === id ? { ...p, ...fields, updated_at: now() } : p))
-        : [...prev, { deleted_at: null, created_by: ownerId, created_at: now(), updated_at: now(), ...fields, id: rowId }]
+        : [...prev, { deleted_at: null, created_by: userId, created_at: now(), updated_at: now(), ...fields, id: rowId }]
     )
     sync(() =>
       id
         ? supabase.from('people').update(fields).eq('id', id)
-        : supabase.from('people').insert({ ...fields, id: rowId })
+        : supabase.from('people').insert(stamp({ ...fields, id: rowId }))
     )
   }
 
@@ -148,10 +170,10 @@ export function useData(session) {
     // still archive (reversible); this guards the irreversible path. Unknown/
     // legacy created_by (null) is treated as yours so old data isn't stranded.
     const target = people.find((p) => p.id === id)
-    if (target?.created_by && target.created_by !== ownerId) {
+    if (target?.created_by && target.created_by !== userId) {
       throw new Error('Only the member who added this contact can delete it permanently.')
     }
-    if (demoMode) {
+    if (isDemo) {
       setPeople((prev) => prev.filter((p) => p.id !== id))
       setRelationships((prev) => prev.filter((r) => r.person_a_id !== id && r.person_b_id !== id))
       setInteractions((prev) => prev.filter((i) => i.person_id !== id))
@@ -175,7 +197,7 @@ export function useData(session) {
     sync(() =>
       id
         ? supabase.from('organizations').update(fields).eq('id', id)
-        : supabase.from('organizations').insert({ ...fields, id: rowId })
+        : supabase.from('organizations').insert(stamp({ ...fields, id: rowId }))
     )
   }
 
@@ -186,8 +208,8 @@ export function useData(session) {
 
   const addRelationship = (fields) => {
     const rowId = uuid()
-    setRelationships((prev) => [...prev, { ...fields, id: rowId, created_at: now() }])
-    sync(() => supabase.from('relationships').insert({ ...fields, id: rowId }))
+    setRelationships((prev) => [...prev, stamp({ ...fields, id: rowId, created_at: now() })])
+    sync(() => supabase.from('relationships').insert(stamp({ ...fields, id: rowId })))
   }
 
   const deleteRelationship = (id) => {
@@ -197,8 +219,8 @@ export function useData(session) {
 
   const addInteraction = (fields) => {
     const rowId = uuid()
-    setInteractions((prev) => [{ ...fields, id: rowId, created_at: now() }, ...prev])
-    sync(() => supabase.from('interactions').insert({ ...fields, id: rowId }))
+    setInteractions((prev) => [stamp({ ...fields, id: rowId, created_at: now() }), ...prev])
+    sync(() => supabase.from('interactions').insert(stamp({ ...fields, id: rowId })))
   }
 
   const deleteInteraction = (id) => {
@@ -219,14 +241,15 @@ export function useData(session) {
     const rowId = uuid()
     setTasks((prev) => [
       ...prev,
-      { recurrence: null, parent_id: null, is_project: false, is_heading: false, sort_order: null, completed_at: null, privacy_level: 'shared', assignee: 'anyone', notes: '', created_at: now(), updated_at: now(), ...fields, id: rowId },
+      stamp({ recurrence: null, parent_id: null, is_project: false, is_heading: false, sort_order: null, completed_at: null, privacy_level: 'shared', assignee: 'anyone', notes: '', created_at: now(), updated_at: now(), ...fields, id: rowId }),
     ])
-    sync(() => supabase.from('tasks').insert({ ...fields, id: rowId }))
+    sync(() => supabase.from('tasks').insert(stamp({ ...fields, id: rowId, assignee: dbAssignee(fields.assignee) })))
   }
 
   const updateTask = (id, fields) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...fields, updated_at: now() } : t)))
-    sync(() => supabase.from('tasks').update(fields).eq('id', id))
+    const dbFields = 'assignee' in fields ? { ...fields, assignee: dbAssignee(fields.assignee) } : fields
+    sync(() => supabase.from('tasks').update(dbFields).eq('id', id))
   }
 
   // Persist a manual ordering: [{ id, sort_order }, ...]. Local apply is one
@@ -290,8 +313,8 @@ export function useData(session) {
     )
     if (dup) return
     const rowId = uuid()
-    setTaskLinks((prev) => [...prev, { role: null, ...fields, id: rowId, created_at: now() }])
-    sync(() => supabase.from('task_links').insert({ ...fields, id: rowId }))
+    setTaskLinks((prev) => [...prev, stamp({ role: null, ...fields, id: rowId, created_at: now() })])
+    sync(() => supabase.from('task_links').insert(stamp({ ...fields, id: rowId })))
   }
 
   const deleteTaskLink = (id) => {
@@ -308,7 +331,7 @@ export function useData(session) {
     const completionId = uuid()
     setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, ...fields, updated_at: now() } : t)))
     if (log && done) {
-      setCompletions((prev) => [{ id: completionId, task_id: task.id, completed_at: now(), completed_by: by, created_at: now() }, ...prev])
+      setCompletions((prev) => [stamp({ id: completionId, task_id: task.id, completed_at: now(), completed_by: by, created_at: now() }), ...prev])
     } else if (log && !done) {
       // undo a one-off: drop its most recent completion
       setCompletions((prev) => {
@@ -336,12 +359,12 @@ export function useData(session) {
     setLists((prev) =>
       id
         ? prev.map((l) => (l.id === id ? { ...l, ...fields, updated_at: now() } : l))
-        : [...prev, { icon: '📝', privacy_level: 'family_shared', created_at: now(), updated_at: now(), ...fields, id: rowId }]
+        : [...prev, stamp({ icon: '📝', privacy_level: 'family_shared', created_at: now(), updated_at: now(), ...fields, id: rowId })]
     )
     sync(() =>
       id
         ? supabase.from('lists').update(fields).eq('id', id)
-        : supabase.from('lists').insert({ ...fields, id: rowId })
+        : supabase.from('lists').insert(stamp({ ...fields, id: rowId }))
     )
   }
 
@@ -366,8 +389,8 @@ export function useData(session) {
 
   const addListItem = (listId, text) => {
     const rowId = uuid()
-    setListItems((prev) => [...prev, { id: rowId, list_id: listId, text, checked_at: null, sort_order: null, created_at: now() }])
-    sync(() => supabase.from('list_items').insert({ id: rowId, list_id: listId, text }))
+    setListItems((prev) => [...prev, stamp({ id: rowId, list_id: listId, text, checked_at: null, sort_order: null, created_at: now() })])
+    sync(() => supabase.from('list_items').insert(stamp({ id: rowId, list_id: listId, text })))
   }
 
   const toggleListItem = (item) => {
@@ -410,12 +433,12 @@ export function useData(session) {
   const saveFamily = (fields, id) => {
     const row = id
       ? { ...families.find((f) => f.id === id), ...fields, updated_at: now() }
-      : { created_at: now(), updated_at: now(), ...fields, id: uuid() }
+      : stamp({ created_at: now(), updated_at: now(), ...fields, id: uuid() })
     setFamilies((prev) => (id ? prev.map((f) => (f.id === id ? row : f)) : [...prev, row]))
     sync(() =>
       id
         ? supabase.from('families').update(fields).eq('id', id)
-        : supabase.from('families').insert({ ...fields, id: row.id })
+        : supabase.from('families').insert(stamp({ ...fields, id: row.id }))
     )
     return row
   }
@@ -431,7 +454,7 @@ export function useData(session) {
   const addKeyDate = (fields) => {
     const rowId = uuid()
     setKeyDates((prev) => [...prev, { annual: true, ...fields, id: rowId, created_at: now() }])
-    sync(() => supabase.from('key_dates').insert({ ...fields, id: rowId }))
+    sync(() => supabase.from('key_dates').insert(stamp({ ...fields, id: rowId })))
   }
 
   const deleteKeyDate = (id) => {
@@ -445,13 +468,13 @@ export function useData(session) {
   // Live counterpart: reminder_snoozes (schema.sql Phase 6 section).
   const snoozeReminder = ({ kind, target_key, until }) => {
     setReminderSnoozes((prev) => [
-      ...prev.filter((s) => !(s.member_id === ownerId && s.target_key === target_key)),
-      { id: uuid(), member_id: ownerId, kind, target_key, until, created_at: now() },
+      ...prev.filter((s) => !(s.member_id === memberId && s.target_key === target_key)),
+      { id: uuid(), member_id: memberId, kind, target_key, until, created_at: now() },
     ])
     sync(() =>
       supabase
         .from('reminder_snoozes')
-        .upsert({ member_id: ownerId, kind, target_key, until }, { onConflict: 'member_id,kind,target_key' })
+        .upsert({ member_id: memberId, kind, target_key, until }, { onConflict: 'member_id,kind,target_key' })
     )
   }
 
@@ -460,12 +483,12 @@ export function useData(session) {
     setGroups((prev) =>
       id
         ? prev.map((g) => (g.id === id ? { ...g, ...fields, updated_at: now() } : g))
-        : [...prev, { created_at: now(), updated_at: now(), ...fields, id: rowId }]
+        : [...prev, stamp({ created_at: now(), updated_at: now(), ...fields, id: rowId })]
     )
     sync(() =>
       id
         ? supabase.from('groups').update(fields).eq('id', id)
-        : supabase.from('groups').insert({ ...fields, id: rowId })
+        : supabase.from('groups').insert(stamp({ ...fields, id: rowId }))
     )
   }
 
@@ -477,14 +500,14 @@ export function useData(session) {
   // Bulk import stays awaited (not optimistic): ImportExport shows progress
   // and reports row-level errors inline.
   const importPeople = async (rows) => {
-    if (demoMode) {
+    if (isDemo) {
       setPeople((prev) => [
         ...prev,
-        ...rows.map((r) => ({ deleted_at: null, created_by: ownerId, created_at: now(), updated_at: now(), privacy_level: 'shared', ...r, id: uuid() })),
+        ...rows.map((r) => ({ deleted_at: null, created_by: userId, created_at: now(), updated_at: now(), privacy_level: 'shared', ...r, id: uuid() })),
       ])
       return
     }
-    const { error } = await supabase.from('people').insert(rows)
+    const { error } = await supabase.from('people').insert(rows.map(stamp))
     if (error) throw error
     await refresh()
   }
@@ -508,7 +531,7 @@ export function useData(session) {
       list_items: backup.list_items,
       reminder_snoozes: backup.reminder_snoozes,
     }
-    if (demoMode) {
+    if (isDemo) {
       const merge = (prev, incoming) => {
         if (!Array.isArray(incoming)) return prev
         const map = new Map(prev.map((row) => [row.id, row]))
@@ -530,11 +553,23 @@ export function useData(session) {
       if (tables.reminder_snoozes) setReminderSnoozes((prev) => merge(prev, tables.reminder_snoozes))
       return
     }
-    // Live: upsert in dependency order (parents before their children).
+    // Live: re-home each row into the active household, sanitize legacy ids
+    // (a backup may carry another household's id, demo localStorage member ids
+    // in assignee/completed_by, or pre-multitenancy snooze member ids), then
+    // upsert in dependency order (parents before their children).
+    const prep = (name, rows) =>
+      rows.map((r) => {
+        // reminder_snoozes is member-scoped (no household_id); the rest are
+        // household-scoped. Restoring snoozes makes them mine.
+        const row = name === 'reminder_snoozes' ? { ...r, member_id: memberId } : stamp({ ...r })
+        if (name === 'tasks') row.assignee = isUuid(row.assignee) ? row.assignee : null
+        if (name === 'task_completions') row.completed_by = isUuid(row.completed_by) ? row.completed_by : null
+        return row
+      })
     for (const name of ['families', 'organizations', 'people', 'relationships', 'interactions', 'key_dates', 'groups', 'tasks', 'task_completions', 'task_links', 'lists', 'list_items', 'reminder_snoozes']) {
       const rows = tables[name]
       if (!rows?.length) continue
-      const { error } = await supabase.from(name).upsert(rows)
+      const { error } = await supabase.from(name).upsert(prep(name, rows))
       if (error) throw error
     }
     await refresh()
@@ -543,10 +578,10 @@ export function useData(session) {
   // "Private — only me" enforcement (lib/privacy.js): filtered once here, so
   // every view, search, group, reminder, badge, and CSV/vCard export inherits
   // it. The all* arrays bypass the filter for the lossless JSON backup only.
-  const visiblePeople = filterVisible(people, ownerId)
-  const visibleOrgs = filterVisible(orgs, ownerId)
-  const visibleTasks = filterVisible(tasks, ownerId)
-  const visibleLists = filterVisible(lists, ownerId)
+  const visiblePeople = filterVisible(people, userId)
+  const visibleOrgs = filterVisible(orgs, userId)
+  const visibleTasks = filterVisible(tasks, userId)
+  const visibleLists = filterVisible(lists, userId)
   const visibleListIds = new Set(visibleLists.map((l) => l.id))
   const visibleListItems =
     visibleLists.length === lists.length ? listItems : listItems.filter((it) => visibleListIds.has(it.list_id))
@@ -572,7 +607,8 @@ export function useData(session) {
     allListItems: listItems,
     loading,
     error,
-    ownerId,
+    userId,
+    memberId,
     refresh,
     savePerson,
     deletePerson,

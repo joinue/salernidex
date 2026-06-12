@@ -10,7 +10,7 @@ import KeyDateForm from './KeyDateForm'
 import ConfirmDialog from './ConfirmDialog'
 
 export default function PersonPage({ data, personId, onOpenPerson, onBack, onEdit, onConnect }) {
-  const { people, relationships, interactions, families, keyDates, deletePerson, restorePerson, purgePerson, ownerId, deleteRelationship, addInteraction, deleteInteraction, addKeyDate, deleteKeyDate } = data
+  const { people, relationships, interactions, families, keyDates, deletePerson, restorePerson, purgePerson, userId, deleteRelationship, addInteraction, deleteInteraction, addKeyDate, deleteKeyDate } = data
   const person = people.find((p) => p.id === personId)
   const byId = useMemo(() => new Map(people.map((p) => [p.id, p])), [people])
   const [logType, setLogType] = useState(null) // null | type id → opens InteractionForm
@@ -55,7 +55,7 @@ export default function PersonPage({ data, personId, onOpenPerson, onBack, onEdi
     .sort((a, b) => (a.date < b.date ? -1 : 1))
   // Ownership: only the creator may permanently delete. Null created_by (legacy
   // data) counts as yours so it isn't stranded.
-  const mine = !person.created_by || person.created_by === ownerId
+  const mine = !person.created_by || person.created_by === userId
   const ownerName = memberName(person.created_by)
 
   return (

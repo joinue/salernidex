@@ -38,7 +38,9 @@ function download(filename, content, mime) {
   a.href = url
   a.download = filename
   a.click()
-  URL.revokeObjectURL(url)
+  // Defer the revoke so large downloads (full JSON backup) aren't cancelled
+  // before the browser reads the blob.
+  setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 export default function ImportExport({ data }) {

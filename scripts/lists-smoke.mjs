@@ -10,7 +10,7 @@ async function run(label, viewport, mobile) {
   page.on('console', (m) => m.type() === 'error' && !m.text().includes('404') && errors.push(m.text()))
 
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Explore the demo' }).click()
   await page.waitForSelector('.large-title')
 
   // Lists index
@@ -53,7 +53,7 @@ try {
   // Mobile nav: confirm 4 tabs + FAB, and page-aware add on Lists
   const m = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
   await m.goto('http://localhost:5173', { waitUntil: 'networkidle' })
-  await m.getByRole('button', { name: 'Sign in' }).click()
+  await m.getByRole('button', { name: 'Explore the demo' }).click()
   await m.waitForSelector('.tabbar')
   const tabs = await m.$$eval('.tab span', (els) => els.map((e) => e.textContent.trim()))
   console.log('mobile tabs:', tabs.join(' · '))
@@ -68,7 +68,7 @@ try {
   // Dark lists
   const d = await browser.newPage({ viewport: { width: 1280, height: 950 } })
   await d.goto('http://localhost:5173', { waitUntil: 'networkidle' })
-  await d.getByRole('button', { name: 'Sign in' }).click()
+  await d.getByRole('button', { name: 'Explore the demo' }).click()
   await d.waitForSelector('.large-title')
   await d.evaluate(() => { document.documentElement.dataset.theme = 'dark' })
   await d.goto('http://localhost:5173/#/list/l-grocery')

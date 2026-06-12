@@ -16,7 +16,7 @@ async function capture(trigger) {
 
 try {
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Explore the demo' }).click()
   await page.waitForSelector('.large-title')
 
   // 1. Single person from their page
@@ -24,14 +24,14 @@ try {
   await page.waitForSelector('.person-name')
   const single = await capture(() => page.getByRole('button', { name: 'Save contact' }).click())
   const cardCount = (single.text.match(/BEGIN:VCARD/g) || []).length
-  const fields = ['FN:Elena Vasquez', 'ORG:Tucson Compass', 'TEL;TYPE=CELL', 'BDAY:1984-03-14', 'UID:salernidex-p-elena']
+  const fields = ['FN:Elena Vasquez', 'ORG:Riverside Compass', 'TEL;TYPE=CELL', 'BDAY:1984-03-14', 'UID:salernidex-p-elena']
     .map((f) => `${f}: ${single.text.includes(f)}`)
   console.log(`single: ${single.name} (${cardCount} card) — ${fields.join(', ')}`)
   console.log(`crlf line endings: ${single.text.includes('\r\n')}`)
 
-  // 2. Group export (PACE Customers = 3 people)
+  // 2. Group export (Northwind Customers = 3 people)
   await page.goto('http://localhost:5173/#/groups')
-  await page.getByText('PACE Customers').click()
+  await page.getByText('Northwind Customers').click()
   const group = await capture(() => page.getByRole('button', { name: 'Export contacts' }).click())
   console.log(`group: ${group.name} — ${(group.text.match(/BEGIN:VCARD/g) || []).length} cards (expect 3)`)
 

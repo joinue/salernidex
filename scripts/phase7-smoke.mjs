@@ -12,7 +12,7 @@ async function run(label, viewport, mobile) {
   page.on('console', (m) => m.type() === 'error' && !m.text().includes('404') && errors.push(m.text()))
 
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Explore the demo' }).click()
   await page.waitForSelector('.large-title')
 
   // 1. Today: Dates section merges birthdays + anniversaries + one-offs
