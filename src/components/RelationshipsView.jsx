@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react'
+import { Share2, X, Plus } from 'react-feather'
+import PageHeader from './PageHeader'
 
 export default function RelationshipsView({ data, onOpenPerson, onAdd }) {
   const { relationships, people, loading, deleteRelationship } = data
@@ -16,7 +18,13 @@ export default function RelationshipsView({ data, onOpenPerson, onAdd }) {
 
   return (
     <div>
-      <h1 className="page-title">Relationships</h1>
+      <PageHeader
+        title="Network"
+        subtitle={rows.length ? `${rows.length} ${rows.length === 1 ? 'connection' : 'connections'}` : null}
+        action={onAdd}
+        actionLabel="Add relationship"
+      />
+
       <div className="filter-row">
         <select className="filter-select" value={personFilter} onChange={(e) => setPersonFilter(e.target.value)}>
           <option value="">Everyone</option>
@@ -27,24 +35,29 @@ export default function RelationshipsView({ data, onOpenPerson, onAdd }) {
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
         </select>
-        <button className="filter-clear" onClick={onAdd}>+ Add relationship</button>
       </div>
 
       {rows.length === 0 ? (
-        <p className="empty">No relationships yet. Add one to start mapping connections.</p>
+        <div className="empty">
+          <Share2 size={28} className="empty-icon" />
+          No relationships yet.
+          <button className="text-btn" onClick={onAdd}><Plus size={14} /> Add one</button>
+        </div>
       ) : (
-        rows.map(({ rel, a, b }) => (
-          <div className="rel-row" key={rel.id}>
-            <span className="conn-name" onClick={() => onOpenPerson(a.id)}>{a.name}</span>
-            <span className="arrow">— {rel.relationship_type.replace(/_/g, ' ')} →</span>
-            <span className="conn-name" onClick={() => onOpenPerson(b.id)}>{b.name}</span>
-            {rel.notes && <span className="muted" style={{ fontSize: 13 }}>· {rel.notes}</span>}
-            <span style={{ flex: 1 }} />
-            <button className="text-btn danger" style={{ fontSize: 12 }} onClick={() => deleteRelationship(rel.id)}>
-              remove
-            </button>
-          </div>
-        ))
+        <div className="list">
+          {rows.map(({ rel, a, b }) => (
+            <div className="rel-row" key={rel.id}>
+              <span className="conn-name" onClick={() => onOpenPerson(a.id)}>{a.name}</span>
+              <span className="arrow">— {rel.relationship_type.replace(/_/g, ' ')} →</span>
+              <span className="conn-name" onClick={() => onOpenPerson(b.id)}>{b.name}</span>
+              {rel.notes && <span className="muted" style={{ fontSize: 13 }}>· {rel.notes}</span>}
+              <span style={{ flex: 1 }} />
+              <button className="icon-btn danger" onClick={() => deleteRelationship(rel.id)} aria-label="Remove">
+                <X size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )

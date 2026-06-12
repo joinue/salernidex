@@ -6,22 +6,35 @@ import { useMediaQuery } from './hooks/useMediaQuery'
 import Login from './components/Login'
 import Sidebar from './components/Sidebar'
 import MobileNav from './components/MobileNav'
+import MoreSheet from './components/MoreSheet'
+import ConfirmDialog from './components/ConfirmDialog'
+import TodayView from './components/TodayView'
+import ActivityView from './components/ActivityView'
+import PullToRefresh from './components/PullToRefresh'
 import SearchView from './components/SearchView'
+import TasksView from './components/TasksView'
+import ListsView from './components/ListsView'
+import ListDetail from './components/ListDetail'
+import ProjectDetail from './components/ProjectDetail'
 import PersonPage from './components/PersonPage'
 import OrgsView from './components/OrgsView'
 import GroupsView from './components/GroupsView'
 import RelationshipsView from './components/RelationshipsView'
 import ImportExport from './components/ImportExport'
+import SettingsView from './components/SettingsView'
 import PersonForm from './components/PersonForm'
+import TaskForm from './components/TaskForm'
+import ListForm from './components/ListForm'
 import OrgForm from './components/OrgForm'
 import GroupForm from './components/GroupForm'
 import RelationshipForm from './components/RelationshipForm'
 
-// Hash routing: #/ (search), #/person/<id>, #/orgs, #/groups,
-// #/relationships, #/import — back button and bookmarks work.
+// Hash routing: #/ (today), #/activity, #/people, #/person/<id>, #/tasks,
+// #/project/<id>, #/lists, #/list/<id>, #/orgs, #/groups, #/relationships,
+// #/import.
 function parseHash() {
   const [name, id] = window.location.hash.replace(/^#\/?/, '').split('/')
-  return { name: name || 'search', id }
+  return { name: name || 'today', id }
 }
 
 export default function App() {
@@ -63,8 +76,13 @@ function Shell({ session, onLogout }) {
   const [editingPerson, setEditingPerson] = useState(null) // null | 'new' | person
   const [editingOrg, setEditingOrg] = useState(null)
   const [editingGroup, setEditingGroup] = useState(null)
+  const [editingTask, setEditingTask] = useState(null) // null | 'new' | task
+  const [editingList, setEditingList] = useState(null) // null | 'new' | list
   const [relationshipFrom, setRelationshipFrom] = useState(null) // null | 'new' | person
+  const [moreOpen, setMoreOpen] = useState(null) // null | 'global' | 'people'
+  const [confirmLogout, setConfirmLogout] = useState(false)
   const searchRef = useRef(null)
+  const mainRef = useRef(null)
   const isMobile = useMediaQuery('(max-width: 720px)')
 
   useEffect(() => {
@@ -73,17 +91,26 @@ function Shell({ session, onLogout }) {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
+  // Land at the top of the page on navigation — the scroll container persists
+  // across route changes, so without this you keep the previous page's offset.
+  useEffect(() => {
+    mainRef.current?.scrollTo(0, 0)
+  }, [route.name, route.id])
+
   const go = (path) => {
     window.location.hash = '/' + path
   }
   const openPerson = (id) => go(`person/${id}`)
+  const openList = (id) => go(`list/${id}`)
+  const openProject = (id) => go(`project/${id}`)
+  const requestLogout = () => setConfirmLogout(true)
 
   useEffect(() => {
     const onKey = (e) => {
       if (!(e.metaKey || e.ctrlKey)) return
       if (e.key === 'k') {
         e.preventDefault()
-        go('')
+        go('people')
         setTimeout(() => searchRef.current?.focus(), 50)
       } else if (e.key === 'n') {
         e.preventDefault()
@@ -96,20 +123,26 @@ function Shell({ session, onLogout }) {
 
   const allTags = [...new Set(data.people.flatMap((p) => p.tags || []))].sort()
 
-  const activeNav = route.name === 'person' ? 'search' : route.name
+  const activeNav =
+    route.name === 'person' ? 'people' : route.name === 'list' ? 'lists' : route.name === 'project' ? 'tasks' : route.name === 'activity' ? 'today' : route.name
+
+  const adds = {
+    go,
+    onAddPerson: () => setEditingPerson('new'),
+    onAddTask: () => setEditingTask('new'),
+    onAddList: () => setEditingList('new'),
+    onAddOrg: () => setEditingOrg('new'),
+    onAddGroup: () => setEditingGroup('new'),
+    onAddRelationship: () => setRelationshipFrom('new'),
+  }
 
   return (
     <div className="layout">
       {!isMobile && (
-        <Sidebar
-          active={activeNav}
-          go={go}
-          onAddPerson={() => setEditingPerson('new')}
-          onAddOrg={() => setEditingOrg('new')}
-          onLogout={onLogout}
-        />
+        <Sidebar active={activeNav} go={go} onLogout={requestLogout} />
       )}
-      <main className="main">
+      <main className="main" ref={mainRef}>
+        <PullToRefresh onRefresh={data.refresh}>
         <div className="content">
           {demoMode && (
             <p className="demo-banner">
@@ -117,13 +150,34 @@ function Shell({ session, onLogout }) {
             </p>
           )}
           {data.error && <p className="error-text">{data.error}</p>}
-          {route.name === 'search' && (
+          {route.name === 'today' && (
+            <TodayView data={data} onOpenPerson={openPerson} onOpenList={openList} onOpenTasks={() => go('tasks')} onOpenActivity={() => go('activity')} onMore={isMobile ? () => setMoreOpen('global') : undefined} onSettings={isMobile ? () => go('settings') : undefined} />
+          )}
+          {route.name === 'activity' && (
+            <ActivityView data={data} onBack={() => go('today')} onOpenPerson={openPerson} onOpenList={openList} onOpenTasks={() => go('tasks')} />
+          )}
+          {route.name === 'tasks' && (
+            <TasksView data={data} onAdd={() => setEditingTask('new')} onEdit={(t) => setEditingTask(t)} onOpenProject={openProject} />
+          )}
+          {route.name === 'project' && (
+            <ProjectDetail data={data} taskId={route.id} onBack={() => window.history.back()} onEdit={(t) => setEditingTask(t)} onOpenPerson={openPerson} />
+          )}
+          {route.name === 'lists' && (
+            <ListsView data={data} onOpenList={openList} onAdd={() => setEditingList('new')} />
+          )}
+          {route.name === 'list' && (
+            <ListDetail data={data} listId={route.id} onBack={() => go('lists')} onEdit={(l) => setEditingList(l)} />
+          )}
+          {route.name === 'people' && (
             <SearchView
               data={data}
               searchRef={searchRef}
               query={query}
               setQuery={setQuery}
               onOpen={openPerson}
+              onEdit={(p) => setEditingPerson(p)}
+              onAdd={() => setEditingPerson('new')}
+              onMore={isMobile ? () => setMoreOpen('people') : undefined}
             />
           )}
           {route.name === 'person' && (
@@ -136,7 +190,9 @@ function Shell({ session, onLogout }) {
               onConnect={(p) => setRelationshipFrom(p)}
             />
           )}
-          {route.name === 'orgs' && <OrgsView data={data} onEdit={(o) => setEditingOrg(o)} />}
+          {route.name === 'orgs' && (
+            <OrgsView data={data} onEdit={(o) => setEditingOrg(o)} onAdd={() => setEditingOrg('new')} />
+          )}
           {route.name === 'groups' && (
             <GroupsView
               data={data}
@@ -149,18 +205,31 @@ function Shell({ session, onLogout }) {
             <RelationshipsView data={data} onOpenPerson={openPerson} onAdd={() => setRelationshipFrom('new')} />
           )}
           {route.name === 'import' && <ImportExport data={data} />}
+          {route.name === 'settings' && <SettingsView go={go} />}
         </div>
+        </PullToRefresh>
       </main>
 
-      {isMobile && (
-        <MobileNav
-          active={activeNav}
+      {isMobile && <MobileNav active={activeNav} adds={adds} />}
+      {isMobile && moreOpen && (
+        <MoreSheet
           go={go}
-          onAddPerson={() => setEditingPerson('new')}
-          onAddOrg={() => setEditingOrg('new')}
-          onAddGroup={() => setEditingGroup('new')}
-          onAddRelationship={() => setRelationshipFrom('new')}
-          onLogout={onLogout}
+          onClose={() => setMoreOpen(null)}
+          onLogout={moreOpen === 'global' ? requestLogout : undefined}
+        />
+      )}
+
+      {confirmLogout && (
+        <ConfirmDialog
+          title="Log out?"
+          message="You'll need to sign in again to get back to your household."
+          confirmLabel="Log out"
+          danger
+          onConfirm={() => {
+            setConfirmLogout(false)
+            onLogout()
+          }}
+          onCancel={() => setConfirmLogout(false)}
         />
       )}
 
@@ -168,17 +237,15 @@ function Shell({ session, onLogout }) {
         <PersonForm
           person={editingPerson === 'new' ? null : editingPerson}
           orgs={data.orgs}
+          people={data.people}
           existingTags={allTags}
           onSave={data.savePerson}
           onClose={() => setEditingPerson(null)}
+          onOpenPerson={openPerson}
         />
       )}
       {editingOrg && (
-        <OrgForm
-          org={editingOrg === 'new' ? null : editingOrg}
-          onSave={data.saveOrg}
-          onClose={() => setEditingOrg(null)}
-        />
+        <OrgForm org={editingOrg === 'new' ? null : editingOrg} onSave={data.saveOrg} onClose={() => setEditingOrg(null)} />
       )}
       {editingGroup && (
         <GroupForm
@@ -186,6 +253,20 @@ function Shell({ session, onLogout }) {
           existingTags={allTags}
           onSave={data.saveGroup}
           onClose={() => setEditingGroup(null)}
+        />
+      )}
+      {editingTask && (
+        <TaskForm
+          task={editingTask === 'new' ? null : editingTask}
+          onSave={(fields, id) => (id ? data.updateTask(id, fields) : data.addTask(fields))}
+          onClose={() => setEditingTask(null)}
+        />
+      )}
+      {editingList && (
+        <ListForm
+          list={editingList === 'new' ? null : editingList}
+          onSave={data.saveList}
+          onClose={() => setEditingList(null)}
         />
       )}
       {relationshipFrom && (

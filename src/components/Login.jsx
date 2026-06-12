@@ -23,12 +23,15 @@ export default function Login({ demo = false, onDemo }) {
   return (
     <div className="login-wrap">
       <form className="login-box" onSubmit={submit}>
-        <h1>Salernidex</h1>
-        {demo && (
-          <p className="muted" style={{ fontSize: 13, marginBottom: 24 }}>
-            Demo mode — enter anything (or nothing) and sign in.
-          </p>
-        )}
+        <div className="login-brand">
+          <img className="login-mark" src="/logo-mark.png" alt="" width="64" height="64" />
+          <h1>Salernidex</h1>
+          {demo && (
+            <p className="muted" style={{ fontSize: 13, marginTop: 6 }}>
+              Demo mode — enter anything (or nothing) and sign in.
+            </p>
+          )}
+        </div>
         {error && <p className="error-text">{error}</p>}
         <div className="field">
           <label className="label" htmlFor="email">Email</label>

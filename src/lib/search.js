@@ -43,3 +43,26 @@ export function searchPeople(people, query) {
   }
   return scored.sort((a, b) => b.total - a.total).map((s) => s.person)
 }
+
+// Sort options for the People list. `lastByPerson` maps person id → their most
+// recent interaction timestamp (ISO string), used by the activity-based sorts.
+export const PEOPLE_SORTS = [
+  { value: 'name', label: 'Name (A–Z)' },
+  { value: 'recent', label: 'Recent activity' },
+]
+
+export function sortPeople(people, sort, lastByPerson) {
+  if (sort === 'relevance') return people // keep searchPeople's match ranking
+  const byName = (a, b) => (a.name || '').localeCompare(b.name || '')
+
+  if (sort === 'recent') {
+    // Most recently contacted first; never-contacted sink to the bottom.
+    return [...people].sort((a, b) => {
+      const ta = lastByPerson.get(a.id) || ''
+      const tb = lastByPerson.get(b.id) || ''
+      return ta === tb ? byName(a, b) : ta < tb ? 1 : -1
+    })
+  }
+
+  return [...people].sort(byName)
+}

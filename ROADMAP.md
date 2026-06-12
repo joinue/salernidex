@@ -1,0 +1,59 @@
+# Salernidex — roadmap & status
+
+_Last updated: 2026-06-12_
+
+**Vision:** a joint **household operating system** — the shared layer next to Apple Calendar.
+You share the *when* (Calendar); this owns the shared **who** (rolodex), **to-do**
+(tasks/chores/projects), and **to-get** (lists), unified by a **Today** spine.
+Multitenant: any household type (couple, family, roommates), N members.
+
+Legend: ✅ done · 🟡 partial · ⬜ not started
+
+---
+
+## Where we are
+
+### ✅ Done
+- **Design system** — iOS-native primitives (Avatar, grouped lists, Segmented, large titles, frosted bars), light/dark.
+- **CRM heart** — interactions (touchpoints), keep-in-touch cadence, "last contacted" / overdue signals.
+- **Portability** — full round-trippable JSON backup + restore; CSV people import/export. (No vendor lock-in.)
+- **Today hub** — greeting, To-do (due tasks), Needs-a-nudge, Birthdays, Recent activity.
+- **Tasks** — one model for to-dos + recurring chores + projects; **recurrence engine** (RRULE-lite: the 20th, first Monday, etc.); **completion history** (who/when, for accountability).
+- **Lists** — shared household lists (groceries/etc.), rapid add, check-off, "Got it" section.
+- **Gesture groundwork** — `useDrag`/`useLongPress`, haptics, SwipeRow, drag-to-dismiss sheets, pull-to-refresh, long-press action sheets.
+- **Navigation** — bottom bar `Today · People · ➕ · Tasks · Lists` (capped at 5), page-aware FAB, More hub, grouped desktop sidebar.
+- **Settings + members** — household name, N members (add/rename/remove, "you are"), join code, theme, leave household.
+- **Multitenancy foundation** — household + member model with **member-based assignee** ("Anyone" / member); live schema designed (households, household_members, `household_id` + RLS, `join_household` RPC) in `supabase/schema.sql`.
+- **Project ↔ contact bridge** — link people/orgs to a project (`task_links`, LinkEntityForm, ProjectDetail). The integration a generic to-do app can't do.
+- **Activity feed** — unified household log (touchpoints + task completions + lists) at `#/activity` (`lib/activity.js`).
+- **Polish (ongoing)** — logo mark, ConfirmDialog (iOS-style confirms), live duplicate detection in the add-person form (`lib/duplicates.js`).
+
+### 🟡 Partial
+- **Reminders + notifications** — the activity *log* ("what happened") exists; proactive **reminders/nudges + web-push** do not.
+- **Branding/polish** — underway, not a final pass.
+
+### ⬜ Remaining
+- **Phase 6 — Reminders + notifications**: in-app due/nudge layer, then web-push on installed PWA (iOS 16.4+; Vibration API absent on iOS web — haptics no-op there by design).
+- **Phase 7 — Richer relationships**: tiers (inner/close/network), households/family units, key dates beyond birthday.
+- **Phase 8 — Contact bridge**: vCard export → CardDAV, so data can flow back to the phone's address book (mitigates "phone gravity").
+- **Multitenancy go-live**: real signup/login UI, join-by-code screen, household switcher, thread `household_id` into every insert. (Activates when Supabase is wired.)
+- **Final polish + branding pass.**
+
+---
+
+## Key decisions / constraints
+- **Demo-first.** Everything runs in-memory (`src/lib/demo.js`); `supabase/schema.sql` is an evolving **design doc**. NO migration is run until the app is polished and the schema is proven — then one clean migration.
+- **Multitenant + per-user accounts.** Each person signs in with their own login; invite via **shareable join code**; users can **leave and join another** household and belong to several. Members are a list of **N** (not a fixed pair).
+- **Portability is a feature.** Every new table goes into the backup/restore. Keep the model backend-agnostic.
+- **Design law.** Consistent, space-efficient, elegant iOS, best-in-class mobile. Reuse existing primitives — no bespoke one-offs.
+- **Assignee** is a stable member id (or `anyone`); legacy `me/partner/either` mapped on read (`normalizeAssignee`).
+
+## Run it
+```sh
+npm install
+npm run dev        # http://localhost:5173 ; no .env = demo mode (any login, in-memory)
+node scripts/tasks-smoke.mjs   # + lists-smoke.mjs / demo-smoke.mjs (Playwright, Chrome channel)
+```
+
+## Recommended next
+**Phase 7 (richer relationships)** — deepens the rolodex half (now the thinnest), all demo-testable, and key dates/tiers feed Today directly. Alternative: **Phase 6 (reminders)** to make the app proactive.

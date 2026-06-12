@@ -1,5 +1,13 @@
 import { useRef, useState } from 'react'
 import Papa from 'papaparse'
+import { Download, Upload, Database, FileText, RotateCcw } from 'react-feather'
+import PageHeader from './PageHeader'
+import Segmented from './Segmented'
+import { memberNames, setMemberNames } from '../lib/household'
+import { findDuplicates } from '../lib/duplicates'
+
+// Bump when the backup shape changes so future imports can migrate if needed.
+const BACKUP_VERSION = 2
 
 const SCHEMA_FIELDS = ['', 'name', 'organization', 'role', 'email', 'phone', 'birthday', 'address', 'tags', 'notes']
 
@@ -29,16 +37,95 @@ function download(filename, content, mime) {
 }
 
 export default function ImportExport({ data }) {
-  const { people, importPeople } = data
-  const fileRef = useRef(null)
+  const { people, orgs, relationships, interactions, groups, tasks, completions, taskLinks, lists, listItems, importPeople, restoreBackup } = data
+  const csvRef = useRef(null)
+  const jsonRef = useRef(null)
   const [parsed, setParsed] = useState(null) // { headers, rows }
   const [mapping, setMapping] = useState({})
   const [status, setStatus] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [review, setReview] = useState(null) // { records: [{rec, matches, action}] }
 
   const active = people.filter((p) => !p.deleted_at)
 
-  const onFile = (e) => {
+  // ---- Full backup (everything, round-trippable) ----
+  const exportBackup = () => {
+    const backup = {
+      app: 'salernidex',
+      backup_version: BACKUP_VERSION,
+      exported_at: new Date().toISOString(),
+      people, // includes soft-deleted, so restore is lossless
+      organizations: orgs,
+      relationships,
+      interactions,
+      groups,
+      tasks,
+      task_completions: completions,
+      task_links: taskLinks,
+      lists,
+      list_items: listItems,
+      settings: { members: memberNames() },
+    }
+    const stamp = new Date().toISOString().slice(0, 10)
+    download(`salernidex-backup-${stamp}.json`, JSON.stringify(backup, null, 2), 'application/json')
+  }
+
+  const onBackupFile = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setStatus(null)
+    const reader = new FileReader()
+    reader.onload = async () => {
+      let backup
+      try {
+        backup = JSON.parse(reader.result)
+      } catch {
+        setStatus('That file is not valid JSON.')
+        return
+      }
+      if (backup.app !== 'salernidex' || !Array.isArray(backup.people)) {
+        setStatus('This does not look like a Salernidex backup.')
+        return
+      }
+      const counts = ['people', 'organizations', 'relationships', 'interactions', 'groups', 'tasks', 'task_completions', 'task_links', 'lists', 'list_items']
+        .map((k) => (backup[k] || []).length)
+        .reduce((a, b) => a + b, 0)
+      if (!window.confirm(`Restore ${counts} records from this backup? Existing records with the same id are overwritten; the rest are kept.`)) return
+      setBusy(true)
+      try {
+        await restoreBackup(backup)
+        if (backup.settings?.members) setMemberNames(backup.settings.members)
+        setStatus(`Restored backup from ${backup.exported_at?.slice(0, 10) || 'file'}.`)
+      } catch (err) {
+        setStatus(`Restore failed: ${err.message}`)
+      }
+      setBusy(false)
+    }
+    reader.readAsText(file)
+  }
+
+  // ---- CSV (people only, for moving between tools) ----
+  const exportCsv = () => {
+    const csv = Papa.unparse(
+      active.map((p) => ({
+        name: p.name,
+        organization: p.organization || '',
+        role: p.role || '',
+        email: p.email || '',
+        phone: p.phone || '',
+        birthday: p.birthday || '',
+        address: p.address || '',
+        tags: (p.tags || []).join('; '),
+        keep_in_touch_days: p.keep_in_touch_days || '',
+        privacy_level: p.privacy_level,
+        notes: p.notes || '',
+      }))
+    )
+    download('salernidex-people.csv', csv, 'text/csv')
+  }
+
+  const onCsvFile = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
     setStatus(null)
@@ -55,6 +142,9 @@ export default function ImportExport({ data }) {
     e.target.value = ''
   }
 
+  // Turn mapped CSV rows into person records, then check each against the people
+  // you already have. Rows with a likely match default to "skip"; the rest to
+  // "import". If nothing is flagged we import straight away — no extra step.
   const runImport = async () => {
     const nameColumn = Object.entries(mapping).find(([, f]) => f === 'name')?.[0]
     if (!nameColumn) {
@@ -77,93 +167,172 @@ export default function ImportExport({ data }) {
       setStatus('No rows with a name found.')
       return
     }
+
+    const reviewed = records.map((rec) => {
+      const matches = findDuplicates(rec, active)
+      return { rec, matches, action: matches.length ? 'skip' : 'import' }
+    })
+    if (reviewed.some((r) => r.matches.length)) {
+      setReview({ records: reviewed })
+      return
+    }
+    await doImport(records)
+  }
+
+  const doImport = async (records, skipped = 0) => {
     setBusy(true)
     try {
       await importPeople(records)
-      setStatus(`Imported ${records.length} ${records.length === 1 ? 'person' : 'people'}.`)
+      const note = skipped ? ` ${skipped} duplicate${skipped === 1 ? '' : 's'} skipped.` : ''
+      setStatus(`Imported ${records.length} ${records.length === 1 ? 'person' : 'people'}.${note}`)
       setParsed(null)
+      setReview(null)
     } catch (err) {
       setStatus(`Import failed: ${err.message}`)
     }
     setBusy(false)
   }
 
-  const exportCsv = () => {
-    const csv = Papa.unparse(
-      active.map((p) => ({
-        name: p.name,
-        organization: p.organization || '',
-        role: p.role || '',
-        email: p.email || '',
-        phone: p.phone || '',
-        birthday: p.birthday || '',
-        address: p.address || '',
-        tags: (p.tags || []).join('; '),
-        privacy_level: p.privacy_level,
-        notes: p.notes || '',
-      }))
-    )
-    download('salernidex-people.csv', csv, 'text/csv')
+  const confirmImport = async () => {
+    const toImport = review.records.filter((r) => r.action === 'import')
+    const skipped = review.records.length - toImport.length
+    if (!toImport.length) {
+      setStatus('Every row was skipped — nothing imported.')
+      setReview(null)
+      setParsed(null)
+      return
+    }
+    await doImport(toImport.map((r) => r.rec), skipped)
   }
 
-  const exportJson = () => {
-    download('salernidex-export.json', JSON.stringify({
-      exported_at: new Date().toISOString(),
-      people: active,
-      organizations: data.orgs,
-      relationships: data.relationships,
-    }, null, 2), 'application/json')
-  }
+  const setRowAction = (index, action) =>
+    setReview((prev) => ({
+      records: prev.records.map((r, i) => (i === index ? { ...r, action } : r)),
+    }))
 
   return (
     <div>
-      <h1 className="page-title">Import / Export</h1>
+      <PageHeader title="Import / Export" subtitle="Your data, always portable — no lock-in." />
 
-      <span className="label">Export</span>
-      <p className="muted" style={{ fontSize: 14, marginBottom: 12 }}>
-        {active.length} active {active.length === 1 ? 'person' : 'people'} in the database. Your data, always portable.
-      </p>
-      <div style={{ display: 'flex', gap: 16 }}>
-        <button className="text-btn" onClick={exportCsv}>Download CSV</button>
-        <button className="text-btn" onClick={exportJson}>Download JSON (full)</button>
-      </div>
+      {status && (
+        <p className="demo-banner" style={{ color: 'var(--text)' }}>{status}</p>
+      )}
 
-      <div className="section-gap">
-        <span className="label">Import people from CSV</span>
-        <p className="muted" style={{ fontSize: 14, margin: '4px 0 12px' }}>
-          Upload a CSV, then match its columns to Salernidex fields. Tags can be separated with ; or ,
-        </p>
-        <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} style={{ display: 'none' }} />
-        <button className="text-btn" onClick={() => fileRef.current?.click()}>Choose CSV file…</button>
-      </div>
-
-      {status && <p style={{ marginTop: 16, fontSize: 14 }}>{status}</p>}
-
-      {parsed && (
-        <div className="section-gap">
-          <span className="label">Column mapping — {parsed.rows.length} rows found</span>
-          {parsed.headers.map((header) => (
-            <div className="map-row" key={header}>
-              <span className="csv-col">{header}</span>
-              <span className="muted" style={{ fontSize: 13 }}>→</span>
-              <select
-                className="filter-select"
-                value={mapping[header] || ''}
-                onChange={(e) => setMapping({ ...mapping, [header]: e.target.value })}
-              >
-                {SCHEMA_FIELDS.map((f) => (
-                  <option key={f} value={f}>{f || 'skip'}</option>
-                ))}
-              </select>
-            </div>
-          ))}
-          <div style={{ marginTop: 24 }}>
-            <button className="btn-primary" onClick={runImport} disabled={busy}>
-              {busy ? <span className="dots">Importing</span> : `Import ${parsed.rows.length} rows`}
-            </button>
+      <div className="section-label">Full backup</div>
+      <div className="list">
+        <button className="list-row" onClick={exportBackup}>
+          <span className="activity-icon"><Database size={16} /></span>
+          <div className="row-body">
+            <div className="row-title">Download backup (JSON)</div>
+            <div className="row-sub">Everything — people, orgs, network, activity, groups. Lossless & restorable.</div>
           </div>
+          <Download size={18} className="row-chevron" />
+        </button>
+        <button className="list-row" onClick={() => jsonRef.current?.click()}>
+          <span className="activity-icon"><RotateCcw size={16} /></span>
+          <div className="row-body">
+            <div className="row-title">Restore from backup</div>
+            <div className="row-sub">Merge a backup file back in (overwrites matching ids).</div>
+          </div>
+          <Upload size={18} className="row-chevron" />
+        </button>
+      </div>
+      <input ref={jsonRef} type="file" accept=".json,application/json" onChange={onBackupFile} style={{ display: 'none' }} />
+
+      <div className="section-label">Spreadsheet (people)</div>
+      <div className="list">
+        <button className="list-row" onClick={exportCsv}>
+          <span className="activity-icon"><FileText size={16} /></span>
+          <div className="row-body">
+            <div className="row-title">Export people to CSV</div>
+            <div className="row-sub">{active.length} active {active.length === 1 ? 'person' : 'people'}.</div>
+          </div>
+          <Download size={18} className="row-chevron" />
+        </button>
+        <button className="list-row" onClick={() => csvRef.current?.click()}>
+          <span className="activity-icon"><Upload size={16} /></span>
+          <div className="row-body">
+            <div className="row-title">Import people from CSV</div>
+            <div className="row-sub">Upload, then map columns. Tags separated by ; or ,</div>
+          </div>
+          <Upload size={18} className="row-chevron" />
+        </button>
+      </div>
+      <input ref={csvRef} type="file" accept=".csv,text/csv" onChange={onCsvFile} style={{ display: 'none' }} />
+
+      {parsed && !review && (
+        <div className="section-gap">
+          <div className="section-label">Column mapping — {parsed.rows.length} rows found</div>
+          <div className="list">
+            {parsed.headers.map((header) => (
+              <div className="map-row" key={header}>
+                <span className="csv-col">{header}</span>
+                <span className="muted" style={{ fontSize: 13 }}>→</span>
+                <select
+                  className="filter-select"
+                  value={mapping[header] || ''}
+                  onChange={(e) => setMapping({ ...mapping, [header]: e.target.value })}
+                >
+                  {SCHEMA_FIELDS.map((f) => (
+                    <option key={f} value={f}>{f || 'skip'}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+          <button className="btn-primary" onClick={runImport} disabled={busy}>
+            {busy ? <span className="dots">Importing</span> : `Import ${parsed.rows.length} rows`}
+          </button>
         </div>
       )}
+
+      {review && (() => {
+        const flagged = review.records.filter((r) => r.matches.length)
+        const importing = review.records.filter((r) => r.action === 'import').length
+        return (
+          <div className="section-gap">
+            <div className="section-label">
+              Possible duplicates — {flagged.length} of {review.records.length} rows match someone you already have
+            </div>
+            <p className="row-sub" style={{ margin: '0 4px 12px' }}>
+              These are skipped by default. Switch any row to “Import” to add it anyway.
+            </p>
+            <div className="list">
+              {flagged.map((r) => {
+                const i = review.records.indexOf(r)
+                return (
+                  <div className="dup-import-row" key={i}>
+                    <div className="row-body">
+                      <div className="row-title">{r.rec.name}</div>
+                      <div className="row-sub">
+                        matches {r.matches[0].person.name} — {r.matches[0].reasons.join(' · ')}
+                      </div>
+                    </div>
+                    <Segmented
+                      size="sm"
+                      value={r.action}
+                      onChange={(action) => setRowAction(i, action)}
+                      options={[
+                        { value: 'skip', label: 'Skip' },
+                        { value: 'import', label: 'Import' },
+                      ]}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+            <button className="btn-primary" onClick={confirmImport} disabled={busy}>
+              {busy ? (
+                <span className="dots">Importing</span>
+              ) : importing ? (
+                `Import ${importing} ${importing === 1 ? 'person' : 'people'}`
+              ) : (
+                'Skip all & finish'
+              )}
+            </button>
+          </div>
+        )
+      })()}
     </div>
   )
 }
