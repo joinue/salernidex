@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './lib/supabase'
 import { demoMode } from './lib/demo'
 import { buildAttention, badgeCount } from './lib/reminders'
@@ -24,8 +24,12 @@ import PersonPage from './components/PersonPage'
 import OrgsView from './components/OrgsView'
 import GroupsView from './components/GroupsView'
 import RelationshipsView from './components/RelationshipsView'
-import ImportExport from './components/ImportExport'
 import SettingsView from './components/SettingsView'
+import ErrorBoundary from './components/ErrorBoundary'
+
+// Lazy: Import/Export carries the CSV parser — no reason to ship it on
+// every app open when it's visited once a month.
+const ImportExport = lazy(() => import('./components/ImportExport'))
 import PersonForm from './components/PersonForm'
 import TaskForm from './components/TaskForm'
 import ListForm from './components/ListForm'
@@ -42,8 +46,11 @@ function parseHash() {
 }
 
 export default function App() {
-  if (demoMode) return <DemoFlow />
-  return <AuthedApp />
+  return (
+    <ErrorBoundary>
+      {demoMode ? <DemoFlow /> : <AuthedApp />}
+    </ErrorBoundary>
+  )
 }
 
 // Demo: no Supabase, any credentials sign in, data lives in memory.
@@ -108,6 +115,29 @@ function Shell({ session, onLogout }) {
   // iOS-style edge-swipe back on detail pages (mobile only).
   const DETAIL_ROUTES = ['person', 'project', 'list', 'activity', 'settings']
   useEdgeBack(mainRef, isMobile && DETAIL_ROUTES.includes(route.name), () => window.history.back())
+
+  // Stale bookmarks / typo'd hashes land on Today, not a blank screen.
+  const KNOWN_ROUTES = ['today', 'activity', 'tasks', 'project', 'lists', 'list', 'people', 'person', 'orgs', 'groups', 'relationships', 'import', 'settings']
+  useEffect(() => {
+    if (!KNOWN_ROUTES.includes(route.name)) window.location.hash = '/'
+  }, [route.name])
+
+  // Window/tab title follows the page (history + tab switcher readability).
+  useEffect(() => {
+    const named =
+      route.name === 'person'
+        ? data.people.find((p) => p.id === route.id)?.name
+        : route.name === 'list'
+          ? data.lists.find((l) => l.id === route.id)?.name
+          : route.name === 'project'
+            ? data.tasks.find((t) => t.id === route.id)?.title
+            : {
+                activity: 'Activity', tasks: 'Tasks', lists: 'Lists', people: 'People',
+                orgs: 'Organizations', groups: 'Groups', relationships: 'Relationships',
+                import: 'Import / Export', settings: 'Settings',
+              }[route.name]
+    document.title = named ? `${named} — Salernidex` : 'Salernidex'
+  }, [route, data.people, data.lists, data.tasks])
   const openPerson = (id) => go(`person/${id}`)
   const openList = (id) => go(`list/${id}`)
   const openProject = (id) => go(`project/${id}`)
@@ -225,7 +255,11 @@ function Shell({ session, onLogout }) {
           {route.name === 'relationships' && (
             <RelationshipsView data={data} onOpenPerson={openPerson} onAdd={() => setRelationshipFrom('new')} />
           )}
-          {route.name === 'import' && <ImportExport data={data} />}
+          {route.name === 'import' && (
+            <Suspense fallback={<p className="empty dots">Loading</p>}>
+              <ImportExport data={data} />
+            </Suspense>
+          )}
           {route.name === 'settings' && <SettingsView go={go} />}
         </div>
         </PullToRefresh>
