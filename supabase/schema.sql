@@ -1,7 +1,17 @@
 -- ============================================================
--- SALERNIDEX — Supabase schema
--- Run this in the Supabase SQL Editor (Dashboard -> SQL Editor)
--- as ONE migration at go-live, top to bottom.
+-- SALERNIDEX — Supabase schema (BASE)
+-- ============================================================
+-- This is the base schema: run it FIRST in the Supabase SQL Editor
+-- (Dashboard -> SQL Editor), top to bottom. It stands up every table plus an
+-- initial "single shared account" RLS model (open access, app-side privacy).
+--
+-- To reach the CURRENT production shape, then apply the migrations in
+-- supabase/migrations IN ORDER (0001 → 0008). That is the exact sequence the
+-- live project was built with. The big jump is 0001_multitenancy, which adds
+-- household_id to every table and swaps the open policies below for
+-- household-scoped, privacy-aware ones — so the base file alone is NOT a
+-- complete or isolated install. (Sections further down that read like "to do
+-- at go-live" describe what those migrations apply; see the per-section notes.)
 -- ============================================================
 
 -- gen_random_bytes (households.join_code) lives in pgcrypto. Usually enabled
@@ -302,9 +312,15 @@ create trigger task_links_audit after insert or update or delete on public.task_
   for each row execute function public.write_audit();
 
 -- ------------------------------------------------------------
--- Row Level Security
--- Single shared account model: any authenticated user has full
--- access. privacy_level filtering happens in the app UI.
+-- Row Level Security — BASE (open) policies
+-- Initial "single shared account" model: any authenticated user has full
+-- access, and privacy_level filtering happens in the app UI.
+--
+-- NOTE: 0001_multitenancy DROPS every "authenticated full access" policy below
+-- and replaces it with a household-scoped "household members" policy (and, on
+-- the privacy_level tables, enforces "Private — only me" at the DB too). After
+-- that migration these open policies no longer exist — they're the pre-tenancy
+-- starting point, kept here so the base file runs cleanly on its own.
 -- ------------------------------------------------------------
 alter table public.families enable row level security;
 alter table public.people enable row level security;
@@ -386,12 +402,18 @@ alter publication supabase_realtime add table public.lists;
 alter publication supabase_realtime add table public.list_items;
 
 -- ============================================================
--- MULTITENANCY — DESIGN (to apply at go-live; not yet wired)
+-- MULTITENANCY — tenancy tables (LIVE)
 -- ------------------------------------------------------------
 -- Moves the app from "one shared account sees everything" to per-user accounts
 -- that belong to one or more households, with row isolation by household.
--- Built in the app against an in-memory/localStorage household for now
--- (src/lib/household.js); this section is the live counterpart.
+--
+-- The households / household_members tables, their RLS, and the
+-- create_household() / join_household() RPCs below are CREATED BY THIS FILE and
+-- are live. What this file does NOT do is scope the *data* tables to a
+-- household — that half (household_id columns + the swap from the open policies
+-- above to household-scoped ones + the assignee→member_id conversion) is
+-- applied by 0001_multitenancy.sql. The commented "EVERY data table gets
+-- household_id …" block lower in this section documents exactly what 0001 does.
 --
 -- Generalizes beyond couples: a household has N members (couple, family,
 -- roommates). Assignee/“who did it” reference a household_member, not a label.
@@ -490,7 +512,8 @@ end $$;
 -- The join/create RPCs are the front door — signed-in users only.
 revoke execute on function public.create_household(text, text) from anon;
 
--- EVERY data table gets `household_id uuid not null references households(id)`
+-- APPLIED BY 0001_multitenancy.sql (documented here, not run by this file):
+-- every data table gets `household_id uuid not null references households(id)`
 -- and is scoped by it. (people, organizations, relationships, interactions,
 -- groups, tasks, task_completions, task_links, lists, list_items.) Example:
 --
@@ -518,9 +541,9 @@ revoke execute on function public.create_household(text, text) from anon;
 --     reminder_snoozes.member_id — map them to the real household_members
 --     uuids during the restore, BEFORE the column conversions below.
 
--- assignee / completed_by become household_member references instead of the
--- label text used in the demo (USING must cast — bare `using null` is a
--- syntax error):
+-- Also applied by 0001: assignee / completed_by become household_member
+-- references instead of the label text used in the demo (USING must cast —
+-- bare `using null` is a syntax error):
 --   alter table public.tasks
 --     alter column assignee drop default,
 --     alter column assignee type uuid using nullif(assignee, 'anyone')::uuid,  -- null = "anyone"
@@ -557,20 +580,23 @@ revoke execute on function public.join_household(text, text) from anon;
 alter publication supabase_realtime add table public.households;
 alter publication supabase_realtime add table public.household_members;
 
--- Note: the privacy_level enum value 'marc_only' should be renamed to a generic
--- 'private' as part of this migration (it's couple-specific). Also consider a
--- `profiles` table (user_id, default_household_id) to remember the last-used
--- household for the switcher.
+-- Pending (NOT yet done): the privacy_level enum value 'marc_only' is still
+-- couple-specific and ideally renamed to a generic 'private' — the app and the
+-- 0001 policies both still match 'marc_only', so rename both together if you do
+-- it. Also consider a `profiles` table (user_id, default_household_id) to
+-- remember the last-used household for the switcher across devices.
 
 
 -- ============================================================
--- PHASE 6 - reminders & notifications (live design; not yet wired)
+-- PHASE 6 - reminders & notifications
 -- ============================================================
--- The in-app attention layer (6a) runs demo-first: snoozes/prefs live in
--- memory + localStorage and round-trip through the JSON backup. This section
--- is the live counterpart, plus the push-delivery model (6b) that only makes
--- sense with a server. Per-member references use household_members(id), so
--- these tables assume the multitenancy section above is applied first.
+-- The tables, RLS, and realtime below are CREATED BY THIS FILE and are live
+-- (member_preferences is also (re)created idempotently by 0002 for older
+-- projects). The in-app attention layer (6a) reads them in live mode and falls
+-- back to localStorage in demo. What is NOT wired is push DELIVERY (6b): the
+-- pg_cron schedule + send-reminders Edge Function at the very end of this file
+-- remain commented until that function is deployed. Per-member references use
+-- household_members(id), so these tables assume the tenancy tables above exist.
 
 -- Per-member snooze/dismiss state for attention items. target_key is the
 -- engine's stable key (e.g. 'task:<id>', 'nudge:<person_id>',
