@@ -52,15 +52,18 @@ export function buildIndex(data) {
   for (const n of NAV) add({ type: 'nav', route: n.route, title: n.title, sub: 'Page', fields: [[n.title, 60], [n.alias, 25]] })
   for (const a of ACTIONS) add({ type: 'action', action: a.action, title: a.title, sub: 'Create', fields: [[a.title, 50], [a.alias, 25]] })
 
+  const orgNameById = new Map((data.orgs || []).map((o) => [o.id, o.name]))
   for (const p of data.people) {
     if (p.deleted_at) continue
+    const orgName = orgNameById.get(p.organization_id) || ''
     add({
       type: 'person',
       id: p.id,
       title: p.name || 'Unnamed',
-      sub: [p.role, p.organization].filter(Boolean).join(' · ') || 'Person',
+      avatar_url: p.avatar_url || null,
+      sub: [p.role, orgName].filter(Boolean).join(' · ') || 'Person',
       fields: [
-        [p.name, 100], [p.organization, 40], [p.role, 30],
+        [p.name, 100], [orgName, 40], [p.role, 30],
         [(p.tags || []).join(' '), 30], [p.email, 20], [p.notes, 10],
       ],
     })

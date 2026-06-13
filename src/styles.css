@@ -307,6 +307,11 @@ select {
 
 /* ---------- relationship tier chips ---------- */
 
+.chip.tier-family {
+  background: color-mix(in srgb, var(--orange) 16%, transparent);
+  color: var(--orange);
+}
+
 .chip.tier-inner {
   background: var(--accent-soft);
   color: var(--accent);
@@ -320,6 +325,11 @@ select {
 .chip.tier-network {
   background: var(--fill);
   color: var(--text-2);
+}
+
+.chip.tier-acquaintance {
+  background: var(--fill);
+  color: var(--text-3);
 }
 
 /* ---------- layout ---------- */
@@ -341,6 +351,30 @@ select {
 .content {
   max-width: 680px;
   margin: 0 auto;
+}
+
+/* Today dashboard: single column by default (phone + portrait tablet). On
+   wide screens the four sections flow into two balanced columns so a
+   landscape / wall-mounted iPad fills its width instead of stranding half
+   the screen in an empty gutter. The header + search bar stay full width
+   (they live outside .today-dashboard). */
+@media (min-width: 1000px) {
+  .content:has(.today-dashboard) {
+    max-width: 1080px;
+  }
+  .today-dashboard {
+    columns: 2;
+    column-gap: 28px;
+  }
+  .today-dashboard .today-section {
+    break-inside: avoid;
+    /* The first section in each column already gets its 24px label margin;
+       keep the very first one from double-spacing under the search bar. */
+    display: block;
+  }
+  .today-dashboard .today-section:first-child .section-label {
+    margin-top: 4px;
+  }
 }
 
 /* ---------- sidebar (desktop) ---------- */
@@ -542,6 +576,105 @@ select {
   letter-spacing: 0.4px;
   color: var(--text-2);
   margin: 24px 4px 8px;
+}
+
+/* ---------- People A–Z browse (Apple Contacts style) ---------- */
+
+.people-browse {
+  position: relative;
+}
+
+.people-section {
+  margin-bottom: 16px;
+}
+
+/* Letter header that pins to the top of the scroll area as you browse, so you
+   always know which section you're in. */
+.people-section-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  padding: 4px 4px 6px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--text-2);
+}
+
+/* The vertical scrubber, pinned to the right edge and vertically centered.
+   A touch affordance — shown only on phones (see the 720px breakpoint);
+   desktop relies on the sticky letter heads + search, like Mac Contacts. */
+.alpha-index {
+  position: fixed;
+  right: 1px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 3px;
+  touch-action: none;
+  user-select: none;
+}
+
+.alpha-index-letter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 14px;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.alpha-index-letter.empty {
+  color: var(--text-3);
+}
+
+/* Tasks page area filter: a thin, horizontally-scrollable pill row that only
+   appears once tasks have areas. Tasks stay due-date sorted; this just narrows. */
+.area-filter {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.area-filter::-webkit-scrollbar {
+  display: none;
+}
+
+.area-pill {
+  flex: none;
+  background: var(--fill);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 5px 13px;
+  border-radius: 999px;
+  white-space: nowrap;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.area-pill.on {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* The area tag shown inline on a task row — quiet, so due/assignee still lead. */
+.chip.area {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 /* Section label with a trailing link (e.g. "Recent activity · See all"). */
@@ -875,6 +1008,127 @@ select {
   overflow: hidden;
 }
 
+.avatar-img {
+  object-fit: cover;
+  display: block;
+}
+
+/* ---------- avatar upload (entity forms) ---------- */
+
+.avatar-upload {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.avatar-tap {
+  position: relative;
+  border-radius: 50%;
+  flex-shrink: 0;
+  line-height: 0;
+  transition: transform 100ms ease, opacity 120ms ease;
+}
+
+.avatar-tap:active {
+  transform: scale(0.96);
+  opacity: 0.9;
+}
+
+.avatar-tap-badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  border: 2px solid var(--surface, var(--bg));
+}
+
+.avatar-upload-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.avatar-upload-actions .text-btn.danger {
+  color: var(--danger, #e5484d);
+}
+
+/* ---------- crop overlay ---------- */
+
+.crop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.crop-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface, var(--bg));
+  border-radius: 18px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 16px;
+}
+
+.crop-stage {
+  position: relative;
+  width: 100%;
+  height: 320px;
+  background: #000;
+}
+
+.crop-zoom {
+  width: calc(100% - 32px);
+  margin: 0 16px;
+  accent-color: var(--accent);
+}
+
+.crop-actions {
+  display: flex;
+  gap: 10px;
+  padding: 0 16px;
+}
+
+.crop-btn {
+  flex: 1;
+  height: 46px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 15px;
+  background: var(--fill);
+  color: var(--text);
+  transition: transform 100ms ease, opacity 120ms ease;
+}
+
+.crop-btn.primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.crop-btn:active {
+  transform: scale(0.99);
+  opacity: 0.92;
+}
+
+.crop-btn:disabled {
+  opacity: 0.5;
+}
+
 /* ---------- chips (tags) ---------- */
 
 .chips {
@@ -913,6 +1167,36 @@ select {
 
 .chip svg {
   margin-right: -1px;
+}
+
+/* Group toggle chips in the person form — tap to join/leave a smart group. */
+.group-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.group-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--fill);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: 999px;
+  white-space: nowrap;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.group-chip.on {
+  background: var(--accent);
+  color: #fff;
+}
+
+.group-chip:active {
+  transform: scale(0.96);
 }
 
 .row-chips {
@@ -1114,8 +1398,11 @@ select {
   padding: 8px 0 20px;
 }
 
-.profile-head .avatar {
+.profile-head .avatar-tap {
   margin-bottom: 12px;
+}
+
+.profile-head .avatar {
   box-shadow: var(--shadow-card);
 }
 
@@ -1665,6 +1952,112 @@ select.rec-select + .segmented {
 .field textarea:focus,
 .field select:focus {
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Month / Day / Year picker — three selects sharing the field row. Month gets
+   a touch more room for the longest month name; day stays compact. */
+.date-picker {
+  display: flex;
+  gap: 8px;
+}
+
+.date-picker select {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.date-picker .dp-month {
+  flex: 1.5 1 0;
+}
+
+.date-picker .dp-day {
+  flex: 0.9 1 0;
+}
+
+/* Structured address: street on its own line, then city/state and zip/country
+   paired so it reads like a label and stays compact on a phone. */
+.address-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.address-fields .addr-row {
+  display: flex;
+  gap: 8px;
+}
+
+.address-fields .addr-row input {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.address-fields .addr-state,
+.address-fields .addr-zip {
+  flex: 0.7 1 0;
+}
+
+/* Natural-language quick-add preview: what the typed line will become, shown
+   live under the task title as a cleaned title + detected chips. */
+.nl-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--fill);
+  border-radius: var(--radius-sm);
+  animation: fade-in 160ms ease-out;
+}
+
+.nl-preview-title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--text);
+}
+
+.nl-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border: none;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--accent-soft);
+  color: var(--accent);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, opacity 140ms ease;
+}
+
+.nl-chip svg {
+  flex-shrink: 0;
+}
+
+.nl-chip .nl-chip-x {
+  margin-left: 1px;
+  opacity: 0.7;
+}
+
+/* Dismissed: muted + struck through; its phrase stays in the saved title. */
+.nl-chip.off {
+  background: var(--fill);
+  color: var(--text-2);
+  text-decoration: line-through;
+}
+
+.nl-chip.off .nl-chip-x {
+  text-decoration: none;
 }
 
 .btn-primary {
@@ -2736,6 +3129,20 @@ select.rec-select + .segmented {
     margin: -10px 0 8px;
   }
 
+  /* Phones get the A–Z scrubber; pin letter heads just below the sticky search
+     bar and keep rows clear of the scrubber on the right. */
+  .alpha-index {
+    display: flex;
+  }
+
+  .people-browse {
+    padding-right: 18px;
+  }
+
+  .people-section-head {
+    top: 48px;
+  }
+
   .search-input {
     height: 40px;
   }
@@ -2763,20 +3170,34 @@ select.rec-select + .segmented {
 
   .modal {
     width: 100%;
+    max-width: 100vw;
     height: auto;
     max-height: 92%;
     border-radius: 16px 16px 0 0;
     padding: 8px 20px calc(24px + env(safe-area-inset-bottom));
     animation: sheet-up 320ms cubic-bezier(0.32, 0.72, 0, 1);
     will-change: transform;
+    /* Clip any wide field (native date input, picker rows) so the sheet can't
+       be panned sideways, and keep touch gestures vertical-only. */
+    overflow-x: hidden;
+    touch-action: pan-y;
+  }
+
+  .modal-top {
+    margin: 0 -20px;
+    padding: 0 20px;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  .modal-top:active {
+    cursor: grabbing;
   }
 
   .modal-grip {
     display: block;
-    margin: 0 -20px 2px;
+    margin: 0 0 2px;
     padding: 4px 0;
-    touch-action: none;
-    cursor: grab;
   }
 
   .modal-grip .sheet-handle {

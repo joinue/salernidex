@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Home, Users as PeopleIcon, CheckSquare, List, Plus, Share2, Briefcase, UserPlus, Users } from 'react-feather'
+import { Home, User as PeopleIcon, CheckSquare, List, Plus, Share2, Briefcase, UserPlus, Users } from 'react-feather'
 import Sheet from './Sheet'
 import { useLongPress } from '../hooks/useLongPress'
 

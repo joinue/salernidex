@@ -1,4 +1,4 @@
-import { Home, Users as PeopleIcon, CheckSquare, List, Briefcase, Users, Share2, DownloadCloud, Settings, LogOut, Search } from 'react-feather'
+import { Home, User as PeopleIcon, CheckSquare, List, Briefcase, Users, Share2, DownloadCloud, Settings, LogOut, Search } from 'react-feather'
 import ThemeToggle from './ThemeToggle'
 
 const isMac = /Mac/.test(navigator.platform)

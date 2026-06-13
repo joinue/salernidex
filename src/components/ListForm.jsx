@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Modal from './Modal'
-import { PRIVACY_LABELS } from '../lib/constants'
+import { PRIVACY_LABELS, focusOnDesktop } from '../lib/constants'
 
 const ICONS = ['🛒', '🛍️', '🔧', '🧳', '📝', '🎁', '🏠', '🍽️']
 
@@ -31,7 +31,7 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
         {error && <p className="error-text">{error}</p>}
         <div className="field">
           <label className="label">Name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus placeholder="Groceries, packing, …" />
+          <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus={focusOnDesktop()} placeholder="Groceries, packing, …" />
         </div>
         <div className="field">
           <label className="label">Icon</label>

@@ -10,6 +10,7 @@ import { useNotificationPrefs } from './hooks/useNotificationPrefs'
 import { useAppPrefs } from './hooks/useAppPrefs'
 import { useEdgeBack } from './hooks/useEdgeBack'
 import { currentMemberId } from './lib/household'
+import { areaNames, isProject } from './lib/tasks'
 import InstallHint from './components/InstallHint'
 import AuthScreen from './components/AuthScreen'
 import Onboarding from './components/Onboarding'
@@ -44,6 +45,7 @@ import ListForm from './components/ListForm'
 import OrgForm from './components/OrgForm'
 import GroupForm from './components/GroupForm'
 import RelationshipForm from './components/RelationshipForm'
+import { EMPTY_PEOPLE_FILTERS } from './lib/search'
 
 // Hash routing: #/ (today), #/activity, #/people, #/person/<id>, #/tasks,
 // #/project/<id>, #/lists, #/list/<id>, #/orgs, #/groups, #/relationships,
@@ -147,6 +149,9 @@ function Shell({ session, onLogout, household }) {
   const data = useData(session)
   const [route, setRoute] = useState(parseHash)
   const [query, setQuery] = useState('') // lifted so Back returns to the same results
+  // People-page filters, lifted for the same reason: leaving and coming back
+  // keeps the applied filter (resets on full reload, like the search query).
+  const [peopleFilters, setPeopleFilters] = useState(EMPTY_PEOPLE_FILTERS)
   const [editingPerson, setEditingPerson] = useState(null) // null | 'new' | person
   const [editingOrg, setEditingOrg] = useState(null)
   const [editingGroup, setEditingGroup] = useState(null)
@@ -226,6 +231,9 @@ function Shell({ session, onLogout, household }) {
   const openPerson = (id) => go(`person/${id}`)
   const openList = (id) => go(`list/${id}`)
   const openProject = (id) => go(`project/${id}`)
+  // Open a linked task from an entity page: projects get the full ProjectDetail,
+  // plain tasks open the editor sheet.
+  const openTask = (t) => (isProject(t, data.tasks) ? openProject(t.id) : setEditingTask(t))
   const requestLogout = () => setConfirmLogout(true)
 
   // ⌘K / Ctrl+K toggles Quick Find; "/" opens it too (outside text fields);
@@ -352,6 +360,8 @@ function Shell({ session, onLogout, household }) {
               searchRef={searchRef}
               query={query}
               setQuery={setQuery}
+              filters={peopleFilters}
+              setFilters={setPeopleFilters}
               onOpen={openPerson}
               onEdit={(p) => setEditingPerson(p)}
               onAdd={() => setEditingPerson('new')}
@@ -364,21 +374,25 @@ function Shell({ session, onLogout, household }) {
               data={data}
               personId={route.id}
               onOpenPerson={openPerson}
+              onOpenTask={openTask}
               onBack={() => window.history.back()}
               onEdit={(p) => setEditingPerson(p)}
               onConnect={(p) => setRelationshipFrom(p)}
+              isDemo={isDemo}
             />
           )}
           {route.name === 'orgs' && (
-            <OrgsView data={data} openId={route.id} onEdit={(o) => setEditingOrg(o)} onAdd={() => setEditingOrg('new')} />
+            <OrgsView data={data} openId={route.id} onEdit={(o) => setEditingOrg(o)} onAdd={() => setEditingOrg('new')} onOpenTask={openTask} isDemo={isDemo} />
           )}
           {route.name === 'groups' && (
             <GroupsView
               data={data}
               openId={route.id}
               onOpenPerson={openPerson}
+              onOpenTask={openTask}
               onAdd={() => setEditingGroup('new')}
               onEdit={(g) => setEditingGroup(g)}
+              isDemo={isDemo}
             />
           )}
           {route.name === 'relationships' && (
@@ -432,16 +446,19 @@ function Shell({ session, onLogout, household }) {
           orgs={data.orgs}
           people={data.people}
           families={data.families}
+          groups={data.groups}
           existingTags={allTags}
           onSave={data.savePerson}
           onCreateFamily={data.saveFamily}
+          onCreateOrg={data.findOrCreateOrg}
           onClose={() => setEditingPerson(null)}
           onOpenPerson={openPerson}
           defaultPrivacy={appPrefs.personPrivacy}
+          isDemo={isDemo}
         />
       )}
       {editingOrg && (
-        <OrgForm org={editingOrg === 'new' ? null : editingOrg} onSave={data.saveOrg} onClose={() => setEditingOrg(null)} />
+        <OrgForm org={editingOrg === 'new' ? null : editingOrg} orgs={data.orgs} onSave={data.saveOrg} onClose={() => setEditingOrg(null)} isDemo={isDemo} />
       )}
       {editingGroup && (
         <GroupForm
@@ -449,6 +466,7 @@ function Shell({ session, onLogout, household }) {
           existingTags={allTags}
           onSave={data.saveGroup}
           onClose={() => setEditingGroup(null)}
+          isDemo={isDemo}
         />
       )}
       {editingTask && (
@@ -457,6 +475,7 @@ function Shell({ session, onLogout, household }) {
           onSave={(fields, id) => (id ? data.updateTask(id, fields) : data.addTask(fields))}
           onClose={() => setEditingTask(null)}
           defaultPrivacy={appPrefs.taskPrivacy}
+          areas={areaNames(data.tasks)}
         />
       )}
       {editingList && (

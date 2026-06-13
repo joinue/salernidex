@@ -88,7 +88,10 @@ export function nextOccurrence(rule, from, { inclusive = false } = {}) {
   const fromD = parse(from)
   const anchor = rule.anchor ? parse(rule.anchor) : fromD
   let d = inclusive ? fromD : addDays(fromD, 1)
-  const cap = 370 * ((rule.interval || 1) + 1)
+  // Scan day-by-day for a match. The horizon scales with the interval but is
+  // hard-capped (~274 years) so a pathological rule — e.g. an imported
+  // `interval: 99999` — can never spin into a multi-million-iteration freeze.
+  const cap = Math.min(370 * ((rule.interval || 1) + 1), 100000)
   for (let i = 0; i < cap; i++) {
     if (matches(rule, d, anchor)) return toISO(d)
     d = addDays(d, 1)

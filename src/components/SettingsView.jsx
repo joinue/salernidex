@@ -6,6 +6,7 @@ import Avatar from './Avatar'
 import { useNotificationPrefs } from '../hooks/useNotificationPrefs'
 import { useAppPrefs } from '../hooks/useAppPrefs'
 import { PRIVACY_LABELS } from '../lib/constants'
+import { formatJoinCode } from '../lib/joinCode'
 import { pushSupport, permissionState, deviceEnabled, enablePush, disablePush, sendTestNotification } from '../lib/push'
 import {
   getHousehold,
@@ -207,7 +208,7 @@ function DemoHousehold({ refresh, copied, copyCode }) {
       <div className="list">
         <div className="value-row">
           <span className="v-label">Join code</span>
-          <span className="v-value mono" style={{ letterSpacing: '1px', fontWeight: 600 }}>{household.join_code}</span>
+          <span className="v-value mono" style={{ letterSpacing: '1px', fontWeight: 600 }}>{formatJoinCode(household.join_code)}</span>
           <button className="icon-btn" onClick={copyCode} aria-label="Copy code">
             {copied ? <Check size={16} /> : <Copy size={16} />}
           </button>
@@ -291,7 +292,7 @@ function LiveHousehold({ household, meId, copied, copyCode }) {
       <div className="list">
         <div className="value-row">
           <span className="v-label">Join code</span>
-          <span className="v-value mono" style={{ letterSpacing: '1px', fontWeight: 600 }}>{household.household?.join_code}</span>
+          <span className="v-value mono" style={{ letterSpacing: '1px', fontWeight: 600 }}>{formatJoinCode(household.household?.join_code)}</span>
           <button className="icon-btn" onClick={copyCode} aria-label="Copy code">
             {copied ? <Check size={16} /> : <Copy size={16} />}
           </button>
@@ -327,7 +328,7 @@ export default function SettingsView({ go, household, isDemo = false }) {
   const joinCode = isDemo ? getHousehold().join_code : household?.household?.join_code
   const copyCode = () => {
     if (!joinCode) return
-    navigator.clipboard?.writeText(joinCode)
+    navigator.clipboard?.writeText(formatJoinCode(joinCode))
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }

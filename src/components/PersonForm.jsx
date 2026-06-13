@@ -1,17 +1,23 @@
 import { useMemo, useState } from 'react'
-import { AlertTriangle } from 'react-feather'
+import { AlertTriangle, Check } from 'react-feather'
 import Modal from './Modal'
 import TagInput from './TagInput'
 import Avatar from './Avatar'
-import { KEEP_IN_TOUCH_OPTIONS, TIERS, PRIVACY_LABELS } from '../lib/constants'
+import AvatarUpload from './AvatarUpload'
+import DatePicker from './DatePicker'
+import AddressFields from './AddressFields'
+import { KEEP_IN_TOUCH_OPTIONS, TIERS, PRIVACY_LABELS, focusOnDesktop } from '../lib/constants'
 import { findDuplicates } from '../lib/duplicates'
+import { personMatchesGroup, groupJoinTags } from '../lib/groups'
 
 const NEW_FAMILY = '__new__'
+const NEW_ORG = '__new_org__'
 
-export default function PersonForm({ person, orgs, people = [], families = [], existingTags, onSave, onCreateFamily, onClose, onOpenPerson, defaultPrivacy = 'shared' }) {
+export default function PersonForm({ person, orgs, people = [], families = [], groups = [], existingTags, onSave, onCreateFamily, onCreateOrg, onClose, onOpenPerson, defaultPrivacy = 'shared', isDemo = false }) {
   const [form, setForm] = useState({
     name: person?.name || '',
-    organization: person?.organization || '',
+    avatar_url: person?.avatar_url || null,
+    organization_id: person?.organization_id || '',
     role: person?.role || '',
     email: person?.email || '',
     phone: person?.phone || '',
@@ -25,16 +31,52 @@ export default function PersonForm({ person, orgs, people = [], families = [], e
     notes: person?.notes || '',
   })
   const [newFamilyName, setNewFamilyName] = useState('')
+  const [newOrgName, setNewOrgName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
+  const orgsById = useMemo(() => new Map(orgs.map((o) => [o.id, o])), [orgs])
+
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value })
+
+  // Smart groups are tag-rule based, so "join/leave a group" edits the person's
+  // tags. Joining adds the group's required tags (and clears any it excludes).
+  // Leaving strips the group's rule tags one by one — but never a tag whose
+  // removal would also eject the person from another group they belong to, so
+  // shared label tags survive. (If every removable tag is locked by another
+  // group, they stay in this one; that's a genuine rule conflict, not a bug.)
+  const ruleTags = (g) => [...(g.all_tags || []), ...(g.any_tags || [])]
+  const toggleGroup = (group) => {
+    if (personMatchesGroup(group, form)) {
+      let next = [...form.tags]
+      for (const t of ruleTags(group)) {
+        if (!next.includes(t)) continue
+        const trial = next.filter((x) => x !== t)
+        const breaksOther = groups.some(
+          (o) => o.id !== group.id && personMatchesGroup(o, form) && !personMatchesGroup(o, { tags: trial })
+        )
+        if (!breaksOther) next = trial
+      }
+      setForm({ ...form, tags: next })
+    } else {
+      const excluded = new Set(group.none_tags || [])
+      const next = [...new Set([...form.tags, ...groupJoinTags(group)])].filter((t) => !excluded.has(t))
+      setForm({ ...form, tags: next })
+    }
+  }
 
   // Live, non-blocking duplicate check: as the user types a name/email/phone we
   // flag existing people that look like the same person, but never stop a save.
   const duplicates = useMemo(
     () => findDuplicates(form, people, person?.id).slice(0, 4),
     [form.name, form.email, form.phone, people, person?.id]
+  )
+
+  // Only groups you can join by adding a tag (an AND or OR rule). A group
+  // defined purely by "none of" can't be opted into, so it's left off the list.
+  const joinableGroups = useMemo(
+    () => groups.filter((g) => groupJoinTags(g).length > 0),
+    [groups]
   )
 
   const submit = async (e) => {
@@ -54,12 +96,25 @@ export default function PersonForm({ person, orgs, people = [], families = [], e
         const family = await onCreateFamily({ name })
         familyId = family.id
       }
+      // "New organization…" find-or-creates the org, then links by id.
+      let orgId = form.organization_id || null
+      if (orgId === NEW_ORG) {
+        const name = newOrgName.trim()
+        if (!name) {
+          setError('Give the new organization a name.')
+          setBusy(false)
+          return
+        }
+        const org = await onCreateOrg(name)
+        orgId = org?.id || null
+      }
       await onSave(
         {
           ...form,
           birthday: form.birthday || null,
           tier: form.tier || null,
           family_id: familyId,
+          organization_id: orgId,
           keep_in_touch_days: Number(form.keep_in_touch_days) || null,
         },
         person?.id
@@ -77,7 +132,17 @@ export default function PersonForm({ person, orgs, people = [], families = [], e
         {error && <p className="error-text">{error}</p>}
         <div className="field">
           <label className="label">Name</label>
-          <input value={form.name} onChange={set('name')} required autoFocus />
+          <input value={form.name} onChange={set('name')} required autoFocus={focusOnDesktop()} />
+        </div>
+        <div className="field">
+          <label className="label">Photo</label>
+          <AvatarUpload
+            value={form.avatar_url}
+            onChange={(v) => setForm({ ...form, avatar_url: v })}
+            name={form.name}
+            entity="people"
+            demo={isDemo}
+          />
         </div>
         {duplicates.length > 0 && (
           <div className="dup-warning" role="status">
@@ -90,11 +155,11 @@ export default function PersonForm({ person, orgs, people = [], families = [], e
             <ul className="dup-list">
               {duplicates.map(({ person: match, reasons }) => (
                 <li key={match.id} className="dup-row">
-                  <Avatar name={match.name} size={32} />
+                  <Avatar name={match.name} src={match.avatar_url} size={32} />
                   <div className="dup-row-text">
                     <span className="dup-row-name">{match.name}</span>
                     <span className="dup-row-meta">
-                      {[match.organization, reasons.join(' · ')].filter(Boolean).join(' — ')}
+                      {[orgsById.get(match.organization_id)?.name, reasons.join(' · ')].filter(Boolean).join(' — ')}
                     </span>
                   </div>
                   {onOpenPerson && (
@@ -116,12 +181,22 @@ export default function PersonForm({ person, orgs, people = [], families = [], e
         )}
         <div className="field">
           <label className="label">Organization</label>
-          <input value={form.organization} onChange={set('organization')} list="org-options" />
-          <datalist id="org-options">
-            {orgs.map((o) => (
-              <option key={o.id} value={o.name} />
+          <select value={form.organization_id} onChange={set('organization_id')}>
+            <option value="">None</option>
+            {[...orgs].sort((a, b) => a.name.localeCompare(b.name)).map((o) => (
+              <option key={o.id} value={o.id}>{o.name}</option>
             ))}
-          </datalist>
+            <option value={NEW_ORG}>+ New organization…</option>
+          </select>
+          {form.organization_id === NEW_ORG && (
+            <input
+              style={{ marginTop: 8 }}
+              placeholder="Organization name"
+              value={newOrgName}
+              onChange={(e) => setNewOrgName(e.target.value)}
+              autoFocus
+            />
+          )}
         </div>
         <div className="field">
           <label className="label">Role</label>
@@ -137,11 +212,11 @@ export default function PersonForm({ person, orgs, people = [], families = [], e
         </div>
         <div className="field">
           <label className="label">Birthday</label>
-          <input type="date" value={form.birthday} onChange={set('birthday')} />
+          <DatePicker value={form.birthday} onChange={(v) => setForm({ ...form, birthday: v })} />
         </div>
         <div className="field">
           <label className="label">Address</label>
-          <input value={form.address} onChange={set('address')} />
+          <AddressFields value={form.address} onChange={(v) => setForm({ ...form, address: v })} />
         </div>
         <div className="field">
           <label className="label">Tags</label>
@@ -151,6 +226,28 @@ export default function PersonForm({ person, orgs, people = [], families = [], e
             suggestions={existingTags}
           />
         </div>
+        {joinableGroups.length > 0 && (
+          <div className="field">
+            <label className="label">Groups</label>
+            <div className="group-chips">
+              {joinableGroups.map((g) => {
+                const inGroup = personMatchesGroup(g, form)
+                return (
+                  <button
+                    type="button"
+                    key={g.id}
+                    className={`group-chip ${inGroup ? 'on' : ''}`}
+                    onClick={() => toggleGroup(g)}
+                    aria-pressed={inGroup}
+                  >
+                    {inGroup && <Check size={13} />}
+                    {g.name}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
         <div className="field">
           <label className="label">Tier</label>
           <select value={form.tier} onChange={set('tier')}>

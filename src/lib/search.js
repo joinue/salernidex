@@ -1,11 +1,14 @@
 // Fuzzy search across name, organization, role, email, notes, and tags.
 // Every word in the query must match somewhere; results are ranked so
 // name matches surface first (instant context under time pressure).
+import { TIERS, TIER_RANK } from './constants'
 
-function fieldText(person) {
+// `orgsById` (Map id → org row) resolves the person's organization name for
+// matching, since people now reference orgs by id rather than carrying the name.
+function fieldText(person, orgsById) {
   return {
     name: (person.name || '').toLowerCase(),
-    organization: (person.organization || '').toLowerCase(),
+    organization: (orgsById?.get(person.organization_id)?.name || '').toLowerCase(),
     role: (person.role || '').toLowerCase(),
     email: (person.email || '').toLowerCase(),
     notes: (person.notes || '').toLowerCase(),
@@ -15,13 +18,13 @@ function fieldText(person) {
 
 const WEIGHTS = { name: 100, organization: 40, role: 30, tags: 30, email: 20, notes: 10 }
 
-export function searchPeople(people, query) {
+export function searchPeople(people, query, orgsById) {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)
   if (!words.length) return people
 
   const scored = []
   for (const person of people) {
-    const fields = fieldText(person)
+    const fields = fieldText(person, orgsById)
     let total = 0
     let allMatched = true
     for (const word of words) {
@@ -46,21 +49,42 @@ export function searchPeople(people, query) {
 
 // Sort options for the People list. `lastByPerson` maps person id → their most
 // recent interaction timestamp (ISO string), used by the activity-based sorts.
+// People-page filter shape, lifted to App (see SearchView) so it survives
+// leaving and returning to the page. All-empty = no filter applied.
+export const EMPTY_PEOPLE_FILTERS = { org: '', tag: '', group: '', tier: '', privacy: '', showDeleted: false }
+
 export const PEOPLE_SORTS = [
   { value: 'name', label: 'Name (A–Z)' },
   { value: 'recent', label: 'Recent activity' },
   { value: 'tier', label: 'Tier (closest first)' },
 ]
 
-const TIER_SORT_RANK = { inner: 0, close: 1, network: 2 }
+// The full A–Z scrubber alphabet, with "#" (non-letters) last — matches the
+// order groupPeopleByLetter emits so the jump bar and sections line up.
+export const ALPHABET = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#']
+
+// Bucket an already name-sorted list into alphabetical sections for the
+// Apple-Contacts-style browse view. A person's letter is the first A–Z
+// character of their name (accents folded); anything else falls under "#".
+// Returns [{ letter, items }] in ALPHABET order, skipping empty letters.
+export function groupPeopleByLetter(people) {
+  const buckets = new Map()
+  for (const person of people) {
+    const first = (person.name || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').charAt(0).toUpperCase()
+    const letter = first >= 'A' && first <= 'Z' ? first : '#'
+    if (!buckets.has(letter)) buckets.set(letter, [])
+    buckets.get(letter).push(person)
+  }
+  return ALPHABET.filter((l) => buckets.has(l)).map((letter) => ({ letter, items: buckets.get(letter) }))
+}
 
 export function sortPeople(people, sort, lastByPerson) {
   if (sort === 'relevance') return people // keep searchPeople's match ranking
   const byName = (a, b) => (a.name || '').localeCompare(b.name || '')
 
   if (sort === 'tier') {
-    // Inner circle → close → network → unsorted, alphabetical within each.
-    const rank = (p) => TIER_SORT_RANK[p.tier] ?? 3
+    // Closest tier first (TIER_RANK order), unsorted last, alphabetical within each.
+    const rank = (p) => TIER_RANK[p.tier] ?? TIERS.length
     return [...people].sort((a, b) => rank(a) - rank(b) || byName(a, b))
   }
 

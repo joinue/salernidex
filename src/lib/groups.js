@@ -14,7 +14,16 @@ export function groupMembers(group, people) {
   return people.filter((p) => !p.deleted_at && personMatchesGroup(group, p))
 }
 
-// Human-readable rule, e.g. "PACE customer AND UA · any of: A, B · not: C"
+// The tags to ADD to a person so they match this group: every required AND tag,
+// plus one OR tag if the rule has an "any of" clause. (none_tags are handled by
+// the caller — they must be removed, not added.) A rules-less group returns [].
+export function groupJoinTags(group) {
+  const add = [...(group.all_tags || [])]
+  if ((group.any_tags || []).length) add.push(group.any_tags[0])
+  return add
+}
+
+// Human-readable rule, e.g. "client AND active · any of: A, B · not: C"
 export function describeGroup(group) {
   const parts = []
   if ((group.all_tags || []).length) parts.push(group.all_tags.join(' AND '))

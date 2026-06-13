@@ -40,7 +40,7 @@ export default function ActivityRow({ entry: e, onOpenPerson, onOpenList, onOpen
       onClick={() => onOpenPerson(e.person.id)}
       onLongPress={onPersonLongPress ? () => onPersonLongPress(e.person) : undefined}
     >
-      <Avatar name={e.person.name} size={38} />
+      <Avatar name={e.person.name} src={e.person.avatar_url} size={38} />
       <div className="row-body">
         <div className="row-title">{e.person.name}</div>
         <div className="row-sub">{meta.label}{e.it.note ? ` — ${e.it.note}` : ''}</div>

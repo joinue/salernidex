@@ -68,16 +68,20 @@ export default function Modal({ title, onClose, children }) {
             : undefined
         }
       >
-        {isMobile && (
-          <div className="modal-grip" {...handlers}>
-            <div className="sheet-handle" />
+        {/* On mobile the grip + header is one drag-to-dismiss region, so you
+            can pull the sheet down by its visible top, not just the thin grip. */}
+        <div className="modal-top" {...(isMobile ? handlers : {})}>
+          {isMobile && (
+            <div className="modal-grip">
+              <div className="sheet-handle" />
+            </div>
+          )}
+          <div className="modal-header">
+            <h2 className="modal-title">{title}</h2>
+            <button className="modal-close" onClick={onClose} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} aria-label="Close">
+              <X size={20} />
+            </button>
           </div>
-        )}
-        <div className="modal-header">
-          <h2 className="modal-title">{title}</h2>
-          <button className="modal-close" onClick={onClose} aria-label="Close">
-            <X size={20} />
-          </button>
         </div>
         {children}
       </div>

@@ -1,5 +1,11 @@
 import { Phone, MessageCircle, Mail, Coffee, Edit3 } from 'react-feather'
 
+// On phones we don't auto-focus a sheet's first field — popping the keyboard
+// the instant a sheet opens covers the form and feels jarring. Desktop keeps
+// autofocus so you can type right away. Used as `autoFocus={focusOnDesktop()}`.
+export const focusOnDesktop = () =>
+  typeof window !== 'undefined' && window.matchMedia('(min-width: 721px)').matches
+
 // 'marc_only' is the legacy enum value; it now means "Private — only me":
 // rows with it are hidden from other household members (lib/privacy.js).
 // The enum value itself gets renamed to 'private' at the go-live migration.
@@ -25,9 +31,11 @@ export const INTERACTION_BY_ID = Object.fromEntries(INTERACTION_TYPES.map((t) =>
 // Relationship tiers — how close someone is, independent of tags/groups.
 // null/'' = unsorted. Order matters: closest first (drives the tier sort).
 export const TIERS = [
+  { value: 'family', label: 'Family' },
   { value: 'inner', label: 'Inner circle' },
   { value: 'close', label: 'Close' },
   { value: 'network', label: 'Network' },
+  { value: 'acquaintance', label: 'Acquaintance' },
 ]
 
 export const TIER_LABELS = Object.fromEntries(TIERS.map((t) => [t.value, t.label]))

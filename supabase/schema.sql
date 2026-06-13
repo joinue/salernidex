@@ -37,10 +37,12 @@ create table public.people (
   birthday      date,
   address       text,
   tags          text[] not null default '{}',
-  tier          text check (tier in ('inner', 'close', 'network')),  -- relationship tier; null = unsorted
+  tier          text check (tier in ('family', 'inner', 'close', 'network', 'acquaintance')),  -- relationship tier; null = unsorted. Order (closest→loosest) drives TIER_RANK in lib/constants.js
+  organization_id uuid,                         -- employer; FK to organizations added below (that table is defined after this one). null = none
   family_id     uuid references public.families(id) on delete set null,
   privacy_level privacy_level not null default 'shared',
   notes         text,
+  avatar_url    text,                          -- avatars Storage object path (see 0006); null = monogram fallback
   keep_in_touch_days integer check (keep_in_touch_days is null or keep_in_touch_days >= 0),  -- cadence in days; null/0 = off
   deleted_at    timestamptz,                -- soft delete: null = active
   created_by    uuid default auth.uid(),
@@ -74,10 +76,18 @@ create table public.organizations (
   key_contacts  text[] not null default '{}',
   tags          text[] not null default '{}',
   privacy_level privacy_level not null default 'shared',
+  avatar_url    text,                          -- avatars Storage object path (see 0006); null = monogram fallback
   created_by    uuid default auth.uid(),
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
+
+-- people.organization_id → organizations(id). Declared here (not inline on the
+-- people table) because organizations is defined after people. on delete set
+-- null: deleting an org un-sets it on its people rather than deleting them.
+alter table public.people
+  add constraint people_organization_id_fkey
+  foreign key (organization_id) references public.organizations(id) on delete set null;
 
 -- ------------------------------------------------------------
 -- relationships
@@ -115,6 +125,7 @@ create table public.groups (
   all_tags    text[] not null default '{}',   -- person must have ALL of these
   any_tags    text[] not null default '{}',   -- ...and at least ONE of these (if any listed)
   none_tags   text[] not null default '{}',   -- ...and NONE of these
+  avatar_url  text,                            -- avatars Storage object path (see 0006); null = monogram fallback
   created_by  uuid default auth.uid(),
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
@@ -136,6 +147,7 @@ create table public.tasks (
   title         text not null,
   notes         text,
   assignee      text not null default 'anyone',     -- member id | 'anyone'
+  area          text,                                -- optional user-defined category ("Work", "Personal"); null = none (TasksView group-by)
   due_date      date,
   recurrence    jsonb,                              -- null = one-off; RRULE-lite (see lib/recurrence.js)
   parent_id     uuid references public.tasks(id) on delete cascade,  -- subtask of a project
@@ -176,12 +188,12 @@ create table public.task_completions (
 create table public.task_links (
   id          uuid primary key default gen_random_uuid(),
   task_id     uuid not null references public.tasks(id) on delete cascade,
-  entity_type text not null,                       -- person | organization
+  entity_type text not null,                       -- person | organization | group
   entity_id   uuid not null,
   role        text,                                -- optional, e.g. 'plumber', 'contractor'
   created_by  uuid default auth.uid(),
   created_at  timestamptz not null default now(),
-  constraint task_links_entity_type_chk check (entity_type in ('person', 'organization')),
+  constraint task_links_entity_type_chk check (entity_type in ('person', 'organization', 'group')),
   constraint task_links_unique unique (task_id, entity_type, entity_id)
 );
 
@@ -520,11 +532,17 @@ revoke execute on function public.create_household(text, text) from anon;
 --       foreign key (completed_by) references public.household_members(id) on delete set null;
 
 -- Join a household by code (run as the signed-in user). Returns the membership.
+-- Code matching is normalized — uppercase, letters+digits only — so a code
+-- that's typed (phones auto-capitalize), pasted, or written with/without the
+-- display hyphen all resolve to the same household. The client normalizes the
+-- same way (src/lib/joinCode.js).
 create or replace function public.join_household(code text, name text default '')
 returns public.household_members language plpgsql security definer set search_path = public as $$
 declare h public.households; m public.household_members;
 begin
-  select * into h from public.households where join_code = code;
+  select * into h from public.households
+   where upper(regexp_replace(join_code, '[^a-zA-Z0-9]', '', 'g'))
+       = upper(regexp_replace(code,      '[^a-zA-Z0-9]', '', 'g'));
   if not found then raise exception 'Invalid join code'; end if;
   insert into public.household_members (household_id, user_id, display_name)
   values (h.id, auth.uid(), coalesce(nullif(name,''), ''))
@@ -682,3 +700,26 @@ alter publication supabase_realtime add table public.member_preferences;
 -- Skeleton: supabase/functions/send-reminders/index.ts. VAPID keys live in
 -- function secrets (SUPABASE_VAPID_PUBLIC/PRIVATE), the public key is also
 -- exposed to the client as VITE_VAPID_PUBLIC_KEY for subscribe().
+
+
+-- ============================================================
+-- avatars Storage bucket (people / orgs / groups photos) — see 0006
+-- ============================================================
+-- people.avatar_url / organizations.avatar_url / groups.avatar_url hold the
+-- bucket-relative object path '<household_id>/<kind>/<uuid>.<ext>'; the app
+-- resolves it to a short-lived signed URL at render (src/lib/avatarStorage.js).
+-- Private bucket, RLS-scoped by the household id in the first path segment so an
+-- avatar is only ever visible inside the household that owns it.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('avatars', 'avatars', false, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do nothing;
+
+create policy "avatars household read" on storage.objects for select to authenticated
+  using (bucket_id = 'avatars' and public.is_member(((storage.foldername(name))[1])::uuid));
+create policy "avatars household insert" on storage.objects for insert to authenticated
+  with check (bucket_id = 'avatars' and public.is_member(((storage.foldername(name))[1])::uuid));
+create policy "avatars household update" on storage.objects for update to authenticated
+  using (bucket_id = 'avatars' and public.is_member(((storage.foldername(name))[1])::uuid))
+  with check (bucket_id = 'avatars' and public.is_member(((storage.foldername(name))[1])::uuid));
+create policy "avatars household delete" on storage.objects for delete to authenticated
+  using (bucket_id = 'avatars' and public.is_member(((storage.foldername(name))[1])::uuid));

@@ -6,14 +6,20 @@ import Segmented from './Segmented'
 import { memberNames, setMemberNames } from '../lib/household'
 import { getAllPrefs, setAllPrefs } from '../lib/notifyPrefs'
 import { getAllAppPrefs, setAllAppPrefs } from '../lib/appPrefs'
-import { downloadVcf } from '../lib/vcard'
+import { downloadVcf, parseVcf } from '../lib/vcard'
 import { findDuplicates } from '../lib/duplicates'
 
 // Bump when the backup shape changes so future imports can migrate if needed.
 // v3: adds families, key_dates, and people.tier/family_id (Phase 7).
 // v4: adds reminder_snoozes + settings.notifications (Phase 6a).
 // v5: adds settings.preferences (per-member default visibility + Tasks view).
-const BACKUP_VERSION = 5
+// v6: adds avatar_url on people/orgs/groups. The value is a Storage object path
+//     scoped to the household, so it round-trips within the same household; a
+//     cross-household restore would lose the image (path RLS won't match).
+// v7: people reference orgs by organization_id (was the free-text `organization`
+//     name). Restoring a v<=6 backup find-or-creates orgs from the old string
+//     (see useData.restoreBackup).
+const BACKUP_VERSION = 7
 
 const SCHEMA_FIELDS = ['', 'name', 'organization', 'role', 'email', 'phone', 'birthday', 'address', 'tier', 'tags', 'notes']
 
@@ -53,6 +59,7 @@ export default function ImportExport({ data }) {
   const { allPeople, allOrgs, allTasks, allLists, allListItems } = data
   const csvRef = useRef(null)
   const jsonRef = useRef(null)
+  const vcfRef = useRef(null)
   const [parsed, setParsed] = useState(null) // { headers, rows }
   const [mapping, setMapping] = useState({})
   const [status, setStatus] = useState(null)
@@ -60,6 +67,9 @@ export default function ImportExport({ data }) {
   const [review, setReview] = useState(null) // { records: [{rec, matches, action}] }
 
   const active = people.filter((p) => !p.deleted_at)
+  // Resolve organization_id → name for the string-based exports (CSV/vCard).
+  const orgsById = new Map(orgs.map((o) => [o.id, o]))
+  const orgName = (p) => orgsById.get(p.organization_id)?.name || ''
 
   // ---- Full backup (everything, round-trippable) ----
   const exportBackup = () => {
@@ -139,7 +149,7 @@ export default function ImportExport({ data }) {
     const csv = Papa.unparse(
       active.map((p) => ({
         name: csvSafe(p.name),
-        organization: csvSafe(p.organization || ''),
+        organization: csvSafe(orgName(p)),
         role: csvSafe(p.role || ''),
         email: csvSafe(p.email || ''),
         phone: csvSafe(p.phone || ''),
@@ -198,6 +208,12 @@ export default function ImportExport({ data }) {
       return
     }
 
+    await reviewAndImport(records)
+  }
+
+  // Shared by CSV and vCard import: flag rows that look like someone you already
+  // have (default those to "skip"); if nothing's flagged, import straight away.
+  const reviewAndImport = async (records) => {
     const reviewed = records.map((rec) => {
       const matches = findDuplicates(rec, active)
       return { rec, matches, action: matches.length ? 'skip' : 'import' }
@@ -207,6 +223,24 @@ export default function ImportExport({ data }) {
       return
     }
     await doImport(records)
+  }
+
+  // ---- vCard import (.vcf from iPhone / Google Contacts) ----
+  const onVcfFile = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setStatus(null)
+    const reader = new FileReader()
+    reader.onload = async () => {
+      const records = parseVcf(String(reader.result))
+      if (!records.length) {
+        setStatus('No contacts found in that .vcf file.')
+        return
+      }
+      await reviewAndImport(records)
+    }
+    reader.readAsText(file)
   }
 
   const doImport = async (records, skipped = 0) => {
@@ -271,7 +305,7 @@ export default function ImportExport({ data }) {
 
       <div className="section-label">Phone contacts</div>
       <div className="list">
-        <button className="list-row" onClick={() => downloadVcf('salernidex-contacts', active)}>
+        <button className="list-row" onClick={() => downloadVcf('salernidex-contacts', active, orgsById)}>
           <span className="activity-icon"><Download size={16} /></span>
           <div className="row-body">
             <div className="row-title">Export vCard (.vcf)</div>
@@ -281,7 +315,16 @@ export default function ImportExport({ data }) {
           </div>
           <Download size={18} className="row-chevron" />
         </button>
+        <button className="list-row" onClick={() => vcfRef.current?.click()}>
+          <span className="activity-icon"><Upload size={16} /></span>
+          <div className="row-body">
+            <div className="row-title">Import vCard (.vcf)</div>
+            <div className="row-sub">Upload contacts exported from iPhone or Google. Duplicates are flagged before importing.</div>
+          </div>
+          <Upload size={18} className="row-chevron" />
+        </button>
       </div>
+      <input ref={vcfRef} type="file" accept=".vcf,text/vcard" onChange={onVcfFile} style={{ display: 'none' }} />
 
       <div className="section-label">Spreadsheet (people)</div>
       <div className="list">

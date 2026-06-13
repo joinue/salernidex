@@ -26,8 +26,9 @@ export default function TaskRow({ task, onToggle, size = 'md', progress }) {
       </button>
       <div className="row-body">
         <div className={`row-title ${done ? 'task-done' : ''} ${size === 'sm' ? 'sm' : ''}`}>{task.title}</div>
-        {(showAssignee || dl || task.recurrence || progress) && (
+        {(showAssignee || dl || task.recurrence || progress || task.area) && (
           <div className="task-meta">
+            {task.area && <span className="chip area">{task.area}</span>}
             {progress && <span className="chip">{progress.done}/{progress.total}</span>}
             {showAssignee && <span className="chip">{assigneeLabel(task.assignee)}</span>}
             {dl && <span className={`chip due-${ds}`}>{dl}</span>}

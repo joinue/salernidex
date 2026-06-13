@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronRight, Plus, CheckSquare } from 'react-feather'
-import { taskBucket, completionsFor, isProject } from '../lib/tasks'
+import { taskBucket, completionsFor, isProject, areaNames } from '../lib/tasks'
 import { relativeTime } from '../lib/contact'
 import { members, assigneeLabel, normalizeAssignee } from '../lib/household'
 import { byOrder, moveUpdates } from '../lib/order'
@@ -9,6 +9,7 @@ import PageHeader from './PageHeader'
 import Segmented from './Segmented'
 import TaskRow from './TaskRow'
 import ReorderableList from './ReorderableList'
+import AddToCalendar from './AddToCalendar'
 
 const BUCKETS = [
   { id: 'overdue', label: 'Overdue' },
@@ -23,6 +24,9 @@ export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject
   const [filter, setFilter] = useState(() =>
     defaultFilter === 'all' || members().some((m) => m.id === defaultFilter) ? defaultFilter : 'all'
   )
+  // Optional narrowing to one area. The area pills only appear once areas exist
+  // (see areaList below), so until then this is a no-op the user never sees.
+  const [areaFilter, setAreaFilter] = useState('all')
   const [expanded, setExpanded] = useState(expandId || null)
   const [showDone, setShowDone] = useState(defaultShowCompleted)
   const [draftSub, setDraftSub] = useState('')
@@ -37,19 +41,33 @@ export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject
     ...members().map((m) => ({ value: m.id, label: m.name })),
   ]
 
+  // Areas in use across open top-level tasks — drives the filter pills. Derived
+  // from every open task (not the member-filtered set) so the pills don't flicker
+  // in and out as you switch member.
+  const areaList = useMemo(
+    () => areaNames(tasks.filter((t) => !t.parent_id && !t.completed_at)),
+    [tasks]
+  )
+  // Guard against a stale selection: if the last task in an area is finished or
+  // its area renamed, fall back to "All" rather than showing an empty list.
+  const activeArea = areaList.includes(areaFilter) ? areaFilter : 'all'
+
   const matches = (t) => {
-    if (filter === 'all') return true
-    const a = normalizeAssignee(t.assignee)
-    return a === filter || a === 'anyone'
+    if (filter !== 'all') {
+      const a = normalizeAssignee(t.assignee)
+      if (a !== filter && a !== 'anyone') return false
+    }
+    if (activeArea !== 'all' && (t.area || '').trim() !== activeArea) return false
+    return true
   }
 
   const topOpen = useMemo(
     () => tasks.filter((t) => !t.parent_id && !t.completed_at && matches(t)).sort(byOrder),
-    [tasks, filter]
+    [tasks, filter, activeArea]
   )
   const done = useMemo(
     () => tasks.filter((t) => !t.parent_id && t.completed_at && matches(t)).sort((a, b) => (a.completed_at < b.completed_at ? 1 : -1)),
-    [tasks, filter]
+    [tasks, filter, activeArea]
   )
   const grouped = useMemo(() => {
     const g = { overdue: [], today: [], upcoming: [], someday: [] }
@@ -136,8 +154,9 @@ export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject
                 ))}
               </div>
             )}
-            <div style={{ display: 'flex', gap: 16, marginTop: 10 }}>
+            <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
               <button className="text-btn" onClick={() => onEdit(task)}>Edit</button>
+              <AddToCalendar task={task} />
               <button className="text-btn danger" onClick={() => deleteTask(task.id)}>Delete</button>
             </div>
           </div>
@@ -152,10 +171,34 @@ export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject
 
       <Segmented options={filterOptions} value={filter} onChange={setFilter} />
 
+      {areaList.length > 0 && (
+        <div className="area-filter">
+          <button
+            className={`area-pill ${activeArea === 'all' ? 'on' : ''}`}
+            onClick={() => setAreaFilter('all')}
+          >
+            All areas
+          </button>
+          {areaList.map((a) => (
+            <button
+              key={a}
+              className={`area-pill ${activeArea === a ? 'on' : ''}`}
+              onClick={() => setAreaFilter(a)}
+            >
+              {a}
+            </button>
+          ))}
+        </div>
+      )}
+
       {topOpen.length === 0 ? (
         <div className="empty">
           <CheckSquare size={28} className="empty-icon" />
-          {filter === 'all' ? 'Nothing on the list. Add a task.' : 'Nothing assigned here.'}
+          {activeArea !== 'all'
+            ? `Nothing in ${activeArea}.`
+            : filter === 'all'
+            ? 'Nothing on the list. Add a task.'
+            : 'Nothing assigned here.'}
           <button className="text-btn" onClick={onAdd}><Plus size={14} /> New task</button>
         </div>
       ) : (

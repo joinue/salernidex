@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import Modal from './Modal'
 import Segmented from './Segmented'
-import { INTERACTION_TYPES } from '../lib/constants'
+import { INTERACTION_TYPES, focusOnDesktop } from '../lib/constants'
 
 // Log (or edit context for) a touchpoint. Opens prefilled with a type when the
 // user taps a quick-log chip; the date defaults to today but is editable so
@@ -57,7 +57,7 @@ export default function InteractionForm({ person, presetType = 'call', onSave, o
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="What was it about?"
-            autoFocus
+            autoFocus={focusOnDesktop()}
           />
         </div>
         <button className="btn-primary" disabled={busy}>

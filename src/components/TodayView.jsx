@@ -5,6 +5,7 @@ import { buildAttention } from '../lib/reminders'
 import { buildActivityFeed } from '../lib/activity'
 import { personActions } from '../lib/personActions'
 import { useNotificationPrefs } from '../hooks/useNotificationPrefs'
+import { useNow } from '../hooks/useNow'
 import haptics from '../lib/haptics'
 import Avatar from './Avatar'
 import PageHeader from './PageHeader'
@@ -49,13 +50,16 @@ const DAY = 86400000
 export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks, onOpenActivity, onMore, onSettings, onSearch }) {
   const { addInteraction, completeTask, snoozeReminder, memberId } = data
   const [prefs] = useNotificationPrefs(memberId)
+  // Keep greetings, the date, and relative/overdue labels fresh on a wall-
+  // mounted tablet that may run for days without a reload.
+  const now = useNow()
   const [logPerson, setLogPerson] = useState(null)
   const [actionPerson, setActionPerson] = useState(null)
   const [laterItem, setLaterItem] = useState(null) // attention item picking a snooze
 
   const attention = useMemo(
-    () => buildAttention(data, prefs, data.reminderSnoozes, memberId),
-    [data.people, data.tasks, data.interactions, data.keyDates, data.reminderSnoozes, prefs, memberId]
+    () => buildAttention(data, prefs, data.reminderSnoozes, memberId, now),
+    [data.people, data.tasks, data.interactions, data.keyDates, data.reminderSnoozes, prefs, memberId, now]
   )
   const dueTasks = attention.filter((i) => i.kind === 'task')
   const checkIns = attention.filter((i) => i.kind === 'nudge')
@@ -119,8 +123,12 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
         </div>
       )}
 
+      {/* On wide screens (landscape iPad / desktop) these sections flow into
+          two columns so the dashboard fills the width instead of leaving a
+          tall empty gutter; portrait and phone stay single-column. */}
+      <div className="today-dashboard">
       {dueTasks.length > 0 && (
-        <>
+        <section className="today-section">
           <div className="section-label">To-do</div>
           <div className="list">
             {dueTasks.map((item) => (
@@ -131,11 +139,11 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
               </SwipeRow>
             ))}
           </div>
-        </>
+        </section>
       )}
 
       {checkIns.length > 0 && (
-        <>
+        <section className="today-section">
           <div className="section-label">Check in</div>
           <div className="list">
             {checkIns.map((item) => (
@@ -171,11 +179,11 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
               </SwipeRow>
             ))}
           </div>
-        </>
+        </section>
       )}
 
       {dates.length > 0 && (
-        <>
+        <section className="today-section">
           <div className="section-label">Dates</div>
           <div className="list">
             {dates.map((item) => {
@@ -206,11 +214,11 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
               )
             })}
           </div>
-        </>
+        </section>
       )}
 
       {recent.length > 0 && (
-        <>
+        <section className="today-section">
           <div className="section-head">
             <div className="section-label">Recent activity</div>
             {feed.length > recent.length && (
@@ -229,8 +237,9 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
               />
             ))}
           </div>
-        </>
+        </section>
       )}
+      </div>
 
       {actionPerson && (
         <ActionSheet

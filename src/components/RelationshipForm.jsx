@@ -68,7 +68,7 @@ export default function RelationshipForm({ from, people, onSave, onClose }) {
         </div>
         <div className="field">
           <label className="label">Context (optional)</label>
-          <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Met at MNA meeting, 2024" />
+          <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Met at a conference, 2024" />
         </div>
         <button className="btn-primary" disabled={busy}>
           {busy ? <span className="dots">Saving</span> : 'Add relationship'}

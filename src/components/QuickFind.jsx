@@ -17,7 +17,7 @@ const NAV_ICONS = {
 const TYPE_ICONS = { task: CheckSquare, project: Folder, org: Briefcase, group: Users, action: Plus }
 
 function RowIcon({ entry }) {
-  if (entry.type === 'person') return <Avatar name={entry.title} size={32} />
+  if (entry.type === 'person') return <Avatar name={entry.title} src={entry.avatar_url} size={32} />
   if (entry.type === 'list') return <span className="qf-icon qf-emoji">{entry.icon || '📝'}</span>
   const Icon = entry.type === 'nav' ? NAV_ICONS[entry.route] || Home : TYPE_ICONS[entry.type] || Search
   return (

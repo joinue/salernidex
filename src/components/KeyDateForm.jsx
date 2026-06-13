@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import Modal from './Modal'
 import Segmented from './Segmented'
+import DatePicker from './DatePicker'
+import { focusOnDesktop } from '../lib/constants'
 
 // Add a key date to a person — anniversary, memorial, "started new job".
 // Annual dates roll forward every year; one-time dates show until they pass.
@@ -35,12 +37,12 @@ export default function KeyDateForm({ person, onSave, onClose }) {
             onChange={(e) => setLabel(e.target.value)}
             placeholder="Wedding anniversary"
             required
-            autoFocus
+            autoFocus={focusOnDesktop()}
           />
         </div>
         <div className="field">
           <label className="label">Date</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          <DatePicker value={date} onChange={setDate} required />
           {annual && (
             <p className="muted" style={{ fontSize: 13, marginTop: 6 }}>
               Use the original year if you know it — that's how "10 years" gets counted.

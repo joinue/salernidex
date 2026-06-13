@@ -4,6 +4,7 @@ import { demoMode, demoPeople, demoOrgs, demoRelationships, demoGroups, demoInte
 import { completionFields } from '../lib/tasks'
 import { currentMember, currentMemberId, getHousehold } from '../lib/household'
 import { showToast } from '../lib/toast'
+import { friendlyError } from '../lib/errors'
 import { filterVisible } from '../lib/privacy'
 import { hydrateAppPrefs, bindAppPrefsRemote } from '../lib/appPrefs'
 
@@ -168,7 +169,7 @@ export function useData(session) {
         if (res?.error) throw res.error
       })
       .catch((err) => {
-        showToast(err.message || "Couldn't save that change", { variant: 'error', duration: 6000 })
+        showToast(friendlyError(err), { variant: 'error', duration: 6000 })
         refresh()
       })
   }
@@ -254,6 +255,20 @@ export function useData(session) {
     sync(() => supabase.from('organizations').delete().eq('id', id))
   }
 
+  // Find an org by name (case-insensitive, trimmed) or create one, returning the
+  // row — so a typed "+ New organization" in PersonForm, or an imported ORG/CSV
+  // name, resolves to a single real organizations row instead of free text.
+  const findOrCreateOrg = (name) => {
+    const trimmed = (name || '').trim()
+    if (!trimmed) return null
+    const existing = orgs.find((o) => (o.name || '').trim().toLowerCase() === trimmed.toLowerCase())
+    if (existing) return existing
+    const row = stamp({ created_at: now(), updated_at: now(), key_contacts: [], name: trimmed, id: uuid() })
+    setOrgs((prev) => [...prev, row])
+    sync(() => supabase.from('organizations').insert(stamp({ name: trimmed, id: row.id })))
+    return row
+  }
+
   const addRelationship = (fields) => {
     const rowId = uuid()
     setRelationships((prev) => [...prev, stamp({ ...fields, id: rowId, created_at: now() })])
@@ -292,6 +307,7 @@ export function useData(session) {
       stamp({ recurrence: null, parent_id: null, is_project: false, is_heading: false, sort_order: null, completed_at: null, privacy_level: 'shared', assignee: 'anyone', notes: '', created_at: now(), updated_at: now(), ...fields, id: rowId }),
     ])
     sync(() => supabase.from('tasks').insert(stamp({ ...fields, id: rowId, assignee: dbAssignee(fields.assignee) })))
+    return rowId // so callers can link the just-created task (e.g. from a person/org page)
   }
 
   const updateTask = (id, fields) => {
@@ -353,8 +369,8 @@ export function useData(session) {
     })
   }
 
-  // Attach a person/organization to a task or project. `entity_type` is
-  // 'person' | 'organization'; `role` is optional free text (e.g. 'plumber').
+  // Attach a person/organization/group to a task or project. `entity_type` is
+  // 'person' | 'organization' | 'group'; `role` is optional free text (e.g. 'plumber').
   const addTaskLink = (fields) => {
     const dup = taskLinks.some(
       (tl) => tl.task_id === fields.task_id && tl.entity_type === fields.entity_type && tl.entity_id === fields.entity_id
@@ -393,7 +409,7 @@ export function useData(session) {
     sync(async () => {
       must(await supabase.from('tasks').update(fields).eq('id', task.id))
       if (log && done) {
-        must(await supabase.from('task_completions').insert({ id: completionId, task_id: task.id, completed_at: new Date().toISOString(), completed_by: by }))
+        must(await supabase.from('task_completions').insert(stamp({ id: completionId, task_id: task.id, completed_at: new Date().toISOString(), completed_by: by })))
       } else if (log && !done) {
         const { data, error } = await supabase.from('task_completions').select('id').eq('task_id', task.id).order('completed_at', { ascending: false }).limit(1)
         if (error) throw error
@@ -480,7 +496,7 @@ export function useData(session) {
   // callers (e.g. PersonForm's inline "new family") can link to it right away.
   const saveFamily = (fields, id) => {
     const row = id
-      ? { ...families.find((f) => f.id === id), ...fields, updated_at: now() }
+      ? { ...(families.find((f) => f.id === id) || {}), ...fields, id, updated_at: now() }
       : stamp({ created_at: now(), updated_at: now(), ...fields, id: uuid() })
     setFamilies((prev) => (id ? prev.map((f) => (f.id === id ? row : f)) : [...prev, row]))
     sync(() =>
@@ -548,14 +564,41 @@ export function useData(session) {
   // Bulk import stays awaited (not optimistic): ImportExport shows progress
   // and reports row-level errors inline.
   const importPeople = async (rows) => {
+    // Imported records (CSV/vCard) carry an `organization` *name*. Resolve each
+    // to a single organizations row — creating any missing one once per name so
+    // the same company in 50 rows yields one org — then store organization_id.
+    const orgByName = new Map(orgs.map((o) => [(o.name || '').trim().toLowerCase(), o]))
+    const newOrgs = []
+    const resolveOrg = (name) => {
+      const trimmed = (name || '').trim()
+      if (!trimmed) return null
+      const key = trimmed.toLowerCase()
+      let o = orgByName.get(key)
+      if (!o) {
+        o = stamp({ created_at: now(), updated_at: now(), key_contacts: [], name: trimmed, id: uuid() })
+        orgByName.set(key, o)
+        newOrgs.push(o)
+      }
+      return o.id
+    }
+    const peopleRows = rows.map(({ organization, ...rest }) => ({
+      ...rest,
+      organization_id: rest.organization_id ?? resolveOrg(organization),
+    }))
+
     if (isDemo) {
+      if (newOrgs.length) setOrgs((prev) => [...prev, ...newOrgs])
       setPeople((prev) => [
         ...prev,
-        ...rows.map((r) => ({ deleted_at: null, created_by: userId, created_at: now(), updated_at: now(), privacy_level: 'shared', ...r, id: uuid() })),
+        ...peopleRows.map((r) => ({ deleted_at: null, created_by: userId, created_at: now(), updated_at: now(), privacy_level: 'shared', ...r, id: uuid() })),
       ])
       return
     }
-    const { error } = await supabase.from('people').insert(rows.map(stamp))
+    if (newOrgs.length) {
+      const { error: orgErr } = await supabase.from('organizations').insert(newOrgs.map((o) => stamp({ name: o.name, id: o.id })))
+      if (orgErr) throw orgErr
+    }
+    const { error } = await supabase.from('people').insert(peopleRows.map(stamp))
     if (error) throw error
     await refresh()
   }
@@ -578,6 +621,34 @@ export function useData(session) {
       lists: backup.lists,
       list_items: backup.list_items,
       reminder_snoozes: backup.reminder_snoozes,
+    }
+    // Backups v<=6 stored people.organization as a name string. Map it to
+    // organization_id, find-or-creating orgs (seeded from both the backup's
+    // organizations and the current ones) so they restore as real rows.
+    if (Array.isArray(tables.people) && tables.people.some((p) => p.organization && !p.organization_id)) {
+      const incomingOrgs = Array.isArray(tables.organizations) ? tables.organizations : []
+      const byName = new Map()
+      for (const o of [...orgs, ...incomingOrgs]) {
+        const k = (o.name || '').trim().toLowerCase()
+        if (k && !byName.has(k)) byName.set(k, o)
+      }
+      const created = []
+      const resolveOrg = (name) => {
+        const trimmed = (name || '').trim()
+        if (!trimmed) return null
+        const key = trimmed.toLowerCase()
+        let o = byName.get(key)
+        if (!o) {
+          o = stamp({ created_at: now(), updated_at: now(), key_contacts: [], name: trimmed, id: uuid() })
+          byName.set(key, o)
+          created.push(o)
+        }
+        return o.id
+      }
+      tables.people = tables.people.map(({ organization, ...rest }) =>
+        rest.organization_id ? rest : { ...rest, organization_id: resolveOrg(organization) }
+      )
+      if (created.length) tables.organizations = [...incomingOrgs, ...created]
     }
     if (isDemo) {
       const merge = (prev, incoming) => {
@@ -663,6 +734,7 @@ export function useData(session) {
     restorePerson,
     purgePerson,
     saveOrg,
+    findOrCreateOrg,
     deleteOrg,
     addRelationship,
     deleteRelationship,

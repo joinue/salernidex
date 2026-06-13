@@ -1,12 +1,36 @@
 import { useState } from 'react'
+import { Briefcase } from 'react-feather'
 import Modal from './Modal'
 import TagInput from './TagInput'
+import AvatarUpload from './AvatarUpload'
+import { PRIVACY_LABELS, focusOnDesktop } from '../lib/constants'
+import { orgNameTaken } from '../lib/orgs'
+import { friendlyError } from '../lib/errors'
 
-const ORG_TYPES = ['Company', 'Government', 'Nonprofit', 'Community']
+const ORG_TYPES = [
+  'Company',
+  'Government',
+  'Nonprofit',
+  'Community',
+  'School / Education',
+  'Healthcare',
+  'Financial',
+  'Insurance',
+  'Utility',
+  'Service Provider',
+  'Contractor',
+  'Retail / Store',
+  'Restaurant',
+  'Religious',
+  'Club / Association',
+  'Sports / Recreation',
+  'Other',
+]
 
-export default function OrgForm({ org, onSave, onClose }) {
+export default function OrgForm({ org, orgs = [], onSave, onClose, isDemo = false }) {
   const [form, setForm] = useState({
     name: org?.name || '',
+    avatar_url: org?.avatar_url || null,
     type: org?.type || '',
     description: org?.description || '',
     tags: org?.tags || [],
@@ -19,13 +43,19 @@ export default function OrgForm({ org, onSave, onClose }) {
 
   const submit = async (e) => {
     e.preventDefault()
+    // Pre-empt the DB's UNIQUE(name) — clearer than an optimistic insert that
+    // gets rolled back a beat later.
+    if (orgNameTaken(form.name, orgs, org?.id)) {
+      setError(`An organization named “${form.name.trim()}” already exists.`)
+      return
+    }
     setBusy(true)
     setError(null)
     try {
       await onSave(form, org?.id)
       onClose()
     } catch (err) {
-      setError(err.message)
+      setError(friendlyError(err))
       setBusy(false)
     }
   }
@@ -36,7 +66,19 @@ export default function OrgForm({ org, onSave, onClose }) {
         {error && <p className="error-text">{error}</p>}
         <div className="field">
           <label className="label">Name</label>
-          <input value={form.name} onChange={set('name')} required autoFocus />
+          <input value={form.name} onChange={set('name')} required autoFocus={focusOnDesktop()} />
+        </div>
+        <div className="field">
+          <label className="label">Logo</label>
+          <AvatarUpload
+            value={form.avatar_url}
+            onChange={(v) => setForm({ ...form, avatar_url: v })}
+            name={form.name}
+            kind="org"
+            icon={Briefcase}
+            entity="orgs"
+            demo={isDemo}
+          />
         </div>
         <div className="field">
           <label className="label">Type</label>

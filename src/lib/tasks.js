@@ -52,6 +52,27 @@ export function taskBucket(task) {
   return 'upcoming'
 }
 
+// Soonest-due-first comparator: overdue and near dates float up, undated tasks
+// sink to the bottom. ISO 'YYYY-MM-DD' strings sort correctly as plain strings.
+export function byDue(a, b) {
+  const ad = a.due_date || '9999-99-99'
+  const bd = b.due_date || '9999-99-99'
+  if (ad !== bd) return ad < bd ? -1 : 1
+  return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0
+}
+
+// Distinct area names currently in use, alphabetical — feeds TaskForm's
+// autocomplete and the Tasks-page filter pills so areas stay consistent
+// instead of fragmenting on typos.
+export function areaNames(tasks) {
+  const seen = new Set()
+  for (const t of tasks) {
+    const a = (t.area || '').trim()
+    if (a) seen.add(a)
+  }
+  return [...seen].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+}
+
 // Completion history for a task, newest first.
 export function completionsFor(taskId, completions = []) {
   return completions
@@ -75,6 +96,21 @@ export function projectProgress(taskId, all) {
 // projects open the full-page ProjectDetail instead of expanding inline.
 export function isProject(task, all) {
   return !!task.is_project || all.some((t) => t.parent_id === task.id)
+}
+
+// Tasks/projects linked to an entity (person | organization | group) via
+// task_links — the reverse of ProjectDetail's "Related people & orgs". Open
+// first (soonest-due), completed after; heading rows are structure, not work.
+export function linkedTasksFor(entityType, entityId, tasks, taskLinks) {
+  const ids = new Set(
+    (taskLinks || [])
+      .filter((l) => l.entity_type === entityType && l.entity_id === entityId)
+      .map((l) => l.task_id)
+  )
+  const linked = tasks.filter((t) => ids.has(t.id) && !t.is_heading)
+  const open = linked.filter((t) => !t.completed_at).sort(byDue)
+  const done = linked.filter((t) => t.completed_at).sort((a, b) => (a.completed_at < b.completed_at ? 1 : -1))
+  return [...open, ...done]
 }
 
 // On completing a recurring chore, roll its due date forward to the next

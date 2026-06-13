@@ -1,10 +1,14 @@
 import { useState } from 'react'
+import { Users } from 'react-feather'
 import Modal from './Modal'
 import TagInput from './TagInput'
+import AvatarUpload from './AvatarUpload'
+import { focusOnDesktop } from '../lib/constants'
 
-export default function GroupForm({ group, existingTags, onSave, onClose }) {
+export default function GroupForm({ group, existingTags, onSave, onClose, isDemo = false }) {
   const [form, setForm] = useState({
     name: group?.name || '',
+    avatar_url: group?.avatar_url || null,
     all_tags: group?.all_tags || [],
     any_tags: group?.any_tags || [],
     none_tags: group?.none_tags || [],
@@ -35,8 +39,20 @@ export default function GroupForm({ group, existingTags, onSave, onClose }) {
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             required
-            autoFocus
-            placeholder="PACE Customers"
+            autoFocus={focusOnDesktop()}
+            placeholder="Close friends"
+          />
+        </div>
+        <div className="field">
+          <label className="label">Photo</label>
+          <AvatarUpload
+            value={form.avatar_url}
+            onChange={(v) => setForm({ ...form, avatar_url: v })}
+            name={form.name}
+            kind="group"
+            icon={Users}
+            entity="groups"
+            demo={isDemo}
           />
         </div>
         <div className="field">
@@ -64,8 +80,8 @@ export default function GroupForm({ group, existingTags, onSave, onClose }) {
           />
         </div>
         <p className="muted" style={{ fontSize: 13, marginBottom: 24 }}>
-          Leave a rule empty to skip it. Example: any of "MNA board, Tucson Compass partner",
-          none of "Pima County" = civic contacts outside government.
+          Leave a rule empty to skip it. Example: any of "book club, neighbor",
+          none of "work" = personal contacts outside the office.
         </p>
         <button className="btn-primary" disabled={busy}>
           {busy ? <span className="dots">Saving</span> : group ? 'Save group' : 'Create group'}

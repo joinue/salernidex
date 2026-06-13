@@ -35,6 +35,9 @@ export default function Onboarding({ session, onDone, onLogout }) {
         member_name: name.trim(),
       })
     } else {
+      // Send the code as-typed (just trimmed); join_household() normalizes case
+      // and separators server-side, so this stays correct even if the join-code
+      // migration hasn't been applied yet.
       if (!code.trim()) {
         setBusy(false)
         return setError('Enter the invite code you were given.')

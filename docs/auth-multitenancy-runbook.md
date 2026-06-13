@@ -51,6 +51,44 @@ already created contacts on the old build, create a household first (sign up +
 onboarding once on the new build, or insert a `households` row) so the backfill has
 somewhere to put them.
 
+## 2b. Confirm RLS is actually ON (SQL — do not skip)
+
+The behavioral checks in §4 prove a policy *works*; they do **not** prove RLS is
+*enabled* on every table. A single table left with `rowsecurity = false` leaks
+across households silently and a happy-path test won't catch it. Run this in the
+SQL editor — **both result sets must be empty / zero:**
+
+```sql
+-- (a) Any public data table with RLS disabled? Expect ZERO rows.
+select c.relname as table_without_rls
+from pg_class c
+join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public'
+  and c.relkind = 'r'
+  and c.relrowsecurity = false
+  and c.relname in (
+    'people','organizations','relationships','interactions','families',
+    'key_dates','groups','tasks','task_completions','task_links',
+    'lists','list_items','households','household_members','member_preferences'
+  );
+
+-- (b) Any of those tables with ZERO policies? Expect ZERO rows.
+select t.relname as table_without_policy
+from pg_class t
+join pg_namespace n on n.oid = t.relnamespace
+left join pg_policy p on p.polrelid = t.oid
+where n.nspname = 'public' and t.relkind = 'r'
+  and t.relname in (
+    'people','organizations','relationships','interactions','families',
+    'key_dates','groups','tasks','task_completions','task_links',
+    'lists','list_items','households','household_members','member_preferences'
+  )
+group by t.relname
+having count(p.polname) = 0;
+```
+
+If either returns rows, fix before deploying: `alter table public.<name> enable row level security;` and/or add the missing policy from the migration.
+
 ## 3. Deploy the new build
 
 Deploy the app build that matches this migration. From here the flow is:

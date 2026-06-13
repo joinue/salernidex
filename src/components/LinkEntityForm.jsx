@@ -2,9 +2,12 @@ import { useMemo, useState } from 'react'
 import Modal from './Modal'
 import Segmented from './Segmented'
 
-// Attach a person or organization to a project. The select hides entities that
-// are already linked so you can't add a duplicate (the DB also enforces this).
-export default function LinkEntityForm({ taskId, people, orgs, existing, onSave, onClose }) {
+const TYPE_LABEL = { person: 'Person', organization: 'Organization', group: 'Group' }
+
+// Attach a person, organization, or group to a project. The select hides
+// entities that are already linked so you can't add a duplicate (the DB also
+// enforces this).
+export default function LinkEntityForm({ taskId, people, orgs, groups = [], existing, onSave, onClose }) {
   const [entityType, setEntityType] = useState('person')
   const [entityId, setEntityId] = useState('')
   const [role, setRole] = useState('')
@@ -20,11 +23,13 @@ export default function LinkEntityForm({ taskId, people, orgs, existing, onSave,
     const source =
       entityType === 'person'
         ? people.filter((p) => !p.deleted_at).map((p) => ({ id: p.id, name: p.name }))
-        : orgs.map((o) => ({ id: o.id, name: o.name }))
+        : entityType === 'organization'
+          ? orgs.map((o) => ({ id: o.id, name: o.name }))
+          : groups.map((g) => ({ id: g.id, name: g.name }))
     return source
       .filter((e) => !linked.has(`${entityType}:${e.id}`))
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [entityType, people, orgs, linked])
+  }, [entityType, people, orgs, groups, linked])
 
   const submit = async (e) => {
     e.preventDefault()
@@ -49,7 +54,7 @@ export default function LinkEntityForm({ taskId, people, orgs, existing, onSave,
   }
 
   return (
-    <Modal title="Link a contact" onClose={onClose}>
+    <Modal title="Link a person or org" onClose={onClose}>
       <form onSubmit={submit}>
         {error && <p className="error-text">{error}</p>}
         <div className="field">
@@ -57,7 +62,8 @@ export default function LinkEntityForm({ taskId, people, orgs, existing, onSave,
           <Segmented
             options={[
               { value: 'person', label: 'Person' },
-              { value: 'organization', label: 'Organization' },
+              { value: 'organization', label: 'Org' },
+              { value: 'group', label: 'Group' },
             ]}
             value={entityType}
             onChange={switchType}
@@ -65,7 +71,7 @@ export default function LinkEntityForm({ taskId, people, orgs, existing, onSave,
           />
         </div>
         <div className="field">
-          <label className="label">{entityType === 'person' ? 'Person' : 'Organization'}</label>
+          <label className="label">{TYPE_LABEL[entityType]}</label>
           <select value={entityId} onChange={(e) => setEntityId(e.target.value)} required>
             <option value="">{options.length ? 'Select…' : 'Nothing left to link'}</option>
             {options.map((e) => (

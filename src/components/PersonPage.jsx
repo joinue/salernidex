@@ -1,20 +1,28 @@
 import { useMemo, useState } from 'react'
-import { ArrowLeft, Mail, Phone, MapPin, Gift, Edit2, UserPlus, Archive, Trash2, RotateCcw, Lock, X, Bell, Calendar, Plus, Home, Download } from 'react-feather'
+import { ArrowLeft, Mail, Phone, MapPin, Gift, Edit2, UserPlus, Archive, Trash2, RotateCcw, Lock, X, Bell, Calendar, Plus, Home, Download, ChevronRight } from 'react-feather'
 import { downloadVcf } from '../lib/vcard'
 import { PRIVACY_LABELS, KEEP_IN_TOUCH_LABELS, TIER_LABELS, INTERACTION_TYPES, INTERACTION_BY_ID, formatDate } from '../lib/constants'
 import { lastInteraction, relativeTime } from '../lib/contact'
+import { isProject, projectProgress, linkedTasksFor } from '../lib/tasks'
 import { memberName } from '../lib/household'
+import haptics from '../lib/haptics'
 import Avatar from './Avatar'
+import AvatarUpload from './AvatarUpload'
+import TaskRow from './TaskRow'
 import InteractionForm from './InteractionForm'
 import KeyDateForm from './KeyDateForm'
+import LinkTaskForm from './LinkTaskForm'
 import ConfirmDialog from './ConfirmDialog'
 
-export default function PersonPage({ data, personId, onOpenPerson, onBack, onEdit, onConnect }) {
-  const { people, relationships, interactions, families, keyDates, deletePerson, restorePerson, purgePerson, userId, deleteRelationship, addInteraction, deleteInteraction, addKeyDate, deleteKeyDate } = data
+export default function PersonPage({ data, personId, onOpenPerson, onOpenTask, onBack, onEdit, onConnect, isDemo = false }) {
+  const { people, orgs, relationships, interactions, families, keyDates, tasks, taskLinks, completeTask, addTask, addTaskLink, savePerson, deletePerson, restorePerson, purgePerson, userId, deleteRelationship, addInteraction, deleteInteraction, addKeyDate, deleteKeyDate } = data
   const person = people.find((p) => p.id === personId)
   const byId = useMemo(() => new Map(people.map((p) => [p.id, p])), [people])
+  const orgsById = useMemo(() => new Map(orgs.map((o) => [o.id, o])), [orgs])
+  const orgName = (p) => orgsById.get(p?.organization_id)?.name
   const [logType, setLogType] = useState(null) // null | type id → opens InteractionForm
   const [addingDate, setAddingDate] = useState(false)
+  const [linkingTask, setLinkingTask] = useState(false)
   const [confirmPurge, setConfirmPurge] = useState(false) // permanent-delete confirmation
 
   const timeline = useMemo(
@@ -24,6 +32,18 @@ export default function PersonPage({ data, personId, onOpenPerson, onBack, onEdi
         .sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1)),
     [interactions, personId]
   )
+
+  // The reverse of ProjectDetail's "Related people": tasks/projects this person
+  // is linked to via task_links. Open first (soonest-due), completed after.
+  const linkedTasks = useMemo(
+    () => linkedTasksFor('person', personId, tasks, taskLinks),
+    [taskLinks, tasks, personId]
+  )
+
+  const toggleTask = (t) => {
+    if (!t.completed_at) haptics.success()
+    completeTask(t, !t.completed_at)
+  }
 
   if (!person) {
     return (
@@ -65,13 +85,21 @@ export default function PersonPage({ data, personId, onOpenPerson, onBack, onEdi
       </button>
 
       <div className="profile-head">
-        <Avatar name={person.name} size={88} />
+        <AvatarUpload
+          variant="menu"
+          size={88}
+          value={person.avatar_url}
+          onChange={(v) => savePerson({ avatar_url: v }, person.id)}
+          name={person.name}
+          entity="people"
+          demo={isDemo}
+        />
         <h1 className="person-name">
           {person.name}
           {person.deleted_at && <span className="muted" style={{ fontSize: 15, fontWeight: 400 }}> · archived</span>}
         </h1>
-        {(person.role || person.organization) && (
-          <p className="person-sub">{[person.role, person.organization].filter(Boolean).join(' · ')}</p>
+        {(person.role || orgName(person)) && (
+          <p className="person-sub">{[person.role, orgName(person)].filter(Boolean).join(' · ')}</p>
         )}
 
         <div className="chips" style={{ justifyContent: 'center', marginTop: 10 }}>
@@ -91,7 +119,7 @@ export default function PersonPage({ data, personId, onOpenPerson, onBack, onEdi
           </button>
           <button
             className="pill-btn neutral"
-            onClick={() => downloadVcf(person.name, [person])}
+            onClick={() => downloadVcf(person.name, [person], orgsById)}
             title="Download a .vcf for your phone's address book"
           >
             <Download size={15} /> Save contact
@@ -202,11 +230,11 @@ export default function PersonPage({ data, personId, onOpenPerson, onBack, onEdi
           <div className="list">
             {familyMembers.map((m) => (
               <div className="list-row" key={m.id} onClick={() => onOpenPerson(m.id)}>
-                <Avatar name={m.name} size={38} />
+                <Avatar name={m.name} src={m.avatar_url} size={38} />
                 <div className="row-body">
                   <div className="row-title">{m.name}</div>
-                  {(m.role || m.organization) && (
-                    <div className="row-sub">{[m.role, m.organization].filter(Boolean).join(' · ')}</div>
+                  {(m.role || orgName(m)) && (
+                    <div className="row-sub">{[m.role, orgName(m)].filter(Boolean).join(' · ')}</div>
                   )}
                 </div>
               </div>
@@ -214,6 +242,26 @@ export default function PersonPage({ data, personId, onOpenPerson, onBack, onEdi
           </div>
         </>
       )}
+
+      {/* Linked tasks & projects — the reverse of ProjectDetail's related people */}
+      <div className="section-head">
+        <div className="section-label">Tasks &amp; projects</div>
+        <button className="see-all" onClick={() => setLinkingTask(true)}>
+          <Plus size={14} style={{ verticalAlign: '-2px' }} /> Add
+        </button>
+      </div>
+      <div className="list">
+        {linkedTasks.length === 0 ? (
+          <p className="empty-inline">No tasks linked yet — a “follow up”, a gift to buy, a shared project.</p>
+        ) : (
+          linkedTasks.map((t) => (
+            <div className="list-row" key={t.id} role="button" onClick={() => onOpenTask(t)}>
+              <TaskRow task={t} onToggle={toggleTask} progress={projectProgress(t.id, tasks)} />
+              {isProject(t, tasks) && <ChevronRight size={18} className="row-chevron" />}
+            </div>
+          ))
+        )}
+      </div>
 
       {/* Activity timeline */}
       <div className="section-label">Activity</div>
@@ -253,12 +301,12 @@ export default function PersonPage({ data, personId, onOpenPerson, onBack, onEdi
           <div className="list">
             {connections.map(({ rel, other }) => (
               <div className="list-row" key={rel.id} onClick={() => onOpenPerson(other.id)}>
-                <Avatar name={other.name} size={38} />
+                <Avatar name={other.name} src={other.avatar_url} size={38} />
                 <div className="row-body">
                   <div className="row-title">{other.name}</div>
                   <div className="row-sub">
                     {rel.relationship_type.replace(/_/g, ' ')}
-                    {other.organization ? ` · ${other.organization}` : ''}
+                    {orgName(other) ? ` · ${orgName(other)}` : ''}
                     {rel.notes ? ` — ${rel.notes}` : ''}
                   </div>
                 </div>
@@ -309,6 +357,19 @@ export default function PersonPage({ data, personId, onOpenPerson, onBack, onEdi
 
       {addingDate && (
         <KeyDateForm person={person} onSave={addKeyDate} onClose={() => setAddingDate(false)} />
+      )}
+
+      {linkingTask && (
+        <LinkTaskForm
+          entityType="person"
+          entityId={person.id}
+          entityName={person.name}
+          tasks={tasks}
+          existingTaskIds={new Set(linkedTasks.map((t) => t.id))}
+          addTask={addTask}
+          addTaskLink={addTaskLink}
+          onClose={() => setLinkingTask(false)}
+        />
       )}
 
       {confirmPurge && (

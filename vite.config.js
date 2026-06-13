@@ -3,6 +3,12 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  // Unit tests for the pure logic libs (recurrence, parsing, ordering, groups,
+  // privacy …). Co-located as src/**/*.test.js; run with `npm test`.
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.js'],
+  },
   build: {
     rollupOptions: {
       output: {

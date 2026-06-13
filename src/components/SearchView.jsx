@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Search, ChevronRight, Edit2, Archive, RotateCcw, Trash2, Users, MoreHorizontal, Sliders, UserPlus, Check, ArrowDown } from 'react-feather'
-import { searchPeople, sortPeople, PEOPLE_SORTS } from '../lib/search'
+import { searchPeople, sortPeople, groupPeopleByLetter, PEOPLE_SORTS, EMPTY_PEOPLE_FILTERS } from '../lib/search'
+import AlphaIndex from './AlphaIndex'
 import { groupMembers } from '../lib/groups'
 import { PRIVACY_LABELS, TIERS } from '../lib/constants'
 import { lastInteraction, relativeTime } from '../lib/contact'
@@ -14,13 +15,16 @@ import InteractionForm from './InteractionForm'
 import ConfirmDialog from './ConfirmDialog'
 import { useAppPrefs } from '../hooks/useAppPrefs'
 
-export default function SearchView({ data, searchRef, query, setQuery, onOpen, onEdit, onAdd, onMore, memberId }) {
-  const [orgFilter, setOrgFilter] = useState('')
-  const [tagFilter, setTagFilter] = useState('')
-  const [groupFilter, setGroupFilter] = useState('')
-  const [tierFilter, setTierFilter] = useState('')
-  const [privacyFilter, setPrivacyFilter] = useState('')
-  const [showDeleted, setShowDeleted] = useState(false)
+export default function SearchView({ data, searchRef, query, setQuery, filters, setFilters, onOpen, onEdit, onAdd, onMore, memberId }) {
+  // Filters live in the parent so they survive leaving and returning to the
+  // page (like `query`). Destructure for readability; each setter patches one key.
+  const { org: orgFilter, tag: tagFilter, group: groupFilter, tier: tierFilter, privacy: privacyFilter, showDeleted } = filters
+  const setOrgFilter = (v) => setFilters((f) => ({ ...f, org: v }))
+  const setTagFilter = (v) => setFilters((f) => ({ ...f, tag: v }))
+  const setGroupFilter = (v) => setFilters((f) => ({ ...f, group: v }))
+  const setTierFilter = (v) => setFilters((f) => ({ ...f, tier: v }))
+  const setPrivacyFilter = (v) => setFilters((f) => ({ ...f, privacy: v }))
+  const setShowDeleted = (v) => setFilters((f) => ({ ...f, showDeleted: v }))
   const [filterOpen, setFilterOpen] = useState(false)
   const [sortOpen, setSortOpen] = useState(false)
   const [actionPerson, setActionPerson] = useState(null)
@@ -32,14 +36,20 @@ export default function SearchView({ data, searchRef, query, setQuery, onOpen, o
   const sort = appPrefs.peopleSort
   const setSort = (v) => updateAppPrefs({ peopleSort: v })
 
-  const { people, interactions, groups, loading, deletePerson, restorePerson, purgePerson, userId, addInteraction } = data
+  const { people, interactions, groups, orgs, loading, deletePerson, restorePerson, purgePerson, userId, addInteraction } = data
+  const orgsById = useMemo(() => new Map(orgs.map((o) => [o.id, o])), [orgs])
 
   // While searching, results are ordered by best match; the chosen sort governs
   // browsing (no query).
   const searching = query.trim().length > 0
 
   const allTags = useMemo(() => [...new Set(people.flatMap((p) => p.tags || []))].sort(), [people])
-  const allOrgs = useMemo(() => [...new Set(people.map((p) => p.organization).filter(Boolean))].sort(), [people])
+  // Orgs actually in use by a (non-archived) person — the org filter only offers
+  // values that can match. Stored/compared by id; shown by name.
+  const allOrgs = useMemo(() => {
+    const used = new Set(people.filter((p) => !p.deleted_at && p.organization_id).map((p) => p.organization_id))
+    return [...used].map((id) => orgsById.get(id)).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name))
+  }, [people, orgsById])
 
   // Most recent interaction timestamp per person, for the activity-based sorts.
   const lastByPerson = useMemo(() => {
@@ -53,7 +63,7 @@ export default function SearchView({ data, searchRef, query, setQuery, onOpen, o
 
   const results = useMemo(() => {
     let pool = people.filter((p) => (showDeleted ? p.deleted_at : !p.deleted_at))
-    if (orgFilter) pool = pool.filter((p) => p.organization === orgFilter)
+    if (orgFilter) pool = pool.filter((p) => p.organization_id === orgFilter)
     if (tagFilter) pool = pool.filter((p) => (p.tags || []).includes(tagFilter))
     if (groupFilter) {
       const g = groups.find((x) => x.id === groupFilter)
@@ -64,18 +74,70 @@ export default function SearchView({ data, searchRef, query, setQuery, onOpen, o
     }
     if (tierFilter) pool = pool.filter((p) => p.tier === tierFilter)
     if (privacyFilter) pool = pool.filter((p) => p.privacy_level === privacyFilter)
-    return sortPeople(searchPeople(pool, query), searching ? 'relevance' : sort, lastByPerson)
-  }, [people, groups, query, orgFilter, tagFilter, groupFilter, tierFilter, privacyFilter, showDeleted, sort, searching, lastByPerson])
+    return sortPeople(searchPeople(pool, query, orgsById), searching ? 'relevance' : sort, lastByPerson)
+  }, [people, groups, orgsById, query, orgFilter, tagFilter, groupFilter, tierFilter, privacyFilter, showDeleted, sort, searching, lastByPerson])
 
   const activeCount = [orgFilter, tagFilter, groupFilter, tierFilter, privacyFilter, showDeleted].filter(Boolean).length
 
-  const clearAll = () => {
-    setOrgFilter('')
-    setTagFilter('')
-    setGroupFilter('')
-    setTierFilter('')
-    setPrivacyFilter('')
-    setShowDeleted(false)
+  const clearAll = () => setFilters(EMPTY_PEOPLE_FILTERS)
+
+  // Apple-Contacts browse mode: only when sorting A–Z and not searching, slice
+  // the list into letter sections with a jump bar. Any other sort/search stays
+  // a flat list (sections only make sense in alphabetical order).
+  const browsing = !searching && sort === 'name'
+  const sections = useMemo(() => (browsing ? groupPeopleByLetter(results) : []), [browsing, results])
+  const presentLetters = useMemo(() => new Set(sections.map((s) => s.letter)), [sections])
+  const sectionRefs = useRef({})
+
+  const jumpTo = (letter) => {
+    // Tapping an empty letter lands on the next populated section (Apple does
+    // the same), so the bar never feels dead.
+    const target = sections.find((s) => s.letter >= letter) || sections[sections.length - 1]
+    sectionRefs.current[target?.letter]?.scrollIntoView({ block: 'start' })
+  }
+
+  const renderPerson = (person) => {
+    const sub = [person.role, orgsById.get(person.organization_id)?.name].filter(Boolean).join(' · ')
+    const last = lastInteraction(person.id, interactions)
+    const mine = !person.created_by || person.created_by === userId
+    const actions = showDeleted
+      ? [
+          { label: 'Restore', icon: RotateCcw, onClick: () => restorePerson(person.id) },
+          // Only the creator can permanently delete (legacy null = yours).
+          ...(mine ? [{ label: 'Delete', icon: Trash2, variant: 'danger', onClick: () => setPurgePersonTarget(person) }] : []),
+        ]
+      : [
+          { label: 'Edit', icon: Edit2, onClick: () => onEdit(person) },
+          { label: 'Archive', icon: Archive, variant: 'danger', onClick: () => deletePerson(person.id) },
+        ]
+    return (
+      <SwipeRow
+        key={person.id}
+        actions={actions}
+        onClick={() => onOpen(person.id)}
+        onLongPress={() => setActionPerson(person)}
+      >
+        <div className="list-row">
+          <Avatar name={person.name} src={person.avatar_url} size={42} />
+          <div className="row-body">
+            <div className="row-title">{person.name}</div>
+            {sub && <div className="row-sub">{sub}</div>}
+            {(person.tags || []).length > 0 && (
+              <div className="row-chips">
+                {person.tags.slice(0, 2).map((t) => (
+                  <span className="chip" key={t}>{t}</span>
+                ))}
+                {person.tags.length > 2 && <span className="chip">+{person.tags.length - 2}</span>}
+              </div>
+            )}
+          </div>
+          <div className="row-meta">
+            {last && <span className="row-time">{relativeTime(last.occurred_at)}</span>}
+            <ChevronRight size={18} className="row-chevron" />
+          </div>
+        </div>
+      </SwipeRow>
+    )
   }
 
   return (
@@ -123,52 +185,20 @@ export default function SearchView({ data, searchRef, query, setQuery, onOpen, o
           <Users size={28} className="empty-icon" />
           {query || activeCount ? 'No matches.' : 'Search by name, org, or tag.'}
         </div>
-      ) : (
-        <div className="list">
-          {results.map((person) => {
-            const sub = [person.role, person.organization].filter(Boolean).join(' · ')
-            const last = lastInteraction(person.id, interactions)
-            const mine = !person.created_by || person.created_by === userId
-            const actions = showDeleted
-              ? [
-                  { label: 'Restore', icon: RotateCcw, onClick: () => restorePerson(person.id) },
-                  // Only the creator can permanently delete (legacy null = yours).
-                  ...(mine ? [{ label: 'Delete', icon: Trash2, variant: 'danger', onClick: () => setPurgePersonTarget(person) }] : []),
-                ]
-              : [
-                  { label: 'Edit', icon: Edit2, onClick: () => onEdit(person) },
-                  { label: 'Archive', icon: Archive, variant: 'danger', onClick: () => deletePerson(person.id) },
-                ]
-            return (
-              <SwipeRow
-                key={person.id}
-                actions={actions}
-                onClick={() => onOpen(person.id)}
-                onLongPress={() => setActionPerson(person)}
-              >
-                <div className="list-row">
-                  <Avatar name={person.name} size={42} />
-                  <div className="row-body">
-                    <div className="row-title">{person.name}</div>
-                    {sub && <div className="row-sub">{sub}</div>}
-                    {(person.tags || []).length > 0 && (
-                      <div className="row-chips">
-                        {person.tags.slice(0, 2).map((t) => (
-                          <span className="chip" key={t}>{t}</span>
-                        ))}
-                        {person.tags.length > 2 && <span className="chip">+{person.tags.length - 2}</span>}
-                      </div>
-                    )}
-                  </div>
-                  <div className="row-meta">
-                    {last && <span className="row-time">{relativeTime(last.occurred_at)}</span>}
-                    <ChevronRight size={18} className="row-chevron" />
-                  </div>
-                </div>
-              </SwipeRow>
-            )
-          })}
+      ) : browsing ? (
+        <div className="people-browse">
+          <div>
+            {sections.map((s) => (
+              <section key={s.letter} ref={(el) => (sectionRefs.current[s.letter] = el)} className="people-section">
+                <div className="people-section-head">{s.letter}</div>
+                <div className="list">{s.items.map(renderPerson)}</div>
+              </section>
+            ))}
+          </div>
+          {sections.length > 1 && <AlphaIndex present={presentLetters} onJump={jumpTo} />}
         </div>
+      ) : (
+        <div className="list">{results.map(renderPerson)}</div>
       )}
 
       {filterOpen && (
@@ -178,7 +208,7 @@ export default function SearchView({ data, searchRef, query, setQuery, onOpen, o
               <label className="label">Organization</label>
               <select value={orgFilter} onChange={(e) => setOrgFilter(e.target.value)}>
                 <option value="">All organizations</option>
-                {allOrgs.map((o) => <option key={o} value={o}>{o}</option>)}
+                {allOrgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
               </select>
             </div>
             <div className="field">
