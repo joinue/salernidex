@@ -9,20 +9,27 @@ async function run(label, viewport, mobile) {
   const page = await browser.newPage({ viewport, isMobile: mobile, hasTouch: mobile })
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
-  page.on('console', (m) => m.type() === 'error' && !m.text().includes('404') && errors.push(m.text()))
+  page.on(
+    'console',
+    (m) => m.type() === 'error' && !m.text().includes('404') && errors.push(m.text()),
+  )
 
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: 'Explore the demo' }).click()
   await page.waitForSelector('.large-title')
 
   // Today leads with the To-do (tasks due) section
-  const todaySections = await page.$$eval('.section-label', (els) => els.map((e) => e.textContent.trim()))
+  const todaySections = await page.$$eval('.section-label', (els) =>
+    els.map((e) => e.textContent.trim()),
+  )
   console.log(`[${label}] Today sections: ${todaySections.join(' | ')}`)
 
   // Tasks: buckets + member-based assignee filter
   await page.goto('http://localhost:5173/#/tasks')
   await page.waitForSelector('.list-row')
-  console.log(`[${label}] Tasks sections: ${(await page.$$eval('.section-label', (e) => e.map((x) => x.textContent.trim()))).join(' | ')}`)
+  console.log(
+    `[${label}] Tasks sections: ${(await page.$$eval('.section-label', (e) => e.map((x) => x.textContent.trim()))).join(' | ')}`,
+  )
   const filter = await page.$$eval('.segment', (e) => e.map((x) => x.textContent.trim()))
   console.log(`[${label}] assignee filter (Everyone + members): ${filter.join(' | ')}`)
   await page.waitForTimeout(200)
@@ -32,9 +39,13 @@ async function run(label, viewport, mobile) {
   await page.getByText('Fix the leaky bathroom faucet').click()
   await page.waitForSelector('.detail .section-label')
   console.log(`[${label}] project URL: ${page.url().includes('/project/') ? 'ok' : page.url()}`)
-  const subs = await page.$$eval('.list-row.sub .row-title', (e) => e.map((x) => x.textContent.trim()))
+  const subs = await page.$$eval('.list-row.sub .row-title', (e) =>
+    e.map((x) => x.textContent.trim()),
+  )
   console.log(`[${label}] project subtasks: ${subs.join(', ')}`)
-  const linked = await page.$$eval('.section-label', (els) => els.map((e) => e.textContent.trim())).then((s) => s.some((x) => x.includes('Related contacts')))
+  const linked = await page
+    .$$eval('.section-label', (els) => els.map((e) => e.textContent.trim()))
+    .then((s) => s.some((x) => x.includes('Related contacts')))
   const hasMarco = await page.getByText('Marco Reyes').count()
   console.log(`[${label}] related-contacts section: ${linked}, Marco linked: ${hasMarco > 0}`)
   await page.waitForTimeout(200)
@@ -69,7 +80,9 @@ try {
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: 'Explore the demo' }).click()
   await page.waitForSelector('.large-title')
-  await page.evaluate(() => { document.documentElement.dataset.theme = 'dark' })
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = 'dark'
+  })
   await page.goto('http://localhost:5173/#/project/t-faucet')
   await page.waitForSelector('.detail .section-label')
   await page.waitForTimeout(250)

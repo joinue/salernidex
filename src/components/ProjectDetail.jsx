@@ -21,7 +21,20 @@ import AddToCalendar from './AddToCalendar'
 // Dragging rows across a heading re-files them; deleting a heading merges its
 // tasks into the section above.
 export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPerson }) {
-  const { tasks, completions, taskLinks, people, orgs, groups = [], addTask, deleteTask, completeTask, reorderTasks, addTaskLink, deleteTaskLink } = data
+  const {
+    tasks,
+    completions,
+    taskLinks,
+    people,
+    orgs,
+    groups = [],
+    addTask,
+    deleteTask,
+    completeTask,
+    reorderTasks,
+    addTaskLink,
+    deleteTaskLink,
+  } = data
   const task = tasks.find((t) => t.id === taskId)
   const [draftSub, setDraftSub] = useState('')
   const [linking, setLinking] = useState(false)
@@ -29,7 +42,10 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
   const orgsById = useMemo(() => new Map(orgs.map((o) => [o.id, o])), [orgs])
 
   // headings + tasks interleaved, in manual order
-  const subs = useMemo(() => tasks.filter((t) => t.parent_id === taskId).sort(byOrder), [tasks, taskId])
+  const subs = useMemo(
+    () => tasks.filter((t) => t.parent_id === taskId).sort(byOrder),
+    [tasks, taskId],
+  )
   const realSubs = useMemo(() => subs.filter((s) => !s.is_heading), [subs])
 
   const links = useMemo(() => {
@@ -38,14 +54,16 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
       organization: new Map(orgs.map((o) => [o.id, o])),
       group: new Map(groups.map((g) => [g.id, g])),
     }
-    return (taskLinks || [])
-      .filter((l) => l.task_id === taskId)
-      .map((l) => {
-        const entity = byType[l.entity_type]?.get(l.entity_id)
-        return entity ? { link: l, entity } : null
-      })
-      // drop links whose target was deleted (people soft-delete; orgs/groups vanish)
-      .filter((r) => r && !(r.link.entity_type === 'person' && r.entity.deleted_at))
+    return (
+      (taskLinks || [])
+        .filter((l) => l.task_id === taskId)
+        .map((l) => {
+          const entity = byType[l.entity_type]?.get(l.entity_id)
+          return entity ? { link: l, entity } : null
+        })
+        // drop links whose target was deleted (people soft-delete; orgs/groups vanish)
+        .filter((r) => r && !(r.link.entity_type === 'person' && r.entity.deleted_at))
+    )
   }, [taskLinks, taskId, people, orgs, groups])
 
   if (!task) {
@@ -59,7 +77,9 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
     )
   }
 
-  const progress = realSubs.length ? { done: realSubs.filter((s) => s.completed_at).length, total: realSubs.length } : null
+  const progress = realSubs.length
+    ? { done: realSubs.filter((s) => s.completed_at).length, total: realSubs.length }
+    : null
   const history = completionsFor(task.id, completions)
   const dl = dueLabel(task.due_date)
   const ds = dueState(task.due_date)
@@ -75,7 +95,7 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
     addTask(
       asHeading
         ? { title, parent_id: task.id, is_heading: true, privacy_level: task.privacy_level }
-        : { title, parent_id: task.id, assignee: task.assignee, privacy_level: task.privacy_level }
+        : { title, parent_id: task.id, assignee: task.assignee, privacy_level: task.privacy_level },
     )
     setDraftSub('')
   }
@@ -96,11 +116,19 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
       <div className="profile-head">
         <h1 className="person-name">{task.title}</h1>
         <div className="chips" style={{ justifyContent: 'center', marginTop: 10 }}>
-          {progress && <span className="chip">{progress.done}/{progress.total} done</span>}
-          {normalizeAssignee(task.assignee) !== 'anyone' && <span className="chip">{assigneeLabel(task.assignee)}</span>}
+          {progress && (
+            <span className="chip">
+              {progress.done}/{progress.total} done
+            </span>
+          )}
+          {normalizeAssignee(task.assignee) !== 'anyone' && (
+            <span className="chip">{assigneeLabel(task.assignee)}</span>
+          )}
           {dl && <span className={`chip due-${ds}`}>{dl}</span>}
           {task.recurrence && (
-            <span className="chip" title={describeRecurrence(task.recurrence)}><Repeat size={11} /> {describeRecurrence(task.recurrence)}</span>
+            <span className="chip" title={describeRecurrence(task.recurrence)}>
+              <Repeat size={11} /> {describeRecurrence(task.recurrence)}
+            </span>
           )}
         </div>
         <div className="profile-actions">
@@ -125,7 +153,11 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
 
       <div className="section-label">
         Subtasks
-        {progress && <span className="section-count">{progress.done}/{progress.total}</span>}
+        {progress && (
+          <span className="section-count">
+            {progress.done}/{progress.total}
+          </span>
+        )}
       </div>
       <div className="list">
         {subs.length > 0 && (
@@ -137,14 +169,29 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
               s.is_heading ? (
                 <div className="heading-row">
                   <span className="heading-title">{s.title}</span>
-                  <button className="icon-btn danger" onClick={() => deleteTask(s.id)} aria-label="Delete heading">
+                  <button
+                    className="icon-btn danger"
+                    onClick={() => deleteTask(s.id)}
+                    aria-label="Delete heading"
+                  >
                     <X size={14} />
                   </button>
                 </div>
               ) : (
                 <div className="list-row sub">
-                  <TaskRow task={s} onToggle={toggle} size="sm" hideAssignee={normalizeAssignee(s.assignee) === normalizeAssignee(task.assignee)} />
-                  <button className="icon-btn danger" onClick={() => deleteTask(s.id)} aria-label="Delete subtask">
+                  <TaskRow
+                    task={s}
+                    onToggle={toggle}
+                    size="sm"
+                    hideAssignee={
+                      normalizeAssignee(s.assignee) === normalizeAssignee(task.assignee)
+                    }
+                  />
+                  <button
+                    className="icon-btn danger"
+                    onClick={() => deleteTask(s.id)}
+                    aria-label="Delete subtask"
+                  >
                     <X size={15} />
                   </button>
                 </div>
@@ -168,7 +215,12 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
             <button className="text-btn" onClick={() => addSub()} disabled={!draftSub.trim()}>
               <Plus size={15} /> Add task
             </button>
-            <button className="text-btn quiet" onClick={() => addSub(true)} disabled={!draftSub.trim()} title="Group the steps below it — like “Materials” or “Phase 1”">
+            <button
+              className="text-btn quiet"
+              onClick={() => addSub(true)}
+              disabled={!draftSub.trim()}
+              title="Group the steps below it — like “Materials” or “Phase 1”"
+            >
               Add as heading
             </button>
           </div>
@@ -183,14 +235,24 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
       </div>
       <div className="list">
         {links.length === 0 ? (
-          <p className="empty-inline">Nothing linked yet. Add a person, organization, or group tied to this project — a contractor, vendor, or family member.</p>
+          <p className="empty-inline">
+            Nothing linked yet. Add a person, organization, or group tied to this project — a
+            contractor, vendor, or family member.
+          </p>
         ) : (
           links.map(({ link, entity }) => {
             const type = link.entity_type
             const isPerson = type === 'person'
             const isGroup = type === 'group'
             const sub =
-              [link.role, isPerson ? entity.role || orgsById.get(entity.organization_id)?.name : isGroup ? null : entity.type]
+              [
+                link.role,
+                isPerson
+                  ? entity.role || orgsById.get(entity.organization_id)?.name
+                  : isGroup
+                    ? null
+                    : entity.type,
+              ]
                 .filter(Boolean)
                 .join(' · ') || (isPerson ? 'Contact' : isGroup ? 'Group' : 'Organization')
             return (
@@ -200,14 +262,23 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
                 onClick={isPerson ? () => onOpenPerson(entity.id) : undefined}
                 style={isPerson ? undefined : { cursor: 'default' }}
               >
-                <Avatar name={entity.name} src={entity.avatar_url} size={38} kind={isPerson ? 'person' : 'org'} icon={isGroup ? Users : undefined} />
+                <Avatar
+                  name={entity.name}
+                  src={entity.avatar_url}
+                  size={38}
+                  kind={isPerson ? 'person' : 'org'}
+                  icon={isGroup ? Users : undefined}
+                />
                 <div className="row-body">
                   <div className="row-title">{entity.name}</div>
                   <div className="row-sub">{sub}</div>
                 </div>
                 <button
                   className="icon-btn danger"
-                  onClick={(e) => { e.stopPropagation(); deleteTaskLink(link.id) }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    deleteTaskLink(link.id)
+                  }}
                   aria-label="Remove link"
                 >
                   <X size={16} />

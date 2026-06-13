@@ -24,8 +24,13 @@ try {
   await page.waitForSelector('.person-name')
   const single = await capture(() => page.getByRole('button', { name: 'Save contact' }).click())
   const cardCount = (single.text.match(/BEGIN:VCARD/g) || []).length
-  const fields = ['FN:Elena Vasquez', 'ORG:Riverside Compass', 'TEL;TYPE=CELL', 'BDAY:1984-03-14', 'UID:salernidex-p-elena']
-    .map((f) => `${f}: ${single.text.includes(f)}`)
+  const fields = [
+    'FN:Elena Vasquez',
+    'ORG:Riverside Compass',
+    'TEL;TYPE=CELL',
+    'BDAY:1984-03-14',
+    'UID:salernidex-p-elena',
+  ].map((f) => `${f}: ${single.text.includes(f)}`)
   console.log(`single: ${single.name} (${cardCount} card) — ${fields.join(', ')}`)
   console.log(`crlf line endings: ${single.text.includes('\r\n')}`)
 
@@ -33,7 +38,9 @@ try {
   await page.goto('http://localhost:5173/#/groups')
   await page.getByText('Northwind Customers').click()
   const group = await capture(() => page.getByRole('button', { name: 'Export contacts' }).click())
-  console.log(`group: ${group.name} — ${(group.text.match(/BEGIN:VCARD/g) || []).length} cards (expect 3)`)
+  console.log(
+    `group: ${group.name} — ${(group.text.match(/BEGIN:VCARD/g) || []).length} cards (expect 3)`,
+  )
 
   // 3. Everyone from Import/Export
   await page.goto('http://localhost:5173/#/import')

@@ -51,7 +51,7 @@ export const KEEP_IN_TOUCH_OPTIONS = [
 ]
 
 export const KEEP_IN_TOUCH_LABELS = Object.fromEntries(
-  KEEP_IN_TOUCH_OPTIONS.map((o) => [o.value, o.label])
+  KEEP_IN_TOUCH_OPTIONS.map((o) => [o.value, o.label]),
 )
 
 // Format a YYYY-MM-DD date string without timezone surprises

@@ -11,7 +11,7 @@ export function showToast(message, { actionLabel, onAction, duration = 5000, var
   window.dispatchEvent(
     new CustomEvent(TOAST_EVENT, {
       detail: { id: ++nextId, message, actionLabel, onAction, duration, variant },
-    })
+    }),
   )
 }
 

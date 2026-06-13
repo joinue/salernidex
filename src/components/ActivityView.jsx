@@ -23,14 +23,19 @@ export default function ActivityView({ data, onBack, onOpenPerson, onOpenList, o
   const feed = useMemo(() => buildActivityFeed(data), [data])
   const groups = useMemo(
     () => groupByDay(filter === 'all' ? feed : feed.filter((e) => e.kind === filter)),
-    [feed, filter]
+    [feed, filter],
   )
 
   return (
     <div>
-      <button className="back-btn" onClick={onBack}><ArrowLeft size={18} /> Today</button>
+      <button className="back-btn" onClick={onBack}>
+        <ArrowLeft size={18} /> Today
+      </button>
 
-      <PageHeader title="Activity" subtitle={`${feed.length} event${feed.length === 1 ? '' : 's'}`} />
+      <PageHeader
+        title="Activity"
+        subtitle={`${feed.length} event${feed.length === 1 ? '' : 's'}`}
+      />
 
       <Segmented options={KINDS} value={filter} onChange={setFilter} />
 

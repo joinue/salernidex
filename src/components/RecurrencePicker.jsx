@@ -42,10 +42,21 @@ export default function RecurrencePicker({ value, dueDate, onChange }) {
       case 'daily':
         return { freq: 'daily', interval: st.interval, anchor }
       case 'weekly':
-        return { freq: 'weekly', interval: st.interval, weekdays: st.weekdays.length ? st.weekdays : [refDow], anchor }
+        return {
+          freq: 'weekly',
+          interval: st.interval,
+          weekdays: st.weekdays.length ? st.weekdays : [refDow],
+          anchor,
+        }
       case 'monthly':
         return st.monthlyMode === 'weekday'
-          ? { freq: 'monthly', interval: st.interval, setpos: st.setpos, weekday: st.weekday, anchor }
+          ? {
+              freq: 'monthly',
+              interval: st.interval,
+              setpos: st.setpos,
+              weekday: st.weekday,
+              anchor,
+            }
           : { freq: 'monthly', interval: st.interval, monthday: st.monthday, anchor }
       case 'yearly':
         return { freq: 'yearly', interval: st.interval, month: ref.m, monthday: ref.d, anchor }
@@ -75,19 +86,30 @@ export default function RecurrencePicker({ value, dueDate, onChange }) {
         value={s.interval}
         onChange={(e) => update({ interval: Math.max(1, Number(e.target.value) || 1) })}
       />
-      {unit}{s.interval > 1 ? 's' : ''}
+      {unit}
+      {s.interval > 1 ? 's' : ''}
     </label>
   )
 
   return (
     <div>
-      <select className="rec-select" value={s.freq} onChange={(e) => update({ freq: e.target.value })}>
+      <select
+        className="rec-select"
+        value={s.freq}
+        onChange={(e) => update({ freq: e.target.value })}
+      >
         {FREQS.map((f) => (
-          <option key={f.value} value={f.value}>{f.label}</option>
+          <option key={f.value} value={f.value}>
+            {f.label}
+          </option>
         ))}
       </select>
 
-      {s.freq === 'daily' && <div className="rec-row"><Interval unit="day" /></div>}
+      {s.freq === 'daily' && (
+        <div className="rec-row">
+          <Interval unit="day" />
+        </div>
+      )}
 
       {s.freq === 'weekly' && (
         <>
@@ -103,7 +125,9 @@ export default function RecurrencePicker({ value, dueDate, onChange }) {
               </button>
             ))}
           </div>
-          <div className="rec-row"><Interval unit="week" /></div>
+          <div className="rec-row">
+            <Interval unit="week" />
+          </div>
         </>
       )}
 
@@ -113,32 +137,55 @@ export default function RecurrencePicker({ value, dueDate, onChange }) {
             size="sm"
             value={s.monthlyMode}
             onChange={(v) => update({ monthlyMode: v })}
-            options={[{ value: 'date', label: 'On a day' }, { value: 'weekday', label: 'On a weekday' }]}
+            options={[
+              { value: 'date', label: 'On a day' },
+              { value: 'weekday', label: 'On a weekday' },
+            ]}
           />
           {s.monthlyMode === 'date' ? (
             <div className="rec-row">
               <span>On the</span>
-              <select className="rec-select inline" value={s.monthday} onChange={(e) => update({ monthday: Number(e.target.value) })}>
+              <select
+                className="rec-select inline"
+                value={s.monthday}
+                onChange={(e) => update({ monthday: Number(e.target.value) })}
+              >
                 {Array.from({ length: 31 }, (_, i) => i + 1).map((n) => (
-                  <option key={n} value={n}>{n}</option>
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
                 ))}
               </select>
             </div>
           ) : (
             <div className="rec-row">
-              <select className="rec-select inline" value={s.setpos} onChange={(e) => update({ setpos: Number(e.target.value) })}>
+              <select
+                className="rec-select inline"
+                value={s.setpos}
+                onChange={(e) => update({ setpos: Number(e.target.value) })}
+              >
                 {SETPOS.map((p) => (
-                  <option key={p} value={p}>{SETPOS_LABEL[p]}</option>
+                  <option key={p} value={p}>
+                    {SETPOS_LABEL[p]}
+                  </option>
                 ))}
               </select>
-              <select className="rec-select inline" value={s.weekday} onChange={(e) => update({ weekday: Number(e.target.value) })}>
+              <select
+                className="rec-select inline"
+                value={s.weekday}
+                onChange={(e) => update({ weekday: Number(e.target.value) })}
+              >
                 {WEEKDAYS_SHORT.map((d, i) => (
-                  <option key={i} value={i}>{d}</option>
+                  <option key={i} value={i}>
+                    {d}
+                  </option>
                 ))}
               </select>
             </div>
           )}
-          <div className="rec-row"><Interval unit="month" /></div>
+          <div className="rec-row">
+            <Interval unit="month" />
+          </div>
         </>
       )}
 

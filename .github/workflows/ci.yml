@@ -1,7 +1,8 @@
 name: CI
 
-# Gate every push and PR on a green build + unit tests, so a regression in the
-# pure logic libs (recurrence, parsing, ordering, privacy …) can't merge.
+# Gate every push and PR on lint + formatting + a green build + unit tests, so a
+# regression in the pure logic libs (recurrence, parsing, ordering, privacy …)
+# or a style/lint slip can't merge.
 on:
   push:
     branches: [main]
@@ -17,5 +18,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
       - run: npm test
       - run: npm run build

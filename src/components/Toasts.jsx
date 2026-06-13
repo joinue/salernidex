@@ -21,7 +21,7 @@ export default function Toasts() {
       setToast(e.detail)
       timers.current.push(
         setTimeout(() => setLeaving(true), e.detail.duration - 200),
-        setTimeout(() => setToast(null), e.detail.duration)
+        setTimeout(() => setToast(null), e.detail.duration),
       )
     }
     window.addEventListener(TOAST_EVENT, onToast)

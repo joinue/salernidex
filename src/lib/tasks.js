@@ -108,11 +108,13 @@ export function linkedTasksFor(entityType, entityId, tasks, taskLinks) {
   const ids = new Set(
     (taskLinks || [])
       .filter((l) => l.entity_type === entityType && l.entity_id === entityId)
-      .map((l) => l.task_id)
+      .map((l) => l.task_id),
   )
   const linked = tasks.filter((t) => ids.has(t.id) && !t.is_heading)
   const open = linked.filter((t) => !t.completed_at).sort(byDue)
-  const done = linked.filter((t) => t.completed_at).sort((a, b) => (a.completed_at < b.completed_at ? 1 : -1))
+  const done = linked
+    .filter((t) => t.completed_at)
+    .sort((a, b) => (a.completed_at < b.completed_at ? 1 : -1))
   return [...open, ...done]
 }
 

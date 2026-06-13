@@ -9,7 +9,10 @@ async function run(label, viewport, mobile) {
   const page = await browser.newPage({ viewport, isMobile: mobile, hasTouch: mobile })
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
-  page.on('console', (m) => m.type() === 'error' && !m.text().includes('404') && errors.push(m.text()))
+  page.on(
+    'console',
+    (m) => m.type() === 'error' && !m.text().includes('404') && errors.push(m.text()),
+  )
 
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: 'Explore the demo' }).click()
@@ -18,11 +21,15 @@ async function run(label, viewport, mobile) {
   // 1. Today: Dates section merges birthdays + anniversaries + one-offs
   const dateSubs = await page.$$eval('.section-label', (els) => els.map((e) => e.textContent))
   console.log(`[${label}] Today sections: ${dateSubs.join(' | ')}`)
-  const dateRows = await page.$$eval('.list .row-sub', (els) => els.map((e) => e.textContent.trim()))
+  const dateRows = await page.$$eval('.list .row-sub', (els) =>
+    els.map((e) => e.textContent.trim()),
+  )
   const hasAnniv = dateRows.some((t) => t.includes('Wedding anniversary'))
   const hasRetire = dateRows.some((t) => t.includes('Retirement party'))
   const hasBday = dateRows.some((t) => t.startsWith('Turns'))
-  console.log(`[${label}] Dates merge — birthday: ${hasBday}, anniversary(+years): ${hasAnniv}, one-off: ${hasRetire}`)
+  console.log(
+    `[${label}] Dates merge — birthday: ${hasBday}, anniversary(+years): ${hasAnniv}, one-off: ${hasRetire}`,
+  )
   await page.waitForTimeout(250)
   await page.screenshot({ path: `${shots}/${label}-p7-today.png` })
 
@@ -31,7 +38,9 @@ async function run(label, viewport, mobile) {
   await page.waitForSelector('.person-name')
   const tierChip = await page.$eval('.chip.tier-inner', (e) => e.textContent).catch(() => null)
   console.log(`[${label}] Nina tier chip: ${tierChip}`)
-  const sections = await page.$$eval('.section-label, .section-head .section-label', (els) => els.map((e) => e.textContent.trim()))
+  const sections = await page.$$eval('.section-label, .section-head .section-label', (els) =>
+    els.map((e) => e.textContent.trim()),
+  )
   console.log(`[${label}] Nina sections: ${sections.join(' | ')}`)
   const familyRow = await page.getByText('Theo Park').count()
   console.log(`[${label}] family section shows Theo: ${familyRow > 0}`)
@@ -45,7 +54,10 @@ async function run(label, viewport, mobile) {
   console.log(`[${label}] Theo's family shows Nina: ${ninaBack > 0}`)
 
   // 4. Add a key date from the UI
-  await page.getByText('Add', { exact: false }).filter({ has: page.locator(':scope') }).first()
+  await page
+    .getByText('Add', { exact: false })
+    .filter({ has: page.locator(':scope') })
+    .first()
   await page.locator('.see-all').first().click()
   await page.waitForSelector('.modal-title, .sheet')
   await page.locator('input[placeholder="Wedding anniversary"]').fill('First met')

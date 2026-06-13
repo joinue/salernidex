@@ -7,13 +7,25 @@ beforeEach(() => {
   const store = {}
   globalThis.localStorage = {
     getItem: (k) => (k in store ? store[k] : null),
-    setItem: (k, v) => { store[k] = String(v) },
-    removeItem: (k) => { delete store[k] },
+    setItem: (k, v) => {
+      store[k] = String(v)
+    },
+    removeItem: (k) => {
+      delete store[k]
+    },
   }
-  localStorage.setItem('salernidex-household', JSON.stringify({
-    name: 'Test', join_code: 'ABC-DEF', current_member_id: 'm-1',
-    members: [{ id: 'm-1', name: 'Marc' }, { id: 'm-2', name: 'Rita' }],
-  }))
+  localStorage.setItem(
+    'salernidex-household',
+    JSON.stringify({
+      name: 'Test',
+      join_code: 'ABC-DEF',
+      current_member_id: 'm-1',
+      members: [
+        { id: 'm-1', name: 'Marc' },
+        { id: 'm-2', name: 'Rita' },
+      ],
+    }),
+  )
 })
 
 describe('normalizeAssignee — the stored-id contract', () => {

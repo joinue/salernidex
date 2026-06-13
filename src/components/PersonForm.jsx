@@ -13,7 +13,21 @@ import { personMatchesGroup, groupJoinTags } from '../lib/groups'
 const NEW_FAMILY = '__new__'
 const NEW_ORG = '__new_org__'
 
-export default function PersonForm({ person, orgs, people = [], families = [], groups = [], existingTags, onSave, onCreateFamily, onCreateOrg, onClose, onOpenPerson, defaultPrivacy = 'shared', isDemo = false }) {
+export default function PersonForm({
+  person,
+  orgs,
+  people = [],
+  families = [],
+  groups = [],
+  existingTags,
+  onSave,
+  onCreateFamily,
+  onCreateOrg,
+  onClose,
+  onOpenPerson,
+  defaultPrivacy = 'shared',
+  isDemo = false,
+}) {
   const [form, setForm] = useState({
     name: person?.name || '',
     avatar_url: person?.avatar_url || null,
@@ -53,14 +67,19 @@ export default function PersonForm({ person, orgs, people = [], families = [], g
         if (!next.includes(t)) continue
         const trial = next.filter((x) => x !== t)
         const breaksOther = groups.some(
-          (o) => o.id !== group.id && personMatchesGroup(o, form) && !personMatchesGroup(o, { tags: trial })
+          (o) =>
+            o.id !== group.id &&
+            personMatchesGroup(o, form) &&
+            !personMatchesGroup(o, { tags: trial }),
         )
         if (!breaksOther) next = trial
       }
       setForm({ ...form, tags: next })
     } else {
       const excluded = new Set(group.none_tags || [])
-      const next = [...new Set([...form.tags, ...groupJoinTags(group)])].filter((t) => !excluded.has(t))
+      const next = [...new Set([...form.tags, ...groupJoinTags(group)])].filter(
+        (t) => !excluded.has(t),
+      )
       setForm({ ...form, tags: next })
     }
   }
@@ -69,15 +88,15 @@ export default function PersonForm({ person, orgs, people = [], families = [], g
   // flag existing people that look like the same person, but never stop a save.
   const duplicates = useMemo(
     () => findDuplicates(form, people, person?.id).slice(0, 4),
-    [form.name, form.email, form.phone, people, person?.id]
+    // Granular deps on purpose: only name/email/phone drive the duplicate check,
+    // so other keystrokes in `form` shouldn't recompute it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [form.name, form.email, form.phone, people, person?.id],
   )
 
   // Only groups you can join by adding a tag (an AND or OR rule). A group
   // defined purely by "none of" can't be opted into, so it's left off the list.
-  const joinableGroups = useMemo(
-    () => groups.filter((g) => groupJoinTags(g).length > 0),
-    [groups]
-  )
+  const joinableGroups = useMemo(() => groups.filter((g) => groupJoinTags(g).length > 0), [groups])
 
   const submit = async (e) => {
     e.preventDefault()
@@ -117,7 +136,7 @@ export default function PersonForm({ person, orgs, people = [], families = [], g
           organization_id: orgId,
           keep_in_touch_days: Number(form.keep_in_touch_days) || null,
         },
-        person?.id
+        person?.id,
       )
       onClose()
     } catch (err) {
@@ -149,7 +168,9 @@ export default function PersonForm({ person, orgs, people = [], families = [], g
             <div className="dup-warning-head">
               <AlertTriangle size={15} />
               <span>
-                {duplicates.length === 1 ? 'This might already be in your contacts' : 'These might already be in your contacts'}
+                {duplicates.length === 1
+                  ? 'This might already be in your contacts'
+                  : 'These might already be in your contacts'}
               </span>
             </div>
             <ul className="dup-list">
@@ -159,7 +180,9 @@ export default function PersonForm({ person, orgs, people = [], families = [], g
                   <div className="dup-row-text">
                     <span className="dup-row-name">{match.name}</span>
                     <span className="dup-row-meta">
-                      {[orgsById.get(match.organization_id)?.name, reasons.join(' · ')].filter(Boolean).join(' — ')}
+                      {[orgsById.get(match.organization_id)?.name, reasons.join(' · ')]
+                        .filter(Boolean)
+                        .join(' — ')}
                     </span>
                   </div>
                   {onOpenPerson && (
@@ -183,9 +206,13 @@ export default function PersonForm({ person, orgs, people = [], families = [], g
           <label className="label">Organization</label>
           <select value={form.organization_id} onChange={set('organization_id')}>
             <option value="">None</option>
-            {[...orgs].sort((a, b) => a.name.localeCompare(b.name)).map((o) => (
-              <option key={o.id} value={o.id}>{o.name}</option>
-            ))}
+            {[...orgs]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
             <option value={NEW_ORG}>+ New organization…</option>
           </select>
           {form.organization_id === NEW_ORG && (
@@ -204,11 +231,24 @@ export default function PersonForm({ person, orgs, people = [], families = [], g
         </div>
         <div className="field">
           <label className="label">Email</label>
-          <input type="email" value={form.email} onChange={set('email')} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
+          <input
+            type="email"
+            value={form.email}
+            onChange={set('email')}
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+          />
         </div>
         <div className="field">
           <label className="label">Phone</label>
-          <input type="tel" value={form.phone} onChange={set('phone')} inputMode="tel" autoComplete="off" />
+          <input
+            type="tel"
+            value={form.phone}
+            onChange={set('phone')}
+            inputMode="tel"
+            autoComplete="off"
+          />
         </div>
         <div className="field">
           <label className="label">Birthday</label>
@@ -253,7 +293,9 @@ export default function PersonForm({ person, orgs, people = [], families = [], g
           <select value={form.tier} onChange={set('tier')}>
             <option value="">Not sorted yet</option>
             {TIERS.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
             ))}
           </select>
         </div>
@@ -262,7 +304,9 @@ export default function PersonForm({ person, orgs, people = [], families = [], g
           <select value={form.family_id} onChange={set('family_id')}>
             <option value="">None</option>
             {families.map((f) => (
-              <option key={f.id} value={f.id}>{f.name}</option>
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
             ))}
             <option value={NEW_FAMILY}>+ New family…</option>
           </select>
@@ -280,7 +324,9 @@ export default function PersonForm({ person, orgs, people = [], families = [], g
           <label className="label">Keep in touch</label>
           <select value={form.keep_in_touch_days} onChange={set('keep_in_touch_days')}>
             {KEEP_IN_TOUCH_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
             ))}
           </select>
         </div>
@@ -288,7 +334,9 @@ export default function PersonForm({ person, orgs, people = [], families = [], g
           <label className="label">Privacy</label>
           <select value={form.privacy_level} onChange={set('privacy_level')}>
             {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
+              <option key={v} value={v}>
+                {l}
+              </option>
             ))}
           </select>
         </div>

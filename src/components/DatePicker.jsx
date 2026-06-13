@@ -1,8 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 
 const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ]
 
 const pad = (n) => String(n).padStart(2, '0')
@@ -56,22 +66,43 @@ export default function DatePicker({ value, onChange, fromYear = 1900, toYear, r
 
   return (
     <div className="date-picker">
-      <select className="dp-month" value={parts.m} onChange={(e) => update({ m: e.target.value })} required={required}>
+      <select
+        className="dp-month"
+        value={parts.m}
+        onChange={(e) => update({ m: e.target.value })}
+        required={required}
+      >
         <option value="">Month</option>
         {MONTHS.map((name, i) => (
-          <option key={i} value={i + 1}>{name}</option>
+          <option key={i} value={i + 1}>
+            {name}
+          </option>
         ))}
       </select>
-      <select className="dp-day" value={parts.d} onChange={(e) => update({ d: e.target.value })} required={required}>
+      <select
+        className="dp-day"
+        value={parts.d}
+        onChange={(e) => update({ d: e.target.value })}
+        required={required}
+      >
         <option value="">Day</option>
         {Array.from({ length: dim }, (_, i) => i + 1).map((n) => (
-          <option key={n} value={n}>{n}</option>
+          <option key={n} value={n}>
+            {n}
+          </option>
         ))}
       </select>
-      <select className="dp-year" value={parts.y} onChange={(e) => update({ y: e.target.value })} required={required}>
+      <select
+        className="dp-year"
+        value={parts.y}
+        onChange={(e) => update({ y: e.target.value })}
+        required={required}
+      >
         <option value="">Year</option>
         {years.map((yr) => (
-          <option key={yr} value={yr}>{yr}</option>
+          <option key={yr} value={yr}>
+            {yr}
+          </option>
         ))}
       </select>
     </div>

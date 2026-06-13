@@ -96,7 +96,11 @@ export default function AvatarUpload({
       aria-label={value ? 'Change photo' : 'Add photo'}
     >
       <Avatar name={name} src={value} kind={kind} icon={icon} size={size} />
-      <span className="avatar-tap-badge" style={{ width: badgeDim, height: badgeDim }} aria-hidden="true">
+      <span
+        className="avatar-tap-badge"
+        style={{ width: badgeDim, height: badgeDim }}
+        aria-hidden="true"
+      >
         <Camera size={badgeIcon} />
       </span>
     </button>
@@ -122,7 +126,13 @@ export default function AvatarUpload({
         avatarButton
       )}
 
-      <input ref={fileRef} type="file" accept="image/*" onChange={pick} style={{ display: 'none' }} />
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        onChange={pick}
+        style={{ display: 'none' }}
+      />
 
       {menuOpen && (
         <Sheet title="Photo" onClose={() => setMenuOpen(false)}>
@@ -176,18 +186,27 @@ export default function AvatarUpload({
                 onChange={(e) => setZoom(Number(e.target.value))}
                 aria-label="Zoom"
               />
-              {error && <p className="error-text" style={{ margin: '0 16px' }}>{error}</p>}
+              {error && (
+                <p className="error-text" style={{ margin: '0 16px' }}>
+                  {error}
+                </p>
+              )}
               <div className="crop-actions">
                 <button type="button" className="crop-btn" onClick={closeCrop} disabled={busy}>
                   Cancel
                 </button>
-                <button type="button" className="crop-btn primary" onClick={confirm} disabled={busy || !pixels}>
+                <button
+                  type="button"
+                  className="crop-btn primary"
+                  onClick={confirm}
+                  disabled={busy || !pixels}
+                >
                   {busy ? <span className="dots">Saving</span> : 'Use photo'}
                 </button>
               </div>
             </div>
           </div>,
-          document.body
+          document.body,
         )}
     </>
   )

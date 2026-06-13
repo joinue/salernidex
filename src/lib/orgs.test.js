@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { orgNameTaken } from './orgs'
 
-const orgs = [{ id: '1', name: 'Acme' }, { id: '2', name: 'Globex' }]
+const orgs = [
+  { id: '1', name: 'Acme' },
+  { id: '2', name: 'Globex' },
+]
 
 describe('orgNameTaken', () => {
   it('matches case- and space-insensitively', () => {

@@ -36,7 +36,7 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
         !!task.area ||
         !!task.recurrence ||
         (task.privacy_level && task.privacy_level !== 'shared') ||
-        !!task.notes)
+        !!task.notes),
   )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -49,7 +49,7 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
   // the title alone, so an existing "Call mom Monday" isn't re-parsed and gutted.
   const parsed = useMemo(
     () => (task ? null : parseTaskInput(form.title, { today: isoDateIn(0), members: members() })),
-    [task, form.title]
+    [task, form.title],
   )
   // Tokens still in effect (not dismissed), and the title rebuilt from them.
   const activeTokens = parsed ? parsed.tokens.filter((t) => !ignored[t.type]) : []
@@ -65,12 +65,19 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
       const title = parsed ? previewTitle : form.title
       const recurrence = form.recurrence || (uses('repeat') ? parsed.recurrence : null)
       const manualAssignee = normalizeAssignee(form.assignee) !== 'anyone'
-      const assignee = manualAssignee ? form.assignee : uses('who') ? parsed.assignee : form.assignee
+      const assignee = manualAssignee
+        ? form.assignee
+        : uses('who')
+          ? parsed.assignee
+          : form.assignee
       // A recurring task with no explicit start gets its first due date from
       // the rule, so it lands on the calendar immediately.
       let due = form.due_date || (uses('due') ? parsed.due_date : null)
       if (recurrence && !due) due = nextOccurrence(recurrence, isoDateIn(0), { inclusive: true })
-      await onSave({ ...form, title, recurrence, assignee, area: form.area.trim() || null, due_date: due }, task?.id)
+      await onSave(
+        { ...form, title, recurrence, assignee, area: form.area.trim() || null, due_date: due },
+        task?.id,
+      )
       onClose()
     } catch (err) {
       setError(err.message)
@@ -79,7 +86,18 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
   }
 
   return (
-    <Modal title={task ? (form.is_project ? 'Edit project' : 'Edit task') : form.is_project ? 'New project' : 'New task'} onClose={onClose}>
+    <Modal
+      title={
+        task
+          ? form.is_project
+            ? 'Edit project'
+            : 'Edit task'
+          : form.is_project
+            ? 'New project'
+            : 'New task'
+      }
+      onClose={onClose}
+    >
       <form onSubmit={submit}>
         {error && <p className="error-text">{error}</p>}
         <div className="field">
@@ -96,7 +114,13 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
         </div>
         <div className="field">
           <label className="label">{form.is_project ? 'Project' : 'Task'}</label>
-          <input value={form.title} onChange={set('title')} required autoFocus={focusOnDesktop()} placeholder={form.is_project ? 'What are we tackling?' : 'Try "trash out every Monday"'} />
+          <input
+            value={form.title}
+            onChange={set('title')}
+            required
+            autoFocus={focusOnDesktop()}
+            placeholder={form.is_project ? 'What are we tackling?' : 'Try "trash out every Monday"'}
+          />
           {parsed && parsed.tokens.length > 0 && (
             <div className="nl-preview" aria-live="polite">
               <span className="nl-preview-title">{previewTitle || form.title}</span>
@@ -113,7 +137,11 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
                       title={off ? 'Ignored — tap to apply' : 'Applied — tap to ignore'}
                     >
                       {Icon && <Icon size={11} />} {t.label}
-                      {off ? <RotateCcw size={11} className="nl-chip-x" /> : <X size={12} className="nl-chip-x" />}
+                      {off ? (
+                        <RotateCcw size={11} className="nl-chip-x" />
+                      ) : (
+                        <X size={12} className="nl-chip-x" />
+                      )}
                     </button>
                   )
                 })}
@@ -125,10 +153,36 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
           <label className="label">Due</label>
           <input type="date" value={form.due_date} onChange={set('due_date')} />
           <div className="chips" style={{ marginTop: 8 }}>
-            <button type="button" className="chip accent" onClick={() => setForm({ ...form, due_date: isoDateIn(0) })}>Today</button>
-            <button type="button" className="chip accent" onClick={() => setForm({ ...form, due_date: isoDateIn(1) })}>Tomorrow</button>
-            <button type="button" className="chip accent" onClick={() => setForm({ ...form, due_date: isoDateIn(7) })}>Next week</button>
-            {form.due_date && <button type="button" className="chip" onClick={() => setForm({ ...form, due_date: '' })}>Clear</button>}
+            <button
+              type="button"
+              className="chip accent"
+              onClick={() => setForm({ ...form, due_date: isoDateIn(0) })}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              className="chip accent"
+              onClick={() => setForm({ ...form, due_date: isoDateIn(1) })}
+            >
+              Tomorrow
+            </button>
+            <button
+              type="button"
+              className="chip accent"
+              onClick={() => setForm({ ...form, due_date: isoDateIn(7) })}
+            >
+              Next week
+            </button>
+            {form.due_date && (
+              <button
+                type="button"
+                className="chip"
+                onClick={() => setForm({ ...form, due_date: '' })}
+              >
+                Clear
+              </button>
+            )}
           </div>
         </div>
 
@@ -142,10 +196,15 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
           <>
             <div className="field">
               <label className="label">Who</label>
-              <AssigneePicker value={form.assignee} onChange={(v) => setForm({ ...form, assignee: v })} />
+              <AssigneePicker
+                value={form.assignee}
+                onChange={(v) => setForm({ ...form, assignee: v })}
+              />
             </div>
             <div className="field">
-              <label className="label">Area <span className="muted">(optional)</span></label>
+              <label className="label">
+                Area <span className="muted">(optional)</span>
+              </label>
               <input
                 value={form.area}
                 onChange={set('area')}
@@ -171,19 +230,31 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
               <label className="label">Visibility</label>
               <select value={form.privacy_level} onChange={set('privacy_level')}>
                 {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
                 ))}
               </select>
             </div>
             <div className="field">
-              <label className="label">Notes <span className="muted">(optional)</span></label>
+              <label className="label">
+                Notes <span className="muted">(optional)</span>
+              </label>
               <textarea value={form.notes} onChange={set('notes')} />
             </div>
           </>
         )}
 
         <button className="btn-primary" disabled={busy}>
-          {busy ? <span className="dots">Saving</span> : task ? 'Save changes' : form.is_project ? 'Add project' : 'Add task'}
+          {busy ? (
+            <span className="dots">Saving</span>
+          ) : task ? (
+            'Save changes'
+          ) : form.is_project ? (
+            'Add project'
+          ) : (
+            'Add task'
+          )}
         </button>
       </form>
     </Modal>

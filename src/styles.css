@@ -423,7 +423,9 @@ select {
   border: 1px solid var(--separator);
   border-radius: var(--radius-sm);
   text-align: left;
-  transition: background 120ms ease, border-color 120ms ease;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
 }
 
 .nav-search svg {
@@ -527,7 +529,9 @@ select {
   border-radius: 50%;
   background: var(--accent-soft);
   color: var(--accent);
-  transition: transform 120ms ease, background 120ms ease;
+  transition:
+    transform 120ms ease,
+    background 120ms ease;
 }
 
 .header-action:hover {
@@ -682,7 +686,9 @@ select {
   padding: 5px 13px;
   border-radius: 999px;
   white-space: nowrap;
-  transition: background 140ms ease, color 140ms ease;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
 }
 
 .area-pill.on {
@@ -834,7 +840,9 @@ select {
   font-size: 13.5px;
   font-weight: 500;
   color: var(--text);
-  background: var(--fill) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a8a8e' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 11px center;
+  background: var(--fill)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a8a8e' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")
+    no-repeat right 11px center;
   border: none;
   border-radius: 999px;
   outline: none;
@@ -1045,7 +1053,9 @@ select {
   border-radius: 50%;
   flex-shrink: 0;
   line-height: 0;
-  transition: transform 100ms ease, opacity 120ms ease;
+  transition:
+    transform 100ms ease,
+    opacity 120ms ease;
 }
 
 .avatar-tap:active {
@@ -1131,7 +1141,9 @@ select {
   font-size: 15px;
   background: var(--fill);
   color: var(--text);
-  transition: transform 100ms ease, opacity 120ms ease;
+  transition:
+    transform 100ms ease,
+    opacity 120ms ease;
 }
 
 .crop-btn.primary {
@@ -1206,7 +1218,9 @@ select {
   padding: 7px 13px;
   border-radius: 999px;
   white-space: nowrap;
-  transition: background 120ms ease, color 120ms ease;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
 }
 
 .group-chip.on {
@@ -1558,7 +1572,9 @@ select {
   font-size: 22px;
   border-radius: 12px;
   background: var(--fill);
-  transition: box-shadow 120ms ease, transform 100ms ease;
+  transition:
+    box-shadow 120ms ease,
+    transform 100ms ease;
 }
 
 .icon-pick.on {
@@ -1581,7 +1597,11 @@ select {
   border-radius: 50%;
   border: 2px solid var(--text-3);
   color: transparent;
-  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 100ms ease;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 100ms ease;
 }
 
 .task-check.sm {
@@ -1797,7 +1817,9 @@ select {
   color: var(--text-2);
   font-size: 13px;
   font-weight: 600;
-  transition: background 120ms ease, color 120ms ease;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
 }
 
 .weekday-chip.on {
@@ -1834,7 +1856,9 @@ select.rec-select + .segmented {
   background: var(--surface);
   border-radius: 999px;
   box-shadow: var(--shadow-card);
-  transition: transform 100ms ease, background 120ms ease;
+  transition:
+    transform 100ms ease,
+    background 120ms ease;
 }
 
 .quick-chip svg {
@@ -2104,7 +2128,10 @@ select.rec-select + .segmented {
   color: var(--accent);
   white-space: nowrap;
   cursor: pointer;
-  transition: background 140ms ease, color 140ms ease, opacity 140ms ease;
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease;
 }
 
 .nl-chip svg {
@@ -2135,7 +2162,9 @@ select.rec-select + .segmented {
   font-weight: 600;
   font-size: 16px;
   border-radius: 12px;
-  transition: transform 100ms ease, opacity 120ms ease;
+  transition:
+    transform 100ms ease,
+    opacity 120ms ease;
 }
 
 .btn-primary:active {
@@ -2246,7 +2275,9 @@ select.rec-select + .segmented {
   font-weight: 600;
   background: var(--fill);
   color: var(--text);
-  transition: transform 120ms ease, opacity 120ms ease;
+  transition:
+    transform 120ms ease,
+    opacity 120ms ease;
 }
 
 .confirm-btn.primary {
@@ -2349,15 +2380,27 @@ select.rec-select + .segmented {
 }
 
 @keyframes dots {
-  0% { content: ''; }
-  25% { content: '.'; }
-  50% { content: '..'; }
-  75% { content: '...'; }
+  0% {
+    content: '';
+  }
+  25% {
+    content: '.';
+  }
+  50% {
+    content: '..';
+  }
+  75% {
+    content: '...';
+  }
 }
 
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* ---------- banners + states ---------- */
@@ -2548,13 +2591,18 @@ select.rec-select + .segmented {
      bottom-left, over the canvas. Adds depth without leaving the light look. */
   background:
     radial-gradient(85% 75% at 100% 0%, rgba(0, 122, 255, 0.06), transparent 58%),
-    radial-gradient(75% 70% at 0% 100%, rgba(45, 58, 79, 0.06), transparent 55%),
-    var(--bg);
+    radial-gradient(75% 70% at 0% 100%, rgba(45, 58, 79, 0.06), transparent 55%), var(--bg);
 }
 
 @keyframes auth-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Left: brand hero (desktop landing). Hidden on narrow screens. Sized to its
@@ -2614,7 +2662,9 @@ select.rec-select + .segmented {
   align-items: center;
   justify-content: center;
   /* Crisp inner hairline + soft tinted lift — a small detail that reads as care. */
-  box-shadow: inset 0 0 0 1px rgba(0, 122, 255, 0.12), 0 2px 6px rgba(0, 122, 255, 0.1);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 122, 255, 0.12),
+    0 2px 6px rgba(0, 122, 255, 0.1);
 }
 
 .auth-value-title {
@@ -2795,7 +2845,9 @@ select.rec-select + .segmented {
   font-weight: 600;
   font-size: 15px;
   border-radius: 12px;
-  transition: opacity 120ms ease, transform 100ms ease;
+  transition:
+    opacity 120ms ease,
+    transform 100ms ease;
 }
 
 .auth-demo-btn:active {
@@ -3148,8 +3200,12 @@ select.rec-select + .segmented {
 }
 
 @keyframes sheet-up {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
 /* ---------- mobile ---------- */
@@ -3298,7 +3354,9 @@ select.rec-select + .segmented {
   background: var(--fill);
   border-radius: 999px;
   border: 1.5px solid transparent;
-  transition: border-color 120ms ease, background 120ms ease;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
 }
 
 .assignee-chip.on {
@@ -3466,7 +3524,9 @@ select.rec-select + .segmented {
   box-shadow: var(--shadow-pop);
   font-size: 14px;
   animation: toast-in 240ms cubic-bezier(0.32, 0.72, 0, 1);
-  transition: opacity 200ms ease, transform 200ms ease;
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
 }
 
 .toast.leaving {

@@ -8,7 +8,16 @@ import { focusOnDesktop } from '../lib/constants'
 // The reverse of LinkEntityForm: attach a task/project to a person, org, or
 // group from that entity's page. Either spin up a new task (already linked) or
 // pick an existing open top-level task that isn't linked here yet.
-export default function LinkTaskForm({ entityType, entityId, entityName, tasks, existingTaskIds, addTask, addTaskLink, onClose }) {
+export default function LinkTaskForm({
+  entityType,
+  entityId,
+  entityName,
+  tasks,
+  existingTaskIds,
+  addTask,
+  addTaskLink,
+  onClose,
+}) {
   const [mode, setMode] = useState('new') // 'new' | 'existing'
   const [title, setTitle] = useState('')
   const [due, setDue] = useState('')
@@ -20,9 +29,11 @@ export default function LinkTaskForm({ entityType, entityId, entityName, tasks, 
   const linkable = useMemo(
     () =>
       tasks
-        .filter((t) => !t.parent_id && !t.is_heading && !t.completed_at && !existingTaskIds.has(t.id))
+        .filter(
+          (t) => !t.parent_id && !t.is_heading && !t.completed_at && !existingTaskIds.has(t.id),
+        )
         .sort(byDue),
-    [tasks, existingTaskIds]
+    [tasks, existingTaskIds],
   )
 
   const link = (id) => addTaskLink({ task_id: id, entity_type: entityType, entity_id: entityId })
@@ -82,7 +93,9 @@ export default function LinkTaskForm({ entityType, entityId, entityName, tasks, 
               />
             </div>
             <div className="field">
-              <label className="label">Due <span className="muted">(optional)</span></label>
+              <label className="label">
+                Due <span className="muted">(optional)</span>
+              </label>
               <DatePicker value={due} onChange={setDue} />
             </div>
           </>
@@ -92,13 +105,18 @@ export default function LinkTaskForm({ entityType, entityId, entityName, tasks, 
             <select value={taskId} onChange={(e) => setTaskId(e.target.value)} required>
               <option value="">{linkable.length ? 'Select…' : 'No unlinked open tasks'}</option>
               {linkable.map((t) => (
-                <option key={t.id} value={t.id}>{t.title}</option>
+                <option key={t.id} value={t.id}>
+                  {t.title}
+                </option>
               ))}
             </select>
           </div>
         )}
 
-        <button className="btn-primary" disabled={busy || (mode === 'existing' && !linkable.length)}>
+        <button
+          className="btn-primary"
+          disabled={busy || (mode === 'existing' && !linkable.length)}
+        >
           {busy ? <span className="dots">Saving</span> : 'Link task'}
         </button>
       </form>

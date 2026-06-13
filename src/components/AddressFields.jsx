@@ -26,14 +26,41 @@ export default function AddressFields({ value, onChange }) {
 
   return (
     <div className="address-fields">
-      <input value={parts.street} onChange={set('street')} placeholder="Street address" autoComplete="address-line1" />
+      <input
+        value={parts.street}
+        onChange={set('street')}
+        placeholder="Street address"
+        autoComplete="address-line1"
+      />
       <div className="addr-row">
-        <input value={parts.city} onChange={set('city')} placeholder="City" autoComplete="address-level2" />
-        <input className="addr-state" value={parts.state} onChange={set('state')} placeholder="State" autoComplete="address-level1" />
+        <input
+          value={parts.city}
+          onChange={set('city')}
+          placeholder="City"
+          autoComplete="address-level2"
+        />
+        <input
+          className="addr-state"
+          value={parts.state}
+          onChange={set('state')}
+          placeholder="State"
+          autoComplete="address-level1"
+        />
       </div>
       <div className="addr-row">
-        <input className="addr-zip" value={parts.zip} onChange={set('zip')} placeholder="ZIP / Postal" autoComplete="postal-code" />
-        <input value={parts.country} onChange={set('country')} placeholder="Country" autoComplete="country-name" />
+        <input
+          className="addr-zip"
+          value={parts.zip}
+          onChange={set('zip')}
+          placeholder="ZIP / Postal"
+          autoComplete="postal-code"
+        />
+        <input
+          value={parts.country}
+          onChange={set('country')}
+          placeholder="Country"
+          autoComplete="country-name"
+        />
       </div>
     </div>
   )

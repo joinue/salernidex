@@ -15,7 +15,20 @@ const DAY = 86400000
 const WEEKDAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const WEEKDAYS_MIN = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const SETPOS_LABEL = { 1: 'First', 2: 'Second', 3: 'Third', 4: 'Fourth', 5: 'Fifth', '-1': 'Last' }
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
 
 export { WEEKDAYS_SHORT, WEEKDAYS_MIN, SETPOS_LABEL }
 
@@ -61,7 +74,8 @@ function matches(rule, d, anchor) {
       return weeks >= 0 && weeks % interval === 0
     }
     case 'monthly': {
-      const months = (d.getFullYear() - anchor.getFullYear()) * 12 + (d.getMonth() - anchor.getMonth())
+      const months =
+        (d.getFullYear() - anchor.getFullYear()) * 12 + (d.getMonth() - anchor.getMonth())
       if (months < 0 || months % interval !== 0) return false
       if (rule.setpos) {
         const day = nthWeekdayDate(d.getFullYear(), d.getMonth(), rule.setpos, rule.weekday)
@@ -114,7 +128,10 @@ export function describeRecurrence(rule) {
     case 'daily':
       return rule.interval > 1 ? `Every ${rule.interval} days` : 'Every day'
     case 'weekly': {
-      const days = (rule.weekdays || []).slice().sort().map((w) => WEEKDAYS_SHORT[w])
+      const days = (rule.weekdays || [])
+        .slice()
+        .sort()
+        .map((w) => WEEKDAYS_SHORT[w])
       if (!days.length) return 'Weekly'
       if (days.length === 7) return 'Every day'
       if (rule.interval > 1) return `Every ${rule.interval} weeks on ${days.join(', ')}`

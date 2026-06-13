@@ -1,13 +1,26 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
-  isoDateIn, daysUntilDue, dueLabel, dueState, taskBucket,
-  completionsFor, lastCompletion, projectProgress, isProject, completionFields,
+  isoDateIn,
+  daysUntilDue,
+  dueLabel,
+  dueState,
+  taskBucket,
+  completionsFor,
+  lastCompletion,
+  projectProgress,
+  isProject,
+  completionFields,
   linkedTasksFor,
 } from './tasks'
 
 // Pin "now" to noon on Fri 2026-06-12 so all relative-date logic is deterministic.
-beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-06-12T12:00:00')) })
-afterEach(() => { vi.useRealTimers() })
+beforeEach(() => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-06-12T12:00:00'))
+})
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('isoDateIn / daysUntilDue', () => {
   it('offsets from today', () => {
@@ -118,7 +131,10 @@ describe('completionFields', () => {
     expect(completionFields({ id: 't' }, false)).toEqual({ completed_at: null })
   })
   it('a recurring task rolls forward instead of closing', () => {
-    const f = completionFields({ id: 't', recurrence: { freq: 'weekly', weekdays: [1], anchor: '2026-06-12' } }, true)
+    const f = completionFields(
+      { id: 't', recurrence: { freq: 'weekly', weekdays: [1], anchor: '2026-06-12' } },
+      true,
+    )
     expect(f).toEqual({ due_date: '2026-06-15', completed_at: null }) // next Monday
   })
 })

@@ -33,7 +33,11 @@ export default function PullToRefresh({ onRefresh, children }) {
       if (dy > 6 && sc && sc.scrollTop <= 0) {
         d.engaged = true
         setDragging(true)
-        try { rootRef.current.setPointerCapture(e.pointerId) } catch { /* ignore */ }
+        try {
+          rootRef.current.setPointerCapture(e.pointerId)
+        } catch {
+          /* ignore */
+        }
       } else {
         return
       }

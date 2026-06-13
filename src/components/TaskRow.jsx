@@ -25,15 +25,23 @@ export default function TaskRow({ task, onToggle, size = 'md', progress, hideAss
         <Check size={size === 'sm' ? 12 : 15} />
       </button>
       <div className="row-body">
-        <div className={`row-title ${done ? 'task-done' : ''} ${size === 'sm' ? 'sm' : ''}`}>{task.title}</div>
+        <div className={`row-title ${done ? 'task-done' : ''} ${size === 'sm' ? 'sm' : ''}`}>
+          {task.title}
+        </div>
         {(showAssignee || dl || task.recurrence || progress || task.area) && (
           <div className="task-meta">
             {task.area && <span className="chip area">{task.area}</span>}
-            {progress && <span className="chip">{progress.done}/{progress.total}</span>}
+            {progress && (
+              <span className="chip">
+                {progress.done}/{progress.total}
+              </span>
+            )}
             {showAssignee && <span className="chip">{assigneeLabel(task.assignee)}</span>}
             {dl && <span className={`chip due-${ds}`}>{dl}</span>}
             {task.recurrence ? (
-              <span className="chip" title={describeRecurrence(task.recurrence)}><Repeat size={11} /></span>
+              <span className="chip" title={describeRecurrence(task.recurrence)}>
+                <Repeat size={11} />
+              </span>
             ) : null}
           </div>
         )}

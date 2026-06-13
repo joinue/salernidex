@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest'
 import { parseTaskInput, titleFrom } from './taskParse'
 
 const TODAY = '2026-06-12' // Friday, fixed so date math is deterministic
-const MEMBERS = [{ id: 'm-1', name: 'Marc' }, { id: 'm-2', name: 'Rita' }]
+const MEMBERS = [
+  { id: 'm-1', name: 'Marc' },
+  { id: 'm-2', name: 'Rita' },
+]
 const p = (text) => parseTaskInput(text, { today: TODAY, members: MEMBERS })
 
 const base = new Date(2026, 5, 12)
@@ -42,7 +45,11 @@ describe('recurrence', () => {
     expect(r.recurrence).toMatchObject({ freq: 'weekly', weekdays: [1] })
   })
   it('every other weekday → fortnightly', () => {
-    expect(p('trash bins every other tuesday').recurrence).toMatchObject({ freq: 'weekly', interval: 2, weekdays: [2] })
+    expect(p('trash bins every other tuesday').recurrence).toMatchObject({
+      freq: 'weekly',
+      interval: 2,
+      weekdays: [2],
+    })
   })
   it('every other multiple weekdays', () => {
     expect(p('gym every other monday and thursday').recurrence.weekdays).toEqual([1, 4])
@@ -57,10 +64,17 @@ describe('recurrence', () => {
     expect(p('standup every weekday').recurrence.weekdays).toEqual([1, 2, 3, 4, 5])
   })
   it('monthly on the Nth', () => {
-    expect(p('pay rent every month on the 1st').recurrence).toMatchObject({ freq: 'monthly', monthday: 1 })
+    expect(p('pay rent every month on the 1st').recurrence).toMatchObject({
+      freq: 'monthly',
+      monthday: 1,
+    })
   })
   it('nth weekday of the month', () => {
-    expect(p('board meeting first monday of the month').recurrence).toMatchObject({ freq: 'monthly', setpos: 1, weekday: 1 })
+    expect(p('board meeting first monday of the month').recurrence).toMatchObject({
+      freq: 'monthly',
+      setpos: 1,
+      weekday: 1,
+    })
   })
   it('yearly', () => {
     expect(p('renew passport every year').recurrence.freq).toBe('yearly')
@@ -101,10 +115,20 @@ describe('titleFrom — dismissing a parsed token', () => {
   it('keeps the phrase for a dropped token', () => {
     const r = p('pay rent every month on the 1st')
     expect(r.title).toBe('pay rent')
-    expect(titleFrom('pay rent every month on the 1st', r.tokens.filter((t) => t.type !== 'repeat'))).toBe('pay rent every month on the 1st')
+    expect(
+      titleFrom(
+        'pay rent every month on the 1st',
+        r.tokens.filter((t) => t.type !== 'repeat'),
+      ),
+    ).toBe('pay rent every month on the 1st')
   })
   it('drops only the dismissed token from a multi-token line', () => {
     const r = p('call mom friday for Rita')
-    expect(titleFrom('call mom friday for Rita', r.tokens.filter((t) => t.type !== 'who'))).toBe('call mom for Rita')
+    expect(
+      titleFrom(
+        'call mom friday for Rita',
+        r.tokens.filter((t) => t.type !== 'who'),
+      ),
+    ).toBe('call mom for Rita')
   })
 })

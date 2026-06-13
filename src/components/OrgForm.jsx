@@ -85,7 +85,9 @@ export default function OrgForm({ org, orgs = [], onSave, onClose, isDemo = fals
           <select value={form.type} onChange={set('type')}>
             <option value="">—</option>
             {ORG_TYPES.map((t) => (
-              <option key={t} value={t}>{t}</option>
+              <option key={t} value={t}>
+                {t}
+              </option>
             ))}
           </select>
         </div>
@@ -101,7 +103,9 @@ export default function OrgForm({ org, orgs = [], onSave, onClose, isDemo = fals
           <label className="label">Privacy</label>
           <select value={form.privacy_level} onChange={set('privacy_level')}>
             {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
+              <option key={v} value={v}>
+                {l}
+              </option>
             ))}
           </select>
         </div>

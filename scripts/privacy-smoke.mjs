@@ -24,7 +24,9 @@ const peopleCount = async () => {
 const switchMember = async (label) => {
   await page.goto('http://localhost:5173/#/settings')
   await page.waitForSelector('.member-name-input')
-  const row = page.locator('.value-row', { has: page.locator(`.member-name-input[value="${label}"]`) })
+  const row = page.locator('.value-row', {
+    has: page.locator(`.member-name-input[value="${label}"]`),
+  })
   await row.getByText("I'm this").click()
   await page.waitForTimeout(200)
 }
@@ -42,11 +44,16 @@ try {
   await page.locator('select').last().selectOption('marc_only') // Privacy select is the last select... verify below
   // More robust: find the select whose options include "Private — only me"
   await page.evaluate(() => {
-    const sel = [...document.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.value === 'marc_only'))
+    const sel = [...document.querySelectorAll('select')].find((s) =>
+      [...s.options].some((o) => o.value === 'marc_only'),
+    )
     sel.value = 'marc_only'
     sel.dispatchEvent(new Event('change', { bubbles: true }))
   })
-  await page.getByRole('dialog').getByRole('button', { name: /Add person|Add anyway/ }).click()
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: /Add person|Add anyway/ })
+    .click()
   await page.waitForTimeout(400)
 
   const mine = await peopleCount()

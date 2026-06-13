@@ -1,5 +1,17 @@
 import { useMemo, useState } from 'react'
-import { Gift, Calendar, ChevronRight, Sun, MoreHorizontal, Settings, MessageCircle, Clock, BellOff, Check, Search } from 'react-feather'
+import {
+  Gift,
+  Calendar,
+  ChevronRight,
+  Sun,
+  MoreHorizontal,
+  Settings,
+  MessageCircle,
+  Clock,
+  BellOff,
+  Check,
+  Search,
+} from 'react-feather'
 import { relativeTime } from '../lib/contact'
 import { buildAttention } from '../lib/reminders'
 import { buildActivityFeed } from '../lib/activity'
@@ -47,7 +59,16 @@ function checkInSub(item) {
 
 const DAY = 86400000
 
-export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks, onOpenActivity, onMore, onSettings, onSearch }) {
+export default function TodayView({
+  data,
+  onOpenPerson,
+  onOpenList,
+  onOpenTasks,
+  onOpenActivity,
+  onMore,
+  onSettings,
+  onSearch,
+}) {
   const { addInteraction, completeTask, snoozeReminder, memberId } = data
   const [prefs] = useNotificationPrefs(memberId)
   // Keep greetings, the date, and relative/overdue labels fresh on a wall-
@@ -59,7 +80,19 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
 
   const attention = useMemo(
     () => buildAttention(data, prefs, data.reminderSnoozes, memberId, now),
-    [data.people, data.tasks, data.interactions, data.keyDates, data.reminderSnoozes, prefs, memberId, now]
+    // Granular deps on purpose: `data` is a fresh object every render; these are
+    // the fields buildAttention actually reads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      data.people,
+      data.tasks,
+      data.interactions,
+      data.keyDates,
+      data.reminderSnoozes,
+      prefs,
+      memberId,
+      now,
+    ],
   )
   const dueTasks = attention.filter((i) => i.kind === 'task')
   const checkIns = attention.filter((i) => i.kind === 'nudge')
@@ -85,13 +118,41 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
   const clearCheckIn = (item) => {
     const days = item.person.keep_in_touch_days || 30
     haptics.light()
-    snoozeReminder({ kind: 'nudge', target_key: item.key, until: new Date(Date.now() + days * DAY).toISOString() })
+    snoozeReminder({
+      kind: 'nudge',
+      target_key: item.key,
+      until: new Date(Date.now() + days * DAY).toISOString(),
+    })
   }
 
   const snoozeChoices = laterItem && [
-    { label: 'Remind me in 3 days', icon: Clock, onClick: () => snoozeReminder({ kind: laterItem.kind, target_key: laterItem.key, until: new Date(Date.now() + 3 * DAY).toISOString() }) },
-    { label: 'Remind me next week', icon: Clock, onClick: () => snoozeReminder({ kind: laterItem.kind, target_key: laterItem.key, until: new Date(Date.now() + 7 * DAY).toISOString() }) },
-    { label: "Don't remind me about this", icon: BellOff, danger: true, onClick: () => snoozeReminder({ kind: laterItem.kind, target_key: laterItem.key, until: null }) },
+    {
+      label: 'Remind me in 3 days',
+      icon: Clock,
+      onClick: () =>
+        snoozeReminder({
+          kind: laterItem.kind,
+          target_key: laterItem.key,
+          until: new Date(Date.now() + 3 * DAY).toISOString(),
+        }),
+    },
+    {
+      label: 'Remind me next week',
+      icon: Clock,
+      onClick: () =>
+        snoozeReminder({
+          kind: laterItem.kind,
+          target_key: laterItem.key,
+          until: new Date(Date.now() + 7 * DAY).toISOString(),
+        }),
+    },
+    {
+      label: "Don't remind me about this",
+      icon: BellOff,
+      danger: true,
+      onClick: () =>
+        snoozeReminder({ kind: laterItem.kind, target_key: laterItem.key, until: null }),
+    },
   ]
 
   return (
@@ -127,118 +188,131 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
           two columns so the dashboard fills the width instead of leaving a
           tall empty gutter; portrait and phone stay single-column. */}
       <div className="today-dashboard">
-      {dueTasks.length > 0 && (
-        <section className="today-section">
-          <div className="section-label">To-do</div>
-          <div className="list">
-            {dueTasks.map((item) => (
-              <SwipeRow key={item.key} actions={[later(item)]}>
-                <div className="list-row">
-                  <TaskRow task={item.task} onToggle={toggleTask} />
-                </div>
-              </SwipeRow>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {checkIns.length > 0 && (
-        <section className="today-section">
-          <div className="section-label">Check in</div>
-          <div className="list">
-            {checkIns.map((item) => (
-              <SwipeRow
-                key={item.key}
-                actions={[
-                  { label: 'Check in', icon: MessageCircle, onClick: () => setLogPerson(item.person) },
-                  { label: 'Clear', icon: Check, variant: 'neutral', onClick: () => clearCheckIn(item) },
-                  later(item),
-                ]}
-                onClick={() => onOpenPerson(item.person.id)}
-                onLongPress={() => setActionPerson(item.person)}
-              >
-                <div className="list-row">
-                  <Avatar name={item.person.name} size={42} />
-                  <div className="row-body">
-                    <div className="row-title">{item.person.name}</div>
-                    <div className="row-sub">{checkInSub(item)}</div>
+        {dueTasks.length > 0 && (
+          <section className="today-section">
+            <div className="section-label">To-do</div>
+            <div className="list">
+              {dueTasks.map((item) => (
+                <SwipeRow key={item.key} actions={[later(item)]}>
+                  <div className="list-row">
+                    <TaskRow task={item.task} onToggle={toggleTask} />
                   </div>
-                  <div className="row-meta">
-                    <button
-                      className="icon-btn accent touch-quick"
-                      aria-label={`Check in with ${item.person.name}`}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setLogPerson(item.person)
-                      }}
-                    >
-                      <MessageCircle size={17} />
-                    </button>
-                  </div>
-                </div>
-              </SwipeRow>
-            ))}
-          </div>
-        </section>
-      )}
+                </SwipeRow>
+              ))}
+            </div>
+          </section>
+        )}
 
-      {dates.length > 0 && (
-        <section className="today-section">
-          <div className="section-label">Dates</div>
-          <div className="list">
-            {dates.map((item) => {
-              const entry = item.entry
-              const Icon = entry.kind === 'birthday' ? Gift : Calendar
-              return (
+        {checkIns.length > 0 && (
+          <section className="today-section">
+            <div className="section-label">Check in</div>
+            <div className="list">
+              {checkIns.map((item) => (
                 <SwipeRow
                   key={item.key}
-                  actions={[later(item)]}
-                  onClick={() => onOpenPerson(entry.person.id)}
-                  onLongPress={() => setActionPerson(entry.person)}
+                  actions={[
+                    {
+                      label: 'Check in',
+                      icon: MessageCircle,
+                      onClick: () => setLogPerson(item.person),
+                    },
+                    {
+                      label: 'Clear',
+                      icon: Check,
+                      variant: 'neutral',
+                      onClick: () => clearCheckIn(item),
+                    },
+                    later(item),
+                  ]}
+                  onClick={() => onOpenPerson(item.person.id)}
+                  onLongPress={() => setActionPerson(item.person)}
                 >
                   <div className="list-row">
-                    <Avatar name={entry.person.name} size={42} />
+                    <Avatar name={item.person.name} size={42} />
                     <div className="row-body">
-                      <div className="row-title">{entry.person.name}</div>
-                      <div className="row-sub">
-                        <Icon size={12} style={{ verticalAlign: '-1px', marginRight: 4 }} />
-                        {dateSub(entry)}
-                      </div>
+                      <div className="row-title">{item.person.name}</div>
+                      <div className="row-sub">{checkInSub(item)}</div>
                     </div>
                     <div className="row-meta">
-                      <span className={`row-time ${entry.daysUntil <= 3 ? 'warn' : ''}`}>{dateWhen(entry)}</span>
-                      <ChevronRight size={18} className="row-chevron" />
+                      <button
+                        className="icon-btn accent touch-quick"
+                        aria-label={`Check in with ${item.person.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setLogPerson(item.person)
+                        }}
+                      >
+                        <MessageCircle size={17} />
+                      </button>
                     </div>
                   </div>
                 </SwipeRow>
-              )
-            })}
-          </div>
-        </section>
-      )}
+              ))}
+            </div>
+          </section>
+        )}
 
-      {recent.length > 0 && (
-        <section className="today-section">
-          <div className="section-head">
-            <div className="section-label">Recent activity</div>
-            {feed.length > recent.length && (
-              <button className="see-all" onClick={onOpenActivity}>See all</button>
-            )}
-          </div>
-          <div className="list">
-            {recent.map((e) => (
-              <ActivityRow
-                key={e.key}
-                entry={e}
-                onOpenPerson={onOpenPerson}
-                onOpenList={onOpenList}
-                onOpenTasks={onOpenTasks}
-                onPersonLongPress={setActionPerson}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+        {dates.length > 0 && (
+          <section className="today-section">
+            <div className="section-label">Dates</div>
+            <div className="list">
+              {dates.map((item) => {
+                const entry = item.entry
+                const Icon = entry.kind === 'birthday' ? Gift : Calendar
+                return (
+                  <SwipeRow
+                    key={item.key}
+                    actions={[later(item)]}
+                    onClick={() => onOpenPerson(entry.person.id)}
+                    onLongPress={() => setActionPerson(entry.person)}
+                  >
+                    <div className="list-row">
+                      <Avatar name={entry.person.name} size={42} />
+                      <div className="row-body">
+                        <div className="row-title">{entry.person.name}</div>
+                        <div className="row-sub">
+                          <Icon size={12} style={{ verticalAlign: '-1px', marginRight: 4 }} />
+                          {dateSub(entry)}
+                        </div>
+                      </div>
+                      <div className="row-meta">
+                        <span className={`row-time ${entry.daysUntil <= 3 ? 'warn' : ''}`}>
+                          {dateWhen(entry)}
+                        </span>
+                        <ChevronRight size={18} className="row-chevron" />
+                      </div>
+                    </div>
+                  </SwipeRow>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
+        {recent.length > 0 && (
+          <section className="today-section">
+            <div className="section-head">
+              <div className="section-label">Recent activity</div>
+              {feed.length > recent.length && (
+                <button className="see-all" onClick={onOpenActivity}>
+                  See all
+                </button>
+              )}
+            </div>
+            <div className="list">
+              {recent.map((e) => (
+                <ActivityRow
+                  key={e.key}
+                  entry={e}
+                  onOpenPerson={onOpenPerson}
+                  onOpenList={onOpenList}
+                  onOpenTasks={onOpenTasks}
+                  onPersonLongPress={setActionPerson}
+                />
+              ))}
+            </div>
+          </section>
+        )}
       </div>
 
       {actionPerson && (
@@ -260,7 +334,11 @@ export default function TodayView({ data, onOpenPerson, onOpenList, onOpenTasks,
         />
       )}
       {laterItem && (
-        <ActionSheet title="Remind me later" actions={snoozeChoices} onClose={() => setLaterItem(null)} />
+        <ActionSheet
+          title="Remind me later"
+          actions={snoozeChoices}
+          onClose={() => setLaterItem(null)}
+        />
       )}
     </div>
   )

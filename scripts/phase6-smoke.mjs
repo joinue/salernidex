@@ -10,7 +10,10 @@ async function run(label, viewport, mobile) {
   const page = await browser.newPage({ viewport, isMobile: mobile, hasTouch: mobile })
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
-  page.on('console', (m) => m.type() === 'error' && !m.text().includes('404') && errors.push(m.text()))
+  page.on(
+    'console',
+    (m) => m.type() === 'error' && !m.text().includes('404') && errors.push(m.text()),
+  )
 
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
   await page.evaluate(() => localStorage.removeItem('salernidex-notify-prefs'))
@@ -18,13 +21,19 @@ async function run(label, viewport, mobile) {
   await page.waitForSelector('.large-title')
 
   // 1. Check in section, warm copy only
-  const sections = await page.$$eval('.section-label', (els) => els.map((e) => e.textContent.trim()))
+  const sections = await page.$$eval('.section-label', (els) =>
+    els.map((e) => e.textContent.trim()),
+  )
   console.log(`[${label}] Today sections: ${sections.join(' | ')}`)
-  const checkinSubs = await page.$$eval('.list .row-sub', (els) => els.map((e) => e.textContent.trim()))
+  const checkinSubs = await page.$$eval('.list .row-sub', (els) =>
+    els.map((e) => e.textContent.trim()),
+  )
   const warm = checkinSubs.some((t) => t.includes("It's been a while"))
   const sayHi = checkinSubs.some((t) => t.includes('say hi'))
   const salesy = checkinSubs.some((t) => /overdue by|cadence|follow.?up|nudge/i.test(t))
-  console.log(`[${label}] warm copy: ${warm}, never-contacted "say hi": ${sayHi}, salesy language leaked: ${salesy}`)
+  console.log(
+    `[${label}] warm copy: ${warm}, never-contacted "say hi": ${sayHi}, salesy language leaked: ${salesy}`,
+  )
 
   // 2. Badge on Today nav reflects overdue/today count
   const badgeSel = mobile ? '.tab-badge' : '.nav-badge'
@@ -38,7 +47,9 @@ async function run(label, viewport, mobile) {
   if (mobile) {
     await page.locator('.icon-btn[aria-label^="Check in with"]').first().click()
   } else {
-    const row = page.locator('.swipe-wrap', { has: page.locator('[aria-label^="Check in with"]') }).first()
+    const row = page
+      .locator('.swipe-wrap', { has: page.locator('[aria-label^="Check in with"]') })
+      .first()
     await row.hover()
     await row.locator('.row-hover-actions [aria-label="Check in"]').click()
   }
@@ -54,27 +65,35 @@ async function run(label, viewport, mobile) {
   // The action button sits under the row content until swiped open; dispatch
   // the click directly on the element (what a real swipe would expose).
   await page.evaluate(() => {
-    const btn = [...document.querySelectorAll('.swipe-action')].find((b) => b.textContent.includes('Later'))
+    const btn = [...document.querySelectorAll('.swipe-action')].find((b) =>
+      b.textContent.includes('Later'),
+    )
     btn.click()
   })
   await page.waitForSelector('.sheet')
   await page.getByText('Remind me in 3 days').click()
   await page.waitForTimeout(350)
   const afterRows = (await page.$$('.list .list-row')).length
-  console.log(`[${label}] snooze hides a row: ${afterRows < beforeRows} (${beforeRows} → ${afterRows})`)
+  console.log(
+    `[${label}] snooze hides a row: ${afterRows < beforeRows} (${beforeRows} → ${afterRows})`,
+  )
   await page.screenshot({ path: `${shots}/${label}-p6-after-snooze.png` })
 
   // 4b. Desktop: actions surface on hover (no mouse-dragging), and Clear
   //     quiets a check-in for a cadence cycle without logging anything.
   if (!mobile) {
     const interactionsBefore = await page.$$eval('.activity-row', (els) => els.length)
-    const row = page.locator('.swipe-wrap', { has: page.locator('[aria-label^="Check in with"]') }).first()
+    const row = page
+      .locator('.swipe-wrap', { has: page.locator('[aria-label^="Check in with"]') })
+      .first()
     await row.hover()
     await row.locator('.row-hover-actions [aria-label="Clear"]').click()
     await page.waitForTimeout(350)
     const afterClear = (await page.$$('.list .list-row')).length
     const interactionsAfter = await page.$$eval('.activity-row', (els) => els.length)
-    console.log(`[${label}] hover-Clear hides a check-in: ${afterClear < afterRows} (${afterRows} → ${afterClear}); no touchpoint logged: ${interactionsAfter === interactionsBefore}`)
+    console.log(
+      `[${label}] hover-Clear hides a check-in: ${afterClear < afterRows} (${afterRows} → ${afterClear}); no touchpoint logged: ${interactionsAfter === interactionsBefore}`,
+    )
   }
 
   // 5. Settings: toggling Check-ins off empties the section
@@ -85,8 +104,12 @@ async function run(label, viewport, mobile) {
   await page.screenshot({ path: `${shots}/${label}-p6-settings.png` })
   await page.goto('http://localhost:5173/#/')
   await page.waitForTimeout(300)
-  const sectionsAfter = await page.$$eval('.section-label', (els) => els.map((e) => e.textContent.trim()))
-  console.log(`[${label}] after toggle off, sections: ${sectionsAfter.join(' | ')} (Check in gone: ${!sectionsAfter.includes('Check in')})`)
+  const sectionsAfter = await page.$$eval('.section-label', (els) =>
+    els.map((e) => e.textContent.trim()),
+  )
+  console.log(
+    `[${label}] after toggle off, sections: ${sectionsAfter.join(' | ')} (Check in gone: ${!sectionsAfter.includes('Check in')})`,
+  )
   // restore for the next viewport run
   await page.goto('http://localhost:5173/#/settings')
   await page.waitForSelector('.switch')

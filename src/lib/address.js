@@ -6,7 +6,10 @@
 // which is non-destructive.
 
 export function formatAddress({ street, city, state, zip, country } = {}) {
-  const region = [state, zip].map((s) => (s || '').trim()).filter(Boolean).join(' ')
+  const region = [state, zip]
+    .map((s) => (s || '').trim())
+    .filter(Boolean)
+    .join(' ')
   return [street, city, region, country]
     .map((s) => (s || '').trim())
     .filter(Boolean)
@@ -17,7 +20,10 @@ const EMPTY = { street: '', city: '', state: '', zip: '', country: '' }
 
 export function parseAddress(value) {
   if (!value || typeof value !== 'string') return { ...EMPTY }
-  const parts = value.split(',').map((s) => s.trim()).filter(Boolean)
+  const parts = value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
   if (parts.length === 0) return { ...EMPTY }
   if (parts.length === 1) return { ...EMPTY, street: parts[0] }
 

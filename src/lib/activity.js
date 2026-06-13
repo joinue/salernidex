@@ -16,7 +16,13 @@ export function buildActivityFeed({ people, interactions, completions, tasks, li
   for (const c of completions || []) {
     const task = taskById.get(c.task_id)
     if (!task) continue
-    entries.push({ kind: 'completion', ts: c.completed_at, key: `c-${c.id}`, task, by: c.completed_by })
+    entries.push({
+      kind: 'completion',
+      ts: c.completed_at,
+      key: `c-${c.id}`,
+      task,
+      by: c.completed_by,
+    })
   }
 
   // One row per list, keyed off its most recent item activity (added or checked
@@ -29,7 +35,15 @@ export function buildActivityFeed({ people, interactions, completions, tasks, li
       if (item.checked_at) events.push({ ts: item.checked_at, action: 'checked', text: item.text })
       for (const ev of events) if (ev.ts && (!best || ev.ts > best.ts)) best = ev
     }
-    if (best) entries.push({ kind: 'list', ts: best.ts, key: `l-${list.id}`, list, action: best.action, text: best.text })
+    if (best)
+      entries.push({
+        kind: 'list',
+        ts: best.ts,
+        key: `l-${list.id}`,
+        list,
+        action: best.action,
+        text: best.text,
+      })
   }
 
   return entries.sort((a, b) => (a.ts < b.ts ? 1 : -1))

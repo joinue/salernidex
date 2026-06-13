@@ -31,13 +31,24 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
         {error && <p className="error-text">{error}</p>}
         <div className="field">
           <label className="label">Name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus={focusOnDesktop()} placeholder="Groceries, packing, …" />
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            autoFocus={focusOnDesktop()}
+            placeholder="Groceries, packing, …"
+          />
         </div>
         <div className="field">
           <label className="label">Icon</label>
           <div className="icon-row">
             {ICONS.map((ic) => (
-              <button type="button" key={ic} className={`icon-pick ${icon === ic ? 'on' : ''}`} onClick={() => setIcon(ic)}>
+              <button
+                type="button"
+                key={ic}
+                className={`icon-pick ${icon === ic ? 'on' : ''}`}
+                onClick={() => setIcon(ic)}
+              >
                 {ic}
               </button>
             ))}
@@ -47,7 +58,9 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
           <label className="label">Visibility</label>
           <select value={privacy} onChange={(e) => setPrivacy(e.target.value)}>
             {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
+              <option key={v} value={v}>
+                {l}
+              </option>
             ))}
           </select>
         </div>

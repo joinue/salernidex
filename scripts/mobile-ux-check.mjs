@@ -16,7 +16,10 @@ try {
   await page.waitForSelector('.tabbar')
   await page.waitForTimeout(300)
   await page.screenshot({ path: `${shots}/m1-search.png` })
-  console.log('TABBAR TABS:', await page.$$eval('.tabbar .tab', (els) => els.map((e) => e.textContent).join(', ')))
+  console.log(
+    'TABBAR TABS:',
+    await page.$$eval('.tabbar .tab', (els) => els.map((e) => e.textContent).join(', ')),
+  )
 
   // + action sheet
   await page.getByLabel('Add').click()

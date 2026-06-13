@@ -22,8 +22,14 @@ export default function AlphaIndex({ present, onJump }) {
   return (
     <div
       className="alpha-index"
-      onTouchStart={(e) => { lastLetter.current = null; jumpAt(e.touches[0].clientX, e.touches[0].clientY) }}
-      onTouchMove={(e) => { e.preventDefault(); jumpAt(e.touches[0].clientX, e.touches[0].clientY) }}
+      onTouchStart={(e) => {
+        lastLetter.current = null
+        jumpAt(e.touches[0].clientX, e.touches[0].clientY)
+      }}
+      onTouchMove={(e) => {
+        e.preventDefault()
+        jumpAt(e.touches[0].clientX, e.touches[0].clientY)
+      }}
       aria-hidden="true"
     >
       {ALPHABET.map((letter) => (

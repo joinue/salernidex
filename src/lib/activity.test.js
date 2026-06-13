@@ -3,7 +3,10 @@ import { buildActivityFeed, activityDayLabel, groupByDay } from './activity'
 
 describe('buildActivityFeed', () => {
   const base = {
-    people: [{ id: 'p1', name: 'Marc' }, { id: 'gone', name: 'X', deleted_at: '2026-01-01' }],
+    people: [
+      { id: 'p1', name: 'Marc' },
+      { id: 'gone', name: 'X', deleted_at: '2026-01-01' },
+    ],
     interactions: [
       { id: 'i1', person_id: 'p1', occurred_at: '2026-06-10T00:00:00Z' },
       { id: 'i2', person_id: 'gone', occurred_at: '2026-06-11T00:00:00Z' }, // dropped: deleted person
@@ -15,7 +18,13 @@ describe('buildActivityFeed', () => {
     tasks: [{ id: 't1', title: 'Dishes' }],
     lists: [{ id: 'l1', name: 'Groceries' }],
     listItems: [
-      { id: 'li1', list_id: 'l1', text: 'Milk', created_at: '2026-06-08T00:00:00Z', checked_at: '2026-06-11T00:00:00Z' },
+      {
+        id: 'li1',
+        list_id: 'l1',
+        text: 'Milk',
+        created_at: '2026-06-08T00:00:00Z',
+        checked_at: '2026-06-11T00:00:00Z',
+      },
     ],
   }
   it('merges newest-first and drops orphaned/deleted rows', () => {
@@ -25,7 +34,10 @@ describe('buildActivityFeed', () => {
     expect(feed[0]).toMatchObject({ kind: 'list', action: 'checked', ts: '2026-06-11T00:00:00Z' })
   })
   it('a list with no timestamped items produces no row (documented behavior)', () => {
-    const feed = buildActivityFeed({ ...base, listItems: [{ id: 'x', list_id: 'l1', text: 'Eggs', created_at: null }] })
+    const feed = buildActivityFeed({
+      ...base,
+      listItems: [{ id: 'x', list_id: 'l1', text: 'Eggs', created_at: null }],
+    })
     expect(feed.some((e) => e.kind === 'list')).toBe(false)
   })
   it('tolerates entirely empty input', () => {
@@ -34,8 +46,13 @@ describe('buildActivityFeed', () => {
 })
 
 describe('activityDayLabel / groupByDay', () => {
-  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-06-12T12:00:00')) })
-  afterEach(() => { vi.useRealTimers() })
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-12T12:00:00'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
 
   it('labels recent days relatively', () => {
     expect(activityDayLabel('2026-06-12T08:00:00')).toBe('Today')

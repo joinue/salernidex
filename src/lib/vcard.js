@@ -102,7 +102,10 @@ function splitOn(value, sep) {
 // Unfold continuation lines (RFC: a CRLF followed by a space/tab is a fold),
 // normalizing line endings first.
 function unfold(text) {
-  return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n[ \t]/g, '')
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\n[ \t]/g, '')
 }
 
 // "GROUP.NAME;PARAM=x:value" → { name: 'NAME', params: {PARAM:'x'}, value }.
@@ -145,7 +148,10 @@ function cardToRecord(propLines) {
     const n = first('N')
     if (n) {
       const c = splitOn(n.value, ';').map(unescapeVcf)
-      rec.name = [c[1], c[0]].map((s) => (s || '').trim()).filter(Boolean).join(' ')
+      rec.name = [c[1], c[0]]
+        .map((s) => (s || '').trim())
+        .filter(Boolean)
+        .join(' ')
     }
   }
 
@@ -167,13 +173,21 @@ function cardToRecord(propLines) {
   const adr = first('ADR') // PObox;ext;street;city;region;postal;country
   if (adr) {
     const c = splitOn(adr.value, ';').map(unescapeVcf)
-    const address = formatAddress({ street: c[2], city: c[3], state: c[4], zip: c[5], country: c[6] })
+    const address = formatAddress({
+      street: c[2],
+      city: c[3],
+      state: c[4],
+      zip: c[5],
+      country: c[6],
+    })
     if (address) rec.address = address
   }
 
   const cats = first('CATEGORIES') // comma-separated list
   if (cats) {
-    const tags = splitOn(cats.value, ',').map((t) => unescapeVcf(t).trim()).filter(Boolean)
+    const tags = splitOn(cats.value, ',')
+      .map((t) => unescapeVcf(t).trim())
+      .filter(Boolean)
     if (tags.length) rec.tags = tags
   }
 

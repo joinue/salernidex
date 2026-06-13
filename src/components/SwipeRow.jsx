@@ -51,7 +51,12 @@ export default function SwipeRow({ actions = [], onClick, onLongPress, children 
 
   const { dragging, handlers } = useDrag({
     axis: 'x',
-    onLongPress: onLongPress ? () => { suppressClick.current = true; onLongPress() } : undefined,
+    onLongPress: onLongPress
+      ? () => {
+          suppressClick.current = true
+          onLongPress()
+        }
+      : undefined,
     onStart: () => {
       startRef.current = offsetRef.current
     },

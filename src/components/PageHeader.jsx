@@ -24,17 +24,32 @@ export default function PageHeader({
       {(action || secondaryAction || onSearch) && (
         <div className="header-actions">
           {onSearch && (
-            <button className="header-action neutral" onClick={onSearch} aria-label="Quick Find" title="Quick Find">
+            <button
+              className="header-action neutral"
+              onClick={onSearch}
+              aria-label="Quick Find"
+              title="Quick Find"
+            >
               <Search size={20} />
             </button>
           )}
           {secondaryAction && SecondaryIcon && (
-            <button className="header-action neutral" onClick={secondaryAction} aria-label={secondaryActionLabel || 'Options'} title={secondaryActionLabel}>
+            <button
+              className="header-action neutral"
+              onClick={secondaryAction}
+              aria-label={secondaryActionLabel || 'Options'}
+              title={secondaryActionLabel}
+            >
               <SecondaryIcon size={20} />
             </button>
           )}
           {action && (
-            <button className="header-action" onClick={action} aria-label={actionLabel || 'Add'} title={actionLabel}>
+            <button
+              className="header-action"
+              onClick={action}
+              aria-label={actionLabel || 'Add'}
+              title={actionLabel}
+            >
               <ActionIcon size={20} />
             </button>
           )}

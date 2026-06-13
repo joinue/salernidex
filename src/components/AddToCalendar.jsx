@@ -14,8 +14,16 @@ export default function AddToCalendar({ task, trigger = 'text' }) {
 
   const actions = [
     { label: 'Apple / device calendar', icon: Calendar, onClick: () => downloadTaskIcs(task) },
-    { label: 'Google Calendar', icon: Calendar, onClick: () => window.open(googleCalendarUrl(task), '_blank', 'noopener') },
-    { label: 'Outlook', icon: Calendar, onClick: () => window.open(outlookCalendarUrl(task), '_blank', 'noopener') },
+    {
+      label: 'Google Calendar',
+      icon: Calendar,
+      onClick: () => window.open(googleCalendarUrl(task), '_blank', 'noopener'),
+    },
+    {
+      label: 'Outlook',
+      icon: Calendar,
+      onClick: () => window.open(outlookCalendarUrl(task), '_blank', 'noopener'),
+    },
   ]
 
   return (
@@ -29,7 +37,9 @@ export default function AddToCalendar({ task, trigger = 'text' }) {
           <Calendar size={14} /> Add to calendar
         </button>
       )}
-      {open && <ActionSheet title="Add to calendar" actions={actions} onClose={() => setOpen(false)} />}
+      {open && (
+        <ActionSheet title="Add to calendar" actions={actions} onClose={() => setOpen(false)} />
+      )}
     </>
   )
 }

@@ -17,7 +17,13 @@ import { taskBucket } from './tasks'
 import { followUp, lastInteraction, upcomingDates } from './contact'
 import { DEFAULT_PREFS } from './notifyPrefs'
 
-export function buildAttention(data, prefs = DEFAULT_PREFS, snoozes = [], memberId = null, now = Date.now()) {
+export function buildAttention(
+  data,
+  prefs = DEFAULT_PREFS,
+  snoozes = [],
+  memberId = null,
+  now = Date.now(),
+) {
   const { people = [], tasks = [], interactions = [], keyDates = [] } = data
   const active = people.filter((p) => !p.deleted_at)
 
@@ -25,7 +31,7 @@ export function buildAttention(data, prefs = DEFAULT_PREFS, snoozes = [], member
     snoozes
       .filter((s) => !memberId || s.member_id === memberId)
       .filter((s) => s.until === null || new Date(s.until).getTime() > now)
-      .map((s) => s.target_key)
+      .map((s) => s.target_key),
   )
 
   const items = []
@@ -46,17 +52,30 @@ export function buildAttention(data, prefs = DEFAULT_PREFS, snoozes = [], member
       const last = lastInteraction(p.id, interactions)
       const f = followUp(p, last?.occurred_at)
       if (!f || f.state === 'ok') continue
-      checkIns.push({ kind: 'nudge', key: `nudge:${p.id}`, urgency: 'overdue', person: p, state: f.state, lastIso: last?.occurred_at || null })
+      checkIns.push({
+        kind: 'nudge',
+        key: `nudge:${p.id}`,
+        urgency: 'overdue',
+        person: p,
+        state: f.state,
+        lastIso: last?.occurred_at || null,
+      })
     }
     // people you've never caught up with first, then longest-quiet first
-    checkIns.sort((a, b) => (a.lastIso || '') < (b.lastIso || '') ? -1 : 1)
+    checkIns.sort((a, b) => ((a.lastIso || '') < (b.lastIso || '') ? -1 : 1))
     items.push(...checkIns)
   }
 
   if (prefs.dates) {
     for (const entry of upcomingDates(active, keyDates, prefs.dates_lead_days)) {
-      const key = entry.kind === 'birthday' ? `date:b-${entry.person.id}` : `date:${entry.keyDate.id}`
-      items.push({ kind: 'date', key, urgency: entry.daysUntil === 0 ? 'today' : 'upcoming', entry })
+      const key =
+        entry.kind === 'birthday' ? `date:b-${entry.person.id}` : `date:${entry.keyDate.id}`
+      items.push({
+        kind: 'date',
+        key,
+        urgency: entry.daysUntil === 0 ? 'today' : 'upcoming',
+        entry,
+      })
     }
   }
 

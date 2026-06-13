@@ -34,7 +34,11 @@ export async function cropToBlob(imageSrc, crop) {
   ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, TARGET, TARGET)
   return new Promise((resolve, reject) => {
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not process image'))), 'image/jpeg', 0.85)
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error('Could not process image'))),
+      'image/jpeg',
+      0.85,
+    )
   })
 }
 
@@ -65,7 +69,10 @@ export async function uploadAvatar(kind, blob, { demo } = {}) {
 // external URLs have no Storage object, so they're a no-op.
 export async function removeAvatar(value) {
   if (!supabase || !value || directUrl(value)) return
-  await supabase.storage.from(BUCKET).remove([value]).catch(() => {})
+  await supabase.storage
+    .from(BUCKET)
+    .remove([value])
+    .catch(() => {})
 }
 
 // ---- resolve to a renderable URL --------------------------------------

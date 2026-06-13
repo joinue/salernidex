@@ -20,19 +20,27 @@ export default function RelationshipsView({ data, onOpenPerson, onAdd }) {
     <div>
       <PageHeader
         title="Network"
-        subtitle={rows.length ? `${rows.length} ${rows.length === 1 ? 'connection' : 'connections'}` : null}
+        subtitle={
+          rows.length ? `${rows.length} ${rows.length === 1 ? 'connection' : 'connections'}` : null
+        }
         action={onAdd}
         actionLabel="Add relationship"
       />
 
       <div className="filter-row">
-        <select className="filter-select" value={personFilter} onChange={(e) => setPersonFilter(e.target.value)}>
+        <select
+          className="filter-select"
+          value={personFilter}
+          onChange={(e) => setPersonFilter(e.target.value)}
+        >
           <option value="">Everyone</option>
           {[...people]
             .filter((p) => !p.deleted_at)
             .sort((a, b) => a.name.localeCompare(b.name))
             .map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
             ))}
         </select>
       </div>
@@ -41,18 +49,32 @@ export default function RelationshipsView({ data, onOpenPerson, onAdd }) {
         <div className="empty">
           <Share2 size={28} className="empty-icon" />
           No relationships yet.
-          <button className="text-btn" onClick={onAdd}><Plus size={14} /> Add one</button>
+          <button className="text-btn" onClick={onAdd}>
+            <Plus size={14} /> Add one
+          </button>
         </div>
       ) : (
         <div className="list">
           {rows.map(({ rel, a, b }) => (
             <div className="rel-row" key={rel.id}>
-              <span className="conn-name" onClick={() => onOpenPerson(a.id)}>{a.name}</span>
+              <span className="conn-name" onClick={() => onOpenPerson(a.id)}>
+                {a.name}
+              </span>
               <span className="arrow">— {rel.relationship_type.replace(/_/g, ' ')} →</span>
-              <span className="conn-name" onClick={() => onOpenPerson(b.id)}>{b.name}</span>
-              {rel.notes && <span className="muted" style={{ fontSize: 13 }}>· {rel.notes}</span>}
+              <span className="conn-name" onClick={() => onOpenPerson(b.id)}>
+                {b.name}
+              </span>
+              {rel.notes && (
+                <span className="muted" style={{ fontSize: 13 }}>
+                  · {rel.notes}
+                </span>
+              )}
               <span style={{ flex: 1 }} />
-              <button className="icon-btn danger" onClick={() => deleteRelationship(rel.id)} aria-label="Remove">
+              <button
+                className="icon-btn danger"
+                onClick={() => deleteRelationship(rel.id)}
+                aria-label="Remove"
+              >
                 <X size={16} />
               </button>
             </div>

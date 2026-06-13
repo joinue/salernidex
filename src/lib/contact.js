@@ -54,7 +54,14 @@ export function upcomingDates(people, keyDates = [], withinDays = 30) {
 
   for (const p of people) {
     const b = upcomingBirthday(p, withinDays)
-    if (b) out.push({ kind: 'birthday', person: p, daysUntil: b.daysUntil, turning: b.turning, label: 'Birthday' })
+    if (b)
+      out.push({
+        kind: 'birthday',
+        person: p,
+        daysUntil: b.daysUntil,
+        turning: b.turning,
+        label: 'Birthday',
+      })
   }
 
   const now = new Date()

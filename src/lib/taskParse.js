@@ -15,23 +15,63 @@ import { describeRecurrence } from './recurrence'
 // fills the blanks.
 
 const WEEKDAYS = {
-  sunday: 0, sundays: 0, sun: 0,
-  monday: 1, mondays: 1, mon: 1,
-  tuesday: 2, tuesdays: 2, tue: 2, tues: 2,
-  wednesday: 3, wednesdays: 3, wed: 3, weds: 3,
-  thursday: 4, thursdays: 4, thu: 4, thur: 4, thurs: 4,
-  friday: 5, fridays: 5, fri: 5,
-  saturday: 6, saturdays: 6, sat: 6,
+  sunday: 0,
+  sundays: 0,
+  sun: 0,
+  monday: 1,
+  mondays: 1,
+  mon: 1,
+  tuesday: 2,
+  tuesdays: 2,
+  tue: 2,
+  tues: 2,
+  wednesday: 3,
+  wednesdays: 3,
+  wed: 3,
+  weds: 3,
+  thursday: 4,
+  thursdays: 4,
+  thu: 4,
+  thur: 4,
+  thurs: 4,
+  friday: 5,
+  fridays: 5,
+  fri: 5,
+  saturday: 6,
+  saturdays: 6,
+  sat: 6,
 }
 const MONTHS = {
-  january: 0, jan: 0, february: 1, feb: 1, march: 2, mar: 2, april: 3, apr: 3,
-  may: 4, june: 5, jun: 5, july: 6, jul: 6, august: 7, aug: 7,
-  september: 8, sep: 8, sept: 8, october: 9, oct: 9, november: 10, nov: 10,
-  december: 11, dec: 11,
+  january: 0,
+  jan: 0,
+  february: 1,
+  feb: 1,
+  march: 2,
+  mar: 2,
+  april: 3,
+  apr: 3,
+  may: 4,
+  june: 5,
+  jun: 5,
+  july: 6,
+  jul: 6,
+  august: 7,
+  aug: 7,
+  september: 8,
+  sep: 8,
+  sept: 8,
+  october: 9,
+  oct: 9,
+  november: 10,
+  nov: 10,
+  december: 11,
+  dec: 11,
 }
 const ORDINALS = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5, last: -1 }
-const WD = 'sun(?:days?)?|mon(?:days?)?|tue(?:s|sdays?)?|wed(?:s|nesdays?)?|thu(?:r|rs|rsday)?s?|thursdays?|fri(?:days?)?|sat(?:urdays?)?'
-const MON = 'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?'
+const WD =
+  'sun(?:days?)?|mon(?:days?)?|tue(?:s|sdays?)?|wed(?:s|nesdays?)?|thu(?:r|rs|rsday)?s?|thursdays?|fri(?:days?)?|sat(?:urdays?)?'
+const MON =
+  'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?'
 
 const pad = (n) => String(n).padStart(2, '0')
 const toISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -46,7 +86,25 @@ const clampDay = (y, m, day) => new Date(y, m, Math.min(day, daysInMonth(y, m)))
 // 37-million-iteration scan in nextOccurrence. 1..999 covers any real cadence.
 const clampInterval = (n) => Math.min(999, Math.max(1, n || 1))
 
-const FILLER = new Set(['on', 'by', 'at', 'for', 'every', 'each', 'this', 'next', 'the', 'and', '&', 'in', 'to', 'starting', 'repeat', 'repeats', 'due'])
+const FILLER = new Set([
+  'on',
+  'by',
+  'at',
+  'for',
+  'every',
+  'each',
+  'this',
+  'next',
+  'the',
+  'and',
+  '&',
+  'in',
+  'to',
+  'starting',
+  'repeat',
+  'repeats',
+  'due',
+])
 
 function tidy(s) {
   let prev
@@ -73,12 +131,19 @@ export function parseTaskInput(text, { today, members = [] } = {}) {
   const out = { title: original, due_date: null, recurrence: null, assignee: null, tokens: [] }
   if (!original) return out
 
-  const base = today ? fromISO(today) : (() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()) })()
+  const base = today
+    ? fromISO(today)
+    : (() => {
+        const n = new Date()
+        return new Date(n.getFullYear(), n.getMonth(), n.getDate())
+      })()
   const todayISO = toISO(base)
   let rest = ` ${original} `
 
   // Splice a matched span out of `rest`.
-  const cut = (mm) => { rest = `${rest.slice(0, mm.index)} ${rest.slice(mm.index + mm[0].length)}` }
+  const cut = (mm) => {
+    rest = `${rest.slice(0, mm.index)} ${rest.slice(mm.index + mm[0].length)}`
+  }
   // Cut a regex match out of `rest`, returning the match array (or null).
   const take = (re) => {
     const mm = re.exec(rest)
@@ -107,31 +172,101 @@ export function parseTaskInput(text, { today, members = [] } = {}) {
   } else if ((m = take(/\b(?:every\s+other\s+week|biweekly|fortnightly)\b/i))) {
     rule = { freq: 'weekly', interval: 2, weekdays: [base.getDay()], anchor: todayISO }
   } else if ((m = take(/\b(?:every|each)\s+(\d+)\s+weeks?\b/i))) {
-    rule = { freq: 'weekly', interval: clampInterval(+m[1]), weekdays: [base.getDay()], anchor: todayISO }
-  } else if ((m = take(new RegExp(`\\b(?:every|each)\\s+other\\s+((?:${WD})(?:\\s*(?:,|and|&|/)\\s*(?:${WD}))*)\\b`, 'i')))) {
+    rule = {
+      freq: 'weekly',
+      interval: clampInterval(+m[1]),
+      weekdays: [base.getDay()],
+      anchor: todayISO,
+    }
+  } else if (
+    (m = take(
+      new RegExp(
+        `\\b(?:every|each)\\s+other\\s+((?:${WD})(?:\\s*(?:,|and|&|/)\\s*(?:${WD}))*)\\b`,
+        'i',
+      ),
+    ))
+  ) {
     // "every other tuesday" / "every other mon and thu" → fortnightly on those days
     const wds = [...new Set(weekdaysFrom(m[1]))].sort((a, b) => a - b)
-    rule = { freq: 'weekly', interval: 2, weekdays: wds.length ? wds : [base.getDay()], anchor: todayISO }
-  } else if ((m = take(new RegExp(`\\b(?:every|each)\\s+((?:${WD})(?:\\s*(?:,|and|&|/)\\s*(?:${WD}))*)\\b`, 'i')))) {
+    rule = {
+      freq: 'weekly',
+      interval: 2,
+      weekdays: wds.length ? wds : [base.getDay()],
+      anchor: todayISO,
+    }
+  } else if (
+    (m = take(
+      new RegExp(`\\b(?:every|each)\\s+((?:${WD})(?:\\s*(?:,|and|&|/)\\s*(?:${WD}))*)\\b`, 'i'),
+    ))
+  ) {
     const wds = [...new Set(weekdaysFrom(m[1]))].sort((a, b) => a - b)
-    rule = { freq: 'weekly', interval: 1, weekdays: wds.length ? wds : [base.getDay()], anchor: todayISO }
-  } else if ((m = new RegExp(`\\b(?:every\\s+)?(${Object.keys(ORDINALS).join('|')})\\s+(${WD})(?:\\s+of\\s+(?:the\\s+|every\\s+|each\\s+)?month)?\\b`, 'i').exec(rest)) && /every|of\s+(?:the\s+|every\s+|each\s+)?month/i.test(m[0])) {
+    rule = {
+      freq: 'weekly',
+      interval: 1,
+      weekdays: wds.length ? wds : [base.getDay()],
+      anchor: todayISO,
+    }
+  } else if (
+    (m = new RegExp(
+      `\\b(?:every\\s+)?(${Object.keys(ORDINALS).join('|')})\\s+(${WD})(?:\\s+of\\s+(?:the\\s+|every\\s+|each\\s+)?month)?\\b`,
+      'i',
+    ).exec(rest)) &&
+    /every|of\s+(?:the\s+|every\s+|each\s+)?month/i.test(m[0])
+  ) {
     // Only a recurrence if anchored by "every" or "of the month" — otherwise
     // "first Monday" is a one-off and we leave it for the date matcher.
     cut(m)
-    rule = { freq: 'monthly', interval: 1, setpos: ORDINALS[m[1].toLowerCase()], weekday: WEEKDAYS[m[2].toLowerCase()], anchor: todayISO }
-  } else if ((m = take(/\b(?:(?:every|each)\s+month|monthly)\s+on\s+the\s+(\d{1,2})(?:st|nd|rd|th)?\b/i))) {
+    rule = {
+      freq: 'monthly',
+      interval: 1,
+      setpos: ORDINALS[m[1].toLowerCase()],
+      weekday: WEEKDAYS[m[2].toLowerCase()],
+      anchor: todayISO,
+    }
+  } else if (
+    (m = take(/\b(?:(?:every|each)\s+month|monthly)\s+on\s+the\s+(\d{1,2})(?:st|nd|rd|th)?\b/i))
+  ) {
     rule = { freq: 'monthly', interval: 1, monthday: Math.min(31, +m[1]), anchor: todayISO }
   } else if ((m = take(/\b(?:every|each)\s+(\d+)\s+months?\b/i))) {
-    rule = { freq: 'monthly', interval: clampInterval(+m[1]), monthday: base.getDate(), anchor: todayISO }
+    rule = {
+      freq: 'monthly',
+      interval: clampInterval(+m[1]),
+      monthday: base.getDate(),
+      anchor: todayISO,
+    }
   } else if ((m = take(/\b(?:every\s+month|monthly)\b/i))) {
     rule = { freq: 'monthly', interval: 1, monthday: base.getDate(), anchor: todayISO }
-  } else if ((m = take(new RegExp(`\\b(?:(?:every|each)\\s+year|yearly|annually)\\s+on\\s+(${MON})\\.?\\s+(\\d{1,2})\\b`, 'i')))) {
-    rule = { freq: 'yearly', interval: 1, month: MONTHS[m[1].toLowerCase()], monthday: +m[2], anchor: todayISO }
+  } else if (
+    (m = take(
+      new RegExp(
+        `\\b(?:(?:every|each)\\s+year|yearly|annually)\\s+on\\s+(${MON})\\.?\\s+(\\d{1,2})\\b`,
+        'i',
+      ),
+    ))
+  ) {
+    rule = {
+      freq: 'yearly',
+      interval: 1,
+      month: MONTHS[m[1].toLowerCase()],
+      monthday: +m[2],
+      anchor: todayISO,
+    }
   } else if ((m = take(/\b(?:every|each)\s+(\d+)\s+years?\b/i))) {
-    rule = { freq: 'yearly', interval: clampInterval(+m[1]), month: base.getMonth(), monthday: base.getDate(), anchor: todayISO }
+    rule = {
+      freq: 'yearly',
+      interval: clampInterval(+m[1]),
+      month: base.getMonth(),
+      monthday: base.getDate(),
+      anchor: todayISO,
+    }
   } else if ((m = take(/\b(?:every\s+year|yearly|annually)\b/i))) {
-    rule = { freq: 'yearly', interval: 1, month: base.getMonth(), monthday: base.getDate(), anchor: todayISO }
+    rule = {
+      freq: 'yearly',
+      interval: 1,
+      month: base.getMonth(),
+      monthday: base.getDate(),
+      anchor: todayISO,
+    }
   } else if ((m = take(/\b(?:every|each)\s+week\b/i))) {
     rule = { freq: 'weekly', interval: 1, weekdays: [base.getDay()], anchor: todayISO }
   }
@@ -140,7 +275,12 @@ export function parseTaskInput(text, { today, members = [] } = {}) {
   // ---- due date (one-off) — first confident hit wins ----
   let due = null
   let dueText = ''
-  const set = (d) => { if (!due) { due = toISO(d); dueText = m[0].trim() } }
+  const set = (d) => {
+    if (!due) {
+      due = toISO(d)
+      dueText = m[0].trim()
+    }
+  }
   if ((m = take(/\bday\s+after\s+tomorrow\b/i))) set(addDays(base, 2))
   else if ((m = take(/\b(?:tomorrow|tmrw|tmr|tomo)\b/i))) set(addDays(base, 1))
   else if ((m = take(/\b(?:today|tonight)\b/i))) set(base)
@@ -159,14 +299,26 @@ export function parseTaskInput(text, { today, members = [] } = {}) {
     let d = clampDay(base.getFullYear(), base.getMonth(), day)
     if (d < base) d = clampDay(base.getFullYear(), base.getMonth() + 1, day)
     set(d)
-  } else if ((m = take(new RegExp(`\\b(${MON})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*(\\d{4}))?\\b`, 'i')))) {
+  } else if (
+    (m = take(
+      new RegExp(`\\b(${MON})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*(\\d{4}))?\\b`, 'i'),
+    ))
+  ) {
     set(monthDayYear(MONTHS[m[1].toLowerCase()], +m[2], m[3], base))
-  } else if ((m = take(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(${MON})\\.?(?:,?\\s*(\\d{4}))?\\b`, 'i')))) {
+  } else if (
+    (m = take(
+      new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(${MON})\\.?(?:,?\\s*(\\d{4}))?\\b`, 'i'),
+    ))
+  ) {
     set(monthDayYear(MONTHS[m[2].toLowerCase()], +m[1], m[3], base))
-  } else if ((m = take(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/)) || (m = take(/\b(\d{1,2})-(\d{1,2})-(\d{4})\b/))) {
+  } else if (
+    (m = take(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/)) ||
+    (m = take(/\b(\d{1,2})-(\d{1,2})-(\d{4})\b/))
+  ) {
     // Slash form "6/20" (optional year) OR dash form that REQUIRES a 4-digit
     // year — so "buy 2-4 apples" / "kids 3-5" aren't misread as dates.
-    const mo = +m[1] - 1, day = +m[2]
+    const mo = +m[1] - 1,
+      day = +m[2]
     if (mo >= 0 && mo <= 11 && day >= 1 && day <= 31) {
       let yr = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : base.getFullYear()
       let d = clampDay(yr, mo, day)
@@ -188,11 +340,17 @@ export function parseTaskInput(text, { today, members = [] } = {}) {
   let whoText = ''
   if ((m = /\s@(\w+)\b/.exec(rest))) {
     const mem = matchMember(m[1])
-    if (mem) { out.assignee = mem.id; whoText = `@${m[1]}` }
+    if (mem) {
+      out.assignee = mem.id
+      whoText = `@${m[1]}`
+    }
   }
   if (!out.assignee && (m = /\bfor\s+(\w+)\b/i.exec(rest))) {
     const mem = matchMember(m[1])
-    if (mem) { out.assignee = mem.id; whoText = m[0].trim() }
+    if (mem) {
+      out.assignee = mem.id
+      whoText = m[0].trim()
+    }
   }
 
   // ---- reconcile + finalize ----

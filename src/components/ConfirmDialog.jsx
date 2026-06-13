@@ -23,18 +23,27 @@ export default function ConfirmDialog({
   }, [onCancel])
 
   return createPortal(
-    <div className="confirm-overlay" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
+    <div
+      className="confirm-overlay"
+      onMouseDown={(e) => e.target === e.currentTarget && onCancel()}
+    >
       <div className="confirm-dialog" role="alertdialog" aria-label={title}>
         <h2 className="confirm-title">{title}</h2>
         {message && <p className="confirm-message">{message}</p>}
         <div className="confirm-actions">
-          <button className="confirm-btn" onClick={onCancel}>{cancelLabel}</button>
-          <button className={`confirm-btn ${danger ? 'danger' : 'primary'}`} onClick={onConfirm} autoFocus>
+          <button className="confirm-btn" onClick={onCancel}>
+            {cancelLabel}
+          </button>
+          <button
+            className={`confirm-btn ${danger ? 'danger' : 'primary'}`}
+            onClick={onConfirm}
+            autoFocus
+          >
             {confirmLabel}
           </button>
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   )
 }

@@ -80,8 +80,8 @@ export default function GroupForm({ group, existingTags, onSave, onClose, isDemo
           />
         </div>
         <p className="muted" style={{ fontSize: 13, marginBottom: 24 }}>
-          Leave a rule empty to skip it. Example: any of "book club, neighbor",
-          none of "work" = personal contacts outside the office.
+          Leave a rule empty to skip it. Example: any of "book club, neighbor", none of "work" =
+          personal contacts outside the office.
         </p>
         <button className="btn-primary" disabled={busy}>
           {busy ? <span className="dots">Saving</span> : group ? 'Save group' : 'Create group'}

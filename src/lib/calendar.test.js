@@ -16,7 +16,13 @@ describe('taskToIcs', () => {
   })
 
   it('falls back to a single-day event and escapes text fields', () => {
-    const ics = taskToIcs({ id: 't2', title: 'Pay, file; taxes', due_date: '2026-01-01', notes: 'Line one\nLine two', area: 'Home' })
+    const ics = taskToIcs({
+      id: 't2',
+      title: 'Pay, file; taxes',
+      due_date: '2026-01-01',
+      notes: 'Line one\nLine two',
+      area: 'Home',
+    })
     expect(ics).toContain('SUMMARY:Pay\\, file\\; taxes')
     expect(ics).toContain('DESCRIPTION:Area: Home\\nLine one\\nLine two')
   })
@@ -46,10 +52,14 @@ describe('recurrenceToRrule', () => {
     expect(recurrenceToRrule({ freq: 'monthly', monthday: 20 })).toBe('FREQ=MONTHLY;BYMONTHDAY=20')
   })
   it('monthly by last weekday', () => {
-    expect(recurrenceToRrule({ freq: 'monthly', setpos: -1, weekday: 5 })).toBe('FREQ=MONTHLY;BYDAY=-1FR')
+    expect(recurrenceToRrule({ freq: 'monthly', setpos: -1, weekday: 5 })).toBe(
+      'FREQ=MONTHLY;BYDAY=-1FR',
+    )
   })
   it('yearly converts the 0-indexed month to 1-indexed BYMONTH', () => {
-    expect(recurrenceToRrule({ freq: 'yearly', month: 5, monthday: 12 })).toBe('FREQ=YEARLY;BYMONTH=6;BYMONTHDAY=12')
+    expect(recurrenceToRrule({ freq: 'yearly', month: 5, monthday: 12 })).toBe(
+      'FREQ=YEARLY;BYMONTH=6;BYMONTHDAY=12',
+    )
   })
 })
 

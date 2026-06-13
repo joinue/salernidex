@@ -48,9 +48,17 @@ export default function InstallHint() {
   if (prompt) {
     return (
       <div className="install-hint">
-        <img src="/logo-mark.png" width="36" height="36" alt="" style={{ borderRadius: 8, flexShrink: 0 }} />
+        <img
+          src="/logo-mark.png"
+          width="36"
+          height="36"
+          alt=""
+          style={{ borderRadius: 8, flexShrink: 0 }}
+        />
         <div className="row-body">
-          <div className="row-title" style={{ fontSize: 15 }}>Install Salernidex</div>
+          <div className="row-title" style={{ fontSize: 15 }}>
+            Install Salernidex
+          </div>
           <div className="row-sub">Its own window and app icon — no browser tab to lose.</div>
         </div>
         <button className="pill-btn" onClick={install}>
@@ -67,9 +75,17 @@ export default function InstallHint() {
   if (isIos()) {
     return (
       <div className="install-hint">
-        <img src="/logo-mark.png" width="36" height="36" alt="" style={{ borderRadius: 8, flexShrink: 0 }} />
+        <img
+          src="/logo-mark.png"
+          width="36"
+          height="36"
+          alt=""
+          style={{ borderRadius: 8, flexShrink: 0 }}
+        />
         <div className="row-body">
-          <div className="row-title" style={{ fontSize: 15 }}>Add to your Home Screen</div>
+          <div className="row-title" style={{ fontSize: 15 }}>
+            Add to your Home Screen
+          </div>
           <div className="row-sub">
             Full screen, an app icon, and notifications at launch. Tap{' '}
             <Share size={12} style={{ verticalAlign: '-1px' }} /> then "Add to Home Screen".

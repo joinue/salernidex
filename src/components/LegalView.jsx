@@ -13,7 +13,9 @@ export default function LegalView({ doc, onBack }) {
   const Body = doc === 'terms' ? Terms : Privacy
   return (
     <div className="legal">
-      <button className="back-btn" onClick={onBack}><ArrowLeft size={18} /> Back</button>
+      <button className="back-btn" onClick={onBack}>
+        <ArrowLeft size={18} /> Back
+      </button>
       <Body />
       <p className="legal-meta">
         Salernidex is operated by {OPERATOR}. Questions? Email{' '}
@@ -30,19 +32,19 @@ function Privacy() {
       <p className="legal-date">Last updated {EFFECTIVE_DATE}</p>
 
       <p>
-        Salernidex (the “Service”) is a private household organizer operated by {OPERATOR},
-        an Arizona limited liability company (“Joinue,” “we,” “us”). This policy explains what
-        we collect, why, and what choices you have. By using the Service you agree to this policy.
+        Salernidex (the “Service”) is a private household organizer operated by {OPERATOR}, an
+        Arizona limited liability company (“Joinue,” “we,” “us”). This policy explains what we
+        collect, why, and what choices you have. By using the Service you agree to this policy.
       </p>
 
       <h2>1. Who controls your data</h2>
       <p>
-        Salernidex is a tool you use to record your own household, contacts, and to-dos.
-        For the information you enter — including details about other people — <strong>you</strong>{' '}
-        decide what to put in and how it is used. With respect to that content you act as the
-        data controller; we act as a processor that stores it on your behalf. You are responsible
-        for having a lawful basis to record information about other people and for honoring any
-        request they make to see, correct, or delete it.
+        Salernidex is a tool you use to record your own household, contacts, and to-dos. For the
+        information you enter — including details about other people — <strong>you</strong> decide
+        what to put in and how it is used. With respect to that content you act as the data
+        controller; we act as a processor that stores it on your behalf. You are responsible for
+        having a lawful basis to record information about other people and for honoring any request
+        they make to see, correct, or delete it.
       </p>
 
       <h2>2. What we collect</h2>
@@ -58,37 +60,38 @@ function Privacy() {
           member names, interaction logs, and your notification preferences.
         </li>
         <li>
-          <strong>Device &amp; technical data.</strong> Basic information your browser sends
-          (such as IP address and user-agent) and, if you turn on reminders, a push-notification
-          token for the device you enabled. We use local storage on your device for things like
-          your theme choice, session, and snoozed reminders.
+          <strong>Device &amp; technical data.</strong> Basic information your browser sends (such
+          as IP address and user-agent) and, if you turn on reminders, a push-notification token for
+          the device you enabled. We use local storage on your device for things like your theme
+          choice, session, and snoozed reminders.
         </li>
       </ul>
       <p>
-        We do <strong>not</strong> intentionally collect special-category data, and we ask that
-        you not store government IDs, financial account numbers, health records, or similarly
-        sensitive information in the Service.
+        We do <strong>not</strong> intentionally collect special-category data, and we ask that you
+        not store government IDs, financial account numbers, health records, or similarly sensitive
+        information in the Service.
       </p>
 
       <h2>3. How we use it</h2>
       <p>
-        We use your information solely to provide the Service: to authenticate you, store and
-        sync your data across your devices and household members, send the reminders you ask for,
-        and keep the Service secure and working. We do <strong>not</strong> sell your data, rent
-        it, or use it for advertising, and we do not use your content to train machine-learning
-        models.
+        We use your information solely to provide the Service: to authenticate you, store and sync
+        your data across your devices and household members, send the reminders you ask for, and
+        keep the Service secure and working. We do <strong>not</strong> sell your data, rent it, or
+        use it for advertising, and we do not use your content to train machine-learning models.
       </p>
 
       <h2>4. Who we share it with</h2>
-      <p>
-        We share data only with vendors that help us run the Service, and only as needed:
-      </p>
+      <p>We share data only with vendors that help us run the Service, and only as needed:</p>
       <ul>
-        <li><strong>Supabase</strong> — database, authentication, and hosting of your data.</li>
-        <li><strong>Our hosting/CDN provider</strong> — delivery of the application to your browser.</li>
         <li>
-          <strong>Web-push services</strong> (such as those operated by Apple, Google, or Mozilla)
-          — only if you enable reminders, and only to deliver them.
+          <strong>Supabase</strong> — database, authentication, and hosting of your data.
+        </li>
+        <li>
+          <strong>Our hosting/CDN provider</strong> — delivery of the application to your browser.
+        </li>
+        <li>
+          <strong>Web-push services</strong> (such as those operated by Apple, Google, or Mozilla) —
+          only if you enable reminders, and only to deliver them.
         </li>
         <li>
           <strong>Household members.</strong> Data you create is visible to the other members of
@@ -96,17 +99,17 @@ function Privacy() {
         </li>
       </ul>
       <p>
-        We may also disclose information if required by law, to enforce our Terms, or to protect
-        the rights, safety, or property of anyone, and we may transfer data in connection with a
-        merger, acquisition, or sale of assets.
+        We may also disclose information if required by law, to enforce our Terms, or to protect the
+        rights, safety, or property of anyone, and we may transfer data in connection with a merger,
+        acquisition, or sale of assets.
       </p>
 
       <h2>5. Where it lives &amp; how long</h2>
       <p>
-        Your data is stored on servers operated by our providers, which may be located in the
-        United States. We keep your data for as long as your account is active. You can export a
-        complete copy at any time (JSON, CSV, or vCard) from Import / Export, and you can delete
-        items yourself. To delete your account and associated data, email us at{' '}
+        Your data is stored on servers operated by our providers, which may be located in the United
+        States. We keep your data for as long as your account is active. You can export a complete
+        copy at any time (JSON, CSV, or vCard) from Import / Export, and you can delete items
+        yourself. To delete your account and associated data, email us at{' '}
         <a href={`mailto:${CONTACT}`}>{CONTACT}</a> and we will delete it within a reasonable time,
         except where we must retain it to comply with law.
       </p>
@@ -121,20 +124,20 @@ function Privacy() {
 
       <h2>7. Security</h2>
       <p>
-        We use reasonable technical and organizational measures, including encryption in transit
-        and access controls, to protect your data, and we rely on established providers that
-        maintain their own safeguards. No method of storage or transmission is perfectly secure,
-        however, and we cannot guarantee absolute security or that a breach will never occur. Our
-        responsibility for any security incident is subject to the disclaimers and limitation of
-        liability in our <a href="#/terms">Terms of Use</a>. You are responsible for keeping your
-        password confidential and for activity under your account.
+        We use reasonable technical and organizational measures, including encryption in transit and
+        access controls, to protect your data, and we rely on established providers that maintain
+        their own safeguards. No method of storage or transmission is perfectly secure, however, and
+        we cannot guarantee absolute security or that a breach will never occur. Our responsibility
+        for any security incident is subject to the disclaimers and limitation of liability in our{' '}
+        <a href="#/terms">Terms of Use</a>. You are responsible for keeping your password
+        confidential and for activity under your account.
       </p>
 
       <h2>8. Children</h2>
       <p>
         The Service is not directed to children under 13, and we do not knowingly collect personal
-        information from them. If you believe a child has provided us information, contact us and
-        we will delete it.
+        information from them. If you believe a child has provided us information, contact us and we
+        will delete it.
       </p>
 
       <h2>9. Changes</h2>
@@ -156,14 +159,14 @@ function Terms() {
       <p>
         These Terms of Use (“Terms”) govern your access to and use of Salernidex (the “Service”),
         operated by {OPERATOR}, an Arizona limited liability company (“Joinue,” “we,” “us”). By
-        creating an account or using the Service, you agree to these Terms. If you do not agree,
-        do not use the Service.
+        creating an account or using the Service, you agree to these Terms. If you do not agree, do
+        not use the Service.
       </p>
 
       <h2>1. Who may use the Service</h2>
       <p>
-        You must be at least 18 years old (or the age of majority where you live) and able to form
-        a binding contract. If you use the Service on behalf of a household, you represent that you
+        You must be at least 18 years old (or the age of majority where you live) and able to form a
+        binding contract. If you use the Service on behalf of a household, you represent that you
         are authorized to do so and to accept these Terms for it.
       </p>
 
@@ -177,17 +180,16 @@ function Terms() {
 
       <h2>3. Your account</h2>
       <p>
-        You are responsible for your login credentials and for all activity under your account.
-        Keep your password secure and notify us promptly of any unauthorized use. You may invite
-        other members to your household; you are responsible for who you invite and what they can
-        see.
+        You are responsible for your login credentials and for all activity under your account. Keep
+        your password secure and notify us promptly of any unauthorized use. You may invite other
+        members to your household; you are responsible for who you invite and what they can see.
       </p>
 
       <h2>4. Your content</h2>
       <p>
         You own the information you put into the Service (“Your Content”), and you keep all rights
-        to it. You grant us a limited license to host, store, copy, and display Your Content only
-        as needed to operate the Service for you and your household. You are solely responsible for
+        to it. You grant us a limited license to host, store, copy, and display Your Content only as
+        needed to operate the Service for you and your household. You are solely responsible for
         Your Content, including information about other people, and you represent that you have the
         right to record and use it and that doing so does not violate any law or the rights of
         others.
@@ -209,18 +211,21 @@ function Terms() {
         The Service may surface reminders, due dates, check-in nudges, and notifications. These are
         a convenience only. We do not guarantee that any reminder or notification will be generated,
         delivered, accurate, or timely, and delivery depends on third parties and your device
-        settings. <strong>Do not rely on the Service for anything important, time-sensitive, or
-        consequential</strong> (including medical, legal, financial, or safety matters). You are
-        responsible for your own commitments.
+        settings.{' '}
+        <strong>
+          Do not rely on the Service for anything important, time-sensitive, or consequential
+        </strong>{' '}
+        (including medical, legal, financial, or safety matters). You are responsible for your own
+        commitments.
       </p>
 
       <h2>7. Third-party services</h2>
       <p>
-        The Service runs on infrastructure and services operated by third parties (for example,
-        our database/authentication, hosting, and push-notification providers). We are not
-        responsible for the acts, omissions, outages, or security incidents of those third parties,
-        and your use of the Service is also subject to their terms. We are not liable for any loss
-        arising from a third-party provider’s failure or breach beyond our own reasonable control.
+        The Service runs on infrastructure and services operated by third parties (for example, our
+        database/authentication, hosting, and push-notification providers). We are not responsible
+        for the acts, omissions, outages, or security incidents of those third parties, and your use
+        of the Service is also subject to their terms. We are not liable for any loss arising from a
+        third-party provider’s failure or breach beyond our own reasonable control.
       </p>
 
       <h2>8. Backups are your responsibility</h2>
@@ -234,10 +239,10 @@ function Terms() {
       <h2>9. Service availability &amp; changes</h2>
       <p>
         The Service is under active development, may contain bugs or errors, and is provided on an
-        evolving basis. We may add, change, suspend, or discontinue features — or the entire
-        Service — at any time, with or without notice. We are not liable to you for any
-        modification, suspension, or discontinuation, or for any delay or failure caused by events
-        beyond our reasonable control.
+        evolving basis. We may add, change, suspend, or discontinue features — or the entire Service
+        — at any time, with or without notice. We are not liable to you for any modification,
+        suspension, or discontinuation, or for any delay or failure caused by events beyond our
+        reasonable control.
       </p>
 
       <h2>10. Disclaimer of warranties</h2>
@@ -275,9 +280,9 @@ function Terms() {
         sue in court and to participate in a class action.
       </p>
       <p>
-        <strong>Informal resolution first.</strong> Before starting any formal proceeding, you
-        agree to contact us at <a href={`mailto:${CONTACT}`}>{CONTACT}</a> and give us 60 days to
-        resolve the dispute informally.
+        <strong>Informal resolution first.</strong> Before starting any formal proceeding, you agree
+        to contact us at <a href={`mailto:${CONTACT}`}>{CONTACT}</a> and give us 60 days to resolve
+        the dispute informally.
       </p>
       <p>
         <strong>Binding arbitration.</strong> If we can’t resolve it, you and {OPERATOR} agree that
@@ -294,8 +299,8 @@ function Terms() {
         only that claim) will proceed in court.
       </p>
       <p>
-        <strong>Jury-trial waiver.</strong> To the extent any dispute proceeds in court, you and
-        {' '}{OPERATOR} each waive any right to a jury trial.
+        <strong>Jury-trial waiver.</strong> To the extent any dispute proceeds in court, you and{' '}
+        {OPERATOR} each waive any right to a jury trial.
       </p>
       <p>
         <strong>Carve-outs.</strong> Either party may bring an individual claim in small-claims
@@ -335,8 +340,8 @@ function Terms() {
 
       <h2>17. General</h2>
       <p>
-        These Terms, together with the Privacy Policy, are the entire agreement between you and
-        {' '}{OPERATOR} regarding the Service and supersede any prior agreements. If any provision is
+        These Terms, together with the Privacy Policy, are the entire agreement between you and{' '}
+        {OPERATOR} regarding the Service and supersede any prior agreements. If any provision is
         held unenforceable, it will be limited or removed to the minimum extent necessary and the
         rest of these Terms will remain in full effect. Our failure to enforce any provision is not
         a waiver of it. You may not assign these Terms without our consent; we may assign them to an

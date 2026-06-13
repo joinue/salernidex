@@ -20,7 +20,9 @@ export default function ListsView({ data, onOpenList, onAdd, onSearch }) {
         <div className="empty">
           <ShoppingCart size={28} className="empty-icon" />
           No lists yet.
-          <button className="text-btn" onClick={onAdd}><Plus size={14} /> New list</button>
+          <button className="text-btn" onClick={onAdd}>
+            <Plus size={14} /> New list
+          </button>
         </div>
       ) : (
         <div className="list">
@@ -31,7 +33,9 @@ export default function ListsView({ data, onOpenList, onAdd, onSearch }) {
                 <span className="list-emoji">{l.icon || '📝'}</span>
                 <div className="row-body">
                   <div className="row-title">{l.name}</div>
-                  <div className="row-sub">{open ? `${open} item${open === 1 ? '' : 's'} left` : 'All done'}</div>
+                  <div className="row-sub">
+                    {open ? `${open} item${open === 1 ? '' : 's'} left` : 'All done'}
+                  </div>
                 </div>
                 <ChevronRight size={18} className="row-chevron" />
               </div>

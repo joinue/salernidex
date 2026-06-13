@@ -47,10 +47,31 @@ const TYPE_RANK = Object.keys(TYPE_LABELS)
 // `key` is stable across sessions — it's what recents store.
 export function buildIndex(data) {
   const entries = []
-  const add = (e) => entries.push({ ...e, key: `${e.type}:${e.id || e.route || e.action || e.title}` })
+  const add = (e) =>
+    entries.push({ ...e, key: `${e.type}:${e.id || e.route || e.action || e.title}` })
 
-  for (const n of NAV) add({ type: 'nav', route: n.route, title: n.title, sub: 'Page', fields: [[n.title, 60], [n.alias, 25]] })
-  for (const a of ACTIONS) add({ type: 'action', action: a.action, title: a.title, sub: 'Create', fields: [[a.title, 50], [a.alias, 25]] })
+  for (const n of NAV)
+    add({
+      type: 'nav',
+      route: n.route,
+      title: n.title,
+      sub: 'Page',
+      fields: [
+        [n.title, 60],
+        [n.alias, 25],
+      ],
+    })
+  for (const a of ACTIONS)
+    add({
+      type: 'action',
+      action: a.action,
+      title: a.title,
+      sub: 'Create',
+      fields: [
+        [a.title, 50],
+        [a.alias, 25],
+      ],
+    })
 
   const orgNameById = new Map((data.orgs || []).map((o) => [o.id, o.name]))
   for (const p of data.people) {
@@ -63,8 +84,12 @@ export function buildIndex(data) {
       avatar_url: p.avatar_url || null,
       sub: [p.role, orgName].filter(Boolean).join(' · ') || 'Person',
       fields: [
-        [p.name, 100], [orgName, 40], [p.role, 30],
-        [(p.tags || []).join(' '), 30], [p.email, 20], [p.notes, 10],
+        [p.name, 100],
+        [orgName, 40],
+        [p.role, 30],
+        [(p.tags || []).join(' '), 30],
+        [p.email, 20],
+        [p.notes, 10],
       ],
     })
   }
@@ -80,7 +105,10 @@ export function buildIndex(data) {
       parentId: parent?.id || null,
       title: t.title || 'Untitled',
       sub: parent ? `In ${parent.title}` : dueLabel(t.due_date) || (project ? 'Project' : 'Task'),
-      fields: [[t.title, 90], [t.notes, 10]],
+      fields: [
+        [t.title, 90],
+        [t.notes, 10],
+      ],
     })
   }
 
@@ -97,7 +125,10 @@ export function buildIndex(data) {
       title: l.name || 'Untitled',
       sub: open ? `${open} item${open === 1 ? '' : 's'} left` : 'List',
       // Item text indexed too, so "milk" finds Groceries.
-      fields: [[l.name, 80], [itemsByList.get(l.id), 15]],
+      fields: [
+        [l.name, 80],
+        [itemsByList.get(l.id), 15],
+      ],
     })
   }
 
@@ -107,7 +138,12 @@ export function buildIndex(data) {
       id: o.id,
       title: o.name || 'Unnamed',
       sub: o.type || 'Organization',
-      fields: [[o.name, 70], [o.type, 20], [(o.tags || []).join(' '), 20], [o.description, 10]],
+      fields: [
+        [o.name, 70],
+        [o.type, 20],
+        [(o.tags || []).join(' '), 20],
+        [o.description, 10],
+      ],
     })
   }
 
@@ -118,7 +154,10 @@ export function buildIndex(data) {
       id: g.id,
       title: g.name || 'Unnamed',
       sub: `${n} ${n === 1 ? 'person' : 'people'}`,
-      fields: [[g.name, 70], [[...(g.all_tags || []), ...(g.any_tags || [])].join(' '), 25]],
+      fields: [
+        [g.name, 70],
+        [[...(g.all_tags || []), ...(g.any_tags || [])].join(' '), 25],
+      ],
     })
   }
 
@@ -153,7 +192,10 @@ export function searchIndex(entries, query) {
     if (allMatched) scored.push({ entry, total })
   }
   return scored
-    .sort((a, b) => b.total - a.total || TYPE_RANK.indexOf(a.entry.type) - TYPE_RANK.indexOf(b.entry.type))
+    .sort(
+      (a, b) =>
+        b.total - a.total || TYPE_RANK.indexOf(a.entry.type) - TYPE_RANK.indexOf(b.entry.type),
+    )
     .map((s) => s.entry)
 }
 

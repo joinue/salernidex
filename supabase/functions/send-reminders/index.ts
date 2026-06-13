@@ -33,15 +33,33 @@ webpush.setVapidDetails(
 // one per household; America/Phoenix has no DST, conveniently).
 const TZ = Deno.env.get('TZ_NAME') ?? 'America/Phoenix'
 
-const DEFAULT_PREFS = { tasks: true, nudges: true, dates: true, fyi: false, dates_lead_days: 7, digest_time: '08:00' }
+const DEFAULT_PREFS = {
+  tasks: true,
+  nudges: true,
+  dates: true,
+  fyi: false,
+  dates_lead_days: 7,
+  digest_time: '08:00',
+}
 
-type Item = { kind: 'task' | 'nudge' | 'date'; targetKey: string; title: string; body: string; url: string }
+type Item = {
+  kind: 'task' | 'nudge' | 'date'
+  targetKey: string
+  title: string
+  body: string
+  url: string
+}
 
 // ---- local-time helpers -----------------------------------------------
 function localNow() {
   // en-CA gives YYYY-MM-DD; HH:mm extracted separately
   const date = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date())
-  const time = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date())
+  const time = new Intl.DateTimeFormat('en-GB', {
+    timeZone: TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date())
   return { date, time } // { '2026-06-12', '08:07' }
 }
 
@@ -83,7 +101,10 @@ function checkIns(people: any[], interactions: any[], memberId: string): Item[] 
       targetKey: `nudge:${p.id}`,
       title: 'Check in',
       // warm copy, mirroring the app — never "overdue"/"cadence"
-      body: since === null ? `Say hi to ${p.name} — no catch-ups logged yet` : `It's been a while since you caught up with ${p.name}`,
+      body:
+        since === null
+          ? `Say hi to ${p.name} — no catch-ups logged yet`
+          : `It's been a while since you caught up with ${p.name}`,
       url: `/#/person/${p.id}`,
     })
   }
@@ -118,7 +139,9 @@ function dayOfDates(people: any[], keyDates: any[], today: string): Item[] {
       kind: 'date',
       targetKey: `date:${kd.id}`,
       title: kd.label,
-      body: years ? `${p.name} — ${kd.label}, ${years} years today` : `${p.name} — ${kd.label} today`,
+      body: years
+        ? `${p.name} — ${kd.label}, ${years} years today`
+        : `${p.name} — ${kd.label} today`,
       url: `/#/person/${p.id}`,
     })
   }
@@ -126,8 +149,14 @@ function dayOfDates(people: any[], keyDates: any[], today: string): Item[] {
 }
 
 // ---- delivery -----------------------------------------------------------
-async function pushTo(memberId: string, payload: { title: string; body: string; url: string; tag?: string }) {
-  const { data: subs } = await supabase.from('push_subscriptions').select('*').eq('member_id', memberId)
+async function pushTo(
+  memberId: string,
+  payload: { title: string; body: string; url: string; tag?: string },
+) {
+  const { data: subs } = await supabase
+    .from('push_subscriptions')
+    .select('*')
+    .eq('member_id', memberId)
   let sent = 0
   for (const sub of subs ?? []) {
     try {
@@ -163,17 +192,21 @@ Deno.serve(async (req) => {
   const { date: today, time } = localNow()
   const nowIso = new Date().toISOString()
 
-  const [members, prefsRows, snoozeRows, people, interactions, tasks, keyDates] = await Promise.all([
-    supabase.from('household_members').select('*'),
-    supabase.from('notification_prefs').select('*'),
-    supabase.from('reminder_snoozes').select('*'),
-    supabase.from('people').select('*'),
-    supabase.from('interactions').select('person_id, occurred_at'),
-    supabase.from('tasks').select('*'),
-    supabase.from('key_dates').select('*'),
-  ]).then((rs) => rs.map((r) => r.data ?? []))
+  const [members, prefsRows, snoozeRows, people, interactions, tasks, keyDates] = await Promise.all(
+    [
+      supabase.from('household_members').select('*'),
+      supabase.from('notification_prefs').select('*'),
+      supabase.from('reminder_snoozes').select('*'),
+      supabase.from('people').select('*'),
+      supabase.from('interactions').select('person_id, occurred_at'),
+      supabase.from('tasks').select('*'),
+      supabase.from('key_dates').select('*'),
+    ],
+  ).then((rs) => rs.map((r) => r.data ?? []))
 
-  const prefsByMember = new Map(prefsRows.map((p: any) => [p.member_id, { ...DEFAULT_PREFS, ...p }]))
+  const prefsByMember = new Map(
+    prefsRows.map((p: any) => [p.member_id, { ...DEFAULT_PREFS, ...p }]),
+  )
   let sent = 0
 
   for (const member of members) {
@@ -196,7 +229,10 @@ Deno.serve(async (req) => {
     // Morning digest: one summary at the member's digest_time (±15 min).
     const wantDigest = Math.abs(minutesOf(time) - minutesOf(prefs.digest_time ?? '08:00')) <= 15
     if (wantDigest && (await claim(member.id, 'digest', '', today))) {
-      const lead = items.slice(0, 3).map((i) => i.body).join(' · ')
+      const lead = items
+        .slice(0, 3)
+        .map((i) => i.body)
+        .join(' · ')
       sent += await pushTo(member.id, {
         title: items.length === 1 ? '1 thing today' : `${items.length} things today`,
         body: lead + (items.length > 3 ? ` · +${items.length - 3} more` : ''),
@@ -209,7 +245,12 @@ Deno.serve(async (req) => {
     // a "say hi" item is never urgent enough to interrupt someone's day).
     for (const item of items.filter((i) => i.kind !== 'nudge')) {
       if (!(await claim(member.id, item.kind, item.targetKey, today))) continue
-      sent += await pushTo(member.id, { title: item.title, body: item.body, url: item.url, tag: item.targetKey })
+      sent += await pushTo(member.id, {
+        title: item.title,
+        body: item.body,
+        url: item.url,
+        tag: item.targetKey,
+      })
     }
   }
 

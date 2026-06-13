@@ -1,7 +1,10 @@
 // iOS segmented control. `options` is [{ value, label }]; the selected segment
 // rides on a sliding white "thumb". Used in place of dropdown filter rows.
 export default function Segmented({ options, value, onChange, size = 'md' }) {
-  const index = Math.max(0, options.findIndex((o) => o.value === value))
+  const index = Math.max(
+    0,
+    options.findIndex((o) => o.value === value),
+  )
   return (
     <div className={`segmented segmented-${size}`} role="tablist">
       <span

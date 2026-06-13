@@ -51,7 +51,14 @@ export function searchPeople(people, query, orgsById) {
 // recent interaction timestamp (ISO string), used by the activity-based sorts.
 // People-page filter shape, lifted to App (see SearchView) so it survives
 // leaving and returning to the page. All-empty = no filter applied.
-export const EMPTY_PEOPLE_FILTERS = { org: '', tag: '', group: '', tier: '', privacy: '', showDeleted: false }
+export const EMPTY_PEOPLE_FILTERS = {
+  org: '',
+  tag: '',
+  group: '',
+  tier: '',
+  privacy: '',
+  showDeleted: false,
+}
 
 export const PEOPLE_SORTS = [
   { value: 'name', label: 'Name (A–Z)' },
@@ -70,12 +77,20 @@ export const ALPHABET = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#']
 export function groupPeopleByLetter(people) {
   const buckets = new Map()
   for (const person of people) {
-    const first = (person.name || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').charAt(0).toUpperCase()
+    const first = (person.name || '')
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .charAt(0)
+      .toUpperCase()
     const letter = first >= 'A' && first <= 'Z' ? first : '#'
     if (!buckets.has(letter)) buckets.set(letter, [])
     buckets.get(letter).push(person)
   }
-  return ALPHABET.filter((l) => buckets.has(l)).map((letter) => ({ letter, items: buckets.get(letter) }))
+  return ALPHABET.filter((l) => buckets.has(l)).map((letter) => ({
+    letter,
+    items: buckets.get(letter),
+  }))
 }
 
 export function sortPeople(people, sort, lastByPerson) {

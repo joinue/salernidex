@@ -16,8 +16,14 @@ try {
   await page.waitForSelector('.large-title')
 
   // 1. Service worker registered on load
-  await page.waitForFunction(() => navigator.serviceWorker?.controller || navigator.serviceWorker?.ready, null, { timeout: 10000 })
-  const swOk = await page.evaluate(async () => Boolean(await navigator.serviceWorker.getRegistration()))
+  await page.waitForFunction(
+    () => navigator.serviceWorker?.controller || navigator.serviceWorker?.ready,
+    null,
+    { timeout: 10000 },
+  )
+  const swOk = await page.evaluate(async () =>
+    Boolean(await navigator.serviceWorker.getRegistration()),
+  )
   console.log('service worker registered:', swOk)
 
   // 2. Settings → enable on this device
@@ -47,7 +53,9 @@ try {
   console.log('push subscription:', sub || 'not available in this environment (fine)')
 
   if (errors.length) console.log('⚠ ERRORS:', errors.join(' || '))
-  console.log(swOk && ready > 0 && shown >= 1 && !errors.length ? 'PUSH SMOKE OK' : 'PUSH SMOKE FAILED')
+  console.log(
+    swOk && ready > 0 && shown >= 1 && !errors.length ? 'PUSH SMOKE OK' : 'PUSH SMOKE FAILED',
+  )
 } finally {
   await browser.close()
 }

@@ -33,7 +33,9 @@ describe('vcard round-trip', () => {
       { id: '1', name: 'Ann Park' },
       { id: '2', name: 'Bob Park', email: 'bob@x.example' },
     ])
-    const recs = parseVcf(vcf + 'BEGIN:VCARD\r\nVERSION:3.0\r\nEMAIL:noname@x.example\r\nEND:VCARD\r\n')
+    const recs = parseVcf(
+      vcf + 'BEGIN:VCARD\r\nVERSION:3.0\r\nEMAIL:noname@x.example\r\nEND:VCARD\r\n',
+    )
     expect(recs.map((r) => r.name)).toEqual(['Ann Park', 'Bob Park'])
   })
 
@@ -46,7 +48,7 @@ describe('vcard round-trip', () => {
         tags: ['a, with comma', 'plain'],
         notes: 'line1\nline2',
       },
-      new Map([['o9', { id: 'o9', name: 'Acme; Inc' }]])
+      new Map([['o9', { id: 'o9', name: 'Acme; Inc' }]]),
     )
     const [rec] = parseVcf(vcf)
     expect(rec.name).toBe('Smith, John')
@@ -72,7 +74,9 @@ describe('vcard round-trip', () => {
     expect(rec.organization).toBe('Globex Corporation')
     expect(rec.phone).toBe('+1 (415) 555-9988')
     expect(rec.birthday).toBe('1990-12-31')
-    expect(rec.address).toBe('500 Long Street Name That Will Cause This Content Line To Fold, Phoenix, AZ 85004, USA')
+    expect(rec.address).toBe(
+      '500 Long Street Name That Will Cause This Content Line To Fold, Phoenix, AZ 85004, USA',
+    )
   })
 
   it('drops a year-less birthday rather than guessing', () => {

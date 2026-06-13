@@ -21,7 +21,11 @@ export default function ThemeToggle({ className = 'nav-item', iconSize = 18 }) {
   const Icon = current.icon
 
   return (
-    <button className={className} onClick={() => setTheme(next.id)} title={`Switch to ${next.text.toLowerCase()}`}>
+    <button
+      className={className}
+      onClick={() => setTheme(next.id)}
+      title={`Switch to ${next.text.toLowerCase()}`}
+    >
       <Icon size={iconSize} />
       <span className="nav-text">{current.text}</span>
     </button>

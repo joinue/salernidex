@@ -9,7 +9,10 @@ async function run(label, viewport, mobile) {
   const page = await browser.newPage({ viewport, isMobile: mobile, hasTouch: mobile })
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
-  page.on('console', (m) => m.type() === 'error' && !m.text().includes('404') && errors.push(m.text()))
+  page.on(
+    'console',
+    (m) => m.type() === 'error' && !m.text().includes('404') && errors.push(m.text()),
+  )
 
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: 'Explore the demo' }).click()
@@ -41,18 +44,32 @@ async function run(label, viewport, mobile) {
     await page.evaluate(() => {
       const el = document.querySelector('.list .list-row')
       const r = el.getBoundingClientRect()
-      el.dispatchEvent(new PointerEvent('pointerdown', {
-        clientX: r.left + 20, clientY: r.top + 20, pointerId: 1, pointerType: 'touch', bubbles: true, cancelable: true,
-      }))
+      el.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          clientX: r.left + 20,
+          clientY: r.top + 20,
+          pointerId: 1,
+          pointerType: 'touch',
+          bubbles: true,
+          cancelable: true,
+        }),
+      )
     })
     await page.waitForTimeout(550)
     const sheetItems = await page.$$('.sheet-item')
     console.log(`[${label}] long-press action sheet items: ${sheetItems.length}`)
     if (sheetItems.length) await page.screenshot({ path: `${shots}/${label}-2b-actionsheet.png` })
-    await page.evaluate(() => document.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, pointerType: 'touch', bubbles: true })))
+    await page.evaluate(() =>
+      document.dispatchEvent(
+        new PointerEvent('pointerup', { pointerId: 1, pointerType: 'touch', bubbles: true }),
+      ),
+    )
     await page.keyboard.press('Escape').catch(() => {})
     // close sheet by tapping backdrop
-    await page.locator('.sheet-overlay').click({ position: { x: 5, y: 5 } }).catch(() => {})
+    await page
+      .locator('.sheet-overlay')
+      .click({ position: { x: 5, y: 5 } })
+      .catch(() => {})
     await page.waitForTimeout(200)
   }
 
@@ -86,7 +103,9 @@ try {
   await page.goto('http://localhost:5173', { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: 'Explore the demo' }).click()
   await page.waitForSelector('.large-title')
-  await page.evaluate(() => { document.documentElement.dataset.theme = 'dark' })
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = 'dark'
+  })
   await page.waitForTimeout(250)
   await page.screenshot({ path: `${shots}/desktop-5-dark-today.png` })
   await page.close()

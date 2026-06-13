@@ -7,7 +7,14 @@ import { useNotificationPrefs } from '../hooks/useNotificationPrefs'
 import { useAppPrefs } from '../hooks/useAppPrefs'
 import { PRIVACY_LABELS } from '../lib/constants'
 import { formatJoinCode } from '../lib/joinCode'
-import { pushSupport, permissionState, deviceEnabled, enablePush, disablePush, sendTestNotification } from '../lib/push'
+import {
+  pushSupport,
+  permissionState,
+  deviceEnabled,
+  enablePush,
+  disablePush,
+  sendTestNotification,
+} from '../lib/push'
 import {
   getHousehold,
   members as getMembers,
@@ -96,7 +103,9 @@ function PushSection({ memberId }) {
         <Bell size={18} />
         <span className="v-label">This device</span>
         {ready ? (
-          <span className="v-value" style={{ color: 'var(--green)' }}>Ready — delivery starts at launch</span>
+          <span className="v-value" style={{ color: 'var(--green)' }}>
+            Ready — delivery starts at launch
+          </span>
         ) : (
           <button className="text-btn" onClick={enable} disabled={busy}>
             {busy ? <span className="dots">Enabling</span> : 'Enable notifications'}
@@ -105,19 +114,30 @@ function PushSection({ memberId }) {
       </div>
       {ready && (
         <>
-          <button className="list-row" onClick={() => sendTestNotification().catch((e) => setNote(e.message))}>
+          <button
+            className="list-row"
+            onClick={() => sendTestNotification().catch((e) => setNote(e.message))}
+          >
             <div className="row-body">
-              <div className="row-sub" style={{ color: 'var(--accent)' }}>Send a test notification</div>
+              <div className="row-sub" style={{ color: 'var(--accent)' }}>
+                Send a test notification
+              </div>
             </div>
           </button>
           <button className="list-row" onClick={disable} disabled={busy}>
             <div className="row-body">
-              <div className="row-sub" style={{ color: 'var(--danger)' }}>Turn off on this device</div>
+              <div className="row-sub" style={{ color: 'var(--danger)' }}>
+                Turn off on this device
+              </div>
             </div>
           </button>
         </>
       )}
-      {note && <p className="muted" style={{ fontSize: 13, margin: '8px 4px 4px' }}>{note}</p>}
+      {note && (
+        <p className="muted" style={{ fontSize: 13, margin: '8px 4px 4px' }}>
+          {note}
+        </p>
+      )}
     </div>
   )
 }
@@ -126,7 +146,9 @@ function Toggle({ label, sub, on, onChange }) {
   return (
     <div className="value-row">
       <div className="row-body">
-        <div className="row-title" style={{ fontSize: 15 }}>{label}</div>
+        <div className="row-title" style={{ fontSize: 15 }}>
+          {label}
+        </div>
         {sub && <div className="row-sub">{sub}</div>}
       </div>
       <button
@@ -158,15 +180,28 @@ function DemoHousehold({ refresh, copied, copyCode }) {
   const [name, setName] = useState(household.name)
   const [draft, setDraft] = useState('')
 
-  const saveName = () => { setHouseholdName(name.trim() || 'Our Household'); refresh() }
-  const add = () => { if (!draft.trim()) return; addMember(draft); setDraft(''); refresh() }
+  const saveName = () => {
+    setHouseholdName(name.trim() || 'Our Household')
+    refresh()
+  }
+  const add = () => {
+    if (!draft.trim()) return
+    addMember(draft)
+    setDraft('')
+    refresh()
+  }
 
   return (
     <>
       <div className="section-label">Household</div>
       <div className="field">
         <label className="label">Household name</label>
-        <input value={name} onChange={(e) => setName(e.target.value)} onBlur={saveName} placeholder="Our Household" />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={saveName}
+          placeholder="Our Household"
+        />
       </div>
 
       <div className="section-label">Members</div>
@@ -180,15 +215,33 @@ function DemoHousehold({ refresh, copied, copyCode }) {
             <input
               className="member-name-input"
               defaultValue={m.name}
-              onBlur={(e) => { renameMember(m.id, e.target.value.trim() || m.name); refresh() }}
+              onBlur={(e) => {
+                renameMember(m.id, e.target.value.trim() || m.name)
+                refresh()
+              }}
             />
             {m.id === meId ? (
               <span className="chip accent">You</span>
             ) : (
-              <button className="text-btn" onClick={() => { setCurrentMember(m.id); refresh() }}>I'm this</button>
+              <button
+                className="text-btn"
+                onClick={() => {
+                  setCurrentMember(m.id)
+                  refresh()
+                }}
+              >
+                I'm this
+              </button>
             )}
             {members.length > 1 && (
-              <button className="icon-btn danger" onClick={() => { removeMember(m.id); refresh() }} aria-label={`Remove ${m.name}`}>
+              <button
+                className="icon-btn danger"
+                onClick={() => {
+                  removeMember(m.id)
+                  refresh()
+                }}
+                aria-label={`Remove ${m.name}`}
+              >
                 <X size={16} />
               </button>
             )}
@@ -196,9 +249,20 @@ function DemoHousehold({ refresh, copied, copyCode }) {
         ))}
       </div>
       <div className="subtask-add">
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Add a member…"
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } }} />
-        <button className="text-btn" onClick={add}><Plus size={14} /> Add</button>
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Add a member…"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              add()
+            }
+          }}
+        />
+        <button className="text-btn" onClick={add}>
+          <Plus size={14} /> Add
+        </button>
       </div>
 
       <div className="section-label">Invite</div>
@@ -208,13 +272,25 @@ function DemoHousehold({ refresh, copied, copyCode }) {
       <div className="list">
         <div className="value-row">
           <span className="v-label">Join code</span>
-          <span className="v-value mono" style={{ letterSpacing: '1px', fontWeight: 600 }}>{formatJoinCode(household.join_code)}</span>
+          <span className="v-value mono" style={{ letterSpacing: '1px', fontWeight: 600 }}>
+            {formatJoinCode(household.join_code)}
+          </span>
           <button className="icon-btn" onClick={copyCode} aria-label="Copy code">
             {copied ? <Check size={16} /> : <Copy size={16} />}
           </button>
         </div>
-        <button className="list-row" onClick={() => { regenerateJoinCode(); refresh() }}>
-          <div className="row-body"><div className="row-sub" style={{ color: 'var(--accent)' }}>Generate a new code</div></div>
+        <button
+          className="list-row"
+          onClick={() => {
+            regenerateJoinCode()
+            refresh()
+          }}
+        >
+          <div className="row-body">
+            <div className="row-sub" style={{ color: 'var(--accent)' }}>
+              Generate a new code
+            </div>
+          </div>
         </button>
       </div>
     </>
@@ -228,7 +304,9 @@ function LiveHousehold({ household, meId, copied, copyCode }) {
   if (!household) return null
   const members = household.members || []
   const isOwner = members.find((m) => m.id === meId)?.role === 'owner'
-  const others = (household.memberships || []).filter((ms) => ms.household_id !== household.householdId)
+  const others = (household.memberships || []).filter(
+    (ms) => ms.household_id !== household.householdId,
+  )
 
   return (
     <>
@@ -245,7 +323,11 @@ function LiveHousehold({ household, meId, copied, copyCode }) {
       {others.length > 0 && (
         <div className="list" style={{ marginBottom: 18 }}>
           {others.map((ms) => (
-            <button key={ms.household_id} className="list-row" onClick={() => household.switchHousehold(ms.household_id)}>
+            <button
+              key={ms.household_id}
+              className="list-row"
+              onClick={() => household.switchHousehold(ms.household_id)}
+            >
               <div className="row-body">
                 <div className="row-title">{ms.household_name}</div>
                 <div className="row-sub">Switch to this household</div>
@@ -257,7 +339,8 @@ function LiveHousehold({ household, meId, copied, copyCode }) {
 
       <div className="section-label">Members</div>
       <p className="muted" style={{ fontSize: 13, margin: '0 4px 10px' }}>
-        Everyone here can be assigned tasks. {isOwner ? 'As the owner you can rename or remove anyone.' : 'You can rename yourself.'}
+        Everyone here can be assigned tasks.{' '}
+        {isOwner ? 'As the owner you can rename or remove anyone.' : 'You can rename yourself.'}
       </p>
       <div className="list">
         {members.map((m) => {
@@ -269,14 +352,23 @@ function LiveHousehold({ household, meId, copied, copyCode }) {
                 <input
                   className="member-name-input"
                   defaultValue={m.name}
-                  onBlur={(e) => { if (e.target.value.trim() && e.target.value.trim() !== m.name) household.renameMember(m.id, e.target.value) }}
+                  onBlur={(e) => {
+                    if (e.target.value.trim() && e.target.value.trim() !== m.name)
+                      household.renameMember(m.id, e.target.value)
+                  }}
                 />
               ) : (
-                <span className="member-name-input" style={{ alignSelf: 'center' }}>{m.name}</span>
+                <span className="member-name-input" style={{ alignSelf: 'center' }}>
+                  {m.name}
+                </span>
               )}
               {m.id === meId && <span className="chip accent">You</span>}
               {m.id !== meId && isOwner && (
-                <button className="icon-btn danger" onClick={() => household.removeMember(m.id)} aria-label={`Remove ${m.name}`}>
+                <button
+                  className="icon-btn danger"
+                  onClick={() => household.removeMember(m.id)}
+                  aria-label={`Remove ${m.name}`}
+                >
                   <X size={16} />
                 </button>
               )}
@@ -292,13 +384,19 @@ function LiveHousehold({ household, meId, copied, copyCode }) {
       <div className="list">
         <div className="value-row">
           <span className="v-label">Join code</span>
-          <span className="v-value mono" style={{ letterSpacing: '1px', fontWeight: 600 }}>{formatJoinCode(household.household?.join_code)}</span>
+          <span className="v-value mono" style={{ letterSpacing: '1px', fontWeight: 600 }}>
+            {formatJoinCode(household.household?.join_code)}
+          </span>
           <button className="icon-btn" onClick={copyCode} aria-label="Copy code">
             {copied ? <Check size={16} /> : <Copy size={16} />}
           </button>
         </div>
         <button className="list-row" onClick={() => household.regenerateCode()}>
-          <div className="row-body"><div className="row-sub" style={{ color: 'var(--accent)' }}>Generate a new code</div></div>
+          <div className="row-body">
+            <div className="row-sub" style={{ color: 'var(--accent)' }}>
+              Generate a new code
+            </div>
+          </div>
         </button>
       </div>
     </>
@@ -339,7 +437,9 @@ export default function SettingsView({ go, household, isDemo = false }) {
         leaveHousehold()
         go('')
       }
-    } else if (window.confirm('Leave this household? You can re-join later with the invite code.')) {
+    } else if (
+      window.confirm('Leave this household? You can re-join later with the invite code.')
+    ) {
       household?.leave() // the household gate routes to onboarding if it was your last one
     }
   }
@@ -355,33 +455,56 @@ export default function SettingsView({ go, household, isDemo = false }) {
       )}
 
       <div className="section-label">Appearance</div>
-      <Segmented options={THEME_OPTIONS} value={theme} onChange={(t) => { setTheme(t); applyTheme(t) }} />
+      <Segmented
+        options={THEME_OPTIONS}
+        value={theme}
+        onChange={(t) => {
+          setTheme(t)
+          applyTheme(t)
+        }}
+      />
 
       <div className="section-label">New item visibility</div>
       <p className="muted" style={{ fontSize: 13, margin: '0 4px 10px' }}>
-        The visibility new items start with. You can still change any item's visibility when you create or edit it.
+        The visibility new items start with. You can still change any item's visibility when you
+        create or edit it.
       </p>
       <div className="field">
         <label className="label">New tasks</label>
-        <select value={appPrefs.taskPrivacy} onChange={(e) => updateAppPrefs({ taskPrivacy: e.target.value })}>
+        <select
+          value={appPrefs.taskPrivacy}
+          onChange={(e) => updateAppPrefs({ taskPrivacy: e.target.value })}
+        >
           {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
+            <option key={v} value={v}>
+              {l}
+            </option>
           ))}
         </select>
       </div>
       <div className="field">
         <label className="label">New lists</label>
-        <select value={appPrefs.listPrivacy} onChange={(e) => updateAppPrefs({ listPrivacy: e.target.value })}>
+        <select
+          value={appPrefs.listPrivacy}
+          onChange={(e) => updateAppPrefs({ listPrivacy: e.target.value })}
+        >
           {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
+            <option key={v} value={v}>
+              {l}
+            </option>
           ))}
         </select>
       </div>
       <div className="field">
         <label className="label">New people</label>
-        <select value={appPrefs.personPrivacy} onChange={(e) => updateAppPrefs({ personPrivacy: e.target.value })}>
+        <select
+          value={appPrefs.personPrivacy}
+          onChange={(e) => updateAppPrefs({ personPrivacy: e.target.value })}
+        >
           {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
+            <option key={v} value={v}>
+              {l}
+            </option>
           ))}
         </select>
       </div>
@@ -438,7 +561,9 @@ export default function SettingsView({ go, household, isDemo = false }) {
       </div>
       {prefs.dates && (
         <>
-          <p className="muted" style={{ fontSize: 13, margin: '12px 4px 8px' }}>Heads-up before a date</p>
+          <p className="muted" style={{ fontSize: 13, margin: '12px 4px 8px' }}>
+            Heads-up before a date
+          </p>
           <Segmented
             options={LEAD_OPTIONS}
             value={prefs.dates_lead_days}
@@ -451,7 +576,9 @@ export default function SettingsView({ go, household, isDemo = false }) {
       <div className="section-label">Data</div>
       <div className="list">
         <button className="list-row" onClick={() => go('import')}>
-          <span className="activity-icon"><DownloadCloud size={16} /></span>
+          <span className="activity-icon">
+            <DownloadCloud size={16} />
+          </span>
           <div className="row-body">
             <div className="row-title">Import / Export</div>
             <div className="row-sub">Backup, restore, or move your data.</div>
@@ -463,17 +590,23 @@ export default function SettingsView({ go, household, isDemo = false }) {
       <div className="section-label">About</div>
       <div className="list">
         <button className="list-row" onClick={() => go('privacy')}>
-          <div className="row-body"><div className="row-title">Privacy Policy</div></div>
+          <div className="row-body">
+            <div className="row-title">Privacy Policy</div>
+          </div>
           <ChevronRight size={18} className="row-chevron" />
         </button>
         <button className="list-row" onClick={() => go('terms')}>
-          <div className="row-body"><div className="row-title">Terms of Use</div></div>
+          <div className="row-body">
+            <div className="row-title">Terms of Use</div>
+          </div>
           <ChevronRight size={18} className="row-chevron" />
         </button>
       </div>
 
       <div className="section-gap">
-        <button className="pill-btn danger" onClick={leave}><LogOut size={15} /> Leave household</button>
+        <button className="pill-btn danger" onClick={leave}>
+          <LogOut size={15} /> Leave household
+        </button>
       </div>
     </div>
   )

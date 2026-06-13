@@ -1,8 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { lastInteraction, daysSince, relativeTime, upcomingBirthday, followUp, upcomingDates } from './contact'
+import {
+  lastInteraction,
+  daysSince,
+  relativeTime,
+  upcomingBirthday,
+  followUp,
+  upcomingDates,
+} from './contact'
 
-beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-06-12T12:00:00')) })
-afterEach(() => { vi.useRealTimers() })
+beforeEach(() => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-06-12T12:00:00'))
+})
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('lastInteraction', () => {
   const ints = [

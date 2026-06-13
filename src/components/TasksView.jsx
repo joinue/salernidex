@@ -18,11 +18,22 @@ const BUCKETS = [
   { id: 'someday', label: 'Someday' },
 ]
 
-export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject, onSearch, defaultFilter = 'all', defaultShowCompleted = false }) {
+export default function TasksView({
+  data,
+  expandId,
+  onAdd,
+  onEdit,
+  onOpenProject,
+  onSearch,
+  defaultFilter = 'all',
+  defaultShowCompleted = false,
+}) {
   const { tasks, completions, addTask, deleteTask, completeTask, reorderTasks } = data
   // Default view from settings; fall back to 'all' if the saved member is gone.
   const [filter, setFilter] = useState(() =>
-    defaultFilter === 'all' || members().some((m) => m.id === defaultFilter) ? defaultFilter : 'all'
+    defaultFilter === 'all' || members().some((m) => m.id === defaultFilter)
+      ? defaultFilter
+      : 'all',
   )
   // Optional narrowing to one area. The area pills only appear once areas exist
   // (see areaList below), so until then this is a no-op the user never sees.
@@ -46,7 +57,7 @@ export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject
   // in and out as you switch member.
   const areaList = useMemo(
     () => areaNames(tasks.filter((t) => !t.parent_id && !t.completed_at)),
-    [tasks]
+    [tasks],
   )
   // Guard against a stale selection: if the last task in an area is finished or
   // its area renamed, fall back to "All" rather than showing an empty list.
@@ -61,13 +72,20 @@ export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject
     return true
   }
 
+  // `matches` closes over filter/activeArea — both already listed below; ESLint
+  // just can't see through the helper, so the dep lists are in fact complete.
   const topOpen = useMemo(
     () => tasks.filter((t) => !t.parent_id && !t.completed_at && matches(t)).sort(byOrder),
-    [tasks, filter, activeArea]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tasks, filter, activeArea],
   )
   const done = useMemo(
-    () => tasks.filter((t) => !t.parent_id && t.completed_at && matches(t)).sort((a, b) => (a.completed_at < b.completed_at ? 1 : -1)),
-    [tasks, filter, activeArea]
+    () =>
+      tasks
+        .filter((t) => !t.parent_id && t.completed_at && matches(t))
+        .sort((a, b) => (a.completed_at < b.completed_at ? 1 : -1)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tasks, filter, activeArea],
   )
   const grouped = useMemo(() => {
     const g = { overdue: [], today: [], upcoming: [], someday: [] }
@@ -85,13 +103,20 @@ export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject
   const addSub = (parent) => {
     const title = draftSub.trim()
     if (!title) return
-    addTask({ title, parent_id: parent.id, assignee: parent.assignee, privacy_level: parent.privacy_level })
+    addTask({
+      title,
+      parent_id: parent.id,
+      assignee: parent.assignee,
+      privacy_level: parent.privacy_level,
+    })
     setDraftSub('')
   }
 
   const renderTask = (task) => {
     const subs = subtasks(task.id)
-    const progress = subs.length ? { done: subs.filter((s) => s.completed_at).length, total: subs.length } : null
+    const progress = subs.length
+      ? { done: subs.filter((s) => s.completed_at).length, total: subs.length }
+      : null
 
     // Projects get the full-page detail view; plain tasks expand inline.
     if (isProject(task, tasks)) {
@@ -112,16 +137,32 @@ export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject
           <ChevronRight
             size={18}
             className="row-chevron"
-            style={{ transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 200ms ease' }}
+            style={{
+              transform: isOpen ? 'rotate(90deg)' : 'none',
+              transition: 'transform 200ms ease',
+            }}
           />
         </div>
         {isOpen && (
           <div className="task-expand">
-            {task.notes && <p className="muted" style={{ fontSize: 14, marginBottom: 10 }}>{task.notes}</p>}
+            {task.notes && (
+              <p className="muted" style={{ fontSize: 14, marginBottom: 10 }}>
+                {task.notes}
+              </p>
+            )}
             {subs.map((s) => (
               <div className="list-row sub" key={s.id}>
-                <TaskRow task={s} onToggle={toggle} size="sm" hideAssignee={normalizeAssignee(s.assignee) === normalizeAssignee(task.assignee)} />
-                <button className="icon-btn danger" onClick={() => deleteTask(s.id)} aria-label="Delete subtask">
+                <TaskRow
+                  task={s}
+                  onToggle={toggle}
+                  size="sm"
+                  hideAssignee={normalizeAssignee(s.assignee) === normalizeAssignee(task.assignee)}
+                />
+                <button
+                  className="icon-btn danger"
+                  onClick={() => deleteTask(s.id)}
+                  aria-label="Delete subtask"
+                >
                   <Plus size={15} style={{ transform: 'rotate(45deg)' }} />
                 </button>
               </div>
@@ -138,7 +179,9 @@ export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject
                   }
                 }}
               />
-              <button className="text-btn" onClick={() => addSub(task)}>Add</button>
+              <button className="text-btn" onClick={() => addSub(task)}>
+                Add
+              </button>
             </div>
             {history.length > 0 && (
               <div className="task-history">
@@ -155,9 +198,13 @@ export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject
               </div>
             )}
             <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
-              <button className="text-btn" onClick={() => onEdit(task)}>Edit</button>
+              <button className="text-btn" onClick={() => onEdit(task)}>
+                Edit
+              </button>
               <AddToCalendar task={task} />
-              <button className="text-btn danger" onClick={() => deleteTask(task.id)}>Delete</button>
+              <button className="text-btn danger" onClick={() => deleteTask(task.id)}>
+                Delete
+              </button>
             </div>
           </div>
         )}
@@ -197,9 +244,11 @@ export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject
           {activeArea !== 'all'
             ? `Nothing in ${activeArea}.`
             : filter === 'all'
-            ? 'Nothing on the list. Add a task.'
-            : 'Nothing assigned here.'}
-          <button className="text-btn" onClick={onAdd}><Plus size={14} /> New task</button>
+              ? 'Nothing on the list. Add a task.'
+              : 'Nothing assigned here.'}
+          <button className="text-btn" onClick={onAdd}>
+            <Plus size={14} /> New task
+          </button>
         </div>
       ) : (
         BUCKETS.map((b) =>
@@ -212,14 +261,15 @@ export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject
                 renderItem={renderTask}
               />
             </div>
-          ) : null
+          ) : null,
         )
       )}
 
       {done.length > 0 && (
         <>
           <button className="section-label section-toggle" onClick={() => setShowDone((v) => !v)}>
-            Done · {done.length} <ChevronRight size={13} style={{ transform: showDone ? 'rotate(90deg)' : 'none' }} />
+            Done · {done.length}{' '}
+            <ChevronRight size={13} style={{ transform: showDone ? 'rotate(90deg)' : 'none' }} />
           </button>
           {showDone && <div className="list">{done.map(renderTask)}</div>}
         </>

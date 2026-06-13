@@ -1,0 +1,9 @@
+dist
+node_modules
+public
+scripts/shots
+package-lock.json
+
+# Prose docs are hand-formatted; Prettier's markdown reflow just adds noise.
+*.md
+docs

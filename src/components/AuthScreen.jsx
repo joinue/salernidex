@@ -12,9 +12,21 @@ import { supabase } from '../lib/supabase'
 // call `onRecovered` once it's saved (the caller then proceeds into the app).
 
 const VALUE_PROPS = [
-  { Icon: Users, title: 'One shared rolodex', body: 'Everyone you both know, with the context that matters.' },
-  { Icon: CheckSquare, title: 'Chores, to-dos & projects', body: 'Recurring chores and shared lists, assigned to whoever’s on it.' },
-  { Icon: Sunrise, title: 'A single Today', body: 'What’s due, who to check in on, and what’s coming up — together.' },
+  {
+    Icon: Users,
+    title: 'One shared rolodex',
+    body: 'Everyone you both know, with the context that matters.',
+  },
+  {
+    Icon: CheckSquare,
+    title: 'Chores, to-dos & projects',
+    body: 'Recurring chores and shared lists, assigned to whoever’s on it.',
+  },
+  {
+    Icon: Sunrise,
+    title: 'A single Today',
+    body: 'What’s due, who to check in on, and what’s coming up — together.',
+  },
 ]
 
 const emailOk = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
@@ -43,7 +55,9 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
     if (mode === 'reset') {
       if (!emailOk(email)) return setError('Enter a valid email.')
       setBusy(true)
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin })
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin,
+      })
       setBusy(false)
       if (error) return setError(error.message)
       setSent({ title: 'Check your inbox', body: `We sent a password reset link to ${email}.` })
@@ -72,7 +86,10 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
       // Email-confirmation on: no session yet → tell them to confirm. Off: a
       // session comes back and onAuthStateChange advances us to onboarding.
       if (!data.session) {
-        setSent({ title: 'Confirm your email', body: `We sent a confirmation link to ${email}. Open it to finish setting up your account.` })
+        setSent({
+          title: 'Confirm your email',
+          body: `We sent a confirmation link to ${email}. Open it to finish setting up your account.`,
+        })
         setMode('sent')
       }
       return
@@ -103,7 +120,9 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
           <ul className="auth-values">
             {VALUE_PROPS.map(({ Icon, title, body }) => (
               <li key={title}>
-                <span className="auth-value-icon"><Icon size={18} /></span>
+                <span className="auth-value-icon">
+                  <Icon size={18} />
+                </span>
                 <div>
                   <div className="auth-value-title">{title}</div>
                   <div className="auth-value-body">{body}</div>
@@ -130,30 +149,42 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
               <h2 className="auth-title">{sent?.title}</h2>
               <p className="muted auth-sub">{sent?.body}</p>
               {recovery ? (
-                <button className="btn-primary" onClick={onRecovered}>Continue</button>
+                <button className="btn-primary" onClick={onRecovered}>
+                  Continue
+                </button>
               ) : (
-                <button className="btn-primary" onClick={() => reset('signin')}>Back to sign in</button>
+                <button className="btn-primary" onClick={() => reset('signin')}>
+                  Back to sign in
+                </button>
               )}
             </div>
           ) : noAuth ? (
             <div className="auth-sent">
               <h2 className="auth-title">Live preview</h2>
-              <p className="muted auth-sub">This build isn’t connected to an account yet — explore the demo on sample data.</p>
-              <button className="btn-primary" onClick={onDemo}>Explore the demo</button>
+              <p className="muted auth-sub">
+                This build isn’t connected to an account yet — explore the demo on sample data.
+              </p>
+              <button className="btn-primary" onClick={onDemo}>
+                Explore the demo
+              </button>
             </div>
           ) : (
             <form onSubmit={submit}>
               <h2 className="auth-title">{titles[mode]}</h2>
 
               {mode === 'recover' && (
-                <p className="muted auth-sub">Pick a new password for your account — you’ll stay signed in.</p>
+                <p className="muted auth-sub">
+                  Pick a new password for your account — you’ll stay signed in.
+                </p>
               )}
 
               {error && <p className="error-text">{error}</p>}
 
               {mode !== 'recover' && (
                 <div className="field">
-                  <label className="label" htmlFor="email">Email</label>
+                  <label className="label" htmlFor="email">
+                    Email
+                  </label>
                   <input
                     id="email"
                     type="email"
@@ -172,9 +203,15 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
               {mode !== 'reset' && (
                 <div className="field">
                   <div className="field-label-row">
-                    <label className="label" htmlFor="password">{mode === 'recover' ? 'New password' : 'Password'}</label>
+                    <label className="label" htmlFor="password">
+                      {mode === 'recover' ? 'New password' : 'Password'}
+                    </label>
                     {mode === 'signin' && (
-                      <button type="button" className="text-btn quiet auth-inline-link" onClick={() => reset('reset')}>
+                      <button
+                        type="button"
+                        className="text-btn quiet auth-inline-link"
+                        onClick={() => reset('reset')}
+                      >
                         Forgot?
                       </button>
                     )}
@@ -192,7 +229,9 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
 
               {(mode === 'signup' || mode === 'recover') && (
                 <div className="field">
-                  <label className="label" htmlFor="confirm">Confirm password</label>
+                  <label className="label" htmlFor="confirm">
+                    Confirm password
+                  </label>
                   <input
                     id="confirm"
                     type="password"
@@ -206,8 +245,24 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
 
               <button className="btn-primary" disabled={busy}>
                 {busy ? (
-                  <span className="dots">{mode === 'signin' ? 'Signing in' : mode === 'signup' ? 'Creating account' : mode === 'recover' ? 'Updating' : 'Sending'}</span>
-                ) : mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create account' : mode === 'recover' ? 'Update password' : 'Send reset link'}
+                  <span className="dots">
+                    {mode === 'signin'
+                      ? 'Signing in'
+                      : mode === 'signup'
+                        ? 'Creating account'
+                        : mode === 'recover'
+                          ? 'Updating'
+                          : 'Sending'}
+                  </span>
+                ) : mode === 'signin' ? (
+                  'Sign in'
+                ) : mode === 'signup' ? (
+                  'Create account'
+                ) : mode === 'recover' ? (
+                  'Update password'
+                ) : (
+                  'Send reset link'
+                )}
               </button>
 
               {(mode === 'signin' || mode === 'signup') && (
@@ -220,13 +275,37 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
               {mode !== 'recover' && (
                 <div className="auth-switch">
                   {mode === 'signin' && (
-                    <span>New here? <button type="button" className="text-btn auth-inline-link" onClick={() => reset('signup')}>Create an account</button></span>
+                    <span>
+                      New here?{' '}
+                      <button
+                        type="button"
+                        className="text-btn auth-inline-link"
+                        onClick={() => reset('signup')}
+                      >
+                        Create an account
+                      </button>
+                    </span>
                   )}
                   {mode === 'signup' && (
-                    <span>Already have an account? <button type="button" className="text-btn auth-inline-link" onClick={() => reset('signin')}>Sign in</button></span>
+                    <span>
+                      Already have an account?{' '}
+                      <button
+                        type="button"
+                        className="text-btn auth-inline-link"
+                        onClick={() => reset('signin')}
+                      >
+                        Sign in
+                      </button>
+                    </span>
                   )}
                   {mode === 'reset' && (
-                    <button type="button" className="text-btn auth-inline-link" onClick={() => reset('signin')}>Back to sign in</button>
+                    <button
+                      type="button"
+                      className="text-btn auth-inline-link"
+                      onClick={() => reset('signin')}
+                    >
+                      Back to sign in
+                    </button>
                   )}
                 </div>
               )}
@@ -235,8 +314,12 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
 
           {mode !== 'sent' && mode !== 'recover' && !noAuth && (
             <>
-              <div className="auth-divider"><span>or</span></div>
-              <button type="button" className="auth-demo-btn" onClick={onDemo}>Explore the demo</button>
+              <div className="auth-divider">
+                <span>or</span>
+              </div>
+              <button type="button" className="auth-demo-btn" onClick={onDemo}>
+                Explore the demo
+              </button>
             </>
           )}
 

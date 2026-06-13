@@ -36,7 +36,9 @@ export default function Sheet({ title, onClose, children }) {
   return createPortal(
     <div
       className="sheet-overlay"
-      style={{ background: `rgba(0, 0, 0, ${0.4 * Math.max(0, 1 - y / (window.innerHeight * 0.6))})` }}
+      style={{
+        background: `rgba(0, 0, 0, ${0.4 * Math.max(0, 1 - y / (window.innerHeight * 0.6))})`,
+      }}
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
       onTouchStart={(e) => e.target === e.currentTarget && onClose()}
     >
@@ -56,6 +58,6 @@ export default function Sheet({ title, onClose, children }) {
         {children}
       </div>
     </div>,
-    document.body
+    document.body,
   )
 }

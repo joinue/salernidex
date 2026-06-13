@@ -21,7 +21,19 @@ import { findDuplicates } from '../lib/duplicates'
 //     (see useData.restoreBackup).
 const BACKUP_VERSION = 7
 
-const SCHEMA_FIELDS = ['', 'name', 'organization', 'role', 'email', 'phone', 'birthday', 'address', 'tier', 'tags', 'notes']
+const SCHEMA_FIELDS = [
+  '',
+  'name',
+  'organization',
+  'role',
+  'email',
+  'phone',
+  'birthday',
+  'address',
+  'tier',
+  'tags',
+  'notes',
+]
 
 // Auto-map CSV headers to schema fields by loose name match
 function guessField(header) {
@@ -52,7 +64,20 @@ function download(filename, content, mime) {
 }
 
 export default function ImportExport({ data }) {
-  const { people, orgs, relationships, interactions, groups, tasks, completions, taskLinks, lists, listItems, families, keyDates, reminderSnoozes, importPeople, restoreBackup } = data
+  const {
+    people,
+    orgs,
+    relationships,
+    interactions,
+    groups,
+    completions,
+    taskLinks,
+    families,
+    keyDates,
+    reminderSnoozes,
+    importPeople,
+    restoreBackup,
+  } = data
   // Backup is lossless on purpose: it uses the unfiltered all* arrays, so
   // "Private — only me" rows survive the round-trip. CSV/vCard exports use
   // the filtered arrays above — they only ever contain what YOU can see.
@@ -90,7 +115,11 @@ export default function ImportExport({ data }) {
       lists: allLists,
       list_items: allListItems,
       reminder_snoozes: reminderSnoozes,
-      settings: { members: memberNames(), notifications: getAllPrefs(), preferences: getAllAppPrefs() },
+      settings: {
+        members: memberNames(),
+        notifications: getAllPrefs(),
+        preferences: getAllAppPrefs(),
+      },
     }
     const stamp = new Date().toISOString().slice(0, 10)
     download(`salernidex-backup-${stamp}.json`, JSON.stringify(backup, null, 2), 'application/json')
@@ -114,10 +143,29 @@ export default function ImportExport({ data }) {
         setStatus('This does not look like a Salernidex backup.')
         return
       }
-      const counts = ['people', 'organizations', 'relationships', 'interactions', 'families', 'key_dates', 'groups', 'tasks', 'task_completions', 'task_links', 'lists', 'list_items', 'reminder_snoozes']
+      const counts = [
+        'people',
+        'organizations',
+        'relationships',
+        'interactions',
+        'families',
+        'key_dates',
+        'groups',
+        'tasks',
+        'task_completions',
+        'task_links',
+        'lists',
+        'list_items',
+        'reminder_snoozes',
+      ]
         .map((k) => (backup[k] || []).length)
         .reduce((a, b) => a + b, 0)
-      if (!window.confirm(`Restore ${counts} records from this backup? Existing records with the same id are overwritten; the rest are kept.`)) return
+      if (
+        !window.confirm(
+          `Restore ${counts} records from this backup? Existing records with the same id are overwritten; the rest are kept.`,
+        )
+      )
+        return
       setBusy(true)
       try {
         await restoreBackup(backup)
@@ -160,7 +208,7 @@ export default function ImportExport({ data }) {
         keep_in_touch_days: p.keep_in_touch_days || '',
         privacy_level: p.privacy_level,
         notes: csvSafe(p.notes || ''),
-      }))
+      })),
     )
     download('salernidex-people.csv', csv, 'text/csv')
   }
@@ -198,7 +246,13 @@ export default function ImportExport({ data }) {
           if (!field) continue
           const value = (row[header] || '').trim()
           if (!value) continue
-          rec[field] = field === 'tags' ? value.split(/[;,]/).map((t) => t.trim()).filter(Boolean) : value
+          rec[field] =
+            field === 'tags'
+              ? value
+                  .split(/[;,]/)
+                  .map((t) => t.trim())
+                  .filter(Boolean)
+              : value
         }
         return rec
       })
@@ -266,7 +320,10 @@ export default function ImportExport({ data }) {
       setParsed(null)
       return
     }
-    await doImport(toImport.map((r) => r.rec), skipped)
+    await doImport(
+      toImport.map((r) => r.rec),
+      skipped,
+    )
   }
 
   const setRowAction = (index, action) =>
@@ -279,21 +336,29 @@ export default function ImportExport({ data }) {
       <PageHeader title="Import / Export" subtitle="Your data, always portable — no lock-in." />
 
       {status && (
-        <p className="demo-banner" style={{ color: 'var(--text)' }}>{status}</p>
+        <p className="demo-banner" style={{ color: 'var(--text)' }}>
+          {status}
+        </p>
       )}
 
       <div className="section-label">Full backup</div>
       <div className="list">
         <button className="list-row" onClick={exportBackup}>
-          <span className="activity-icon"><Database size={16} /></span>
+          <span className="activity-icon">
+            <Database size={16} />
+          </span>
           <div className="row-body">
             <div className="row-title">Download backup (JSON)</div>
-            <div className="row-sub">Everything — people, orgs, network, activity, groups. Lossless & restorable.</div>
+            <div className="row-sub">
+              Everything — people, orgs, network, activity, groups. Lossless & restorable.
+            </div>
           </div>
           <Download size={18} className="row-chevron" />
         </button>
         <button className="list-row" onClick={() => jsonRef.current?.click()}>
-          <span className="activity-icon"><RotateCcw size={16} /></span>
+          <span className="activity-icon">
+            <RotateCcw size={16} />
+          </span>
           <div className="row-body">
             <div className="row-title">Restore from backup</div>
             <div className="row-sub">Merge a backup file back in (overwrites matching ids).</div>
@@ -301,43 +366,72 @@ export default function ImportExport({ data }) {
           <Upload size={18} className="row-chevron" />
         </button>
       </div>
-      <input ref={jsonRef} type="file" accept=".json,application/json" onChange={onBackupFile} style={{ display: 'none' }} />
+      <input
+        ref={jsonRef}
+        type="file"
+        accept=".json,application/json"
+        onChange={onBackupFile}
+        style={{ display: 'none' }}
+      />
 
       <div className="section-label">Phone contacts</div>
       <div className="list">
-        <button className="list-row" onClick={() => downloadVcf('salernidex-contacts', active, orgsById)}>
-          <span className="activity-icon"><Download size={16} /></span>
+        <button
+          className="list-row"
+          onClick={() => downloadVcf('salernidex-contacts', active, orgsById)}
+        >
+          <span className="activity-icon">
+            <Download size={16} />
+          </span>
           <div className="row-body">
             <div className="row-title">Export vCard (.vcf)</div>
             <div className="row-sub">
-              All {active.length} active {active.length === 1 ? 'person' : 'people'} — imports straight into iPhone or Google contacts.
+              All {active.length} active {active.length === 1 ? 'person' : 'people'} — imports
+              straight into iPhone or Google contacts.
             </div>
           </div>
           <Download size={18} className="row-chevron" />
         </button>
         <button className="list-row" onClick={() => vcfRef.current?.click()}>
-          <span className="activity-icon"><Upload size={16} /></span>
+          <span className="activity-icon">
+            <Upload size={16} />
+          </span>
           <div className="row-body">
             <div className="row-title">Import vCard (.vcf)</div>
-            <div className="row-sub">Upload contacts exported from iPhone or Google. Duplicates are flagged before importing.</div>
+            <div className="row-sub">
+              Upload contacts exported from iPhone or Google. Duplicates are flagged before
+              importing.
+            </div>
           </div>
           <Upload size={18} className="row-chevron" />
         </button>
       </div>
-      <input ref={vcfRef} type="file" accept=".vcf,text/vcard" onChange={onVcfFile} style={{ display: 'none' }} />
+      <input
+        ref={vcfRef}
+        type="file"
+        accept=".vcf,text/vcard"
+        onChange={onVcfFile}
+        style={{ display: 'none' }}
+      />
 
       <div className="section-label">Spreadsheet (people)</div>
       <div className="list">
         <button className="list-row" onClick={exportCsv}>
-          <span className="activity-icon"><FileText size={16} /></span>
+          <span className="activity-icon">
+            <FileText size={16} />
+          </span>
           <div className="row-body">
             <div className="row-title">Export people to CSV</div>
-            <div className="row-sub">{active.length} active {active.length === 1 ? 'person' : 'people'}.</div>
+            <div className="row-sub">
+              {active.length} active {active.length === 1 ? 'person' : 'people'}.
+            </div>
           </div>
           <Download size={18} className="row-chevron" />
         </button>
         <button className="list-row" onClick={() => csvRef.current?.click()}>
-          <span className="activity-icon"><Upload size={16} /></span>
+          <span className="activity-icon">
+            <Upload size={16} />
+          </span>
           <div className="row-body">
             <div className="row-title">Import people from CSV</div>
             <div className="row-sub">Upload, then map columns. Tags separated by ; or ,</div>
@@ -345,7 +439,13 @@ export default function ImportExport({ data }) {
           <Upload size={18} className="row-chevron" />
         </button>
       </div>
-      <input ref={csvRef} type="file" accept=".csv,text/csv" onChange={onCsvFile} style={{ display: 'none' }} />
+      <input
+        ref={csvRef}
+        type="file"
+        accept=".csv,text/csv"
+        onChange={onCsvFile}
+        style={{ display: 'none' }}
+      />
 
       {parsed && !review && (
         <div className="section-gap">
@@ -354,14 +454,18 @@ export default function ImportExport({ data }) {
             {parsed.headers.map((header) => (
               <div className="map-row" key={header}>
                 <span className="csv-col">{header}</span>
-                <span className="muted" style={{ fontSize: 13 }}>→</span>
+                <span className="muted" style={{ fontSize: 13 }}>
+                  →
+                </span>
                 <select
                   className="filter-select"
                   value={mapping[header] || ''}
                   onChange={(e) => setMapping({ ...mapping, [header]: e.target.value })}
                 >
                   {SCHEMA_FIELDS.map((f) => (
-                    <option key={f} value={f}>{f || 'skip'}</option>
+                    <option key={f} value={f}>
+                      {f || 'skip'}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -373,53 +477,55 @@ export default function ImportExport({ data }) {
         </div>
       )}
 
-      {review && (() => {
-        const flagged = review.records.filter((r) => r.matches.length)
-        const importing = review.records.filter((r) => r.action === 'import').length
-        return (
-          <div className="section-gap">
-            <div className="section-label">
-              Possible duplicates — {flagged.length} of {review.records.length} rows match someone you already have
-            </div>
-            <p className="row-sub" style={{ margin: '0 4px 12px' }}>
-              These are skipped by default. Switch any row to “Import” to add it anyway.
-            </p>
-            <div className="list">
-              {flagged.map((r) => {
-                const i = review.records.indexOf(r)
-                return (
-                  <div className="dup-import-row" key={i}>
-                    <div className="row-body">
-                      <div className="row-title">{r.rec.name}</div>
-                      <div className="row-sub">
-                        matches {r.matches[0].person.name} — {r.matches[0].reasons.join(' · ')}
+      {review &&
+        (() => {
+          const flagged = review.records.filter((r) => r.matches.length)
+          const importing = review.records.filter((r) => r.action === 'import').length
+          return (
+            <div className="section-gap">
+              <div className="section-label">
+                Possible duplicates — {flagged.length} of {review.records.length} rows match someone
+                you already have
+              </div>
+              <p className="row-sub" style={{ margin: '0 4px 12px' }}>
+                These are skipped by default. Switch any row to “Import” to add it anyway.
+              </p>
+              <div className="list">
+                {flagged.map((r) => {
+                  const i = review.records.indexOf(r)
+                  return (
+                    <div className="dup-import-row" key={i}>
+                      <div className="row-body">
+                        <div className="row-title">{r.rec.name}</div>
+                        <div className="row-sub">
+                          matches {r.matches[0].person.name} — {r.matches[0].reasons.join(' · ')}
+                        </div>
                       </div>
+                      <Segmented
+                        size="sm"
+                        value={r.action}
+                        onChange={(action) => setRowAction(i, action)}
+                        options={[
+                          { value: 'skip', label: 'Skip' },
+                          { value: 'import', label: 'Import' },
+                        ]}
+                      />
                     </div>
-                    <Segmented
-                      size="sm"
-                      value={r.action}
-                      onChange={(action) => setRowAction(i, action)}
-                      options={[
-                        { value: 'skip', label: 'Skip' },
-                        { value: 'import', label: 'Import' },
-                      ]}
-                    />
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
+              <button className="btn-primary" onClick={confirmImport} disabled={busy}>
+                {busy ? (
+                  <span className="dots">Importing</span>
+                ) : importing ? (
+                  `Import ${importing} ${importing === 1 ? 'person' : 'people'}`
+                ) : (
+                  'Skip all & finish'
+                )}
+              </button>
             </div>
-            <button className="btn-primary" onClick={confirmImport} disabled={busy}>
-              {busy ? (
-                <span className="dots">Importing</span>
-              ) : importing ? (
-                `Import ${importing} ${importing === 1 ? 'person' : 'people'}`
-              ) : (
-                'Skip all & finish'
-              )}
-            </button>
-          </div>
-        )
-      })()}
+          )
+        })()}
     </div>
   )
 }

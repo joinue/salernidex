@@ -10,9 +10,7 @@ export default function TagInput({ tags, onChange, suggestions = [] }) {
   }
 
   const matches = draft
-    ? suggestions.filter(
-        (s) => s.toLowerCase().includes(draft.toLowerCase()) && !tags.includes(s)
-      )
+    ? suggestions.filter((s) => s.toLowerCase().includes(draft.toLowerCase()) && !tags.includes(s))
     : []
 
   return (
@@ -22,7 +20,11 @@ export default function TagInput({ tags, onChange, suggestions = [] }) {
           {tags.map((t) => (
             <span className="pill" key={t}>
               {t}
-              <button type="button" onClick={() => onChange(tags.filter((x) => x !== t))} aria-label={`Remove ${t}`}>
+              <button
+                type="button"
+                onClick={() => onChange(tags.filter((x) => x !== t))}
+                aria-label={`Remove ${t}`}
+              >
                 ×
               </button>
             </span>
@@ -49,7 +51,12 @@ export default function TagInput({ tags, onChange, suggestions = [] }) {
               type="button"
               key={s}
               className="filter-clear"
-              style={{ border: '1px solid var(--divider)', borderRadius: 999, padding: '2px 10px', fontSize: 12 }}
+              style={{
+                border: '1px solid var(--divider)',
+                borderRadius: 999,
+                padding: '2px 10px',
+                fontSize: 12,
+              }}
               onClick={() => add(s)}
             >
               {s}

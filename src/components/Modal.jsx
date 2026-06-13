@@ -78,7 +78,13 @@ export default function Modal({ title, onClose, children }) {
           )}
           <div className="modal-header">
             <h2 className="modal-title">{title}</h2>
-            <button className="modal-close" onClick={onClose} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} aria-label="Close">
+            <button
+              className="modal-close"
+              onClick={onClose}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              aria-label="Close"
+            >
               <X size={20} />
             </button>
           </div>
@@ -86,6 +92,6 @@ export default function Modal({ title, onClose, children }) {
         {children}
       </div>
     </div>,
-    document.body
+    document.body,
   )
 }

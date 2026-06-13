@@ -49,10 +49,17 @@ export default function InteractionForm({ person, presetType = 'call', onSave, o
         </div>
         <div className="field">
           <label className="label">When</label>
-          <input type="date" value={date} max={todayLocal()} onChange={(e) => setDate(e.target.value)} />
+          <input
+            type="date"
+            value={date}
+            max={todayLocal()}
+            onChange={(e) => setDate(e.target.value)}
+          />
         </div>
         <div className="field">
-          <label className="label">Note <span className="muted">(optional)</span></label>
+          <label className="label">
+            Note <span className="muted">(optional)</span>
+          </label>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}

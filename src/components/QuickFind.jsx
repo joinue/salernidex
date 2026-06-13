@@ -1,25 +1,59 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  Search, Home, CheckSquare, List, Users, Activity, Share2, Briefcase,
-  DownloadCloud, Settings, Plus, Folder, CornerDownLeft, Clock,
+  Search,
+  Home,
+  CheckSquare,
+  List,
+  Users,
+  Activity,
+  Share2,
+  Briefcase,
+  DownloadCloud,
+  Settings,
+  Plus,
+  Folder,
+  CornerDownLeft,
+  Clock,
 } from 'react-feather'
-import { buildIndex, searchIndex, groupResults, loadRecents, pushRecent, highlightSegments } from '../lib/quickFind'
+import {
+  buildIndex,
+  searchIndex,
+  groupResults,
+  loadRecents,
+  pushRecent,
+  highlightSegments,
+} from '../lib/quickFind'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useScrollLock } from '../hooks/useScrollLock'
 import haptics from '../lib/haptics'
 import Avatar from './Avatar'
 
 const NAV_ICONS = {
-  '': Home, tasks: CheckSquare, lists: List, people: Users, activity: Activity,
-  relationships: Share2, orgs: Briefcase, groups: Users, import: DownloadCloud, settings: Settings,
+  '': Home,
+  tasks: CheckSquare,
+  lists: List,
+  people: Users,
+  activity: Activity,
+  relationships: Share2,
+  orgs: Briefcase,
+  groups: Users,
+  import: DownloadCloud,
+  settings: Settings,
 }
-const TYPE_ICONS = { task: CheckSquare, project: Folder, org: Briefcase, group: Users, action: Plus }
+const TYPE_ICONS = {
+  task: CheckSquare,
+  project: Folder,
+  org: Briefcase,
+  group: Users,
+  action: Plus,
+}
 
 function RowIcon({ entry }) {
   if (entry.type === 'person') return <Avatar name={entry.title} src={entry.avatar_url} size={32} />
   if (entry.type === 'list') return <span className="qf-icon qf-emoji">{entry.icon || '📝'}</span>
-  const Icon = entry.type === 'nav' ? NAV_ICONS[entry.route] || Home : TYPE_ICONS[entry.type] || Search
+  const Icon =
+    entry.type === 'nav' ? NAV_ICONS[entry.route] || Home : TYPE_ICONS[entry.type] || Search
   return (
     <span className="qf-icon">
       <Icon size={17} />
@@ -78,6 +112,9 @@ export default function QuickFind({ data, onPick, onClose }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+    // `pick` is recreated each render but only forwards to the stable onPick;
+    // adding it would needlessly re-bind the key listener every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flat, sel, onClose])
 
   // Keep the keyboard selection visible while arrowing through results.
@@ -143,13 +180,21 @@ export default function QuickFind({ data, onPick, onClose }) {
                         <div className="qf-row-title">
                           {query.trim()
                             ? highlightSegments(entry.title, query).map((seg, j) =>
-                                seg.hit ? <mark className="qf-mark" key={j}>{seg.text}</mark> : <span key={j}>{seg.text}</span>
+                                seg.hit ? (
+                                  <mark className="qf-mark" key={j}>
+                                    {seg.text}
+                                  </mark>
+                                ) : (
+                                  <span key={j}>{seg.text}</span>
+                                ),
                               )
                             : entry.title}
                         </div>
                         {entry.sub && <div className="qf-row-sub">{entry.sub}</div>}
                       </div>
-                      {selected && !isMobile && <CornerDownLeft size={14} className="qf-row-enter" />}
+                      {selected && !isMobile && (
+                        <CornerDownLeft size={14} className="qf-row-enter" />
+                      )}
                     </button>
                   )
                 })}
@@ -160,13 +205,19 @@ export default function QuickFind({ data, onPick, onClose }) {
 
         {!isMobile && (
           <div className="qf-footer">
-            <span><span className="qf-kbd">↑↓</span> navigate</span>
-            <span><span className="qf-kbd">↵</span> open</span>
-            <span><span className="qf-kbd">esc</span> close</span>
+            <span>
+              <span className="qf-kbd">↑↓</span> navigate
+            </span>
+            <span>
+              <span className="qf-kbd">↵</span> open
+            </span>
+            <span>
+              <span className="qf-kbd">esc</span> close
+            </span>
           </div>
         )}
       </div>
     </div>,
-    document.body
+    document.body,
   )
 }

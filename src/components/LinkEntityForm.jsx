@@ -7,7 +7,15 @@ const TYPE_LABEL = { person: 'Person', organization: 'Organization', group: 'Gro
 // Attach a person, organization, or group to a project. The select hides
 // entities that are already linked so you can't add a duplicate (the DB also
 // enforces this).
-export default function LinkEntityForm({ taskId, people, orgs, groups = [], existing, onSave, onClose }) {
+export default function LinkEntityForm({
+  taskId,
+  people,
+  orgs,
+  groups = [],
+  existing,
+  onSave,
+  onClose,
+}) {
   const [entityType, setEntityType] = useState('person')
   const [entityId, setEntityId] = useState('')
   const [role, setRole] = useState('')
@@ -16,7 +24,7 @@ export default function LinkEntityForm({ taskId, people, orgs, groups = [], exis
 
   const linked = useMemo(
     () => new Set((existing || []).map((l) => `${l.entity_type}:${l.entity_id}`)),
-    [existing]
+    [existing],
   )
 
   const options = useMemo(() => {
@@ -40,7 +48,12 @@ export default function LinkEntityForm({ taskId, people, orgs, groups = [], exis
     setBusy(true)
     setError(null)
     try {
-      await onSave({ task_id: taskId, entity_type: entityType, entity_id: entityId, role: role.trim() || null })
+      await onSave({
+        task_id: taskId,
+        entity_type: entityType,
+        entity_id: entityId,
+        role: role.trim() || null,
+      })
       onClose()
     } catch (err) {
       setError(err.message)
@@ -75,13 +88,21 @@ export default function LinkEntityForm({ taskId, people, orgs, groups = [], exis
           <select value={entityId} onChange={(e) => setEntityId(e.target.value)} required>
             <option value="">{options.length ? 'Select…' : 'Nothing left to link'}</option>
             {options.map((e) => (
-              <option key={e.id} value={e.id}>{e.name}</option>
+              <option key={e.id} value={e.id}>
+                {e.name}
+              </option>
             ))}
           </select>
         </div>
         <div className="field">
-          <label className="label">Role <span className="muted">(optional)</span></label>
-          <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. plumber, contractor" />
+          <label className="label">
+            Role <span className="muted">(optional)</span>
+          </label>
+          <input
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            placeholder="e.g. plumber, contractor"
+          />
         </div>
         <button className="btn-primary" disabled={busy || !options.length}>
           {busy ? <span className="dots">Saving</span> : 'Link'}

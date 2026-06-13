@@ -27,10 +27,17 @@ export function newJoinCode() {
 
 function defaults() {
   // Migrate names from the old two-field settings if present.
-  let members = [{ id: 'm-1', name: 'Me' }, { id: 'm-2', name: 'Partner' }]
+  let members = [
+    { id: 'm-1', name: 'Me' },
+    { id: 'm-2', name: 'Partner' },
+  ]
   try {
     const legacy = JSON.parse(localStorage.getItem(LEGACY) || 'null')
-    if (legacy) members = [{ id: 'm-1', name: legacy.me || 'Me' }, { id: 'm-2', name: legacy.partner || 'Partner' }]
+    if (legacy)
+      members = [
+        { id: 'm-1', name: legacy.me || 'Me' },
+        { id: 'm-2', name: legacy.partner || 'Partner' },
+      ]
   } catch {
     /* ignore */
   }
@@ -70,7 +77,12 @@ export function regenerateJoinCode() {
 // Demo stand-in for the live "leave + join another household" flow: resets to a
 // fresh, empty household with just you.
 export function leaveHousehold() {
-  return save({ name: 'New Household', join_code: genCode(), members: [{ id: 'm-1', name: 'Me' }], current_member_id: 'm-1' })
+  return save({
+    name: 'New Household',
+    join_code: genCode(),
+    members: [{ id: 'm-1', name: 'Me' }],
+    current_member_id: 'm-1',
+  })
 }
 
 // ---- members ----
@@ -119,7 +131,10 @@ export function normalizeAssignee(value) {
   return value // already a member id
 }
 export function assigneeOptions() {
-  return [{ value: 'anyone', label: 'Anyone' }, ...members().map((m) => ({ value: m.id, label: m.name }))]
+  return [
+    { value: 'anyone', label: 'Anyone' },
+    ...members().map((m) => ({ value: m.id, label: m.name })),
+  ]
 }
 export function assigneeLabel(value) {
   const v = normalizeAssignee(value)

@@ -56,6 +56,28 @@ function parseHash() {
   return { name: name || 'today', id }
 }
 
+// Detail pages get iOS-style edge-swipe back (mobile). Module-scoped so the
+// array identity is stable across renders.
+const DETAIL_ROUTES = ['person', 'project', 'list', 'activity', 'settings', 'privacy', 'terms']
+// Stale bookmarks / typo'd hashes land on Today, not a blank screen.
+const KNOWN_ROUTES = [
+  'today',
+  'activity',
+  'tasks',
+  'project',
+  'lists',
+  'list',
+  'people',
+  'person',
+  'orgs',
+  'groups',
+  'relationships',
+  'import',
+  'settings',
+  'privacy',
+  'terms',
+]
+
 export default function App() {
   // Runtime demo: the "Explore the demo" button works even when Supabase is
   // configured (build-time demoMode can't capture that). A demo session
@@ -107,7 +129,12 @@ function AuthedApp({ onDemo }) {
     return (
       <main className="main legal-standalone">
         <div className="content">
-          <LegalView doc={route.name} onBack={() => { window.location.hash = '/' }} />
+          <LegalView
+            doc={route.name}
+            onBack={() => {
+              window.location.hash = '/'
+            }}
+          />
         </div>
       </main>
     )
@@ -122,7 +149,8 @@ function AuthedApp({ onDemo }) {
   }
   // Recovery link clicked: force the new-password screen even though a (temporary)
   // session now exists. Clearing the flag on success drops them into the app.
-  if (recovering) return <AuthScreen recovery onRecovered={() => setRecovering(false)} onDemo={onDemo} />
+  if (recovering)
+    return <AuthScreen recovery onRecovered={() => setRecovering(false)} onDemo={onDemo} />
   if (!session) return <AuthScreen onDemo={onDemo} noAuth={!supabase} />
   return <HouseholdGate session={session} onLogout={() => supabase.auth.signOut()} />
 }
@@ -202,11 +230,8 @@ function Shell({ session, onLogout, household }) {
   }
 
   // iOS-style edge-swipe back on detail pages (mobile only).
-  const DETAIL_ROUTES = ['person', 'project', 'list', 'activity', 'settings', 'privacy', 'terms']
   useEdgeBack(mainRef, isMobile && DETAIL_ROUTES.includes(route.name), () => window.history.back())
 
-  // Stale bookmarks / typo'd hashes land on Today, not a blank screen.
-  const KNOWN_ROUTES = ['today', 'activity', 'tasks', 'project', 'lists', 'list', 'people', 'person', 'orgs', 'groups', 'relationships', 'import', 'settings', 'privacy', 'terms']
   useEffect(() => {
     if (!KNOWN_ROUTES.includes(route.name)) window.location.hash = '/'
   }, [route.name])
@@ -221,10 +246,17 @@ function Shell({ session, onLogout, household }) {
           : route.name === 'project'
             ? data.tasks.find((t) => t.id === route.id)?.title
             : {
-                activity: 'Activity', tasks: 'Tasks', lists: 'Lists', people: 'People',
-                orgs: 'Organizations', groups: 'Groups', relationships: 'Relationships',
-                import: 'Import / Export', settings: 'Settings',
-                privacy: 'Privacy Policy', terms: 'Terms of Use',
+                activity: 'Activity',
+                tasks: 'Tasks',
+                lists: 'Lists',
+                people: 'People',
+                orgs: 'Organizations',
+                groups: 'Groups',
+                relationships: 'Relationships',
+                import: 'Import / Export',
+                settings: 'Settings',
+                privacy: 'Privacy Policy',
+                terms: 'Terms of Use',
               }[route.name]
     document.title = named ? `${named} — Salernidex` : 'Salernidex'
   }, [route, data.people, data.lists, data.tasks])
@@ -264,7 +296,8 @@ function Shell({ session, onLogout, household }) {
     setQuickFind(false)
     if (entry.type === 'person') openPerson(entry.id)
     else if (entry.type === 'project') openProject(entry.id)
-    else if (entry.type === 'task') (entry.parentId ? openProject(entry.parentId) : go(`tasks/${entry.id}`))
+    else if (entry.type === 'task')
+      entry.parentId ? openProject(entry.parentId) : go(`tasks/${entry.id}`)
     else if (entry.type === 'list') openList(entry.id)
     else if (entry.type === 'org') go(`orgs/${entry.id}`)
     else if (entry.type === 'group') go(`groups/${entry.id}`)
@@ -289,7 +322,19 @@ function Shell({ session, onLogout, household }) {
   const [prefs] = useNotificationPrefs(data.memberId)
   const badge = useMemo(
     () => badgeCount(buildAttention(data, prefs, data.reminderSnoozes, data.memberId)),
-    [data.people, data.tasks, data.interactions, data.keyDates, data.reminderSnoozes, prefs, data.memberId]
+    // Granular deps on purpose: `data` is a fresh object every render, so
+    // depending on it would recompute the badge constantly. These are the
+    // fields buildAttention actually reads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      data.people,
+      data.tasks,
+      data.interactions,
+      data.keyDates,
+      data.reminderSnoozes,
+      prefs,
+      data.memberId,
+    ],
   )
   useEffect(() => {
     if (badge > 0) navigator.setAppBadge?.(badge)
@@ -302,11 +347,19 @@ function Shell({ session, onLogout, household }) {
       tasks: data.tasks.filter((t) => !t.parent_id && !t.completed_at && !t.is_heading).length,
       lists: data.listItems.filter((it) => !it.checked_at).length,
     }),
-    [data.tasks, data.listItems]
+    [data.tasks, data.listItems],
   )
 
   const activeNav =
-    route.name === 'person' ? 'people' : route.name === 'list' ? 'lists' : route.name === 'project' ? 'tasks' : route.name === 'activity' ? 'today' : route.name
+    route.name === 'person'
+      ? 'people'
+      : route.name === 'list'
+        ? 'lists'
+        : route.name === 'project'
+          ? 'tasks'
+          : route.name === 'activity'
+            ? 'today'
+            : route.name
 
   const adds = {
     go,
@@ -321,93 +374,158 @@ function Shell({ session, onLogout, household }) {
   return (
     <div className="layout">
       {!isMobile && (
-        <Sidebar active={activeNav} go={go} onSearch={() => setQuickFind(true)} onLogout={requestLogout} badge={badge} counts={navCounts} />
+        <Sidebar
+          active={activeNav}
+          go={go}
+          onSearch={() => setQuickFind(true)}
+          onLogout={requestLogout}
+          badge={badge}
+          counts={navCounts}
+        />
       )}
       <main className="main" ref={mainRef}>
         <PullToRefresh onRefresh={data.refresh}>
-        <div className="content">
-          <InstallHint />{/* self-gates: Install button on Chrome/Edge, Add-to-Home-Screen on iOS */}
-          {/* Mirror useData's demo condition exactly so the notice can never
+          <div className="content">
+            <InstallHint />
+            {/* self-gates: Install button on Chrome/Edge, Add-to-Home-Screen on iOS */}
+            {/* Mirror useData's demo condition exactly so the notice can never
               drift from the data: shown for runtime demo AND build-time demo,
               never for a real signed-in session. */}
-          {(demoMode || session?.demo) && (
-            <p className="demo-banner">
-              Demo mode — sample data, nothing is saved. Create an account to start your own household.
-            </p>
-          )}
-          {data.error && <p className="error-text">{data.error}</p>}
-          {route.name === 'today' && (
-            <TodayView data={data} onOpenPerson={openPerson} onOpenList={openList} onOpenTasks={() => go('tasks')} onOpenActivity={() => go('activity')} onMore={isMobile ? () => setMoreOpen('global') : undefined} onSettings={isMobile ? () => go('settings') : undefined} onSearch={isMobile ? () => setQuickFind(true) : undefined} />
-          )}
-          {route.name === 'activity' && (
-            <ActivityView data={data} onBack={() => go('today')} onOpenPerson={openPerson} onOpenList={openList} onOpenTasks={() => go('tasks')} />
-          )}
-          {route.name === 'tasks' && (
-            <TasksView data={data} expandId={route.id} onAdd={() => setEditingTask('new')} onEdit={(t) => setEditingTask(t)} onOpenProject={openProject} onSearch={isMobile ? () => setQuickFind(true) : undefined} defaultFilter={appPrefs.taskFilter} defaultShowCompleted={appPrefs.showCompleted} />
-          )}
-          {route.name === 'project' && (
-            <ProjectDetail data={data} taskId={route.id} onBack={() => window.history.back()} onEdit={(t) => setEditingTask(t)} onOpenPerson={openPerson} />
-          )}
-          {route.name === 'lists' && (
-            <ListsView data={data} onOpenList={openList} onAdd={() => setEditingList('new')} onSearch={isMobile ? () => setQuickFind(true) : undefined} />
-          )}
-          {route.name === 'list' && (
-            <ListDetail data={data} listId={route.id} onBack={() => go('lists')} onEdit={(l) => setEditingList(l)} />
-          )}
-          {route.name === 'people' && (
-            <SearchView
-              data={data}
-              searchRef={searchRef}
-              query={query}
-              setQuery={setQuery}
-              filters={peopleFilters}
-              setFilters={setPeopleFilters}
-              onOpen={openPerson}
-              onEdit={(p) => setEditingPerson(p)}
-              onAdd={() => setEditingPerson('new')}
-              onMore={isMobile ? () => setMoreOpen('people') : undefined}
-              memberId={meId}
-            />
-          )}
-          {route.name === 'person' && (
-            <PersonPage
-              data={data}
-              personId={route.id}
-              onOpenPerson={openPerson}
-              onOpenTask={openTask}
-              onBack={() => window.history.back()}
-              onEdit={(p) => setEditingPerson(p)}
-              onConnect={(p) => setRelationshipFrom(p)}
-              isDemo={isDemo}
-            />
-          )}
-          {route.name === 'orgs' && (
-            <OrgsView data={data} openId={route.id} onEdit={(o) => setEditingOrg(o)} onAdd={() => setEditingOrg('new')} onOpenTask={openTask} isDemo={isDemo} />
-          )}
-          {route.name === 'groups' && (
-            <GroupsView
-              data={data}
-              openId={route.id}
-              onOpenPerson={openPerson}
-              onOpenTask={openTask}
-              onAdd={() => setEditingGroup('new')}
-              onEdit={(g) => setEditingGroup(g)}
-              isDemo={isDemo}
-            />
-          )}
-          {route.name === 'relationships' && (
-            <RelationshipsView data={data} onOpenPerson={openPerson} onAdd={() => setRelationshipFrom('new')} />
-          )}
-          {route.name === 'import' && (
-            <Suspense fallback={<p className="empty dots">Loading</p>}>
-              <ImportExport data={data} />
-            </Suspense>
-          )}
-          {route.name === 'settings' && <SettingsView go={go} household={household} isDemo={!!(demoMode || session?.demo)} />}
-          {(route.name === 'privacy' || route.name === 'terms') && (
-            <LegalView doc={route.name} onBack={() => (window.history.length > 1 ? window.history.back() : go('today'))} />
-          )}
-        </div>
+            {(demoMode || session?.demo) && (
+              <p className="demo-banner">
+                Demo mode — sample data, nothing is saved. Create an account to start your own
+                household.
+              </p>
+            )}
+            {data.error && <p className="error-text">{data.error}</p>}
+            {route.name === 'today' && (
+              <TodayView
+                data={data}
+                onOpenPerson={openPerson}
+                onOpenList={openList}
+                onOpenTasks={() => go('tasks')}
+                onOpenActivity={() => go('activity')}
+                onMore={isMobile ? () => setMoreOpen('global') : undefined}
+                onSettings={isMobile ? () => go('settings') : undefined}
+                onSearch={isMobile ? () => setQuickFind(true) : undefined}
+              />
+            )}
+            {route.name === 'activity' && (
+              <ActivityView
+                data={data}
+                onBack={() => go('today')}
+                onOpenPerson={openPerson}
+                onOpenList={openList}
+                onOpenTasks={() => go('tasks')}
+              />
+            )}
+            {route.name === 'tasks' && (
+              <TasksView
+                data={data}
+                expandId={route.id}
+                onAdd={() => setEditingTask('new')}
+                onEdit={(t) => setEditingTask(t)}
+                onOpenProject={openProject}
+                onSearch={isMobile ? () => setQuickFind(true) : undefined}
+                defaultFilter={appPrefs.taskFilter}
+                defaultShowCompleted={appPrefs.showCompleted}
+              />
+            )}
+            {route.name === 'project' && (
+              <ProjectDetail
+                data={data}
+                taskId={route.id}
+                onBack={() => window.history.back()}
+                onEdit={(t) => setEditingTask(t)}
+                onOpenPerson={openPerson}
+              />
+            )}
+            {route.name === 'lists' && (
+              <ListsView
+                data={data}
+                onOpenList={openList}
+                onAdd={() => setEditingList('new')}
+                onSearch={isMobile ? () => setQuickFind(true) : undefined}
+              />
+            )}
+            {route.name === 'list' && (
+              <ListDetail
+                data={data}
+                listId={route.id}
+                onBack={() => go('lists')}
+                onEdit={(l) => setEditingList(l)}
+              />
+            )}
+            {route.name === 'people' && (
+              <SearchView
+                data={data}
+                searchRef={searchRef}
+                query={query}
+                setQuery={setQuery}
+                filters={peopleFilters}
+                setFilters={setPeopleFilters}
+                onOpen={openPerson}
+                onEdit={(p) => setEditingPerson(p)}
+                onAdd={() => setEditingPerson('new')}
+                onMore={isMobile ? () => setMoreOpen('people') : undefined}
+                memberId={meId}
+              />
+            )}
+            {route.name === 'person' && (
+              <PersonPage
+                data={data}
+                personId={route.id}
+                onOpenPerson={openPerson}
+                onOpenTask={openTask}
+                onBack={() => window.history.back()}
+                onEdit={(p) => setEditingPerson(p)}
+                onConnect={(p) => setRelationshipFrom(p)}
+                isDemo={isDemo}
+              />
+            )}
+            {route.name === 'orgs' && (
+              <OrgsView
+                data={data}
+                openId={route.id}
+                onEdit={(o) => setEditingOrg(o)}
+                onAdd={() => setEditingOrg('new')}
+                onOpenTask={openTask}
+                isDemo={isDemo}
+              />
+            )}
+            {route.name === 'groups' && (
+              <GroupsView
+                data={data}
+                openId={route.id}
+                onOpenPerson={openPerson}
+                onOpenTask={openTask}
+                onAdd={() => setEditingGroup('new')}
+                onEdit={(g) => setEditingGroup(g)}
+                isDemo={isDemo}
+              />
+            )}
+            {route.name === 'relationships' && (
+              <RelationshipsView
+                data={data}
+                onOpenPerson={openPerson}
+                onAdd={() => setRelationshipFrom('new')}
+              />
+            )}
+            {route.name === 'import' && (
+              <Suspense fallback={<p className="empty dots">Loading</p>}>
+                <ImportExport data={data} />
+              </Suspense>
+            )}
+            {route.name === 'settings' && (
+              <SettingsView go={go} household={household} isDemo={!!(demoMode || session?.demo)} />
+            )}
+            {(route.name === 'privacy' || route.name === 'terms') && (
+              <LegalView
+                doc={route.name}
+                onBack={() => (window.history.length > 1 ? window.history.back() : go('today'))}
+              />
+            )}
+          </div>
         </PullToRefresh>
       </main>
 
@@ -458,7 +576,13 @@ function Shell({ session, onLogout, household }) {
         />
       )}
       {editingOrg && (
-        <OrgForm org={editingOrg === 'new' ? null : editingOrg} orgs={data.orgs} onSave={data.saveOrg} onClose={() => setEditingOrg(null)} isDemo={isDemo} />
+        <OrgForm
+          org={editingOrg === 'new' ? null : editingOrg}
+          orgs={data.orgs}
+          onSave={data.saveOrg}
+          onClose={() => setEditingOrg(null)}
+          isDemo={isDemo}
+        />
       )}
       {editingGroup && (
         <GroupForm

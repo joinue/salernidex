@@ -47,8 +47,16 @@ export function useHousehold(session) {
     localStorage.setItem(ACTIVE_HOUSEHOLD_KEY, active.household_id)
 
     const [hhRes, memRes] = await Promise.all([
-      supabase.from('households').select('id, name, join_code').eq('id', active.household_id).single(),
-      supabase.from('household_members').select('id, user_id, display_name, role').eq('household_id', active.household_id).order('joined_at'),
+      supabase
+        .from('households')
+        .select('id, name, join_code')
+        .eq('id', active.household_id)
+        .single(),
+      supabase
+        .from('household_members')
+        .select('id, user_id, display_name, role')
+        .eq('household_id', active.household_id)
+        .order('joined_at'),
     ])
     const hh = hhRes.data
     const memberRows = (memRes.data || []).map((m) => ({
@@ -96,13 +104,19 @@ export function useHousehold(session) {
 
   const setName = async (name) => {
     if (!hid) return
-    await supabase.from('households').update({ name: name.trim() || 'Our Household' }).eq('id', hid)
+    await supabase
+      .from('households')
+      .update({ name: name.trim() || 'Our Household' })
+      .eq('id', hid)
     await load()
   }
 
   // Rename a member (yourself, or anyone if you're an owner — RLS enforces it).
   const renameMember = async (id, name) => {
-    await supabase.from('household_members').update({ display_name: name.trim() || 'Member' }).eq('id', id)
+    await supabase
+      .from('household_members')
+      .update({ display_name: name.trim() || 'Member' })
+      .eq('id', id)
     await load()
   }
 

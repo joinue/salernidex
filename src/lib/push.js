@@ -9,7 +9,8 @@ import { demoMode } from './demo'
 // The private half was discarded on purpose — at go-live, generate a fresh
 // pair (npx web-push generate-vapid-keys), set VITE_VAPID_PUBLIC_KEY, and
 // everyone re-enables on their devices (it's just the household).
-const DEV_VAPID_PUBLIC = 'BN3suYncH9TP5CPZ4xLj0vpN8vkK3aGmt29xxuorjNrnmo7QLwV23sek9F_Miwz1-G4Pj8t7iCyHNXUMIsMixxM'
+const DEV_VAPID_PUBLIC =
+  'BN3suYncH9TP5CPZ4xLj0vpN8vkK3aGmt29xxuorjNrnmo7QLwV23sek9F_Miwz1-G4Pj8t7iCyHNXUMIsMixxM'
 export const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || DEV_VAPID_PUBLIC
 
 const DEVICE_KEY = 'salernidex-push-device' // demo-mode stand-in for push_subscriptions
@@ -20,7 +21,8 @@ const isStandalone = () =>
 
 // 'ok' | 'ios-install-first' | 'unsupported'
 export function pushSupport() {
-  if ('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window) return 'ok'
+  if ('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window)
+    return 'ok'
   if (isIos() && !isStandalone()) return 'ios-install-first' // iOS 16.4+ gates push behind Add to Home Screen
   return 'unsupported'
 }

@@ -63,12 +63,16 @@ export default function Onboarding({ session, onDone, onLogout }) {
 
           <form onSubmit={submit}>
             <h2 className="auth-title">Set up your household</h2>
-            <p className="muted auth-sub">A household is your shared space — contacts, tasks, and lists everyone in it can see.</p>
+            <p className="muted auth-sub">
+              A household is your shared space — contacts, tasks, and lists everyone in it can see.
+            </p>
 
             {error && <p className="error-text">{error}</p>}
 
             <div className="field">
-              <label className="label" htmlFor="your-name">Your name</label>
+              <label className="label" htmlFor="your-name">
+                Your name
+              </label>
               <input
                 id="your-name"
                 value={name}
@@ -86,7 +90,9 @@ export default function Onboarding({ session, onDone, onLogout }) {
 
             {mode === 'create' ? (
               <div className="field">
-                <label className="label" htmlFor="household-name">Household name</label>
+                <label className="label" htmlFor="household-name">
+                  Household name
+                </label>
                 <input
                   id="household-name"
                   value={householdName}
@@ -97,7 +103,9 @@ export default function Onboarding({ session, onDone, onLogout }) {
               </div>
             ) : (
               <div className="field">
-                <label className="label" htmlFor="join-code">Invite code</label>
+                <label className="label" htmlFor="join-code">
+                  Invite code
+                </label>
                 <input
                   id="join-code"
                   value={code}
@@ -116,13 +124,19 @@ export default function Onboarding({ session, onDone, onLogout }) {
             <button className="btn-primary" disabled={busy}>
               {busy ? (
                 <span className="dots">{mode === 'create' ? 'Creating' : 'Joining'}</span>
-              ) : mode === 'create' ? 'Create household' : 'Join household'}
+              ) : mode === 'create' ? (
+                'Create household'
+              ) : (
+                'Join household'
+              )}
             </button>
           </form>
 
           <div className="auth-switch">
             {email && <span>Signed in as {email} · </span>}
-            <button type="button" className="text-btn auth-inline-link" onClick={onLogout}>Sign out</button>
+            <button type="button" className="text-btn auth-inline-link" onClick={onLogout}>
+              Sign out
+            </button>
           </div>
         </div>
       </section>

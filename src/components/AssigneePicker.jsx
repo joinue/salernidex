@@ -14,7 +14,11 @@ export default function AssigneePicker({ value, onChange }) {
           className={`assignee-chip ${value === o.value ? 'on' : ''}`}
           onClick={() => onChange(o.value)}
         >
-          {o.value === 'anyone' ? <span className="assignee-any">Any</span> : <Avatar name={o.label} size={22} />}
+          {o.value === 'anyone' ? (
+            <span className="assignee-any">Any</span>
+          ) : (
+            <Avatar name={o.label} size={22} />
+          )}
           <span>{o.label}</span>
         </button>
       ))}

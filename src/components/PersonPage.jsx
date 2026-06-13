@@ -1,7 +1,33 @@
 import { useMemo, useState } from 'react'
-import { ArrowLeft, Mail, Phone, MapPin, Gift, Edit2, UserPlus, Archive, Trash2, RotateCcw, Lock, X, Bell, Calendar, Plus, Home, Download, ChevronRight } from 'react-feather'
+import {
+  ArrowLeft,
+  Mail,
+  Phone,
+  MapPin,
+  Gift,
+  Edit2,
+  UserPlus,
+  Archive,
+  Trash2,
+  RotateCcw,
+  Lock,
+  X,
+  Bell,
+  Calendar,
+  Plus,
+  Home,
+  Download,
+  ChevronRight,
+} from 'react-feather'
 import { downloadVcf } from '../lib/vcard'
-import { PRIVACY_LABELS, KEEP_IN_TOUCH_LABELS, TIER_LABELS, INTERACTION_TYPES, INTERACTION_BY_ID, formatDate } from '../lib/constants'
+import {
+  PRIVACY_LABELS,
+  KEEP_IN_TOUCH_LABELS,
+  TIER_LABELS,
+  INTERACTION_TYPES,
+  INTERACTION_BY_ID,
+  formatDate,
+} from '../lib/constants'
 import { lastInteraction, relativeTime } from '../lib/contact'
 import { isProject, projectProgress, linkedTasksFor } from '../lib/tasks'
 import { memberName } from '../lib/household'
@@ -14,8 +40,39 @@ import KeyDateForm from './KeyDateForm'
 import LinkTaskForm from './LinkTaskForm'
 import ConfirmDialog from './ConfirmDialog'
 
-export default function PersonPage({ data, personId, onOpenPerson, onOpenTask, onBack, onEdit, onConnect, isDemo = false }) {
-  const { people, orgs, relationships, interactions, families, keyDates, tasks, taskLinks, completeTask, addTask, addTaskLink, savePerson, deletePerson, restorePerson, purgePerson, userId, deleteRelationship, addInteraction, deleteInteraction, addKeyDate, deleteKeyDate } = data
+export default function PersonPage({
+  data,
+  personId,
+  onOpenPerson,
+  onOpenTask,
+  onBack,
+  onEdit,
+  onConnect,
+  isDemo = false,
+}) {
+  const {
+    people,
+    orgs,
+    relationships,
+    interactions,
+    families,
+    keyDates,
+    tasks,
+    taskLinks,
+    completeTask,
+    addTask,
+    addTaskLink,
+    savePerson,
+    deletePerson,
+    restorePerson,
+    purgePerson,
+    userId,
+    deleteRelationship,
+    addInteraction,
+    deleteInteraction,
+    addKeyDate,
+    deleteKeyDate,
+  } = data
   const person = people.find((p) => p.id === personId)
   const byId = useMemo(() => new Map(people.map((p) => [p.id, p])), [people])
   const orgsById = useMemo(() => new Map(orgs.map((o) => [o.id, o])), [orgs])
@@ -30,14 +87,14 @@ export default function PersonPage({ data, personId, onOpenPerson, onOpenTask, o
       (interactions || [])
         .filter((i) => i.person_id === personId)
         .sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1)),
-    [interactions, personId]
+    [interactions, personId],
   )
 
   // The reverse of ProjectDetail's "Related people": tasks/projects this person
   // is linked to via task_links. Open first (soonest-due), completed after.
   const linkedTasks = useMemo(
     () => linkedTasksFor('person', personId, tasks, taskLinks),
-    [taskLinks, tasks, personId]
+    [taskLinks, tasks, personId],
   )
 
   const toggleTask = (t) => {
@@ -96,17 +153,26 @@ export default function PersonPage({ data, personId, onOpenPerson, onOpenTask, o
         />
         <h1 className="person-name">
           {person.name}
-          {person.deleted_at && <span className="muted" style={{ fontSize: 15, fontWeight: 400 }}> · archived</span>}
+          {person.deleted_at && (
+            <span className="muted" style={{ fontSize: 15, fontWeight: 400 }}>
+              {' '}
+              · archived
+            </span>
+          )}
         </h1>
         {(person.role || orgName(person)) && (
           <p className="person-sub">{[person.role, orgName(person)].filter(Boolean).join(' · ')}</p>
         )}
 
         <div className="chips" style={{ justifyContent: 'center', marginTop: 10 }}>
-          {person.tier && <span className={`chip tier-${person.tier}`}>{TIER_LABELS[person.tier]}</span>}
+          {person.tier && (
+            <span className={`chip tier-${person.tier}`}>{TIER_LABELS[person.tier]}</span>
+          )}
           {last && <span className="chip">Last contact · {relativeTime(last.occurred_at)}</span>}
           {(person.tags || []).map((t) => (
-            <span className="chip accent" key={t}>{t}</span>
+            <span className="chip accent" key={t}>
+              {t}
+            </span>
           ))}
         </div>
 
@@ -166,14 +232,18 @@ export default function PersonPage({ data, personId, onOpenPerson, onOpenTask, o
               <a className="value-row" href={`mailto:${person.email}`}>
                 <Mail size={18} />
                 <span className="v-label">Email</span>
-                <span className="v-value" style={{ color: 'var(--accent)' }}>{person.email}</span>
+                <span className="v-value" style={{ color: 'var(--accent)' }}>
+                  {person.email}
+                </span>
               </a>
             )}
             {person.phone && (
               <a className="value-row" href={`tel:${person.phone}`}>
                 <Phone size={18} />
                 <span className="v-label">Phone</span>
-                <span className="v-value" style={{ color: 'var(--accent)' }}>{person.phone}</span>
+                <span className="v-value" style={{ color: 'var(--accent)' }}>
+                  {person.phone}
+                </span>
               </a>
             )}
             {person.address && (
@@ -213,7 +283,11 @@ export default function PersonPage({ data, personId, onOpenPerson, onOpenTask, o
                 {formatDate(kd.date)}
                 <span className="muted"> · {kd.annual ? 'every year' : 'one-time'}</span>
               </span>
-              <button className="icon-btn danger" onClick={() => deleteKeyDate(kd.id)} aria-label={`Delete ${kd.label}`}>
+              <button
+                className="icon-btn danger"
+                onClick={() => deleteKeyDate(kd.id)}
+                aria-label={`Delete ${kd.label}`}
+              >
                 <X size={15} />
               </button>
             </div>
@@ -234,7 +308,9 @@ export default function PersonPage({ data, personId, onOpenPerson, onOpenTask, o
                 <div className="row-body">
                   <div className="row-title">{m.name}</div>
                   {(m.role || orgName(m)) && (
-                    <div className="row-sub">{[m.role, orgName(m)].filter(Boolean).join(' · ')}</div>
+                    <div className="row-sub">
+                      {[m.role, orgName(m)].filter(Boolean).join(' · ')}
+                    </div>
                   )}
                 </div>
               </div>
@@ -252,7 +328,9 @@ export default function PersonPage({ data, personId, onOpenPerson, onOpenTask, o
       </div>
       <div className="list">
         {linkedTasks.length === 0 ? (
-          <p className="empty-inline">No tasks linked yet — a “follow up”, a gift to buy, a shared project.</p>
+          <p className="empty-inline">
+            No tasks linked yet — a “follow up”, a gift to buy, a shared project.
+          </p>
         ) : (
           linkedTasks.map((t) => (
             <div className="list-row" key={t.id} role="button" onClick={() => onOpenTask(t)}>
@@ -274,7 +352,9 @@ export default function PersonPage({ data, personId, onOpenPerson, onOpenTask, o
             const Icon = meta.icon
             return (
               <div className="activity-row" key={it.id}>
-                <span className="activity-icon"><Icon size={16} /></span>
+                <span className="activity-icon">
+                  <Icon size={16} />
+                </span>
                 <div className="row-body">
                   <div className="activity-head">
                     <span className="activity-label">{meta.label}</span>
@@ -312,7 +392,10 @@ export default function PersonPage({ data, personId, onOpenPerson, onOpenTask, o
                 </div>
                 <button
                   className="icon-btn danger"
-                  onClick={(e) => { e.stopPropagation(); deleteRelationship(rel.id) }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    deleteRelationship(rel.id)
+                  }}
                   aria-label="Remove connection"
                 >
                   <X size={16} />
@@ -337,12 +420,16 @@ export default function PersonPage({ data, personId, onOpenPerson, onOpenTask, o
         <div className="value-row">
           <Bell size={18} />
           <span className="v-label">Keep in touch</span>
-          <span className="v-value">{KEEP_IN_TOUCH_LABELS[person.keep_in_touch_days] || 'No reminder'}</span>
+          <span className="v-value">
+            {KEEP_IN_TOUCH_LABELS[person.keep_in_touch_days] || 'No reminder'}
+          </span>
         </div>
         <div className="value-row">
           <Lock size={18} />
           <span className="v-label">Privacy</span>
-          <span className="v-value">{PRIVACY_LABELS[person.privacy_level] || person.privacy_level}</span>
+          <span className="v-value">
+            {PRIVACY_LABELS[person.privacy_level] || person.privacy_level}
+          </span>
         </div>
       </div>
 
@@ -378,7 +465,11 @@ export default function PersonPage({ data, personId, onOpenPerson, onOpenTask, o
           message="This permanently removes the contact along with their relationships and logged touchpoints. This can't be undone."
           confirmLabel="Delete forever"
           danger
-          onConfirm={() => { setConfirmPurge(false); purgePerson(person.id); onBack() }}
+          onConfirm={() => {
+            setConfirmPurge(false)
+            purgePerson(person.id)
+            onBack()
+          }}
           onCancel={() => setConfirmPurge(false)}
         />
       )}
