@@ -92,10 +92,13 @@ export function projectProgress(taskId, all) {
   return { done: children.filter((t) => t.completed_at).length, total: children.length }
 }
 
-// A task counts as a project if it's explicitly flagged or has any subtasks —
-// projects open the full-page ProjectDetail instead of expanding inline.
-export function isProject(task, all) {
-  return !!task.is_project || all.some((t) => t.parent_id === task.id)
+// A task counts as a project only when it's explicitly flagged as one (the
+// Task/Project toggle on the form). Projects open the full-page ProjectDetail;
+// a plain task — even one with subtasks — stays a lightweight checklist that
+// expands inline in the Tasks list. The `all` arg is kept for call-site
+// compatibility but no longer consulted.
+export function isProject(task) {
+  return !!task.is_project
 }
 
 // Tasks/projects linked to an entity (person | organization | group) via

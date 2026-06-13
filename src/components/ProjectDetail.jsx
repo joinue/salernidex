@@ -123,9 +123,11 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
         </>
       )}
 
-      <div className="section-label">Subtasks</div>
+      <div className="section-label">
+        Subtasks
+        {progress && <span className="section-count">{progress.done}/{progress.total}</span>}
+      </div>
       <div className="list">
-        {subs.length === 0 && <p className="empty-inline">No subtasks yet — break the project down below.</p>}
         {subs.length > 0 && (
           <ReorderableList
             className="reorder-plain"
@@ -141,7 +143,7 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
                 </div>
               ) : (
                 <div className="list-row sub">
-                  <TaskRow task={s} onToggle={toggle} size="sm" />
+                  <TaskRow task={s} onToggle={toggle} size="sm" hideAssignee={normalizeAssignee(s.assignee) === normalizeAssignee(task.assignee)} />
                   <button className="icon-btn danger" onClick={() => deleteTask(s.id)} aria-label="Delete subtask">
                     <X size={15} />
                   </button>
@@ -150,11 +152,11 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
             }
           />
         )}
-        <div className="subtask-add">
+        <div className={`subtask-composer ${subs.length > 0 ? 'divided' : ''}`}>
           <input
             value={draftSub}
             onChange={(e) => setDraftSub(e.target.value)}
-            placeholder="Add a subtask…"
+            placeholder={subs.length ? 'Add a subtask…' : 'Add the first step…'}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault()
@@ -162,14 +164,15 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
               }
             }}
           />
-          <button className="text-btn" onClick={() => addSub()}>Add task</button>
-          <button className="text-btn quiet" onClick={() => addSub(true)} title="A label that groups the subtasks listed under it">
-            + Heading
-          </button>
+          <div className="subtask-composer-actions">
+            <button className="text-btn" onClick={() => addSub()} disabled={!draftSub.trim()}>
+              <Plus size={15} /> Add task
+            </button>
+            <button className="text-btn quiet" onClick={() => addSub(true)} disabled={!draftSub.trim()} title="Group the steps below it — like “Materials” or “Phase 1”">
+              Add as heading
+            </button>
+          </div>
         </div>
-        <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-          A heading groups the subtasks listed below it — like “Materials” or “Phase 1”.
-        </p>
       </div>
 
       <div className="section-label">

@@ -6,11 +6,11 @@ import { assigneeLabel, normalizeAssignee } from '../lib/household'
 // Presentational task line: completion circle + title + meta chips (assignee,
 // due, recurring). The checkbox stops propagation so the surrounding row can
 // own tap (expand/open). `size="sm"` is used for subtasks.
-export default function TaskRow({ task, onToggle, size = 'md', progress }) {
+export default function TaskRow({ task, onToggle, size = 'md', progress, hideAssignee = false }) {
   const done = !!task.completed_at
   const dl = dueLabel(task.due_date)
   const ds = dueState(task.due_date)
-  const showAssignee = normalizeAssignee(task.assignee) !== 'anyone'
+  const showAssignee = !hideAssignee && normalizeAssignee(task.assignee) !== 'anyone'
 
   return (
     <>

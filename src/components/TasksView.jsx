@@ -120,7 +120,7 @@ export default function TasksView({ data, expandId, onAdd, onEdit, onOpenProject
             {task.notes && <p className="muted" style={{ fontSize: 14, marginBottom: 10 }}>{task.notes}</p>}
             {subs.map((s) => (
               <div className="list-row sub" key={s.id}>
-                <TaskRow task={s} onToggle={toggle} size="sm" />
+                <TaskRow task={s} onToggle={toggle} size="sm" hideAssignee={normalizeAssignee(s.assignee) === normalizeAssignee(task.assignee)} />
                 <button className="icon-btn danger" onClick={() => deleteTask(s.id)} aria-label="Delete subtask">
                   <Plus size={15} style={{ transform: 'rotate(45deg)' }} />
                 </button>

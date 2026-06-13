@@ -75,10 +75,11 @@ describe('project helpers', () => {
     expect(projectProgress('p', all)).toEqual({ done: 1, total: 2 })
     expect(projectProgress('solo', all)).toBeNull()
   })
-  it('isProject is true when flagged or has children', () => {
-    expect(isProject({ id: 'p', is_project: true }, all)).toBe(true)
-    expect(isProject({ id: 'x' }, [{ id: 'k', parent_id: 'x' }])).toBe(true)
-    expect(isProject({ id: 'solo' }, all)).toBe(false)
+  it('isProject keys only on the explicit flag, not on having subtasks', () => {
+    expect(isProject({ id: 'p', is_project: true })).toBe(true)
+    // a plain task with subtasks is NOT a project — it stays an inline checklist
+    expect(isProject({ id: 'x' })).toBe(false)
+    expect(isProject({ id: 'solo' })).toBe(false)
   })
 })
 
