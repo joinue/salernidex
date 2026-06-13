@@ -6,3 +6,4 @@ scripts/shots
 .env.local
 *.local
 .DS_Store
+supabase/.temp/

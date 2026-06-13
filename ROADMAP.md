@@ -44,6 +44,19 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 
 ---
 
+## Ideas to explore (not committed)
+
+### Steal from Things 3 — the two-axis date model
+Things' most-loved feature is splitting a task's **"when"** from its **"deadline"**:
+- **Start / "when" date** — *when the task shows up in Today* (a.k.a. defer date). Lets you plan a day without the list being a wall of everything-ever. Pairs with a **"This Evening"** sub-bucket on Today (plan the morning vs. the night).
+- **Deadline** — a separate, hard due date shown as a red flag, independent of when it surfaces.
+
+Today Salernidex has a single due date doing both jobs. Splitting it is the highest-leverage task-UX win and fits the existing model: thread a `start_date`/`defer_date` (and keep `due` as the deadline) through `taskBucket` in [`src/lib/tasks.js`](src/lib/tasks.js), the Overdue/Today/Upcoming/Someday grouping in [`TasksView.jsx`](src/components/TasksView.jsx), and [`TaskForm.jsx`](src/components/TaskForm.jsx). Keep it optional so the simple "just a to-do" case stays one-tap. Goes into backup vN + recurrence interplay (defer relative to next occurrence).
+
+**Context:** came out of a 2026-06-13 Salernidex-vs-Things comparison. Things is single-user/tasks-only by design — our moat (household/multiplayer, people-as-objects, lists, reminders-as-a-layer) is elsewhere; this is the one place worth closing the polish gap rather than out-scoping them. Other Things polish to watch but lower priority: the check-off animation, calendar events inline in Today, keyboard-driven Quick Find.
+
+---
+
 ## Key decisions / constraints
 - **Demo-first.** Everything runs in-memory (`src/lib/demo.js`); `supabase/schema.sql` is an evolving **design doc**. NO migration is run until the app is polished and the schema is proven — then one clean migration.
 - **Multitenant + per-user accounts.** Each person signs in with their own login; invite via **shareable join code**; users can **leave and join another** household and belong to several. Members are a list of **N** (not a fixed pair).
