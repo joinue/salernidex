@@ -335,7 +335,7 @@ export default function PersonPage({
           linkedTasks.map((t) => (
             <div className="list-row" key={t.id} role="button" onClick={() => onOpenTask(t)}>
               <TaskRow task={t} onToggle={toggleTask} progress={projectProgress(t.id, tasks)} />
-              {isProject(t, tasks) && <ChevronRight size={18} className="row-chevron" />}
+              {isProject(t) && <ChevronRight size={18} className="row-chevron" />}
             </div>
           ))
         )}

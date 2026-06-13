@@ -98,7 +98,7 @@ export function buildIndex(data) {
   for (const t of data.tasks) {
     if (t.completed_at || t.is_heading) continue // headings are structure, not destinations
     const parent = t.parent_id ? byId.get(t.parent_id) : null
-    const project = !parent && isProject(t, data.tasks)
+    const project = !parent && isProject(t)
     add({
       type: project ? 'project' : 'task',
       id: t.id,

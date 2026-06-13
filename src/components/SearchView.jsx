@@ -46,6 +46,7 @@ export default function SearchView({
   onAdd,
   onMore,
   memberId,
+  hub,
 }) {
   // Filters live in the parent so they survive leaving and returning to the
   // page (like `query`). Destructure for readability; each setter patches one key.
@@ -245,6 +246,9 @@ export default function SearchView({
       {/* Mobile: "More" overflow (the FAB handles adds). Desktop: add a person. */}
       <PageHeader
         title="People"
+        navOptions={hub?.options}
+        navActive={hub?.active}
+        onNavigate={hub?.onNavigate}
         action={onMore || onAdd}
         actionIcon={onMore ? MoreHorizontal : UserPlus}
         actionLabel={onMore ? 'More' : 'Add person'}

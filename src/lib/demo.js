@@ -322,8 +322,20 @@ export const demoKeyDates = [
 
 export const demoGroups = [
   {
+    id: 'g-dinner',
+    name: 'Dinner Crew',
+    kind: 'manual',
+    member_ids: ['p-elena', 'p-david', 'p-rita', 'p-sam'],
+    all_tags: [],
+    any_tags: [],
+    none_tags: [],
+    created_at: now,
+    updated_at: now,
+  },
+  {
     id: 'g-pace',
     name: 'Northwind Customers',
+    kind: 'smart',
     all_tags: ['Northwind customer'],
     any_tags: [],
     none_tags: [],

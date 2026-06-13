@@ -78,6 +78,16 @@ const KNOWN_ROUTES = [
   'terms',
 ]
 
+// The "Network" hub: People and the three views that are really groupings of
+// people. On mobile these collapse behind the People title dropdown instead of
+// each claiming a nav slot; the desktop sidebar still breaks them out.
+const HUB_OPTIONS = [
+  { id: 'people', label: 'People' },
+  { id: 'groups', label: 'Groups' },
+  { id: 'orgs', label: 'Organizations' },
+  { id: 'relationships', label: 'Network' },
+]
+
 export default function App() {
   // Runtime demo: the "Explore the demo" button works even when Supabase is
   // configured (build-time demoMode can't capture that). A demo session
@@ -228,6 +238,10 @@ function Shell({ session, onLogout, household }) {
   const go = (path) => {
     window.location.hash = '/' + path
   }
+  // Title-dropdown config for the People hub (people/groups/orgs/network).
+  // Mobile only — desktop keeps these broken out in the sidebar.
+  const hubNav = (active) =>
+    isMobile ? { options: HUB_OPTIONS, active, onNavigate: go } : undefined
 
   // iOS-style edge-swipe back on detail pages (mobile only).
   useEdgeBack(mainRef, isMobile && DETAIL_ROUTES.includes(route.name), () => window.history.back())
@@ -265,7 +279,7 @@ function Shell({ session, onLogout, household }) {
   const openProject = (id) => go(`project/${id}`)
   // Open a linked task from an entity page: projects get the full ProjectDetail,
   // plain tasks open the editor sheet.
-  const openTask = (t) => (isProject(t, data.tasks) ? openProject(t.id) : setEditingTask(t))
+  const openTask = (t) => (isProject(t) ? openProject(t.id) : setEditingTask(t))
   const requestLogout = () => setConfirmLogout(true)
 
   // ⌘K / Ctrl+K toggles Quick Find; "/" opens it too (outside text fields);
@@ -469,6 +483,7 @@ function Shell({ session, onLogout, household }) {
                 onAdd={() => setEditingPerson('new')}
                 onMore={isMobile ? () => setMoreOpen('people') : undefined}
                 memberId={meId}
+                hub={hubNav('people')}
               />
             )}
             {route.name === 'person' && (
@@ -491,6 +506,7 @@ function Shell({ session, onLogout, household }) {
                 onAdd={() => setEditingOrg('new')}
                 onOpenTask={openTask}
                 isDemo={isDemo}
+                hub={hubNav('orgs')}
               />
             )}
             {route.name === 'groups' && (
@@ -502,6 +518,7 @@ function Shell({ session, onLogout, household }) {
                 onAdd={() => setEditingGroup('new')}
                 onEdit={(g) => setEditingGroup(g)}
                 isDemo={isDemo}
+                hub={hubNav('groups')}
               />
             )}
             {route.name === 'relationships' && (
@@ -509,6 +526,7 @@ function Shell({ session, onLogout, household }) {
                 data={data}
                 onOpenPerson={openPerson}
                 onAdd={() => setRelationshipFrom('new')}
+                hub={hubNav('relationships')}
               />
             )}
             {route.name === 'import' && (
@@ -587,6 +605,7 @@ function Shell({ session, onLogout, household }) {
       {editingGroup && (
         <GroupForm
           group={editingGroup === 'new' ? null : editingGroup}
+          people={data.people}
           existingTags={allTags}
           onSave={data.saveGroup}
           onClose={() => setEditingGroup(null)}

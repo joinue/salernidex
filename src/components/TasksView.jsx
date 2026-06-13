@@ -119,7 +119,7 @@ export default function TasksView({
       : null
 
     // Projects get the full-page detail view; plain tasks expand inline.
-    if (isProject(task, tasks)) {
+    if (isProject(task)) {
       return (
         <div className="list-row" key={task.id} onClick={() => onOpenProject(task.id)}>
           <TaskRow task={task} onToggle={toggle} progress={progress} />

@@ -23,6 +23,12 @@ describe('personMatchesGroup', () => {
     expect(personMatchesGroup({}, person([]))).toBe(true)
     expect(personMatchesGroup({}, person(undefined))).toBe(true)
   })
+  it('manual groups match by member id, ignoring tags', () => {
+    const g = { kind: 'manual', member_ids: ['1', '3'], all_tags: ['ignored'] }
+    expect(personMatchesGroup(g, person([], { id: '1' }))).toBe(true)
+    expect(personMatchesGroup(g, person(['ignored'], { id: '2' }))).toBe(false)
+    expect(personMatchesGroup(g, person([], { id: '3' }))).toBe(true)
+  })
 })
 
 describe('groupMembers', () => {
@@ -44,11 +50,17 @@ describe('groupJoinTags', () => {
   it('is empty for a none-only (un-joinable) group', () => {
     expect(groupJoinTags({ none_tags: ['z'] })).toEqual([])
   })
+  it('is empty for a manual group (joined on the group, not via tags)', () => {
+    expect(groupJoinTags({ kind: 'manual', member_ids: ['1'], all_tags: ['a'] })).toEqual([])
+  })
 })
 
 describe('describeGroup', () => {
   it('renders the rule, or a friendly empty', () => {
     expect(describeGroup({ all_tags: ['a', 'b'] })).toBe('a AND b')
     expect(describeGroup({})).toBe('No rules yet — matches everyone')
+  })
+  it('labels manual groups as hand-picked', () => {
+    expect(describeGroup({ kind: 'manual', member_ids: ['1', '2'] })).toBe('Hand-picked')
   })
 })

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Share2, X, Plus } from 'react-feather'
 import PageHeader from './PageHeader'
 
-export default function RelationshipsView({ data, onOpenPerson, onAdd }) {
+export default function RelationshipsView({ data, onOpenPerson, onAdd, hub }) {
   const { relationships, people, loading, deleteRelationship } = data
   const [personFilter, setPersonFilter] = useState('')
 
@@ -20,6 +20,9 @@ export default function RelationshipsView({ data, onOpenPerson, onAdd }) {
     <div>
       <PageHeader
         title="Network"
+        navOptions={hub?.options}
+        navActive={hub?.active}
+        onNavigate={hub?.onNavigate}
         subtitle={
           rows.length ? `${rows.length} ${rows.length === 1 ? 'connection' : 'connections'}` : null
         }

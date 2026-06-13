@@ -184,9 +184,17 @@ export function useData(session) {
           .upsert({ member_id: mid, ...toPrefRow(prefs) }, { onConflict: 'member_id' }),
       ),
     )
+    // Realtime fires one event per changed row, so a burst — a bulk import, a
+    // multi-row edit, or our own optimistic write echoing back — would trigger a
+    // full 13-table refetch per event. Coalesce them into a single refresh.
+    let refreshTimer
+    const debouncedRefresh = () => {
+      clearTimeout(refreshTimer)
+      refreshTimer = setTimeout(refresh, 250)
+    }
     const channel = supabase
       .channel('salernidex-sync')
-      .on('postgres_changes', { event: '*', schema: 'public' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public' }, debouncedRefresh)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'member_preferences' },
@@ -194,6 +202,7 @@ export function useData(session) {
       )
       .subscribe()
     return () => {
+      clearTimeout(refreshTimer)
       bindAppPrefsRemote(null)
       supabase.removeChannel(channel)
     }
@@ -537,6 +546,41 @@ export function useData(session) {
         if (data?.[0]) must(await supabase.from('task_completions').delete().eq('id', data[0].id))
       }
     })
+
+    // A recurring roll-forward is the one check-off that can't be reversed by
+    // re-toggling — the task immediately reads unchecked at its new date — so an
+    // accidental tap would silently advance the schedule. Offer Undo, like the
+    // deletes do. (One-offs re-toggle freely, so they don't need this.)
+    const rolledForward = done && task.recurrence && fields.due_date && fields.completed_at === null
+    if (rolledForward) {
+      showToast(`Checked off “${task.title}”`, {
+        actionLabel: 'Undo',
+        onAction: () => {
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === task.id
+                ? {
+                    ...t,
+                    due_date: task.due_date,
+                    completed_at: task.completed_at,
+                    updated_at: now(),
+                  }
+                : t,
+            ),
+          )
+          if (log) setCompletions((prev) => prev.filter((c) => c.id !== completionId))
+          sync(async () => {
+            must(
+              await supabase
+                .from('tasks')
+                .update({ due_date: task.due_date, completed_at: task.completed_at })
+                .eq('id', task.id),
+            )
+            if (log) must(await supabase.from('task_completions').delete().eq('id', completionId))
+          })
+        },
+      })
+    }
   }
 
   const saveList = (fields, id) => {

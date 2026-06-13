@@ -6,7 +6,7 @@ import AvatarUpload from './AvatarUpload'
 import PageHeader from './PageHeader'
 import LinkTaskForm from './LinkTaskForm'
 
-export default function OrgsView({ data, openId, onEdit, onAdd, onOpenTask, isDemo = false }) {
+export default function OrgsView({ data, openId, onEdit, onAdd, onOpenTask, isDemo = false, hub }) {
   const { orgs, people, tasks, taskLinks, addTask, addTaskLink, saveOrg, loading, deleteOrg } = data
   const [expandedId, setExpandedId] = useState(openId || null)
   const [linkingOrg, setLinkingOrg] = useState(null)
@@ -22,6 +22,9 @@ export default function OrgsView({ data, openId, onEdit, onAdd, onOpenTask, isDe
     <div>
       <PageHeader
         title="Organizations"
+        navOptions={hub?.options}
+        navActive={hub?.active}
+        onNavigate={hub?.onNavigate}
         subtitle={orgs.length ? `${orgs.length} ${orgs.length === 1 ? 'org' : 'orgs'}` : null}
         action={onAdd}
         actionLabel="Add organization"

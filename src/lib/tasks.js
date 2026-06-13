@@ -95,8 +95,7 @@ export function projectProgress(taskId, all) {
 // A task counts as a project only when it's explicitly flagged as one (the
 // Task/Project toggle on the form). Projects open the full-page ProjectDetail;
 // a plain task — even one with subtasks — stays a lightweight checklist that
-// expands inline in the Tasks list. The `all` arg is kept for call-site
-// compatibility but no longer consulted.
+// expands inline in the Tasks list.
 export function isProject(task) {
   return !!task.is_project
 }

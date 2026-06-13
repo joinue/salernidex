@@ -506,6 +506,162 @@ select {
   line-height: 1.1;
 }
 
+/* Title row: the (optionally dropdown) title plus an optional ⓘ info button. */
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* Title-as-dropdown (People hub: switch People / Groups / Orgs / Network) ---- */
+.title-menu-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+/* Small muted info indicator next to a title; opens an explanatory popover. */
+.info-pop-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.info-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background 120ms ease;
+}
+
+.info-btn:hover,
+.info-btn[aria-expanded='true'] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Centered horizontally on the viewport, pinned just below the ⓘ (top is set
+   inline from the button's measured position) so it never clips off an edge. */
+.info-popover {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 51;
+  width: max-content;
+  max-width: min(340px, calc(100vw - 32px));
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 0.5px solid var(--separator);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  transform-origin: top center;
+  animation: info-pop-in 140ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes info-pop-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+.info-popover-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.info-popover-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.title-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.title-menu-chevron {
+  color: var(--text-3);
+  margin-top: 4px; /* optically center against the heavy title */
+  transition: transform 160ms ease;
+}
+
+.title-menu[aria-expanded='true'] .title-menu-chevron {
+  transform: rotate(180deg);
+}
+
+/* Invisible catch-all so a tap anywhere outside closes the menu. */
+.title-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+.title-menu-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 51;
+  min-width: 208px;
+  padding: 6px;
+  background: var(--surface);
+  border: 0.5px solid var(--separator);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  transform-origin: top left;
+  animation: title-menu-in 140ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes title-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+}
+
+.title-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text);
+  text-align: left;
+  transition: background 120ms ease;
+}
+
+.title-menu-item:hover {
+  background: var(--fill-2);
+}
+
+.title-menu-item.active {
+  color: var(--accent);
+}
+
+.title-menu-item.active svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
 .page-subtitle {
   font-size: 14px;
   color: var(--text-2);
@@ -1230,6 +1386,64 @@ select {
 
 .group-chip:active {
   transform: scale(0.96);
+}
+
+/* The member search lives inside a .field, whose `.field input` rule would
+   otherwise win and strip the left padding that clears the search icon. */
+.field .search-input {
+  height: 38px;
+  padding: 0 12px 0 36px;
+}
+
+/* Manual-group member picker: a scrollable, searchable checklist of people. */
+.member-picker {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-sm);
+  -webkit-overflow-scrolling: touch;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 0.5px solid var(--separator);
+  transition: background 120ms ease;
+}
+
+.member-row:last-child {
+  border-bottom: none;
+}
+
+.member-row:hover {
+  background: var(--fill-2);
+}
+
+.member-row.on {
+  background: var(--accent-soft);
+}
+
+.member-name {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.member-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  flex-shrink: 0;
+  color: var(--accent);
 }
 
 .row-chips {
@@ -3051,22 +3265,28 @@ select.rec-select + .segmented {
 
 /* ---------- mobile bottom tab bar ---------- */
 
+/* Floating glass pill (iOS-26 style): detached from the edges, rounded, hovering
+   just above the home indicator rather than a full-width bar that reserves the
+   safe area as a dark strip below the icons. */
 .tabbar {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: calc(env(safe-area-inset-bottom) + 8px);
+  left: 16px;
+  right: 16px;
   z-index: 40;
   display: flex;
   align-items: stretch;
-  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  padding: 0 6px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
   -webkit-backdrop-filter: var(--header-blur);
   backdrop-filter: var(--header-blur);
-  border-top: 0.5px solid var(--separator);
-  padding-bottom: env(safe-area-inset-bottom);
+  border: 0.5px solid var(--separator);
+  border-radius: 26px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
 }
 
 .tab {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -3095,17 +3315,18 @@ select.rec-select + .segmented {
   justify-content: center;
 }
 
+/* Folded inline into the pill (no longer pops above) so the rounded corners
+   stay clean. */
 .add-circle {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: var(--accent);
   color: #fff;
-  margin-top: -18px;
-  box-shadow: 0 6px 16px rgba(0, 122, 255, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.35);
   transition: transform 120ms ease;
 }
 

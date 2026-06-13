@@ -16,6 +16,7 @@ export default function GroupsView({
   onAdd,
   onEdit,
   isDemo = false,
+  hub,
 }) {
   const {
     groups,
@@ -44,7 +45,11 @@ export default function GroupsView({
     <div>
       <PageHeader
         title="Groups"
-        subtitle="Saved tag rules — membership stays in sync automatically"
+        navOptions={hub?.options}
+        navActive={hub?.active}
+        onNavigate={hub?.onNavigate}
+        infoTitle="How groups work"
+        info="A group is people you pick — or, if you'd rather, everyone matching a set of tags. Hand-picked groups stay exactly as you set them. Tag-based (smart) groups update themselves: add the tag to a person and they join, remove it and they leave."
         action={onAdd}
         actionLabel="New group"
       />
@@ -118,7 +123,9 @@ export default function GroupsView({
                   >
                     {members.length === 0 ? (
                       <p className="muted" style={{ fontSize: 14, marginBottom: 12 }}>
-                        No one matches these rules yet.
+                        {group.kind === 'manual'
+                          ? 'No one added yet.'
+                          : 'No one matches these rules yet.'}
                       </p>
                     ) : (
                       <div className="chips" style={{ marginBottom: 12 }}>
@@ -150,7 +157,7 @@ export default function GroupsView({
                     )}
                     <div style={{ display: 'flex', gap: 16 }}>
                       <button className="text-btn" onClick={() => onEdit(group)}>
-                        Edit rules
+                        {group.kind === 'manual' ? 'Edit members' : 'Edit rules'}
                       </button>
                       <button className="text-btn" onClick={() => setLinkingGroup(group)}>
                         Link a task

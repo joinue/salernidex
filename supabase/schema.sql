@@ -127,12 +127,14 @@ create table public.interactions (
 );
 
 -- ------------------------------------------------------------
--- groups (smart groups: membership = tag logic AND / OR / NOT)
+-- groups (two modes: 'smart' = tag logic AND/OR/NOT, 'manual' = hand-picked)
 -- ------------------------------------------------------------
 create table public.groups (
   id          uuid primary key default gen_random_uuid(),
   name        text not null,
-  all_tags    text[] not null default '{}',   -- person must have ALL of these
+  kind        text not null default 'smart' check (kind in ('smart', 'manual')),
+  member_ids  uuid[] not null default '{}',   -- manual groups: the exact members (ids of people)
+  all_tags    text[] not null default '{}',   -- smart: person must have ALL of these
   any_tags    text[] not null default '{}',   -- ...and at least ONE of these (if any listed)
   none_tags   text[] not null default '{}',   -- ...and NONE of these
   avatar_url  text,                            -- avatars Storage object path (see 0006); null = monogram fallback
