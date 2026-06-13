@@ -101,7 +101,7 @@ export function useData(session) {
 
   const refresh = useCallback(async () => {
     if (isDemo) return
-    const [p, o, r, i, g, t, c, tl, l, li, f, kd] = await Promise.all([
+    const [p, o, r, i, g, t, c, tl, l, li, f, kd, sn] = await Promise.all([
       supabase.from('people').select('*').order('name'),
       supabase.from('organizations').select('*').order('name'),
       supabase.from('relationships').select('*'),
@@ -114,6 +114,11 @@ export function useData(session) {
       supabase.from('list_items').select('*').order('created_at'),
       supabase.from('families').select('*').order('name'),
       supabase.from('key_dates').select('*').order('date'),
+      // My snoozes/dismissals (RLS already limits to own rows; member_id is
+      // explicit too). Kept OUT of firstError below for the same reason
+      // member_preferences is loaded separately — a missing Phase 6 table must
+      // degrade to "no snoozes", not blank the whole app.
+      supabase.from('reminder_snoozes').select('*').eq('member_id', memberId),
     ])
     const firstError =
       p.error ||
@@ -144,9 +149,13 @@ export function useData(session) {
       setListItems(li.data)
       setFamilies(f.data)
       setKeyDates(kd.data)
+      // Snoozes load alongside but don't gate core data: if the table is absent
+      // (migration not yet run) keep the prior in-session list instead of
+      // wiping it — dismissals made this session still hold until reload.
+      if (!sn.error) setReminderSnoozes(sn.data || [])
     }
     setLoading(false)
-  }, [isDemo])
+  }, [isDemo, memberId])
 
   // App preferences are loaded apart from the main data pull so a pref-specific
   // failure — most likely the member_preferences table not existing yet because
