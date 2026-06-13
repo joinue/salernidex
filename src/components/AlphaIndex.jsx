@@ -31,7 +31,7 @@ export default function AlphaIndex({ present, onJump }) {
           key={letter}
           type="button"
           data-letter={letter}
-          className={`alpha-index-letter ${present.has(letter) ? '' : 'empty'}`}
+          className={`alpha-index-letter ${present.has(letter) ? '' : 'dim'}`}
           onClick={() => onJump(letter)}
           tabIndex={-1}
         >
