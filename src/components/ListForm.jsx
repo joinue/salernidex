@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import Modal from './Modal'
-import { PRIVACY_LABELS, focusOnDesktop } from '../lib/constants'
+import PrivacyField from './PrivacyField'
+import { focusOnDesktop } from '../lib/constants'
+import { isSolo } from '../lib/household'
+import { PRIVATE_LEVEL } from '../lib/privacy'
 
 const ICONS = ['🛒', '🛍️', '🔧', '🧳', '📝', '🎁', '🏠', '🍽️']
 
@@ -8,7 +11,9 @@ const ICONS = ['🛒', '🛍️', '🔧', '🧳', '📝', '🎁', '🏠', '🍽�
 export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'family_shared' }) {
   const [name, setName] = useState(list?.name || '')
   const [icon, setIcon] = useState(list?.icon || '🛒')
-  const [privacy, setPrivacy] = useState(list?.privacy_level || defaultPrivacy)
+  const [privacy, setPrivacy] = useState(
+    list?.privacy_level || (isSolo() ? PRIVATE_LEVEL : defaultPrivacy),
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -54,16 +59,7 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
             ))}
           </div>
         </div>
-        <div className="field">
-          <label className="label">Visibility</label>
-          <select value={privacy} onChange={(e) => setPrivacy(e.target.value)}>
-            {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </div>
+        <PrivacyField value={privacy} onChange={setPrivacy} />
         <button className="btn-primary" disabled={busy}>
           {busy ? <span className="dots">Saving</span> : list ? 'Save changes' : 'Add list'}
         </button>

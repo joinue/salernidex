@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { visibleTo, filterVisible, PRIVATE_LEVEL } from './privacy'
+import { visibleTo, filterVisible, isPrivate, isShared, PRIVATE_LEVEL } from './privacy'
 
 const me = 'member-1'
 const you = 'member-2'
@@ -28,5 +28,22 @@ describe('filterVisible', () => {
       { id: 'c', privacy_level: PRIVATE_LEVEL, created_by: you },
     ]
     expect(filterVisible(rows, me).map((r) => r.id)).toEqual(['a', 'b'])
+  })
+})
+
+describe('isPrivate / isShared', () => {
+  it('isPrivate is true only for the private level', () => {
+    expect(isPrivate({ privacy_level: PRIVATE_LEVEL })).toBe(true)
+    expect(isPrivate({ privacy_level: 'shared' })).toBe(false)
+    expect(isPrivate({})).toBe(false)
+  })
+  it('isShared is true for any non-private privacy level', () => {
+    expect(isShared({ privacy_level: 'shared' })).toBe(true)
+    expect(isShared({ privacy_level: 'family_shared' })).toBe(true)
+    expect(isShared({ privacy_level: PRIVATE_LEVEL })).toBe(false)
+  })
+  it('a row with no privacy_level is neither private nor shared', () => {
+    expect(isPrivate({})).toBe(false)
+    expect(isShared({})).toBe(false)
   })
 })

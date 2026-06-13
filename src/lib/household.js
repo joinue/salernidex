@@ -89,6 +89,16 @@ export function leaveHousehold() {
 export function members() {
   return load().members
 }
+// How many people are in the active household. Drives progressive disclosure of
+// the sharing UI: a solo household (just you) hides the private/shared and
+// assignee controls and the member filter — there's no one to share with or
+// assign to yet. Reads the same synchronous cache useHousehold hydrates.
+export function memberCount() {
+  return load().members.length
+}
+export function isSolo() {
+  return memberCount() <= 1
+}
 export function currentMemberId() {
   return load().current_member_id
 }

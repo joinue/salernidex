@@ -27,6 +27,7 @@ import { lastInteraction, relativeTime } from '../lib/contact'
 import { personActions } from '../lib/personActions'
 import Avatar from './Avatar'
 import PageHeader from './PageHeader'
+import SharedDot from './SharedDot'
 import Sheet from './Sheet'
 import SwipeRow from './SwipeRow'
 import ActionSheet from './ActionSheet'
@@ -219,7 +220,10 @@ export default function SearchView({
         <div className="list-row">
           <Avatar name={person.name} src={person.avatar_url} size={42} />
           <div className="row-body">
-            <div className="row-title">{person.name}</div>
+            <div className="row-titleline">
+              <div className="row-title">{person.name}</div>
+              <SharedDot item={person} />
+            </div>
             {sub && <div className="row-sub">{sub}</div>}
             {(person.tags || []).length > 0 && (
               <div className="row-chips">

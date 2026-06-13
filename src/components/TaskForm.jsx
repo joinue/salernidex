@@ -4,8 +4,10 @@ import Modal from './Modal'
 import Segmented from './Segmented'
 import RecurrencePicker from './RecurrencePicker'
 import AssigneePicker from './AssigneePicker'
-import { PRIVACY_LABELS, focusOnDesktop } from '../lib/constants'
-import { normalizeAssignee, members } from '../lib/household'
+import PrivacyField from './PrivacyField'
+import { focusOnDesktop } from '../lib/constants'
+import { normalizeAssignee, members, isSolo } from '../lib/household'
+import { PRIVATE_LEVEL } from '../lib/privacy'
 import { isoDateIn } from '../lib/tasks'
 import { nextOccurrence } from '../lib/recurrence'
 import { parseTaskInput, titleFrom } from '../lib/taskParse'
@@ -27,7 +29,7 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
     area: task?.area || '',
     due_date: task?.due_date || '',
     recurrence: task?.recurrence || null,
-    privacy_level: task?.privacy_level || defaultPrivacy,
+    privacy_level: task?.privacy_level || (isSolo() ? PRIVATE_LEVEL : defaultPrivacy),
     notes: task?.notes || '',
   })
   const [more, setMore] = useState(
@@ -35,7 +37,7 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
       (normalizeAssignee(task.assignee) !== 'anyone' ||
         !!task.area ||
         !!task.recurrence ||
-        (task.privacy_level && task.privacy_level !== 'shared') ||
+        (!isSolo() && task.privacy_level && task.privacy_level !== 'shared') ||
         !!task.notes),
   )
   const [busy, setBusy] = useState(false)
@@ -190,17 +192,21 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
           <button type="button" className="form-more-btn" onClick={() => setMore(true)}>
             <ChevronRight size={15} />
             More options
-            <span className="form-more-hint">who · area · repeat · visibility · notes</span>
+            <span className="form-more-hint">
+              {isSolo() ? 'area · repeat · notes' : 'who · area · repeat · visibility · notes'}
+            </span>
           </button>
         ) : (
           <>
-            <div className="field">
-              <label className="label">Who</label>
-              <AssigneePicker
-                value={form.assignee}
-                onChange={(v) => setForm({ ...form, assignee: v })}
-              />
-            </div>
+            {!isSolo() && (
+              <div className="field">
+                <label className="label">Who</label>
+                <AssigneePicker
+                  value={form.assignee}
+                  onChange={(v) => setForm({ ...form, assignee: v })}
+                />
+              </div>
+            )}
             <div className="field">
               <label className="label">
                 Area <span className="muted">(optional)</span>
@@ -226,16 +232,10 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
                 onChange={(recurrence) => setForm({ ...form, recurrence })}
               />
             </div>
-            <div className="field">
-              <label className="label">Visibility</label>
-              <select value={form.privacy_level} onChange={set('privacy_level')}>
-                {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <PrivacyField
+              value={form.privacy_level}
+              onChange={(v) => setForm({ ...form, privacy_level: v })}
+            />
             <div className="field">
               <label className="label">
                 Notes <span className="muted">(optional)</span>

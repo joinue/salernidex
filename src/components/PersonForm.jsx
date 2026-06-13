@@ -6,9 +6,12 @@ import Avatar from './Avatar'
 import AvatarUpload from './AvatarUpload'
 import DatePicker from './DatePicker'
 import AddressFields from './AddressFields'
-import { KEEP_IN_TOUCH_OPTIONS, TIERS, PRIVACY_LABELS, focusOnDesktop } from '../lib/constants'
+import PrivacyField from './PrivacyField'
+import { KEEP_IN_TOUCH_OPTIONS, TIERS, focusOnDesktop } from '../lib/constants'
 import { findDuplicates } from '../lib/duplicates'
 import { personMatchesGroup, groupJoinTags } from '../lib/groups'
+import { isSolo } from '../lib/household'
+import { PRIVATE_LEVEL } from '../lib/privacy'
 
 const NEW_FAMILY = '__new__'
 const NEW_ORG = '__new_org__'
@@ -41,7 +44,7 @@ export default function PersonForm({
     tier: person?.tier || '',
     family_id: person?.family_id || '',
     keep_in_touch_days: person?.keep_in_touch_days || 0,
-    privacy_level: person?.privacy_level || defaultPrivacy,
+    privacy_level: person?.privacy_level || (isSolo() ? PRIVATE_LEVEL : defaultPrivacy),
     notes: person?.notes || '',
   })
   const [newFamilyName, setNewFamilyName] = useState('')
@@ -330,16 +333,11 @@ export default function PersonForm({
             ))}
           </select>
         </div>
-        <div className="field">
-          <label className="label">Privacy</label>
-          <select value={form.privacy_level} onChange={set('privacy_level')}>
-            {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </div>
+        <PrivacyField
+          value={form.privacy_level}
+          onChange={(v) => setForm({ ...form, privacy_level: v })}
+          label="Privacy"
+        />
         <div className="field">
           <label className="label">Notes</label>
           <textarea value={form.notes} onChange={set('notes')} />

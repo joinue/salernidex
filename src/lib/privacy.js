@@ -19,3 +19,13 @@ export function visibleTo(row, userId) {
 export function filterVisible(rows, userId) {
   return rows.filter((row) => visibleTo(row, userId))
 }
+
+// "Mine alone" vs "the household can see it" — drives the household-aware UI
+// (the shared-item dot, and which controls show). A row with no privacy_level
+// (tables that don't have the column) counts as neither.
+export function isPrivate(row) {
+  return row?.privacy_level === PRIVATE_LEVEL
+}
+export function isShared(row) {
+  return !!row?.privacy_level && row.privacy_level !== PRIVATE_LEVEL
+}

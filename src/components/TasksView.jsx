@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ChevronRight, Plus, CheckSquare } from 'react-feather'
 import { taskBucket, completionsFor, isProject, areaNames } from '../lib/tasks'
 import { relativeTime } from '../lib/contact'
-import { members, assigneeLabel, normalizeAssignee } from '../lib/household'
+import { members, assigneeLabel, normalizeAssignee, isSolo } from '../lib/household'
 import { byOrder, moveUpdates } from '../lib/order'
 import haptics from '../lib/haptics'
 import PageHeader from './PageHeader'
@@ -216,7 +216,8 @@ export default function TasksView({
     <div>
       <PageHeader title="Tasks" action={onAdd} actionLabel="New task" onSearch={onSearch} />
 
-      <Segmented options={filterOptions} value={filter} onChange={setFilter} />
+      {/* Member filter only makes sense with someone to filter by (see isSolo). */}
+      {!isSolo() && <Segmented options={filterOptions} value={filter} onChange={setFilter} />}
 
       {areaList.length > 0 && (
         <div className="area-filter">

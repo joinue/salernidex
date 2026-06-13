@@ -2,6 +2,7 @@ import { Check, Repeat } from 'react-feather'
 import { dueLabel, dueState } from '../lib/tasks'
 import { describeRecurrence } from '../lib/recurrence'
 import { assigneeLabel, normalizeAssignee } from '../lib/household'
+import SharedDot from './SharedDot'
 
 // Presentational task line: completion circle + title + meta chips (assignee,
 // due, recurring). The checkbox stops propagation so the surrounding row can
@@ -25,8 +26,11 @@ export default function TaskRow({ task, onToggle, size = 'md', progress, hideAss
         <Check size={size === 'sm' ? 12 : 15} />
       </button>
       <div className="row-body">
-        <div className={`row-title ${done ? 'task-done' : ''} ${size === 'sm' ? 'sm' : ''}`}>
-          {task.title}
+        <div className="row-titleline">
+          <div className={`row-title ${done ? 'task-done' : ''} ${size === 'sm' ? 'sm' : ''}`}>
+            {task.title}
+          </div>
+          <SharedDot item={task} />
         </div>
         {(showAssignee || dl || task.recurrence || progress || task.area) && (
           <div className="task-meta">

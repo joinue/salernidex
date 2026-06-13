@@ -1144,6 +1144,28 @@ select {
   text-overflow: ellipsis;
 }
 
+/* Title + shared-dot on one line: the title truncates, the dot never clips. */
+.row-titleline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.row-titleline .row-title {
+  min-width: 0;
+}
+
+/* Subtle "your household can see this" marker (see SharedDot.jsx). Only renders
+   in a 2+ member household on shared items, so it's quiet reassurance. */
+.shared-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.55;
+}
+
 .row-sub {
   font-size: 13.5px;
   color: var(--text-2);

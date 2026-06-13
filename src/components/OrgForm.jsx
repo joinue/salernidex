@@ -3,9 +3,12 @@ import { Briefcase } from 'react-feather'
 import Modal from './Modal'
 import TagInput from './TagInput'
 import AvatarUpload from './AvatarUpload'
-import { PRIVACY_LABELS, focusOnDesktop } from '../lib/constants'
+import PrivacyField from './PrivacyField'
+import { focusOnDesktop } from '../lib/constants'
 import { orgNameTaken } from '../lib/orgs'
 import { friendlyError } from '../lib/errors'
+import { isSolo } from '../lib/household'
+import { PRIVATE_LEVEL } from '../lib/privacy'
 
 const ORG_TYPES = [
   'Company',
@@ -34,7 +37,7 @@ export default function OrgForm({ org, orgs = [], onSave, onClose, isDemo = fals
     type: org?.type || '',
     description: org?.description || '',
     tags: org?.tags || [],
-    privacy_level: org?.privacy_level || 'shared',
+    privacy_level: org?.privacy_level || (isSolo() ? PRIVATE_LEVEL : 'shared'),
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -99,16 +102,11 @@ export default function OrgForm({ org, orgs = [], onSave, onClose, isDemo = fals
           <label className="label">Tags</label>
           <TagInput tags={form.tags} onChange={(tags) => setForm({ ...form, tags })} />
         </div>
-        <div className="field">
-          <label className="label">Privacy</label>
-          <select value={form.privacy_level} onChange={set('privacy_level')}>
-            {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </div>
+        <PrivacyField
+          value={form.privacy_level}
+          onChange={(v) => setForm({ ...form, privacy_level: v })}
+          label="Privacy"
+        />
         <button className="btn-primary" disabled={busy}>
           {busy ? <span className="dots">Saving</span> : org ? 'Save changes' : 'Add organization'}
         </button>
