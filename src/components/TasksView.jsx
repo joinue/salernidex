@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronRight, Plus, CheckSquare } from 'react-feather'
-import { taskBucket, completionsFor, isProject, areaNames } from '../lib/tasks'
+import { taskBucket, completionsFor, isProject, areaNames, taskTags } from '../lib/tasks'
 import { relativeTime } from '../lib/contact'
 import { members, assigneeLabel, normalizeAssignee, isSolo } from '../lib/household'
 import { byOrder, moveUpdates } from '../lib/order'
@@ -28,7 +28,15 @@ export default function TasksView({
   defaultFilter = 'all',
   defaultShowCompleted = false,
 }) {
-  const { tasks, completions, addTask, deleteTask, completeTask, reorderTasks } = data
+  const {
+    tasks,
+    completions,
+    addTask,
+    deleteTask,
+    completeTask,
+    skipTaskOccurrence,
+    reorderTasks,
+  } = data
   // Default view from settings; fall back to 'all' if the saved member is gone.
   const [filter, setFilter] = useState(() =>
     defaultFilter === 'all' || members().some((m) => m.id === defaultFilter)
@@ -38,6 +46,8 @@ export default function TasksView({
   // Optional narrowing to one area. The area pills only appear once areas exist
   // (see areaList below), so until then this is a no-op the user never sees.
   const [areaFilter, setAreaFilter] = useState('all')
+  // Same idea for one tag (cross-cutting label). Independent of the area filter.
+  const [tagFilter, setTagFilter] = useState('all')
   const [expanded, setExpanded] = useState(expandId || null)
   const [showDone, setShowDone] = useState(defaultShowCompleted)
   const [draftSub, setDraftSub] = useState('')
@@ -59,9 +69,14 @@ export default function TasksView({
     () => areaNames(tasks.filter((t) => !t.parent_id && !t.completed_at)),
     [tasks],
   )
-  // Guard against a stale selection: if the last task in an area is finished or
-  // its area renamed, fall back to "All" rather than showing an empty list.
+  const tagList = useMemo(
+    () => taskTags(tasks.filter((t) => !t.parent_id && !t.completed_at)),
+    [tasks],
+  )
+  // Guard against a stale selection: if the last task in an area/tag is finished
+  // or renamed, fall back to "All" rather than showing an empty list.
   const activeArea = areaList.includes(areaFilter) ? areaFilter : 'all'
+  const activeTag = tagList.includes(tagFilter) ? tagFilter : 'all'
 
   const matches = (t) => {
     if (filter !== 'all') {
@@ -69,15 +84,16 @@ export default function TasksView({
       if (a !== filter && a !== 'anyone') return false
     }
     if (activeArea !== 'all' && (t.area || '').trim() !== activeArea) return false
+    if (activeTag !== 'all' && !(t.tags || []).includes(activeTag)) return false
     return true
   }
 
-  // `matches` closes over filter/activeArea — both already listed below; ESLint
+  // `matches` closes over filter/activeArea/activeTag — all listed below; ESLint
   // just can't see through the helper, so the dep lists are in fact complete.
   const topOpen = useMemo(
     () => tasks.filter((t) => !t.parent_id && !t.completed_at && matches(t)).sort(byOrder),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tasks, filter, activeArea],
+    [tasks, filter, activeArea, activeTag],
   )
   const done = useMemo(
     () =>
@@ -85,7 +101,7 @@ export default function TasksView({
         .filter((t) => !t.parent_id && t.completed_at && matches(t))
         .sort((a, b) => (a.completed_at < b.completed_at ? 1 : -1)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tasks, filter, activeArea],
+    [tasks, filter, activeArea, activeTag],
   )
   const grouped = useMemo(() => {
     const g = { overdue: [], today: [], upcoming: [], someday: [] }
@@ -202,6 +218,11 @@ export default function TasksView({
                 Edit
               </button>
               <AddToCalendar task={task} />
+              {task.recurrence && (
+                <button className="text-btn" onClick={() => skipTaskOccurrence(task)}>
+                  Skip this one
+                </button>
+              )}
               <button className="text-btn danger" onClick={() => deleteTask(task.id)}>
                 Delete
               </button>
@@ -234,6 +255,26 @@ export default function TasksView({
               onClick={() => setAreaFilter(a)}
             >
               {a}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tagList.length > 0 && (
+        <div className="area-filter">
+          <button
+            className={`area-pill ${activeTag === 'all' ? 'on' : ''}`}
+            onClick={() => setTagFilter('all')}
+          >
+            All tags
+          </button>
+          {tagList.map((t) => (
+            <button
+              key={t}
+              className={`area-pill ${activeTag === t ? 'on' : ''}`}
+              onClick={() => setTagFilter(t)}
+            >
+              {t}
             </button>
           ))}
         </div>

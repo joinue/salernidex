@@ -1,5 +1,15 @@
 import { useMemo, useState } from 'react'
-import { ArrowLeft, Plus, Edit2, Trash2, X, UserPlus, Repeat, Users } from 'react-feather'
+import {
+  ArrowLeft,
+  Plus,
+  Edit2,
+  Trash2,
+  X,
+  UserPlus,
+  Repeat,
+  Users,
+  SkipForward,
+} from 'react-feather'
 import { completionsFor, dueLabel, dueState } from '../lib/tasks'
 import { relativeTime } from '../lib/contact'
 import { assigneeLabel, normalizeAssignee } from '../lib/household'
@@ -20,7 +30,15 @@ import AddToCalendar from './AddToCalendar'
 // is_heading set, and the tasks that follow it (in manual order) sit under it.
 // Dragging rows across a heading re-files them; deleting a heading merges its
 // tasks into the section above.
-export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPerson }) {
+export default function ProjectDetail({
+  data,
+  taskId,
+  onBack,
+  onEdit,
+  onOpenPerson,
+  onOpenOrg,
+  onOpenGroup,
+}) {
   const {
     tasks,
     completions,
@@ -31,6 +49,7 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
     addTask,
     deleteTask,
     completeTask,
+    skipTaskOccurrence,
     reorderTasks,
     addTaskLink,
     deleteTaskLink,
@@ -81,7 +100,7 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
     ? { done: realSubs.filter((s) => s.completed_at).length, total: realSubs.length }
     : null
   const history = completionsFor(task.id, completions)
-  const dl = dueLabel(task.due_date)
+  const dl = dueLabel(task.due_date, task.due_time)
   const ds = dueState(task.due_date)
 
   const toggle = (t) => {
@@ -136,6 +155,11 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
             <Edit2 size={15} /> Edit
           </button>
           <AddToCalendar task={task} trigger="pill" />
+          {task.recurrence && (
+            <button className="pill-btn" onClick={() => skipTaskOccurrence(task)}>
+              <SkipForward size={15} /> Skip this one
+            </button>
+          )}
           <button className="pill-btn danger" onClick={remove}>
             <Trash2 size={15} /> Delete
           </button>
@@ -255,13 +279,13 @@ export default function ProjectDetail({ data, taskId, onBack, onEdit, onOpenPers
               ]
                 .filter(Boolean)
                 .join(' · ') || (isPerson ? 'Contact' : isGroup ? 'Group' : 'Organization')
+            const open = isPerson
+              ? () => onOpenPerson(entity.id)
+              : isGroup
+                ? () => onOpenGroup(entity.id)
+                : () => onOpenOrg(entity.id)
             return (
-              <div
-                className="list-row"
-                key={link.id}
-                onClick={isPerson ? () => onOpenPerson(entity.id) : undefined}
-                style={isPerson ? undefined : { cursor: 'default' }}
-              >
+              <div className="list-row" key={link.id} onClick={open}>
                 <Avatar
                   name={entity.name}
                   src={entity.avatar_url}

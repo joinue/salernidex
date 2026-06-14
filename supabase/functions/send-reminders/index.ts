@@ -8,6 +8,8 @@
 //
 // Sending policy (docs/phase6-reminders.md):
 //   - individual pushes only for DAY-OF dates and tasks due/overdue today
+//   - a TIMED task (due_time set) fires its individual push at that time, not in
+//     the morning — until then it only rides the digest as a heads-up
 //   - one morning digest per member at their digest_time (±15 min window)
 //   - lead-time heads-ups stay in-app only (no double-pinging)
 //
@@ -35,6 +37,7 @@ const TZ = Deno.env.get('TZ_NAME') ?? 'America/Phoenix'
 
 const DEFAULT_PREFS = {
   tasks: true,
+  lists: true,
   nudges: true,
   dates: true,
   fyi: false,
@@ -43,11 +46,13 @@ const DEFAULT_PREFS = {
 }
 
 type Item = {
-  kind: 'task' | 'nudge' | 'date'
+  kind: 'task' | 'list' | 'nudge' | 'date' | 'habit'
   targetKey: string
   title: string
   body: string
   url: string
+  ready?: boolean // false = in digest but not yet eligible for an individual ping (timed task)
+  priority?: number // task flag (0..3); orders the digest lead
 }
 
 // ---- local-time helpers -----------------------------------------------
@@ -70,18 +75,61 @@ function minutesOf(hhmm: string) {
   return h * 60 + (m || 0)
 }
 
+// Compact local time for notification copy: '15:00' → '3 PM', '09:30' → '9:30 AM'.
+function fmtTime(t: string) {
+  const [h, m] = String(t).slice(0, 5).split(':').map(Number)
+  const ampm = h < 12 ? 'AM' : 'PM'
+  const h12 = h % 12 || 12
+  return m ? `${h12}:${String(m).padStart(2, '0')} ${ampm}` : `${h12} ${ampm}`
+}
+
 // ---- attention rules (server port of src/lib/reminders.js) -------------
-function dueTasksToday(tasks: any[], memberId: string, today: string): Item[] {
-  return tasks
-    .filter((t) => !t.parent_id && !t.completed_at && t.due_date && t.due_date <= today)
-    .filter((t) => !t.assignee || t.assignee === 'anyone' || t.assignee === memberId)
-    .map((t) => ({
-      kind: 'task' as const,
-      targetKey: `task:${t.id}`,
-      title: t.due_date < today ? 'Overdue' : 'Due today',
-      body: t.title,
-      url: '/#/tasks',
-    }))
+function dueTasksToday(tasks: any[], memberId: string, today: string, time: string): Item[] {
+  const nowMin = minutesOf(time)
+  return (
+    tasks
+      .filter((t) => !t.parent_id && !t.completed_at && t.due_date && t.due_date <= today)
+      // deferred tasks (start_date in the future) stay parked until their day
+      .filter((t) => !t.start_date || t.start_date <= today)
+      .filter((t) => !t.assignee || t.assignee === 'anyone' || t.assignee === memberId)
+      .map((t) => {
+        const timed = t.due_date === today && t.due_time
+        return {
+          kind: 'task' as const,
+          targetKey: `task:${t.id}`,
+          title: t.due_date < today ? 'Overdue' : 'Due today',
+          body: timed ? `${t.title} · ${fmtTime(t.due_time)}` : t.title,
+          url: '/#/tasks',
+          // A timed task due later today isn't ready for its own ping until its
+          // time arrives; overdue and all-day tasks are ready right away.
+          ready: !(timed && minutesOf(String(t.due_time).slice(0, 5)) > nowMin),
+          priority: t.priority ?? 0,
+        }
+      })
+      .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))
+  ) // highest-priority leads the digest
+}
+
+// A list with a due_date + reminder fires at its own reminder_time (±7 min of a
+// 15-min tick; the notification_log claim caps it at once per day), as long as
+// it's reached its due date. In-app Today shows due lists regardless; the push
+// is opt-in per list, timed to the moment the user chose. Body carries how many
+// items are still open so the ping is actionable on its own.
+function listReminders(lists: any[], items: any[], today: string, time: string): Item[] {
+  const out: Item[] = []
+  for (const l of lists) {
+    if (!l.reminder_enabled || !l.reminder_time || !l.due_date || l.due_date > today) continue
+    if (Math.abs(minutesOf(time) - minutesOf(String(l.reminder_time).slice(0, 5))) > 7) continue
+    const left = items.filter((it) => it.list_id === l.id && !it.checked_at).length
+    out.push({
+      kind: 'list',
+      targetKey: `list:${l.id}`,
+      title: `${l.icon ? `${l.icon} ` : ''}${l.name}${l.due_date < today ? ' — overdue' : ' — due today'}`,
+      body: left ? `${left} item${left === 1 ? '' : 's'} still to go` : 'Time to wrap this up',
+      url: `/#/list/${l.id}`,
+    })
+  }
+  return out
 }
 
 function checkIns(people: any[], interactions: any[], memberId: string): Item[] {
@@ -148,6 +196,62 @@ function dayOfDates(people: any[], keyDates: any[], today: string): Item[] {
   return out
 }
 
+// ---- habit reminders (server port of the schedule logic in lib/habits.js) ---
+// Per-habit nudge at its reminder_time (±7 min of a 15-min cron tick; the
+// notification_log claim guarantees once per day). Only fires when the habit is
+// due today and not already satisfied — a gentle "time to log this".
+const dowOf = (iso: string) => new Date(`${iso}T12:00:00Z`).getUTCDay() // 0=Sun..6=Sat
+
+function habitDueToday(h: any, entries: any[], today: string): boolean {
+  const todayEntry = entries.find((e) => e.habit_id === h.id && e.date === today)
+  if (todayEntry?.skipped) return false // rest day
+
+  if (h.weekly_target) {
+    // Monday-start week; already hit the weekly target → nothing to nudge.
+    const d = new Date(`${today}T12:00:00Z`)
+    const monday = new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86400000)
+    const mondayIso = monday.toISOString().slice(0, 10)
+    let count = 0
+    for (const e of entries) {
+      if (e.habit_id !== h.id || e.skipped) continue
+      if (e.date < mondayIso || e.date > today) continue
+      if (Number(e.value) >= (h.target ?? 1)) count++
+    }
+    return count < h.weekly_target
+  }
+
+  // weekday mode: must be an active day
+  const days: number[] = h.active_days ?? []
+  if (days.length && !days.includes(dowOf(today))) return false
+  // build: skip if today's goal already met (limit/track always worth a log nudge)
+  if (h.polarity === 'build') return Number(todayEntry?.value ?? 0) < (h.target ?? 1)
+  return true
+}
+
+function habitReminders(
+  habits: any[],
+  entries: any[],
+  memberId: string,
+  today: string,
+  time: string,
+): Item[] {
+  const out: Item[] = []
+  for (const h of habits) {
+    if (h.archived_at || h.deleted_at) continue // paused/removed habits never nudge
+    if (h.member_id !== memberId || !h.reminder_enabled || !h.reminder_time) continue
+    if (Math.abs(minutesOf(time) - minutesOf(String(h.reminder_time).slice(0, 5))) > 7) continue
+    if (!habitDueToday(h, entries, today)) continue
+    out.push({
+      kind: 'habit',
+      targetKey: `habit:${h.id}`,
+      title: `Log ${h.name}`,
+      body: h.polarity === 'limit' ? `How much ${h.unit ?? 'today'}?` : `Time to log ${h.name}`,
+      url: '/#/habits',
+    })
+  }
+  return out
+}
+
 // ---- delivery -----------------------------------------------------------
 async function pushTo(
   memberId: string,
@@ -184,25 +288,47 @@ async function claim(memberId: string, kind: string, targetKey: string, sentFor:
 }
 
 Deno.serve(async (req) => {
+  // Caller auth: a shared CRON_SECRET we control (set as a function secret and
+  // sent by the pg_cron job / curl), OR the injected service-role key. The
+  // CRON_SECRET path is what works under Supabase's new API-key system, where
+  // the dashboard service_role value no longer matches SUPABASE_SERVICE_ROLE_KEY.
   const auth = req.headers.get('Authorization') ?? ''
-  if (!auth.includes(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)) {
+  const cronSecret = Deno.env.get('CRON_SECRET')
+  const ok =
+    (cronSecret && auth.includes(cronSecret)) ||
+    auth.includes(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+  if (!ok) {
     return new Response('Forbidden', { status: 403 })
   }
 
   const { date: today, time } = localNow()
   const nowIso = new Date().toISOString()
 
-  const [members, prefsRows, snoozeRows, people, interactions, tasks, keyDates] = await Promise.all(
-    [
-      supabase.from('household_members').select('*'),
-      supabase.from('notification_prefs').select('*'),
-      supabase.from('reminder_snoozes').select('*'),
-      supabase.from('people').select('*'),
-      supabase.from('interactions').select('person_id, occurred_at'),
-      supabase.from('tasks').select('*'),
-      supabase.from('key_dates').select('*'),
-    ],
-  ).then((rs) => rs.map((r) => r.data ?? []))
+  const [
+    members,
+    prefsRows,
+    snoozeRows,
+    people,
+    interactions,
+    tasks,
+    keyDates,
+    habits,
+    habitEntries,
+    lists,
+    listItems,
+  ] = await Promise.all([
+    supabase.from('household_members').select('*'),
+    supabase.from('notification_prefs').select('*'),
+    supabase.from('reminder_snoozes').select('*'),
+    supabase.from('people').select('*'),
+    supabase.from('interactions').select('person_id, occurred_at'),
+    supabase.from('tasks').select('*'),
+    supabase.from('key_dates').select('*'),
+    supabase.from('habits').select('*'),
+    supabase.from('habit_entries').select('habit_id, date, value, skipped'),
+    supabase.from('lists').select('*'),
+    supabase.from('list_items').select('list_id, checked_at'),
+  ]).then((rs) => rs.map((r) => r.data ?? []))
 
   const prefsByMember = new Map(
     prefsRows.map((p: any) => [p.member_id, { ...DEFAULT_PREFS, ...p }]),
@@ -219,7 +345,7 @@ Deno.serve(async (req) => {
     )
 
     const items: Item[] = [
-      ...(prefs.tasks ? dueTasksToday(tasks, member.id, today) : []),
+      ...(prefs.tasks ? dueTasksToday(tasks, member.id, today, time) : []),
       ...(prefs.nudges ? checkIns(people, interactions, member.id) : []),
       ...(prefs.dates ? dayOfDates(people, keyDates, today) : []),
     ].filter((i) => !hidden.has(i.targetKey))
@@ -241,9 +367,10 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Individual pings: day-of dates + tasks only (check-ins ride the digest —
-    // a "say hi" item is never urgent enough to interrupt someone's day).
-    for (const item of items.filter((i) => i.kind !== 'nudge')) {
+    // Individual pings: day-of dates + tasks + habits (check-ins ride the digest
+    // — a "say hi" item is never urgent enough to interrupt someone's day). A
+    // timed task that isn't due yet (ready === false) waits for a later tick.
+    for (const item of items.filter((i) => i.kind !== 'nudge' && i.ready !== false)) {
       if (!(await claim(member.id, item.kind, item.targetKey, today))) continue
       sent += await pushTo(member.id, {
         title: item.title,
@@ -251,6 +378,39 @@ Deno.serve(async (req) => {
         url: item.url,
         tag: item.targetKey,
       })
+    }
+
+    // Habit reminders fire at each habit's own reminder_time, independent of the
+    // digest, and are gated per-habit (reminder_enabled) + by snoozes.
+    const habitItems = habitReminders(habits, habitEntries, member.id, today, time).filter(
+      (i) => !hidden.has(i.targetKey),
+    )
+    for (const item of habitItems) {
+      if (!(await claim(member.id, item.kind, item.targetKey, today))) continue
+      sent += await pushTo(member.id, {
+        title: item.title,
+        body: item.body,
+        url: item.url,
+        tag: item.targetKey,
+      })
+    }
+
+    // List reminders fire at each list's own reminder_time (like habits), gated
+    // per-list (reminder_enabled) + by the lists pref + snoozes. Lists are
+    // household-shared, so every member with the pref on gets the nudge.
+    if (prefs.lists) {
+      const listItemsToSend = listReminders(lists, listItems, today, time).filter(
+        (i) => !hidden.has(i.targetKey),
+      )
+      for (const item of listItemsToSend) {
+        if (!(await claim(member.id, item.kind, item.targetKey, today))) continue
+        sent += await pushTo(member.id, {
+          title: item.title,
+          body: item.body,
+          url: item.url,
+          tag: item.targetKey,
+        })
+      }
     }
   }
 

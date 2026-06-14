@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Users, CheckSquare, Sunrise } from 'react-feather'
+import { useState, useEffect, useRef } from 'react'
+import { Users, CheckSquare, Sunrise, List, Activity, Eye, EyeOff } from 'react-feather'
 import { supabase } from '../lib/supabase'
 
 // The no-session screen. On desktop it doubles as a minimal landing page
@@ -29,7 +29,35 @@ const VALUE_PROPS = [
   },
 ]
 
+// Compact value pills for the mobile card (desktop shows the fuller hero
+// above). Icons mirror the app nav so the vocabulary is consistent.
+const MOBILE_PILLS = [
+  { Icon: Users, label: 'Rolodex' },
+  { Icon: CheckSquare, label: 'Tasks' },
+  { Icon: List, label: 'Lists' },
+  { Icon: Activity, label: 'Habits' },
+]
+
 const emailOk = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
+
+const MIN_PW = 8
+
+// Supabase auth errors are terse and developer-flavored. Translate the ones
+// users actually hit into plain, actionable copy; pass anything else through.
+const friendlyError = (message = '', mode) => {
+  const m = message.toLowerCase()
+  if (m.includes('invalid login credentials'))
+    return 'That email or password doesn’t match. Try again, or reset your password.'
+  if (m.includes('email not confirmed'))
+    return 'Confirm your email first — check your inbox for the link we sent.'
+  if (m.includes('already registered') || m.includes('already been registered'))
+    return 'An account with this email already exists — try signing in instead.'
+  if (m.includes('user not found'))
+    return mode === 'reset' ? 'No account found for that email.' : message
+  if (m.includes('rate') || m.includes('security purposes'))
+    return 'Too many attempts just now — wait a moment and try again.'
+  return message
+}
 
 export default function AuthScreen({ onDemo, noAuth = false, recovery = false, onRecovered }) {
   const [mode, setMode] = useState(recovery ? 'recover' : 'signin') // signin | signup | reset | recover | sent
@@ -38,12 +66,25 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [showPw, setShowPw] = useState(false)
   const [sent, setSent] = useState(null) // { title, body } for the 'sent' screen
+
+  const emailRef = useRef(null)
+  const passwordRef = useRef(null)
+
+  // Focus the first actionable field on mount and whenever the form mode
+  // changes — recover starts on the password; everything else on email.
+  useEffect(() => {
+    if (noAuth || mode === 'sent') return
+    const el = mode === 'recover' ? passwordRef.current : emailRef.current
+    el?.focus()
+  }, [mode, noAuth])
 
   const reset = (next) => {
     setError(null)
     setPassword('')
     setConfirm('')
+    setShowPw(false)
     setMode(next)
   }
 
@@ -59,30 +100,31 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
         redirectTo: window.location.origin,
       })
       setBusy(false)
-      if (error) return setError(error.message)
+      if (error) return setError(friendlyError(error.message, mode))
       setSent({ title: 'Check your inbox', body: `We sent a password reset link to ${email}.` })
       return setMode('sent')
     }
 
     if (mode === 'recover') {
-      if (password.length < 6) return setError('Use a password of at least 6 characters.')
+      if (password.length < MIN_PW)
+        return setError(`Use a password of at least ${MIN_PW} characters.`)
       if (password !== confirm) return setError('Passwords don’t match.')
       setBusy(true)
       const { error } = await supabase.auth.updateUser({ password })
       setBusy(false)
-      if (error) return setError(error.message)
+      if (error) return setError(friendlyError(error.message, mode))
       setSent({ title: 'Password updated', body: 'Your new password is saved — you’re signed in.' })
       return setMode('sent')
     }
 
     if (mode === 'signup') {
       if (!emailOk(email)) return setError('Enter a valid email.')
-      if (password.length < 6) return setError('Use a password of at least 6 characters.')
-      if (password !== confirm) return setError('Passwords don’t match.')
+      if (password.length < MIN_PW)
+        return setError(`Use a password of at least ${MIN_PW} characters.`)
       setBusy(true)
       const { data, error } = await supabase.auth.signUp({ email, password })
       setBusy(false)
-      if (error) return setError(error.message)
+      if (error) return setError(friendlyError(error.message, mode))
       // Email-confirmation on: no session yet → tell them to confirm. Off: a
       // session comes back and onAuthStateChange advances us to onboarding.
       if (!data.session) {
@@ -100,7 +142,7 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
     setBusy(true)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     setBusy(false)
-    if (error) setError(error.message)
+    if (error) setError(friendlyError(error.message, mode))
   }
 
   const titles = {
@@ -144,6 +186,23 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
             <span>Salernidex</span>
           </div>
 
+          {/* Mobile-only value context — the desktop hero is hidden below 860px,
+              so carry the pitch here as a compact tagline + icon strip. */}
+          {mode !== 'sent' && (
+            <div className="auth-card-pitch">
+              <ul className="auth-card-values">
+                {MOBILE_PILLS.map(({ Icon, label }) => (
+                  <li key={label}>
+                    <span className="auth-value-icon">
+                      <Icon size={14} />
+                    </span>
+                    <span>{label}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {mode === 'sent' ? (
             <div className="auth-sent">
               <h2 className="auth-title">{sent?.title}</h2>
@@ -178,7 +237,11 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
                 </p>
               )}
 
-              {error && <p className="error-text">{error}</p>}
+              {error && (
+                <p className="error-text" role="alert">
+                  {error}
+                </p>
+              )}
 
               {mode !== 'recover' && (
                 <div className="field">
@@ -187,6 +250,7 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
                   </label>
                   <input
                     id="email"
+                    ref={emailRef}
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -211,23 +275,41 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
                         type="button"
                         className="text-btn quiet auth-inline-link"
                         onClick={() => reset('reset')}
+                        disabled={busy}
                       >
                         Forgot?
                       </button>
                     )}
                   </div>
-                  <input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-                    required
-                  />
+                  <div className="pw-input">
+                    <input
+                      id="password"
+                      ref={passwordRef}
+                      type={showPw ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                      enterKeyHint={mode === 'signup' ? 'next' : 'go'}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="pw-toggle"
+                      onClick={() => setShowPw((v) => !v)}
+                      aria-label={showPw ? 'Hide password' : 'Show password'}
+                      aria-pressed={showPw}
+                      tabIndex={-1}
+                    >
+                      {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  {mode === 'signup' && (
+                    <p className="field-hint">Use at least {MIN_PW} characters.</p>
+                  )}
                 </div>
               )}
 
-              {(mode === 'signup' || mode === 'recover') && (
+              {mode === 'recover' && (
                 <div className="field">
                   <label className="label" htmlFor="confirm">
                     Confirm password
@@ -281,6 +363,7 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
                         type="button"
                         className="text-btn auth-inline-link"
                         onClick={() => reset('signup')}
+                        disabled={busy}
                       >
                         Create an account
                       </button>
@@ -293,6 +376,7 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
                         type="button"
                         className="text-btn auth-inline-link"
                         onClick={() => reset('signin')}
+                        disabled={busy}
                       >
                         Sign in
                       </button>
@@ -303,6 +387,7 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
                       type="button"
                       className="text-btn auth-inline-link"
                       onClick={() => reset('signin')}
+                      disabled={busy}
                     >
                       Back to sign in
                     </button>
@@ -323,11 +408,16 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
             </>
           )}
 
-          <p className="auth-legal">
-            <a href="#/privacy">Privacy Policy</a>
-            <span aria-hidden="true"> · </span>
-            <a href="#/terms">Terms of Use</a>
-          </p>
+          {/* The consent line already carries Terms + Privacy on signin/signup;
+              show the footer links only on the other screens so they aren't
+              listed twice. */}
+          {!(!noAuth && (mode === 'signin' || mode === 'signup')) && (
+            <p className="auth-legal">
+              <a href="#/privacy">Privacy Policy</a>
+              <span aria-hidden="true"> · </span>
+              <a href="#/terms">Terms of Use</a>
+            </p>
+          )}
         </div>
         <p className="auth-card-by">
           <img src="/joinnovations-badge.png" alt="" width="14" height="14" />

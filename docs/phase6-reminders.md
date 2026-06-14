@@ -122,6 +122,19 @@ in the repo; only deployment against a live project remains:
 - Dev VAPID public key committed for local subscribe-flow testing; its
   private half was discarded. Go-live uses a fresh pair.
 
+**Update 2026-06-14 — time-of-day + priority (migrations 0013 / 0014).** Tasks
+gained an optional `due_time` (all-day vs timed, like Apple Reminders) and a
+`priority` flag (None/Low/Med/High). What this changes for reminders:
+
+- A **timed** task fires its individual push at `due_time` (the first cron tick
+  at/after it; `notification_log` still guarantees once per day). Until its time
+  arrives it only rides the morning digest as a heads-up — no early ping. All-day
+  and overdue tasks are unchanged (eligible right away).
+- The **digest lead** is ordered highest-priority first, so the 3 names shown in
+  the summary favor what's flagged.
+- `due_time` survives recurrence roll-forward; no schema work beyond 0013/0014,
+  which are reflected in `schema.sql` for fresh installs.
+
 ### Go-live runbook (the only remaining 6b work)
 
 1. Apply `supabase/schema.sql` top-to-bottom as one migration. Restoring demo

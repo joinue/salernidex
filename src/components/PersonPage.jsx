@@ -18,14 +18,17 @@ import {
   Home,
   Download,
   ChevronRight,
+  Globe,
 } from 'react-feather'
 import { downloadVcf } from '../lib/vcard'
+import { socialUrl } from '../lib/contactChannels'
 import {
   PRIVACY_LABELS,
   KEEP_IN_TOUCH_LABELS,
   TIER_LABELS,
   INTERACTION_TYPES,
   INTERACTION_BY_ID,
+  SOCIAL_BY_ID,
   formatDate,
 } from '../lib/constants'
 import { lastInteraction, relativeTime } from '../lib/contact'
@@ -122,7 +125,14 @@ export default function PersonPage({
     .filter((c) => c.other && !c.other.deleted_at)
 
   const last = lastInteraction(person.id, interactions)
-  const hasContact = person.email || person.phone || person.address || person.birthday
+  const hasContact =
+    person.email ||
+    person.phone ||
+    person.address ||
+    person.birthday ||
+    (person.emails || []).length ||
+    (person.phones || []).length ||
+    (person.socials || []).length
   const family = person.family_id ? families.find((f) => f.id === person.family_id) : null
   const familyMembers = family
     ? people.filter((p) => p.family_id === family.id && p.id !== person.id && !p.deleted_at)
@@ -237,6 +247,15 @@ export default function PersonPage({
                 </span>
               </a>
             )}
+            {(person.emails || []).map((em, i) => (
+              <a className="value-row" key={`em-${i}`} href={`mailto:${em.value}`}>
+                <Mail size={18} />
+                <span className="v-label">{em.label || 'Email'}</span>
+                <span className="v-value" style={{ color: 'var(--accent)' }}>
+                  {em.value}
+                </span>
+              </a>
+            ))}
             {person.phone && (
               <a className="value-row" href={`tel:${person.phone}`}>
                 <Phone size={18} />
@@ -246,6 +265,40 @@ export default function PersonPage({
                 </span>
               </a>
             )}
+            {(person.phones || []).map((ph, i) => (
+              <a className="value-row" key={`ph-${i}`} href={`tel:${ph.value}`}>
+                <Phone size={18} />
+                <span className="v-label">{ph.label || 'Phone'}</span>
+                <span className="v-value" style={{ color: 'var(--accent)' }}>
+                  {ph.value}
+                </span>
+              </a>
+            ))}
+            {(person.socials || []).map((s, i) => {
+              const url = socialUrl(s)
+              const label = SOCIAL_BY_ID[s.platform]?.label || 'Link'
+              return url ? (
+                <a
+                  className="value-row"
+                  key={`so-${i}`}
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Globe size={18} />
+                  <span className="v-label">{label}</span>
+                  <span className="v-value" style={{ color: 'var(--accent)' }}>
+                    {s.value}
+                  </span>
+                </a>
+              ) : (
+                <div className="value-row" key={`so-${i}`}>
+                  <Globe size={18} />
+                  <span className="v-label">{label}</span>
+                  <span className="v-value">{s.value}</span>
+                </div>
+              )
+            })}
             {person.address && (
               <div className="value-row">
                 <MapPin size={18} />

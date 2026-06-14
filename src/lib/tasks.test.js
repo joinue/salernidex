@@ -4,13 +4,20 @@ import {
   daysUntilDue,
   dueLabel,
   dueState,
+  timeLabel,
   taskBucket,
+  byDue,
+  priorityLabel,
   completionsFor,
   lastCompletion,
   projectProgress,
   isProject,
   completionFields,
+  skipFields,
   linkedTasksFor,
+  isDeferred,
+  startLabel,
+  taskTags,
 } from './tasks'
 
 // Pin "now" to noon on Fri 2026-06-12 so all relative-date logic is deterministic.
@@ -50,6 +57,66 @@ describe('dueLabel / dueState', () => {
     expect(dueState('2026-07-01')).toBe('upcoming')
     expect(dueState(null)).toBe('none')
   })
+  it('appends a time of day when the task is timed', () => {
+    expect(dueLabel('2026-06-12', '15:00')).toBe('Today, 3 PM')
+    expect(dueLabel('2026-06-13', '09:30')).toBe('Tomorrow, 9:30 AM')
+    expect(dueLabel('2026-06-10', '20:00')).toBe('2d overdue, 8 PM')
+    expect(dueLabel('2026-06-12', null)).toBe('Today') // all-day unchanged
+  })
+})
+
+describe('timeLabel', () => {
+  it('drops :00 on the hour and handles am/pm + midnight/noon', () => {
+    expect(timeLabel('15:00')).toBe('3 PM')
+    expect(timeLabel('09:30')).toBe('9:30 AM')
+    expect(timeLabel('00:00')).toBe('12 AM')
+    expect(timeLabel('12:00')).toBe('12 PM')
+    expect(timeLabel('00:05')).toBe('12:05 AM')
+    expect(timeLabel(null)).toBeNull()
+    expect(timeLabel('')).toBeNull()
+  })
+})
+
+describe('priorityLabel', () => {
+  it('names the levels, defaulting unknown/0 to None', () => {
+    expect(priorityLabel(0)).toBe('None')
+    expect(priorityLabel(1)).toBe('Low')
+    expect(priorityLabel(2)).toBe('Medium')
+    expect(priorityLabel(3)).toBe('High')
+    expect(priorityLabel(undefined)).toBe('None')
+  })
+})
+
+describe('byDue', () => {
+  it('orders by date first, undated last', () => {
+    const ids = [
+      { id: 'late', due_date: '2026-06-20', created_at: '1' },
+      { id: 'soon', due_date: '2026-06-13', created_at: '1' },
+      { id: 'none', due_date: null, created_at: '1' },
+    ]
+      .sort(byDue)
+      .map((t) => t.id)
+    expect(ids).toEqual(['soon', 'late', 'none'])
+  })
+  it('on the same date: all-day first, then earliest time, then higher priority', () => {
+    const ids = [
+      { id: 'three-pm', due_date: '2026-06-12', due_time: '15:00', created_at: '1' },
+      { id: 'nine-am', due_date: '2026-06-12', due_time: '09:00', created_at: '1' },
+      { id: 'all-day', due_date: '2026-06-12', due_time: null, created_at: '1' },
+    ]
+      .sort(byDue)
+      .map((t) => t.id)
+    expect(ids).toEqual(['all-day', 'nine-am', 'three-pm'])
+  })
+  it('breaks a full tie by higher priority', () => {
+    const ids = [
+      { id: 'low', due_date: '2026-06-12', priority: 1, created_at: '1' },
+      { id: 'high', due_date: '2026-06-12', priority: 3, created_at: '1' },
+    ]
+      .sort(byDue)
+      .map((t) => t.id)
+    expect(ids).toEqual(['high', 'low'])
+  })
 })
 
 describe('taskBucket', () => {
@@ -58,6 +125,40 @@ describe('taskBucket', () => {
     expect(taskBucket({ due_date: '2026-06-12' })).toBe('today')
     expect(taskBucket({ due_date: '2026-06-13' })).toBe('upcoming') // tomorrow folds into upcoming
     expect(taskBucket({ due_date: null })).toBe('someday')
+  })
+  it('a deferred task waits under Upcoming, even if its due date is today/overdue', () => {
+    expect(taskBucket({ due_date: '2026-06-12', start_date: '2026-06-20' })).toBe('upcoming')
+    expect(taskBucket({ due_date: '2026-06-10', start_date: '2026-06-20' })).toBe('upcoming')
+    // a start date in the past no longer defers — falls back to due-date bucketing
+    expect(taskBucket({ due_date: '2026-06-12', start_date: '2026-06-01' })).toBe('today')
+  })
+})
+
+describe('defer (start dates)', () => {
+  it('isDeferred is true only while the start date is in the future', () => {
+    expect(isDeferred({ start_date: '2026-06-20' })).toBe(true)
+    expect(isDeferred({ start_date: '2026-06-12' })).toBe(false) // today = actionable
+    expect(isDeferred({ start_date: '2026-06-01' })).toBe(false)
+    expect(isDeferred({ start_date: null })).toBe(false)
+    expect(isDeferred({})).toBe(false)
+  })
+  it('startLabel reads "Starts …" while deferred, null otherwise', () => {
+    expect(startLabel({ start_date: '2026-06-13' })).toBe('Starts Tomorrow')
+    expect(startLabel({ start_date: '2026-06-17' })).toBe('Starts in 5d')
+    expect(startLabel({ start_date: '2026-06-01' })).toBeNull()
+  })
+})
+
+describe('taskTags', () => {
+  it('returns the distinct tags in use, alphabetical', () => {
+    const tasks = [
+      { tags: ['home', 'errand'] },
+      { tags: ['errand'] },
+      { tags: [] },
+      { tags: ['Work'] },
+      {},
+    ]
+    expect(taskTags(tasks)).toEqual(['errand', 'home', 'Work'])
   })
 })
 
@@ -136,5 +237,44 @@ describe('completionFields', () => {
       true,
     )
     expect(f).toEqual({ due_date: '2026-06-15', completed_at: null }) // next Monday
+  })
+  it('a recurring task whose series has ended (until passed) closes like a one-off', () => {
+    // "now" is 2026-06-12; until 2026-06-01 is in the past → no next occurrence
+    const f = completionFields(
+      {
+        id: 't',
+        recurrence: { freq: 'weekly', weekdays: [1], anchor: '2026-06-12', until: '2026-06-01' },
+      },
+      true,
+    )
+    expect(f.due_date).toBeUndefined()
+    expect(f.completed_at).not.toBeNull()
+  })
+})
+
+describe('skipFields', () => {
+  it('records the skipped date in exdates and rolls to the next occurrence', () => {
+    const f = skipFields({
+      id: 't',
+      due_date: '2026-06-15',
+      recurrence: { freq: 'weekly', weekdays: [1], anchor: '2026-06-15' },
+    })
+    expect(f.recurrence.exdates).toEqual(['2026-06-15'])
+    expect(f.due_date).toBe('2026-06-22') // following Monday
+    expect(f.completed_at).toBeNull()
+  })
+  it('closes the task when skipping the final occurrence', () => {
+    const f = skipFields({
+      id: 't',
+      due_date: '2026-06-15',
+      recurrence: { freq: 'weekly', weekdays: [1], anchor: '2026-06-15', until: '2026-06-20' },
+    })
+    expect(f.recurrence.exdates).toEqual(['2026-06-15'])
+    expect(f.due_date).toBeUndefined()
+    expect(f.completed_at).not.toBeNull()
+  })
+  it('returns null for a non-recurring or undated task', () => {
+    expect(skipFields({ id: 't', due_date: '2026-06-15' })).toBeNull()
+    expect(skipFields({ id: 't', recurrence: { freq: 'daily' } })).toBeNull()
   })
 })

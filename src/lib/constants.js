@@ -6,11 +6,11 @@ import { Phone, MessageCircle, Mail, Coffee, Edit3 } from 'react-feather'
 export const focusOnDesktop = () =>
   typeof window !== 'undefined' && window.matchMedia('(min-width: 721px)').matches
 
-// 'marc_only' is the legacy enum value; it now means "Private — only me":
-// rows with it are hidden from other household members (lib/privacy.js).
-// The enum value itself gets renamed to 'private' at the go-live migration.
+// 'private' means "Private — only me": rows with it are hidden from other
+// household members (lib/privacy.js). The enum value was renamed from the
+// legacy 'marc_only' in migration 0023.
 export const PRIVACY_LABELS = {
-  marc_only: 'Private — only me',
+  private: 'Private — only me',
   shared: 'Shared',
   family_shared: 'Family shared',
   public: 'Public',
@@ -40,6 +40,25 @@ export const TIERS = [
 
 export const TIER_LABELS = Object.fromEntries(TIERS.map((t) => [t.value, t.label]))
 export const TIER_RANK = Object.fromEntries(TIERS.map((t, i) => [t.value, i]))
+
+// Labels for additional emails/phones (Apple Contacts style). Freeform values
+// are allowed on import, but the editor offers these as the picker options.
+export const EMAIL_LABELS = ['Home', 'Work', 'Other']
+export const PHONE_LABELS = ['Mobile', 'Home', 'Work', 'Other']
+
+// Social profiles. `base` builds an openable URL from a bare handle; when null
+// the stored value is expected to be a full URL (or non-linkable handle).
+export const SOCIAL_PLATFORMS = [
+  { id: 'linkedin', label: 'LinkedIn', base: 'https://www.linkedin.com/in/', placeholder: 'username' },
+  { id: 'instagram', label: 'Instagram', base: 'https://instagram.com/', placeholder: 'username' },
+  { id: 'x', label: 'X', base: 'https://x.com/', placeholder: 'username' },
+  { id: 'facebook', label: 'Facebook', base: 'https://facebook.com/', placeholder: 'username' },
+  { id: 'github', label: 'GitHub', base: 'https://github.com/', placeholder: 'username' },
+  { id: 'website', label: 'Website', base: null, placeholder: 'https://…' },
+  { id: 'other', label: 'Other', base: null, placeholder: 'link or handle' },
+]
+
+export const SOCIAL_BY_ID = Object.fromEntries(SOCIAL_PLATFORMS.map((p) => [p.id, p]))
 
 // "Keep in touch" cadence presets, stored as days (0 = no reminder).
 export const KEEP_IN_TOUCH_OPTIONS = [

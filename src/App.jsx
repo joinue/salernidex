@@ -10,13 +10,12 @@ import { useNotificationPrefs } from './hooks/useNotificationPrefs'
 import { useAppPrefs } from './hooks/useAppPrefs'
 import { useEdgeBack } from './hooks/useEdgeBack'
 import { currentMemberId } from './lib/household'
-import { areaNames, isProject } from './lib/tasks'
+import { areaNames, taskTags, isProject } from './lib/tasks'
 import InstallHint from './components/InstallHint'
 import AuthScreen from './components/AuthScreen'
 import Onboarding from './components/Onboarding'
 import Sidebar from './components/Sidebar'
 import MobileNav from './components/MobileNav'
-import MoreSheet from './components/MoreSheet'
 import ConfirmDialog from './components/ConfirmDialog'
 import QuickFind from './components/QuickFind'
 import TodayView from './components/TodayView'
@@ -29,7 +28,13 @@ import ListDetail from './components/ListDetail'
 import ProjectDetail from './components/ProjectDetail'
 import PersonPage from './components/PersonPage'
 import OrgsView from './components/OrgsView'
+import OrgPage from './components/OrgPage'
 import GroupsView from './components/GroupsView'
+import GroupPage from './components/GroupPage'
+import HabitsView from './components/HabitsView'
+import HabitDetail from './components/HabitDetail'
+import HabitInsightsView from './components/HabitInsightsView'
+import HabitTemplatePicker from './components/HabitTemplatePicker'
 import RelationshipsView from './components/RelationshipsView'
 import SettingsView from './components/SettingsView'
 import LegalView from './components/LegalView'
@@ -44,13 +49,14 @@ import TaskForm from './components/TaskForm'
 import ListForm from './components/ListForm'
 import OrgForm from './components/OrgForm'
 import GroupForm from './components/GroupForm'
+import HabitForm from './components/HabitForm'
 import RelationshipForm from './components/RelationshipForm'
 import { EMPTY_PEOPLE_FILTERS } from './lib/search'
 
 // Hash routing: #/ (today), #/activity, #/people, #/person/<id>, #/tasks,
-// #/project/<id>, #/lists, #/list/<id>, #/orgs, #/groups, #/relationships,
-// #/import. Quick Find can append an id to list pages (#/tasks/<id>,
-// #/orgs/<id>, #/groups/<id>) to land with that row expanded.
+// #/project/<id>, #/lists, #/list/<id>, #/orgs, #/org/<id>, #/groups,
+// #/group/<id>, #/relationships, #/import. Quick Find can append an id to the
+// Tasks page (#/tasks/<id>) to land with that row expanded.
 function parseHash() {
   const [name, id] = window.location.hash.replace(/^#\/?/, '').split('/')
   return { name: name || 'today', id }
@@ -58,7 +64,19 @@ function parseHash() {
 
 // Detail pages get iOS-style edge-swipe back (mobile). Module-scoped so the
 // array identity is stable across renders.
-const DETAIL_ROUTES = ['person', 'project', 'list', 'activity', 'settings', 'privacy', 'terms']
+const DETAIL_ROUTES = [
+  'person',
+  'org',
+  'group',
+  'project',
+  'list',
+  'habit',
+  'habit-insights',
+  'activity',
+  'settings',
+  'privacy',
+  'terms',
+]
 // Stale bookmarks / typo'd hashes land on Today, not a blank screen.
 const KNOWN_ROUTES = [
   'today',
@@ -70,8 +88,13 @@ const KNOWN_ROUTES = [
   'people',
   'person',
   'orgs',
+  'org',
   'groups',
+  'group',
   'relationships',
+  'habits',
+  'habit',
+  'habit-insights',
   'import',
   'settings',
   'privacy',
@@ -85,7 +108,7 @@ const HUB_OPTIONS = [
   { id: 'people', label: 'People' },
   { id: 'groups', label: 'Groups' },
   { id: 'orgs', label: 'Organizations' },
-  { id: 'relationships', label: 'Network' },
+  { id: 'relationships', label: 'Relationships' },
 ]
 
 export default function App() {
@@ -193,10 +216,11 @@ function Shell({ session, onLogout, household }) {
   const [editingPerson, setEditingPerson] = useState(null) // null | 'new' | person
   const [editingOrg, setEditingOrg] = useState(null)
   const [editingGroup, setEditingGroup] = useState(null)
+  const [editingHabit, setEditingHabit] = useState(null)
+  const [pickingHabit, setPickingHabit] = useState(false) // template "start from" sheet
   const [editingTask, setEditingTask] = useState(null) // null | 'new' | task
   const [editingList, setEditingList] = useState(null) // null | 'new' | list
   const [relationshipFrom, setRelationshipFrom] = useState(null) // null | 'new' | person
-  const [moreOpen, setMoreOpen] = useState(null) // null | 'global' | 'people'
   const [quickFind, setQuickFind] = useState(false)
   const [confirmLogout, setConfirmLogout] = useState(false)
   const searchRef = useRef(null)
@@ -255,26 +279,35 @@ function Shell({ session, onLogout, household }) {
     const named =
       route.name === 'person'
         ? data.people.find((p) => p.id === route.id)?.name
-        : route.name === 'list'
-          ? data.lists.find((l) => l.id === route.id)?.name
-          : route.name === 'project'
-            ? data.tasks.find((t) => t.id === route.id)?.title
-            : {
-                activity: 'Activity',
-                tasks: 'Tasks',
-                lists: 'Lists',
-                people: 'People',
-                orgs: 'Organizations',
-                groups: 'Groups',
-                relationships: 'Relationships',
-                import: 'Import / Export',
-                settings: 'Settings',
-                privacy: 'Privacy Policy',
-                terms: 'Terms of Use',
-              }[route.name]
+        : route.name === 'org'
+          ? data.orgs.find((o) => o.id === route.id)?.name
+          : route.name === 'group'
+            ? data.groups.find((g) => g.id === route.id)?.name
+            : route.name === 'list'
+              ? data.lists.find((l) => l.id === route.id)?.name
+              : route.name === 'project'
+                ? data.tasks.find((t) => t.id === route.id)?.title
+                : route.name === 'habit'
+                  ? data.habits.find((h) => h.id === route.id)?.name
+                  : {
+                  activity: 'Activity',
+                  tasks: 'Tasks',
+                  lists: 'Lists',
+                  people: 'People',
+                  orgs: 'Organizations',
+                  groups: 'Groups',
+                  relationships: 'Relationships',
+                  habits: 'Habits',
+                  import: 'Import / Export',
+                  settings: 'Settings',
+                  privacy: 'Privacy Policy',
+                  terms: 'Terms of Use',
+                }[route.name]
     document.title = named ? `${named} — Salernidex` : 'Salernidex'
-  }, [route, data.people, data.lists, data.tasks])
+  }, [route, data.people, data.orgs, data.groups, data.lists, data.tasks, data.habits])
   const openPerson = (id) => go(`person/${id}`)
+  const openOrg = (id) => go(`org/${id}`)
+  const openGroup = (id) => go(`group/${id}`)
   const openList = (id) => go(`list/${id}`)
   const openProject = (id) => go(`project/${id}`)
   // Open a linked task from an entity page: projects get the full ProjectDetail,
@@ -304,8 +337,9 @@ function Shell({ session, onLogout, household }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // Quick Find → where each result type lands. Orgs/groups/plain tasks carry
-  // the id in the hash so the page opens with that row expanded.
+  // Quick Find → where each result type lands. People/orgs/groups open their
+  // detail page; a plain task carries its id in the hash so the Tasks page opens
+  // with that row expanded.
   const pickQuickFind = (entry) => {
     setQuickFind(false)
     if (entry.type === 'person') openPerson(entry.id)
@@ -313,8 +347,8 @@ function Shell({ session, onLogout, household }) {
     else if (entry.type === 'task')
       entry.parentId ? openProject(entry.parentId) : go(`tasks/${entry.id}`)
     else if (entry.type === 'list') openList(entry.id)
-    else if (entry.type === 'org') go(`orgs/${entry.id}`)
-    else if (entry.type === 'group') go(`groups/${entry.id}`)
+    else if (entry.type === 'org') openOrg(entry.id)
+    else if (entry.type === 'group') openGroup(entry.id)
     else if (entry.type === 'nav') go(entry.route)
     else if (entry.type === 'action') {
       const open = {
@@ -367,13 +401,19 @@ function Shell({ session, onLogout, household }) {
   const activeNav =
     route.name === 'person'
       ? 'people'
-      : route.name === 'list'
-        ? 'lists'
-        : route.name === 'project'
-          ? 'tasks'
-          : route.name === 'activity'
-            ? 'today'
-            : route.name
+      : route.name === 'org'
+        ? 'orgs'
+        : route.name === 'group'
+          ? 'groups'
+          : route.name === 'list'
+            ? 'lists'
+            : route.name === 'project'
+              ? 'tasks'
+              : route.name === 'habit'
+                ? 'habits'
+                : route.name === 'activity'
+                  ? 'today'
+                  : route.name
 
   const adds = {
     go,
@@ -382,6 +422,7 @@ function Shell({ session, onLogout, household }) {
     onAddList: () => setEditingList('new'),
     onAddOrg: () => setEditingOrg('new'),
     onAddGroup: () => setEditingGroup('new'),
+    onAddHabit: () => setPickingHabit(true),
     onAddRelationship: () => setRelationshipFrom('new'),
   }
 
@@ -415,13 +456,14 @@ function Shell({ session, onLogout, household }) {
             {route.name === 'today' && (
               <TodayView
                 data={data}
+                household={household}
                 onOpenPerson={openPerson}
                 onOpenList={openList}
                 onOpenTasks={() => go('tasks')}
                 onOpenActivity={() => go('activity')}
-                onMore={isMobile ? () => setMoreOpen('global') : undefined}
                 onSettings={isMobile ? () => go('settings') : undefined}
                 onSearch={isMobile ? () => setQuickFind(true) : undefined}
+                onOpenHabits={() => go('habits')}
               />
             )}
             {route.name === 'activity' && (
@@ -452,6 +494,8 @@ function Shell({ session, onLogout, household }) {
                 onBack={() => window.history.back()}
                 onEdit={(t) => setEditingTask(t)}
                 onOpenPerson={openPerson}
+                onOpenOrg={openOrg}
+                onOpenGroup={openGroup}
               />
             )}
             {route.name === 'lists' && (
@@ -481,7 +525,6 @@ function Shell({ session, onLogout, household }) {
                 onOpen={openPerson}
                 onEdit={(p) => setEditingPerson(p)}
                 onAdd={() => setEditingPerson('new')}
-                onMore={isMobile ? () => setMoreOpen('people') : undefined}
                 memberId={meId}
                 hub={hubNav('people')}
               />
@@ -501,24 +544,39 @@ function Shell({ session, onLogout, household }) {
             {route.name === 'orgs' && (
               <OrgsView
                 data={data}
-                openId={route.id}
-                onEdit={(o) => setEditingOrg(o)}
+                onOpen={openOrg}
                 onAdd={() => setEditingOrg('new')}
-                onOpenTask={openTask}
-                isDemo={isDemo}
                 hub={hubNav('orgs')}
+              />
+            )}
+            {route.name === 'org' && (
+              <OrgPage
+                data={data}
+                orgId={route.id}
+                onOpenPerson={openPerson}
+                onOpenTask={openTask}
+                onBack={() => window.history.back()}
+                onEdit={(o) => setEditingOrg(o)}
+                isDemo={isDemo}
               />
             )}
             {route.name === 'groups' && (
               <GroupsView
                 data={data}
-                openId={route.id}
+                onOpen={openGroup}
+                onAdd={() => setEditingGroup('new')}
+                hub={hubNav('groups')}
+              />
+            )}
+            {route.name === 'group' && (
+              <GroupPage
+                data={data}
+                groupId={route.id}
                 onOpenPerson={openPerson}
                 onOpenTask={openTask}
-                onAdd={() => setEditingGroup('new')}
+                onBack={() => window.history.back()}
                 onEdit={(g) => setEditingGroup(g)}
                 isDemo={isDemo}
-                hub={hubNav('groups')}
               />
             )}
             {route.name === 'relationships' && (
@@ -529,13 +587,48 @@ function Shell({ session, onLogout, household }) {
                 hub={hubNav('relationships')}
               />
             )}
+            {route.name === 'habits' && (
+              <HabitsView
+                data={data}
+                onAdd={(seed) => setEditingHabit(seed || 'new')}
+                onPickTemplate={() => setPickingHabit(true)}
+                onOpen={(id) => go(`habit/${id}`)}
+                onOpenInsights={() => go('habit-insights')}
+              />
+            )}
+            {route.name === 'habit-insights' && (
+              <HabitInsightsView
+                data={data}
+                onBack={() => go('habits')}
+                onOpenHabit={(id) => go(`habit/${id}`)}
+              />
+            )}
+            {route.name === 'habit' && (
+              <HabitDetail
+                data={data}
+                habitId={route.id}
+                onBack={() => go('habits')}
+                onEdit={(h) => setEditingHabit(h)}
+              />
+            )}
             {route.name === 'import' && (
               <Suspense fallback={<p className="empty dots">Loading</p>}>
                 <ImportExport data={data} />
               </Suspense>
             )}
             {route.name === 'settings' && (
-              <SettingsView go={go} household={household} isDemo={!!(demoMode || session?.demo)} />
+              <SettingsView
+                go={go}
+                household={household}
+                isDemo={!!(demoMode || session?.demo)}
+                onLogout={requestLogout}
+                session={session}
+                onBack={
+                  isMobile
+                    ? () => (window.history.length > 1 ? window.history.back() : go('today'))
+                    : undefined
+                }
+              />
             )}
             {(route.name === 'privacy' || route.name === 'terms') && (
               <LegalView
@@ -554,13 +647,6 @@ function Shell({ session, onLogout, household }) {
       )}
 
       {isMobile && <MobileNav active={activeNav} adds={adds} badge={badge} />}
-      {isMobile && moreOpen && (
-        <MoreSheet
-          go={go}
-          onClose={() => setMoreOpen(null)}
-          onLogout={moreOpen === 'global' ? requestLogout : undefined}
-        />
-      )}
 
       {confirmLogout && (
         <ConfirmDialog
@@ -612,6 +698,22 @@ function Shell({ session, onLogout, household }) {
           isDemo={isDemo}
         />
       )}
+      {editingHabit && (
+        <HabitForm
+          habit={editingHabit === 'new' ? null : editingHabit}
+          onSave={(fields, id) => (id ? data.updateHabit(id, fields) : data.addHabit(fields))}
+          onClose={() => setEditingHabit(null)}
+        />
+      )}
+      {pickingHabit && (
+        <HabitTemplatePicker
+          onPick={(seed) => {
+            setPickingHabit(false)
+            setEditingHabit(seed || 'new')
+          }}
+          onClose={() => setPickingHabit(false)}
+        />
+      )}
       {editingTask && (
         <TaskForm
           task={editingTask === 'new' ? null : editingTask}
@@ -619,6 +721,7 @@ function Shell({ session, onLogout, household }) {
           onClose={() => setEditingTask(null)}
           defaultPrivacy={appPrefs.taskPrivacy}
           areas={areaNames(data.tasks)}
+          tagSuggestions={taskTags(data.tasks)}
         />
       )}
       {editingList && (

@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { ChevronRight, Plus, ShoppingCart } from 'react-feather'
 import PageHeader from './PageHeader'
 import SharedDot from './SharedDot'
+import { dueLabel, dueState } from '../lib/tasks'
 
 // All household lists. Tap one to open it. The chrome (add) is driven by the
 // page-aware FAB on mobile and the header action on desktop.
@@ -29,9 +30,10 @@ export default function ListsView({ data, onOpenList, onAdd, onSearch }) {
         <div className="list">
           {lists.map((l) => {
             const open = counts[l.id] || 0
+            const due = dueState(l.due_date)
             return (
               <div className="list-row" key={l.id} onClick={() => onOpenList(l.id)}>
-                <span className="list-emoji">{l.icon || '📝'}</span>
+                <span className="list-emoji">{l.icon || (l.kind === 'grocery' ? '🛒' : '📝')}</span>
                 <div className="row-body">
                   <div className="row-titleline">
                     <div className="row-title">{l.name}</div>
@@ -41,7 +43,16 @@ export default function ListsView({ data, onOpenList, onAdd, onSearch }) {
                     {open ? `${open} item${open === 1 ? '' : 's'} left` : 'All done'}
                   </div>
                 </div>
-                <ChevronRight size={18} className="row-chevron" />
+                <div className="row-meta">
+                  {l.due_date && (
+                    <span
+                      className={`row-time ${due === 'overdue' || due === 'today' ? 'warn' : ''}`}
+                    >
+                      {dueLabel(l.due_date)}
+                    </span>
+                  )}
+                  <ChevronRight size={18} className="row-chevron" />
+                </div>
               </div>
             )
           })}

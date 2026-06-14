@@ -102,6 +102,11 @@ export function isSolo() {
 export function currentMemberId() {
   return load().current_member_id
 }
+// The current member's linked self contact card id (live mode). null in demo,
+// or before an existing member has linked one.
+export function currentPersonId() {
+  return currentMember()?.person_id || null
+}
 export function currentMember() {
   const h = load()
   return h.members.find((m) => m.id === h.current_member_id) || h.members[0] || null
@@ -143,7 +148,7 @@ export function normalizeAssignee(value) {
 export function assigneeOptions() {
   return [
     { value: 'anyone', label: 'Anyone' },
-    ...members().map((m) => ({ value: m.id, label: m.name })),
+    ...members().map((m) => ({ value: m.id, label: m.name, avatar_url: m.avatar_url || null })),
   ]
 }
 export function assigneeLabel(value) {

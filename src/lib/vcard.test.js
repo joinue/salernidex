@@ -79,6 +79,32 @@ describe('vcard round-trip', () => {
     )
   })
 
+  it('round-trips additional emails, phones, and social profiles', () => {
+    const person = {
+      id: 'm1',
+      name: 'Multi Channel',
+      email: 'primary@x.example',
+      phone: '+1 555 100',
+      emails: [{ label: 'Work', value: 'work@x.example' }],
+      phones: [{ label: 'Home', value: '+1 555 200' }],
+      socials: [
+        { platform: 'linkedin', value: 'multi-channel' },
+        { platform: 'website', value: 'https://multi.example' },
+      ],
+    }
+    const [rec] = parseVcf(personToVcard(person))
+    // First email/phone stay primary; the rest land in the labeled arrays.
+    expect(rec.email).toBe('primary@x.example')
+    expect(rec.emails).toEqual([{ label: 'Work', value: 'work@x.example' }])
+    expect(rec.phone).toBe('+1 555 100')
+    expect(rec.phones).toEqual([{ label: 'Home', value: '+1 555 200' }])
+    // LinkedIn handle is exported as a resolved URL and re-detected by host.
+    expect(rec.socials).toEqual([
+      { platform: 'linkedin', value: 'https://www.linkedin.com/in/multi-channel' },
+      { platform: 'website', value: 'https://multi.example' },
+    ])
+  })
+
   it('drops a year-less birthday rather than guessing', () => {
     const vcf = 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:No Year\r\nBDAY:--03-09\r\nEND:VCARD'
     const [rec] = parseVcf(vcf)

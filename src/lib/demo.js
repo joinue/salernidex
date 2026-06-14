@@ -11,6 +11,18 @@ export const demoMode = !isConfigured || import.meta.env.VITE_DEMO === 'true'
 const now = new Date().toISOString()
 const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString()
 const pad = (n) => String(n).padStart(2, '0')
+// Local yyyy-mm-dd, n days ago — for habit_entries (a DATE column).
+const isoDay = (n) => {
+  const d = new Date(Date.now() - n * 86400000)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+const habitDays = (habitId, n, valueFn) =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `he-${habitId}-${i}`,
+    habit_id: habitId,
+    date: isoDay(i),
+    value: valueFn(i),
+  }))
 const dateIn = (n) => {
   const d = new Date(Date.now() + n * 86400000)
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -46,6 +58,12 @@ export const demoPeople = [
     role: 'Program Director',
     email: 'elena@riversidecompass.org',
     phone: '(555) 555-0142',
+    emails: [{ label: 'Home', value: 'elena.vasquez@gmail.com' }],
+    phones: [{ label: 'Work', value: '(555) 555-0190' }],
+    socials: [
+      { platform: 'linkedin', value: 'elena-vasquez' },
+      { platform: 'instagram', value: '@elena.builds' },
+    ],
     birthday: '1984-03-14',
     address: '2240 Riverside Ave, Riverside',
     tags: ['Riverside Compass partner'],
@@ -362,6 +380,267 @@ export const demoGroups = [
   },
 ]
 
+// Personal habits for the demo member (m-1) — a full, lived-in board covering
+// all three polarities, binary + count measures, weekday scheduling, an
+// abstinence ("days free") habit, plain trackers, and an archived one. Entries
+// run ~6 weeks back so the history strip is full and 30-day stats are real;
+// a deterministic wobble keeps them from looking robotic.
+const habitBase = { member_id: 'm-1', created_at: daysAgo(42), updated_at: now }
+export const demoHabits = [
+  {
+    ...habitBase,
+    id: 'h-workout',
+    name: 'Workouts',
+    icon: '🏋️',
+    polarity: 'build',
+    measure: 'count',
+    unit: 'sessions',
+    target: 1,
+    track_streak: true,
+    active_days: [1, 3, 5], // Mon / Wed / Fri
+    color: '#34c759',
+    show_on_today: true,
+  },
+  {
+    ...habitBase,
+    id: 'h-water',
+    name: 'Water',
+    icon: '💧',
+    polarity: 'build',
+    measure: 'count',
+    unit: 'glasses',
+    target: 8,
+    track_streak: true,
+    active_days: [],
+    color: '#0a84ff',
+    show_on_today: true,
+  },
+  {
+    ...habitBase,
+    id: 'h-steps',
+    name: 'Walk 8k steps',
+    polarity: 'build',
+    measure: 'count',
+    unit: 'steps',
+    target: 8000,
+    track_streak: true,
+    active_days: [],
+    color: '#30d158',
+  },
+  {
+    ...habitBase,
+    id: 'h-run',
+    name: 'Run',
+    polarity: 'build',
+    measure: 'binary',
+    target: 1,
+    track_streak: true,
+    weekly_target: 3, // 3× per week, any days
+    active_days: [],
+    color: '#ff6b35',
+    show_on_today: true,
+  },
+  {
+    ...habitBase,
+    id: 'h-read',
+    name: 'Read 10 pages',
+    icon: '📖',
+    polarity: 'build',
+    measure: 'binary',
+    target: 1,
+    track_streak: true,
+    active_days: [],
+    color: '#bf5af2',
+  },
+  {
+    ...habitBase,
+    id: 'h-meditate',
+    name: 'Meditate',
+    icon: '🧘',
+    polarity: 'build',
+    measure: 'binary',
+    target: 1,
+    track_streak: true,
+    active_days: [],
+    color: '#5e5ce6',
+    show_on_today: true,
+  },
+  {
+    ...habitBase,
+    id: 'h-stretch',
+    name: 'Stretch',
+    polarity: 'build',
+    measure: 'binary',
+    target: 1,
+    track_streak: true,
+    active_days: [1, 2, 3, 4, 5], // weekdays
+    color: '#64d2ff',
+  },
+  {
+    ...habitBase,
+    id: 'h-drinks',
+    name: 'Drinks',
+    polarity: 'limit',
+    measure: 'count',
+    unit: 'drinks',
+    target: 2,
+    track_streak: true,
+    active_days: [],
+    color: '#ff9f0a',
+    show_on_today: true,
+  },
+  {
+    ...habitBase,
+    id: 'h-sugar',
+    name: 'Sweets',
+    polarity: 'limit',
+    measure: 'count',
+    unit: 'treats',
+    target: 1,
+    track_streak: true,
+    active_days: [],
+    color: '#ff6482',
+  },
+  {
+    ...habitBase,
+    id: 'h-screen',
+    name: 'Screen time',
+    polarity: 'limit',
+    measure: 'count',
+    unit: 'hrs',
+    target: 3,
+    track_streak: true,
+    active_days: [],
+    color: '#ac8e68',
+  },
+  {
+    // Abstinence: no entries needed — every clean day is a success, so the
+    // streak runs from created_at. 26 days "alcohol-free".
+    ...habitBase,
+    id: 'h-nosmoke',
+    name: 'Alcohol-free',
+    polarity: 'limit',
+    measure: 'binary',
+    target: 0,
+    track_streak: true,
+    active_days: [],
+    color: '#ff375f',
+    created_at: daysAgo(26),
+  },
+  {
+    ...habitBase,
+    id: 'h-weight',
+    name: 'Weight',
+    polarity: 'track',
+    measure: 'count',
+    unit: 'lbs',
+    target: null,
+    track_streak: false,
+    active_days: [],
+    color: '#8e8e93',
+  },
+  {
+    ...habitBase,
+    id: 'h-mood',
+    name: 'Mood (1–5)',
+    polarity: 'track',
+    measure: 'count',
+    target: null,
+    track_streak: false,
+    active_days: [],
+    color: '#ffd60a',
+  },
+  {
+    // Archived — demonstrates the "Show archived" section.
+    ...habitBase,
+    id: 'h-floss',
+    name: 'Floss',
+    polarity: 'build',
+    measure: 'binary',
+    target: 1,
+    track_streak: true,
+    active_days: [],
+    color: '#bcbcc0',
+    archived_at: daysAgo(8),
+  },
+  // Partner's habits, shared with the household → show read-only in "Shared
+  // with you". Owned by m-2 so they don't mix into the demo member's own list.
+  {
+    member_id: 'm-2',
+    created_at: daysAgo(35),
+    updated_at: now,
+    id: 'h-partner-run',
+    name: 'Morning Run',
+    icon: '🏃',
+    polarity: 'build',
+    measure: 'binary',
+    target: 1,
+    track_streak: true,
+    weekly_target: 4,
+    active_days: [],
+    color: '#ff6b35',
+    shared: true,
+  },
+  {
+    member_id: 'm-2',
+    created_at: daysAgo(35),
+    updated_at: now,
+    id: 'h-partner-water',
+    name: 'Drink More Water',
+    icon: '💧',
+    polarity: 'build',
+    measure: 'count',
+    unit: 'glasses',
+    target: 8,
+    track_streak: true,
+    active_days: [],
+    color: '#0a84ff',
+    shared: true,
+  },
+]
+
+export const demoHabitEntries = [
+  ...habitDays('h-workout', 45, () => 1), // every scheduled M/W/F hit
+  ...habitDays('h-water', 42, (i) => (i === 0 ? 5 : i % 11 === 0 ? 4 : 8)), // today in progress
+  ...habitDays('h-steps', 42, (i) => 6200 + ((i * 1373) % 6200)), // 6.2k–12.4k, ~half hit goal
+  ...habitDays('h-read', 40, (i) => (i === 2 || i === 14 ? 0 : 1)),
+  ...habitDays('h-meditate', 42, (i) => (i % 7 === 3 ? 0 : 1)), // a weekly slip
+  ...habitDays('h-stretch', 40, (i) => (i % 5 === 0 ? 0 : 1)),
+  ...habitDays('h-drinks', 42, (i) => (i === 9 ? 3 : i % 6 === 0 ? 0 : i % 4 === 0 ? 2 : 1)), // one slip 9 days ago
+  ...habitDays('h-sugar', 40, (i) => (i % 5 === 0 ? 2 : i % 2 === 0 ? 0 : 1)),
+  ...habitDays('h-screen', 40, (i) => 1 + ((i * 7) % 5)), // 1–5 hrs, some over the 3h cap
+  ...habitDays('h-weight', 45, (i) => Math.round((178 - (45 - i) * 0.08) * 10) / 10),
+  ...habitDays('h-mood', 40, (i) => 3 + ((i * 3) % 3)), // 3–5
+  // Weekly "Run" — runs land ~3×/week (Mon/Wed/Sat-ish across the window).
+  ...habitDays('h-run', 28, (i) =>
+    [1, 3, 6, 8, 10, 13, 15, 17, 20, 22, 24, 27].includes(i) ? 1 : 0,
+  ),
+  // A logged rest day on Read 5 days ago (overrides that day's entry above).
+  { id: 'he-read-rest', habit_id: 'h-read', date: isoDay(5), value: 0, skipped: true },
+  // A note on a workout day, to show per-entry notes + the heatmap marker.
+  {
+    id: 'he-workout-note',
+    habit_id: 'h-workout',
+    date: isoDay(7),
+    value: 1,
+    note: 'New deadlift PR 💪',
+  },
+  // A 4-day vacation on Stretch (a long-weekend trip), rested so the streak is
+  // protected — shows as hatched rest days on the heatmap (overrides above).
+  ...[12, 13, 14, 15].map((i) => ({
+    id: `he-stretch-vac-${i}`,
+    habit_id: 'h-stretch',
+    date: isoDay(i),
+    value: 0,
+    skipped: true,
+  })),
+  // Partner's shared-habit history, so their streaks render in "Shared with you".
+  ...habitDays('h-partner-run', 35, (i) =>
+    [0, 2, 4, 7, 9, 11, 14, 16, 18, 21, 23, 25, 28, 30, 32].includes(i) ? 1 : 0,
+  ),
+  ...habitDays('h-partner-water', 35, (i) => (i % 9 === 0 ? 5 : 8)),
+]
+
 export const demoRelationships = [
   {
     id: 'r1',
@@ -528,6 +807,10 @@ export const demoInteractions = [
 const taskBase = {
   notes: '',
   privacy_level: 'family_shared',
+  tags: [],
+  due_time: null,
+  start_date: null,
+  priority: 0,
   completed_at: null,
   created_at: now,
   updated_at: now,
@@ -541,7 +824,9 @@ export const demoTasks = [
     id: 't-trash',
     title: 'Take out trash & recycling',
     assignee: 'partner',
+    tags: ['home'],
     due_date: dateIn(0),
+    due_time: '20:00', // bins out by 8pm for the morning pickup
     recurrence: { freq: 'weekly', interval: 1, weekdays: [todayWeekday], anchor: dateIn(0) },
     parent_id: null,
   },
@@ -568,7 +853,9 @@ export const demoTasks = [
     id: 't-call-david',
     title: 'Call David about the polisher quote',
     assignee: 'me',
+    tags: ['work', 'waiting on'],
     due_date: dateIn(-2),
+    priority: 3, // high — he's waiting on us
     recurrence: null,
     parent_id: null,
     privacy_level: 'shared',
@@ -579,6 +866,8 @@ export const demoTasks = [
     id: 't-nina-bday',
     title: "Plan Nina's birthday gift",
     assignee: 'either',
+    tags: ['gifts'],
+    start_date: dateIn(3), // deferred — surfaces in 3 days, hidden from Today until then
     due_date: dateIn(7),
     recurrence: null,
     parent_id: null,
@@ -676,7 +965,11 @@ export const demoLists = [
     id: 'l-grocery',
     name: 'Groceries',
     icon: '🛒',
+    kind: 'grocery', // items auto-group into aisles
     privacy_level: 'family_shared',
+    due_date: dateIn(0), // due today → shows in Today's Lists section
+    reminder_enabled: false,
+    reminder_time: null,
     created_at: now,
     updated_at: now,
   },
@@ -702,15 +995,36 @@ export const demoListItems = [
     id: 'li1',
     list_id: 'l-grocery',
     text: 'Coffee beans',
+    qty: '2',
+    note: 'dark roast',
+    category: 'Beverages',
+    assignee: 'm-1',
     checked_at: null,
     created_at: daysAgo(1),
   },
-  { id: 'li2', list_id: 'l-grocery', text: 'Oat milk', checked_at: null, created_at: daysAgo(1) },
-  { id: 'li3', list_id: 'l-grocery', text: 'Eggs', checked_at: null, created_at: daysAgo(1) },
+  {
+    id: 'li2',
+    list_id: 'l-grocery',
+    text: 'Oat milk',
+    note: 'the oat one, not soy',
+    category: 'Dairy & Eggs',
+    assignee: 'm-2',
+    checked_at: null,
+    created_at: daysAgo(1),
+  },
+  {
+    id: 'li3',
+    list_id: 'l-grocery',
+    text: 'Eggs',
+    category: 'Dairy & Eggs',
+    checked_at: null,
+    created_at: daysAgo(1),
+  },
   {
     id: 'li4',
     list_id: 'l-grocery',
     text: 'Bananas',
+    category: 'Produce',
     checked_at: daysAgo(0),
     created_at: daysAgo(2),
   },
@@ -718,6 +1032,7 @@ export const demoListItems = [
     id: 'li5',
     list_id: 'l-grocery',
     text: 'Dish soap',
+    category: 'Household',
     checked_at: daysAgo(0),
     created_at: daysAgo(2),
   },
@@ -735,8 +1050,42 @@ export const demoListItems = [
     checked_at: null,
     created_at: daysAgo(1),
   },
-  { id: 'li8', list_id: 'l-trip', text: 'Hiking boots', checked_at: null, created_at: daysAgo(3) },
-  { id: 'li9', list_id: 'l-trip', text: 'Sunscreen', checked_at: null, created_at: daysAgo(3) },
+  // Packing list, split into hand-made sections (is_heading rows; the items
+  // after each in sort_order belong to it).
+  {
+    id: 'lh-clothes',
+    list_id: 'l-trip',
+    text: 'Clothes',
+    is_heading: true,
+    sort_order: 1,
+    checked_at: null,
+    created_at: daysAgo(3),
+  },
+  {
+    id: 'li8',
+    list_id: 'l-trip',
+    text: 'Hiking boots',
+    sort_order: 2,
+    checked_at: null,
+    created_at: daysAgo(3),
+  },
+  {
+    id: 'lh-toiletries',
+    list_id: 'l-trip',
+    text: 'Toiletries',
+    is_heading: true,
+    sort_order: 3,
+    checked_at: null,
+    created_at: daysAgo(3),
+  },
+  {
+    id: 'li9',
+    list_id: 'l-trip',
+    text: 'Sunscreen',
+    sort_order: 4,
+    checked_at: null,
+    created_at: daysAgo(3),
+  },
   {
     id: 'li10',
     list_id: 'l-trip',

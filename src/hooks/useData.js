@@ -14,13 +14,31 @@ import {
   demoListItems,
   demoFamilies,
   demoKeyDates,
+  demoHabits,
+  demoHabitEntries,
 } from '../lib/demo'
-import { completionFields } from '../lib/tasks'
+import { completionFields, skipFields } from '../lib/tasks'
+import { categorize } from '../lib/aisles'
+import { buildCatalog, bumpCatalog, catalogKey } from '../lib/catalog'
 import { currentMember, currentMemberId, getHousehold } from '../lib/household'
+import { entryMap, currentStreak, isScheduled, isSuccess, isWeekly, toISODate } from '../lib/habits'
+import haptics from '../lib/haptics'
 import { showToast } from '../lib/toast'
 import { friendlyError } from '../lib/errors'
-import { filterVisible } from '../lib/privacy'
+import { filterVisible, PRIVATE_LEVEL } from '../lib/privacy'
 import { hydrateAppPrefs, bindAppPrefsRemote } from '../lib/appPrefs'
+import { hydrateNotifyPrefs, bindNotifyRemote } from '../lib/notifyPrefs'
+
+// Streak lengths (days, or weeks for weekly habits) worth a small celebration.
+const MILESTONES = new Set([7, 14, 30, 50, 75, 100, 150, 200, 365])
+
+// notification_prefs row <-> client notify-prefs shape. Column names already
+// match the client keys, so this just picks the persisted fields (dropping
+// id/member_id/digest_time/updated_at) — kept explicit so a schema change can't
+// silently round-trip an unexpected column.
+const NOTIFY_KEYS = ['tasks', 'lists', 'nudges', 'dates', 'fyi', 'dates_lead_days']
+const fromNotifyRow = (r) => Object.fromEntries(NOTIFY_KEYS.map((k) => [k, r[k]]))
+const toNotifyRow = (p) => Object.fromEntries(NOTIFY_KEYS.map((k) => [k, p[k]]))
 
 // member_preferences row (snake_case; task_filter is a uuid/null FK) <-> the
 // client appPrefs shape (camelCase; taskFilter uses the 'all' sentinel).
@@ -67,8 +85,14 @@ export function useData(session) {
   const [taskLinks, setTaskLinks] = useState(isDemo ? demoTaskLinks : [])
   const [lists, setLists] = useState(isDemo ? demoLists : [])
   const [listItems, setListItems] = useState(isDemo ? demoListItems : [])
+  // Remembered items for add-as-you-type autocomplete. Live: hydrated from the
+  // list_catalog table. Demo: seeded from the demo items so suggestions work
+  // without a DB. Either way addListItem keeps it current.
+  const [listCatalog, setListCatalog] = useState(isDemo ? buildCatalog(demoListItems) : [])
   const [families, setFamilies] = useState(isDemo ? demoFamilies : [])
   const [keyDates, setKeyDates] = useState(isDemo ? demoKeyDates : [])
+  const [habits, setHabits] = useState(isDemo ? demoHabits : [])
+  const [habitEntries, setHabitEntries] = useState(isDemo ? demoHabitEntries : [])
   const [reminderSnoozes, setReminderSnoozes] = useState([])
   const [loading, setLoading] = useState(!isDemo)
   const [error, setError] = useState(null)
@@ -101,7 +125,7 @@ export function useData(session) {
 
   const refresh = useCallback(async () => {
     if (isDemo) return
-    const [p, o, r, i, g, t, c, tl, l, li, f, kd, sn] = await Promise.all([
+    const [p, o, r, i, g, t, c, tl, l, li, f, kd, sn, h, he, lc] = await Promise.all([
       supabase.from('people').select('*').order('name'),
       supabase.from('organizations').select('*').order('name'),
       supabase.from('relationships').select('*'),
@@ -119,6 +143,14 @@ export function useData(session) {
       // member_preferences is loaded separately — a missing Phase 6 table must
       // degrade to "no snoozes", not blank the whole app.
       supabase.from('reminder_snoozes').select('*').eq('member_id', memberId),
+      // Habits (Phase: habit tracking). Kept OUT of firstError below, like
+      // snoozes — a missing table (migration not yet run) must degrade to "no
+      // habits", not blank the whole app.
+      supabase.from('habits').select('*').order('created_at'),
+      supabase.from('habit_entries').select('*'),
+      // Recent-items catalog (autocomplete). Kept OUT of firstError too — a
+      // missing table degrades to "no suggestions", not a blanked app.
+      supabase.from('list_catalog').select('*'),
     ])
     const firstError =
       p.error ||
@@ -153,6 +185,9 @@ export function useData(session) {
       // (migration not yet run) keep the prior in-session list instead of
       // wiping it — dismissals made this session still hold until reload.
       if (!sn.error) setReminderSnoozes(sn.data || [])
+      if (!h.error) setHabits(h.data || [])
+      if (!he.error) setHabitEntries(he.data || [])
+      if (!lc.error) setListCatalog(lc.data || [])
     }
     setLoading(false)
   }, [isDemo, memberId])
@@ -171,10 +206,23 @@ export function useData(session) {
     if (!prefErr && data) hydrateAppPrefs(memberId, fromPrefRow(data))
   }, [isDemo, memberId])
 
+  // Notification prefs load the same way (separate table, same degrade-to-
+  // localStorage-defaults safety net), folded into the notifyPrefs cache.
+  const refreshNotifyPrefs = useCallback(async () => {
+    if (isDemo || !memberId) return
+    const { data, error: prefErr } = await supabase
+      .from('notification_prefs')
+      .select('*')
+      .eq('member_id', memberId)
+      .maybeSingle()
+    if (!prefErr && data) hydrateNotifyPrefs(memberId, fromNotifyRow(data))
+  }, [isDemo, memberId])
+
   useEffect(() => {
     if (!session || isDemo) return
     refresh()
     refreshPrefs()
+    refreshNotifyPrefs()
     // Writes from the client mirror to the table; the cache stays the source the
     // UI reads (bindAppPrefsRemote pushes the full merged prefs on each change).
     bindAppPrefsRemote((mid, prefs) =>
@@ -182,6 +230,13 @@ export function useData(session) {
         supabase
           .from('member_preferences')
           .upsert({ member_id: mid, ...toPrefRow(prefs) }, { onConflict: 'member_id' }),
+      ),
+    )
+    bindNotifyRemote((mid, prefs) =>
+      sync(() =>
+        supabase
+          .from('notification_prefs')
+          .upsert({ member_id: mid, ...toNotifyRow(prefs) }, { onConflict: 'member_id' }),
       ),
     )
     // Realtime fires one event per changed row, so a burst — a bulk import, a
@@ -200,17 +255,23 @@ export function useData(session) {
         { event: '*', schema: 'public', table: 'member_preferences' },
         refreshPrefs,
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notification_prefs' },
+        refreshNotifyPrefs,
+      )
       .subscribe()
     return () => {
       clearTimeout(refreshTimer)
       bindAppPrefsRemote(null)
+      bindNotifyRemote(null)
       supabase.removeChannel(channel)
     }
-    // refresh/refreshPrefs already close over isDemo (via their own deps), and
-    // `sync` is intentionally left out — listing it would re-subscribe the
-    // realtime channel on every render.
+    // refresh/refreshPrefs/refreshNotifyPrefs already close over isDemo (via
+    // their own deps), and `sync` is intentionally left out — listing it would
+    // re-subscribe the realtime channel on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, refresh, refreshPrefs])
+  }, [session, refresh, refreshPrefs, refreshNotifyPrefs])
 
   // Background write. `op` returns a Supabase query (thenable resolving to
   // { error }) or a promise from a multi-step async fn that throws on failure.
@@ -583,6 +644,32 @@ export function useData(session) {
     }
   }
 
+  // Skip the current occurrence of a recurring task without logging it as done:
+  // records the date in the rule's exdates and rolls to the next occurrence (or
+  // closes the task if the series is over). Reversible via Undo.
+  const skipTaskOccurrence = (task) => {
+    const fields = skipFields(task)
+    if (!fields) return
+    setTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? { ...t, ...fields, updated_at: now() } : t)),
+    )
+    sync(() => supabase.from('tasks').update(fields).eq('id', task.id))
+    showToast(`Skipped this one · “${task.title}”`, {
+      actionLabel: 'Undo',
+      onAction: () => {
+        const revert = {
+          recurrence: task.recurrence,
+          due_date: task.due_date,
+          completed_at: task.completed_at ?? null,
+        }
+        setTasks((prev) =>
+          prev.map((t) => (t.id === task.id ? { ...t, ...revert, updated_at: now() } : t)),
+        )
+        sync(() => supabase.from('tasks').update(revert).eq('id', task.id))
+      },
+    })
+  }
+
   const saveList = (fields, id) => {
     const rowId = id || uuid()
     setLists((prev) =>
@@ -626,26 +713,92 @@ export function useData(session) {
     })
   }
 
-  const addListItem = (listId, text) => {
+  // Add an item to a list. opts carries the optional extras: a detail `note`, a
+  // structured `qty` ("2 lbs"), an `assignee` (member id or 'anyone'), and a
+  // `category` override (e.g. from tapping a remembered suggestion — skips the
+  // keyword guess). Adding also records the item in the recent-items catalog so
+  // it autocompletes next time (private lists are exempt — see recordCatalog).
+  const addListItem = (listId, text, opts = {}) => {
+    const { note = null, qty = null, assignee = 'anyone', category: categoryOverride } = opts
+    const list = lists.find((l) => l.id === listId)
+    // Grocery lists file each item into an aisle on the way in (overridable). A
+    // suggestion supplies its remembered aisle; otherwise guess from the text.
+    const category = categoryOverride ?? (list?.kind === 'grocery' ? categorize(text) : null)
     const rowId = uuid()
+    const row = { id: rowId, list_id: listId, text, note, qty, category, assignee }
+    setListItems((prev) => [
+      ...prev,
+      stamp({ ...row, is_heading: false, checked_at: null, sort_order: null, created_at: now() }),
+    ])
+    sync(() =>
+      supabase.from('list_items').insert(stamp({ ...row, assignee: dbAssignee(assignee) })),
+    )
+    if (list) recordCatalog(list, text, category)
+  }
+
+  // Remember an item for autocomplete: bump its catalog entry (count + recency +
+  // learned aisle). Skipped for "Private — only me" lists so their item names
+  // can't surface as suggestions to another household member.
+  const recordCatalog = (list, text, category) => {
+    if (!text.trim() || list.privacy_level === PRIVATE_LEVEL) return
+    const at = now()
+    const next = bumpCatalog(listCatalog, {
+      text,
+      category,
+      at,
+      id: uuid(),
+      household_id: householdId,
+    })
+    setListCatalog(next)
+    const entry = next.find((e) => e.norm === catalogKey(text))
+    sync(() =>
+      supabase.from('list_catalog').upsert(
+        {
+          household_id: householdId,
+          text: entry.text,
+          norm: entry.norm,
+          category: entry.category,
+          use_count: entry.use_count,
+          last_used_at: at,
+        },
+        { onConflict: 'household_id,norm' },
+      ),
+    )
+  }
+
+  // A Things-style section header on a standard list (is_heading row). The items
+  // that follow it in manual order belong to that section.
+  const addListHeading = (listId, text) => {
+    const rowId = uuid()
+    const row = { id: rowId, list_id: listId, text, is_heading: true }
     setListItems((prev) => [
       ...prev,
       stamp({
-        id: rowId,
-        list_id: listId,
-        text,
+        ...row,
+        note: null,
+        category: null,
         checked_at: null,
         sort_order: null,
         created_at: now(),
       }),
     ])
-    sync(() => supabase.from('list_items').insert(stamp({ id: rowId, list_id: listId, text })))
+    sync(() => supabase.from('list_items').insert(stamp(row)))
   }
 
   const toggleListItem = (item) => {
     const checked_at = item.checked_at ? null : new Date().toISOString()
     setListItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, checked_at } : it)))
     sync(() => supabase.from('list_items').update({ checked_at }).eq('id', item.id))
+  }
+
+  // Inline edits to an item (text, note, qty, aisle, assignee) — tap-to-edit in
+  // ListDetail. assignee uses the 'anyone' sentinel locally; map it to null for
+  // the DB, like updateTask does.
+  const updateListItem = (id, fields) => {
+    setListItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...fields } : it)))
+    const dbFields =
+      'assignee' in fields ? { ...fields, assignee: dbAssignee(fields.assignee) } : fields
+    sync(() => supabase.from('list_items').update(dbFields).eq('id', id))
   }
 
   const deleteListItem = (id) => {
@@ -751,6 +904,164 @@ export function useData(session) {
     sync(() => supabase.from('groups').delete().eq('id', id))
   }
 
+  // Habits are personal (owned by the current member). Create stamps member_id;
+  // edits patch in place. Archiving keeps the row + its history but drops it
+  // from the active list; deleting cascades its entries (FK on delete cascade).
+  const addHabit = (fields) => {
+    const rowId = uuid()
+    const row = stamp({
+      created_at: now(),
+      updated_at: now(),
+      ...fields,
+      id: rowId,
+      member_id: memberId,
+    })
+    setHabits((prev) => [...prev, row])
+    sync(() => supabase.from('habits').insert(stamp({ ...fields, id: rowId, member_id: memberId })))
+    return rowId
+  }
+
+  const updateHabit = (id, fields) => {
+    setHabits((prev) => prev.map((h) => (h.id === id ? { ...h, ...fields, updated_at: now() } : h)))
+    sync(() => supabase.from('habits').update(fields).eq('id', id))
+  }
+
+  const archiveHabit = (id, archived = true) =>
+    updateHabit(id, { archived_at: archived ? now() : null })
+
+  const deleteHabit = (id) => {
+    setHabits((prev) => prev.filter((h) => h.id !== id))
+    setHabitEntries((prev) => prev.filter((e) => e.habit_id !== id))
+    sync(() => supabase.from('habits').delete().eq('id', id))
+  }
+
+  // Log (or change) a habit's value for one day. One row per (habit_id, date):
+  // upsert replaces. Absence already means 0, so logging 0 is just an explicit
+  // confirmation of a clean day. `note` is preserved across value-only logs
+  // (pass a string to set it, '' to clear); omit it and an existing note stays.
+  const logHabit = (habitId, date, value, skipped = false, note = undefined) => {
+    const existing = habitEntries.find((e) => e.habit_id === habitId && e.date === date)
+    const noteVal = note === undefined ? (existing?.note ?? null) : note || null
+    const row = {
+      id: existing?.id || uuid(),
+      habit_id: habitId,
+      date,
+      value,
+      skipped,
+      note: noteVal,
+    }
+    const next = [...habitEntries.filter((e) => e !== existing), row]
+    setHabitEntries(next)
+    sync(() =>
+      supabase
+        .from('habit_entries')
+        .upsert(stamp({ habit_id: habitId, date, value, skipped, note: noteVal }), {
+          onConflict: 'habit_id,date',
+        }),
+    )
+    maybeCelebrate(habitId, date, value, skipped, existing, next)
+  }
+
+  // Streak milestones: a small celebration the first time a fresh success today
+  // pushes the streak onto a milestone. Fires only on today, only on the
+  // success edge (not every increment), so it never nags or repeats.
+  const maybeCelebrate = (habitId, date, value, skipped, existing, next) => {
+    if (skipped || date !== toISODate(new Date())) return
+    const habit = habits.find((h) => h.id === habitId)
+    if (!habit || !habit.track_streak) return
+    const wasSuccess = isSuccess(habit, Number(existing?.value ?? 0)) && !existing?.skipped
+    if (wasSuccess || !isSuccess(habit, Number(value))) return // only on the not-yet→success edge
+    const streak = currentStreak(habit, entryMap(next), new Date())
+    if (!MILESTONES.has(streak)) return
+    haptics.success()
+    const unit = isWeekly(habit) ? 'week' : 'day'
+    showToast(`🔥 ${streak}-${unit} streak — ${habit.name}!`)
+  }
+
+  const reorderHabits = (updates) => {
+    const byId = new Map(updates.map((u) => [u.id, u.sort_order]))
+    setHabits((prev) =>
+      prev.map((h) => (byId.has(h.id) ? { ...h, sort_order: byId.get(h.id) } : h)),
+    )
+    sync(async () => {
+      for (const u of updates) {
+        must(await supabase.from('habits').update({ sort_order: u.sort_order }).eq('id', u.id))
+      }
+    })
+  }
+
+  // Vacation / pause: rest every scheduled day in [startISO, endISO] inclusive,
+  // reusing the rest-day primitive — so the streak engine already treats the
+  // span as transparent (no schema or streak-math change). We never clobber a
+  // real logged value; only unlogged or already-rested days become rest days.
+  const parseISO = (iso) => {
+    const [y, m, d] = iso.split('-').map(Number)
+    return new Date(y, m - 1, d)
+  }
+  const pauseHabit = (habitId, startISO, endISO) => {
+    const habit = habits.find((h) => h.id === habitId)
+    if (!habit) return
+    const rows = []
+    const d = parseISO(startISO)
+    const end = parseISO(endISO)
+    while (d <= end) {
+      const iso = toISODate(d)
+      const existing = habitEntries.find((e) => e.habit_id === habitId && e.date === iso)
+      if (
+        isScheduled(habit, d) &&
+        (!existing || existing.skipped || Number(existing.value) === 0)
+      ) {
+        rows.push({
+          id: existing?.id || uuid(),
+          habit_id: habitId,
+          date: iso,
+          value: 0,
+          skipped: true,
+          note: existing?.note ?? null,
+        })
+      }
+      d.setDate(d.getDate() + 1)
+    }
+    if (!rows.length) return
+    const dates = new Set(rows.map((r) => r.date))
+    setHabitEntries((prev) => [
+      ...prev.filter((e) => !(e.habit_id === habitId && dates.has(e.date))),
+      ...rows,
+    ])
+    sync(() =>
+      supabase.from('habit_entries').upsert(
+        rows.map((r) => stamp(r)),
+        { onConflict: 'habit_id,date' },
+      ),
+    )
+    showToast(`Paused ${habit.name} · ${rows.length} day${rows.length === 1 ? '' : 's'}`, {
+      actionLabel: 'Undo',
+      onAction: () => resumeHabit(habitId, startISO),
+    })
+  }
+
+  // End a break: drop the auto-created rest days (value 0, no note) from fromISO
+  // onward, so the habit comes back. Hand-written rest days with a note stay.
+  const resumeHabit = (habitId, fromISO) => {
+    const gone = habitEntries.filter(
+      (e) =>
+        e.habit_id === habitId &&
+        e.skipped &&
+        Number(e.value) === 0 &&
+        !e.note &&
+        e.date >= fromISO,
+    )
+    if (!gone.length) return
+    const ids = new Set(gone.map((e) => e.id))
+    setHabitEntries((prev) => prev.filter((e) => !ids.has(e.id)))
+    sync(() =>
+      supabase
+        .from('habit_entries')
+        .delete()
+        .in('id', [...ids]),
+    )
+  }
+
   // Bulk import stays awaited (not optimistic): ImportExport shows progress
   // and reports row-level errors inline.
   const importPeople = async (rows) => {
@@ -827,6 +1138,17 @@ export function useData(session) {
       lists: backup.lists,
       list_items: backup.list_items,
       reminder_snoozes: backup.reminder_snoozes,
+      habits: backup.habits,
+      habit_entries: backup.habit_entries,
+    }
+    // Backups taken before migration 0023 store the old 'marc_only' privacy
+    // label; map it to 'private' so they still restore against the renamed enum.
+    for (const t of ['people', 'organizations', 'tasks', 'lists']) {
+      if (Array.isArray(tables[t])) {
+        tables[t] = tables[t].map((row) =>
+          row?.privacy_level === 'marc_only' ? { ...row, privacy_level: 'private' } : row,
+        )
+      }
     }
     // Backups v<=6 stored people.organization as a name string. Map it to
     // organization_id, find-or-creating orgs (seeded from both the backup's
@@ -886,6 +1208,8 @@ export function useData(session) {
       if (tables.list_items) setListItems((prev) => merge(prev, tables.list_items))
       if (tables.reminder_snoozes)
         setReminderSnoozes((prev) => merge(prev, tables.reminder_snoozes))
+      if (tables.habits) setHabits((prev) => merge(prev, tables.habits))
+      if (tables.habit_entries) setHabitEntries((prev) => merge(prev, tables.habit_entries))
       return
     }
     // Live: re-home each row into the active household, sanitize legacy ids
@@ -916,6 +1240,8 @@ export function useData(session) {
       'lists',
       'list_items',
       'reminder_snoozes',
+      'habits',
+      'habit_entries',
     ]) {
       const rows = tables[name]
       if (!rows?.length) continue
@@ -938,6 +1264,16 @@ export function useData(session) {
       ? listItems
       : listItems.filter((it) => visibleListIds.has(it.list_id))
 
+  // Habits are personal by default — the main list is the current member's.
+  // Anything a *different* member flagged `shared` shows up read-only in a
+  // "Shared with you" section (the couple's-OS dimension). In demo, "me" is the
+  // seed owner m-1 so the partner's shared habits demo correctly. Soft-deleted
+  // always hidden.
+  const meId = isDemo ? 'm-1' : memberId
+  const liveHabits = habits.filter((h) => !h.deleted_at)
+  const myHabits = liveHabits.filter((h) => h.member_id === meId)
+  const sharedHabits = liveHabits.filter((h) => h.member_id !== meId && h.shared)
+
   return {
     people: visiblePeople,
     orgs: visibleOrgs,
@@ -949,14 +1285,20 @@ export function useData(session) {
     taskLinks,
     lists: visibleLists,
     listItems: visibleListItems,
+    listCatalog,
     families,
     keyDates,
     reminderSnoozes,
+    habits: myHabits,
+    sharedHabits,
+    habitEntries,
     allPeople: people,
     allOrgs: orgs,
     allTasks: tasks,
     allLists: lists,
     allListItems: listItems,
+    allHabits: habits,
+    allHabitEntries: habitEntries,
     loading,
     error,
     userId,
@@ -977,6 +1319,7 @@ export function useData(session) {
     updateTask,
     deleteTask,
     completeTask,
+    skipTaskOccurrence,
     reorderTasks,
     reorderListItems,
     addTaskLink,
@@ -984,11 +1327,21 @@ export function useData(session) {
     saveList,
     deleteList,
     addListItem,
+    addListHeading,
     toggleListItem,
+    updateListItem,
     deleteListItem,
     clearCheckedItems,
     saveGroup,
     deleteGroup,
+    addHabit,
+    updateHabit,
+    archiveHabit,
+    deleteHabit,
+    logHabit,
+    pauseHabit,
+    resumeHabit,
+    reorderHabits,
     saveFamily,
     deleteFamily,
     addKeyDate,

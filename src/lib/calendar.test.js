@@ -32,8 +32,32 @@ describe('taskToIcs', () => {
     expect(ics).toContain('RRULE:FREQ=WEEKLY;BYDAY=MO')
   })
 
+  it('emits skipped occurrences as EXDATE (all-day uses VALUE=DATE)', () => {
+    const ics = taskToIcs({
+      ...base,
+      recurrence: { freq: 'weekly', weekdays: [1], exdates: ['2026-06-22', '2026-06-29'] },
+    })
+    expect(ics).toContain('EXDATE;VALUE=DATE:20260622,20260629')
+  })
+
+  it('a timed task emits EXDATE with the matching time of day', () => {
+    const ics = taskToIcs({
+      ...base,
+      due_time: '15:00',
+      recurrence: { freq: 'weekly', weekdays: [1], exdates: ['2026-06-22'] },
+    })
+    expect(ics).toContain('EXDATE:20260622T150000')
+  })
+
   it('uses CRLF line endings', () => {
     expect(taskToIcs(base)).toContain('\r\n')
+  })
+
+  it('emits a timed 1-hour VEVENT (floating local time) when due_time is set', () => {
+    const ics = taskToIcs({ ...base, due_time: '15:00' })
+    expect(ics).toContain('DTSTART:20260615T150000')
+    expect(ics).toContain('DTEND:20260615T160000')
+    expect(ics).not.toContain('VALUE=DATE')
   })
 })
 
@@ -61,6 +85,11 @@ describe('recurrenceToRrule', () => {
       'FREQ=YEARLY;BYMONTH=6;BYMONTHDAY=12',
     )
   })
+  it('appends UNTIL (compact DATE form) when the rule has an end date', () => {
+    expect(recurrenceToRrule({ freq: 'daily', until: '2026-08-31' })).toBe(
+      'FREQ=DAILY;UNTIL=20260831',
+    )
+  })
 })
 
 describe('deep links', () => {
@@ -78,5 +107,14 @@ describe('deep links', () => {
     expect(url.searchParams.get('startdt')).toBe('2026-06-15')
     expect(url.searchParams.get('enddt')).toBe('2026-06-16')
     expect(url.searchParams.get('allday')).toBe('true')
+  })
+
+  it('a timed task produces timed spans on the deep links', () => {
+    const g = new URL(googleCalendarUrl({ ...base, due_time: '15:00' }))
+    expect(g.searchParams.get('dates')).toBe('20260615T150000/20260615T160000')
+    const o = new URL(outlookCalendarUrl({ ...base, due_time: '15:00' }))
+    expect(o.searchParams.get('startdt')).toBe('2026-06-15T15:00:00')
+    expect(o.searchParams.get('enddt')).toBe('2026-06-15T16:00:00')
+    expect(o.searchParams.get('allday')).toBe('false')
   })
 })

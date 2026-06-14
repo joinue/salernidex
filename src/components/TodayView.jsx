@@ -4,22 +4,35 @@ import {
   Calendar,
   ChevronRight,
   Sun,
-  MoreHorizontal,
   Settings,
   MessageCircle,
   Clock,
   BellOff,
   Check,
   Search,
+  SkipForward,
 } from 'react-feather'
 import { relativeTime } from '../lib/contact'
+import { dueLabel } from '../lib/tasks'
 import { buildAttention } from '../lib/reminders'
 import { buildActivityFeed } from '../lib/activity'
 import { personActions } from '../lib/personActions'
+import {
+  entryMap,
+  valueOn,
+  isScheduled,
+  isSkipped,
+  isWeekly,
+  weekProgress,
+  toISODate,
+} from '../lib/habits'
+import { byOrder } from '../lib/order'
+import HabitQuickLog from './HabitQuickLog'
 import { useNotificationPrefs } from '../hooks/useNotificationPrefs'
 import { useNow } from '../hooks/useNow'
 import haptics from '../lib/haptics'
 import Avatar from './Avatar'
+import ProfileNudge from './ProfileNudge'
 import PageHeader from './PageHeader'
 import SwipeRow from './SwipeRow'
 import TaskRow from './TaskRow'
@@ -65,15 +78,40 @@ export default function TodayView({
   onOpenList,
   onOpenTasks,
   onOpenActivity,
-  onMore,
   onSettings,
   onSearch,
+  onOpenHabits,
+  household,
 }) {
-  const { addInteraction, completeTask, snoozeReminder, memberId } = data
+  const {
+    addInteraction,
+    completeTask,
+    skipTaskOccurrence,
+    snoozeReminder,
+    memberId,
+    habitEntries,
+    logHabit,
+  } = data
   const [prefs] = useNotificationPrefs(memberId)
   // Keep greetings, the date, and relative/overdue labels fresh on a wall-
   // mounted tablet that may run for days without a reload.
   const now = useNow()
+  // Habits the user pinned to Today, that are scheduled for today. (useNow gives
+  // a timestamp number, so wrap it in a Date for the date-aware habit helpers.)
+  const nowDate = new Date(now)
+  const todayISO = toISODate(nowDate)
+  const habitMap = useMemo(() => entryMap(habitEntries), [habitEntries])
+  const todayHabits = (data.habits || [])
+    .filter((h) => h.show_on_today && !h.archived_at && isScheduled(h, nowDate))
+    // A rest day (or a vacation, which rests the span) drops the habit off Today.
+    .filter((h) => !isSkipped(h, todayISO, habitMap))
+    // Weekly habits drop off Today once the week's target is met.
+    .filter((h) => {
+      if (!isWeekly(h)) return true
+      const wp = weekProgress(h, habitMap, nowDate)
+      return wp.count < wp.target
+    })
+    .sort(byOrder)
   const [logPerson, setLogPerson] = useState(null)
   const [actionPerson, setActionPerson] = useState(null)
   const [laterItem, setLaterItem] = useState(null) // attention item picking a snooze
@@ -86,6 +124,7 @@ export default function TodayView({
     [
       data.people,
       data.tasks,
+      data.lists,
       data.interactions,
       data.keyDates,
       data.reminderSnoozes,
@@ -95,6 +134,7 @@ export default function TodayView({
     ],
   )
   const dueTasks = attention.filter((i) => i.kind === 'task')
+  const dueLists = attention.filter((i) => i.kind === 'list')
   const checkIns = attention.filter((i) => i.kind === 'nudge')
   const dates = attention.filter((i) => i.kind === 'date')
 
@@ -108,7 +148,7 @@ export default function TodayView({
   const feed = useMemo(() => buildActivityFeed(data), [data])
   const recent = useMemo(() => feed.slice(0, 6), [feed])
 
-  const nothing = attention.length === 0 && recent.length === 0
+  const nothing = attention.length === 0 && recent.length === 0 && todayHabits.length === 0
 
   // Swipe action: "Later" → sheet with gentle snooze choices.
   const later = (item) => ({ label: 'Later', icon: Clock, onClick: () => setLaterItem(item) })
@@ -126,6 +166,20 @@ export default function TodayView({
   }
 
   const snoozeChoices = laterItem && [
+    // Recurring task: skip just this occurrence (rolls to the next date) without
+    // logging it done. Sits above the snoozes — it's the more decisive choice.
+    ...(laterItem.kind === 'task' && laterItem.task?.recurrence
+      ? [
+          {
+            label: 'Skip this one',
+            icon: SkipForward,
+            onClick: () => {
+              haptics.light()
+              skipTaskOccurrence(laterItem.task)
+            },
+          },
+        ]
+      : []),
     {
       label: 'Remind me in 3 days',
       icon: Clock,
@@ -160,12 +214,9 @@ export default function TodayView({
       <PageHeader
         title={greeting()}
         subtitle={longDate()}
-        action={onMore}
-        actionIcon={MoreHorizontal}
-        actionLabel="More"
-        secondaryAction={onSettings}
-        secondaryActionIcon={Settings}
-        secondaryActionLabel="Settings"
+        action={onSettings}
+        actionIcon={Settings}
+        actionLabel="Settings"
       />
 
       {/* iOS-style search bar under the large title — opens Quick Find.
@@ -176,6 +227,8 @@ export default function TodayView({
           Search
         </button>
       )}
+
+      {household && <ProfileNudge household={household} />}
 
       {nothing && (
         <div className="empty">
@@ -188,6 +241,37 @@ export default function TodayView({
           two columns so the dashboard fills the width instead of leaving a
           tall empty gutter; portrait and phone stay single-column. */}
       <div className="today-dashboard">
+        {todayHabits.length > 0 && (
+          <section className="today-section">
+            <div className="section-label">Habits</div>
+            <div className="list">
+              {todayHabits.map((h) => (
+                <div className="list-row today-habit" key={h.id} onClick={() => onOpenHabits?.()}>
+                  <span
+                    className={`habit-dot ${h.icon ? 'emoji' : ''}`}
+                    style={{ background: h.color || 'var(--accent)' }}
+                  >
+                    {h.icon || h.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <div className="row-body">
+                    <div className="row-title">{h.name}</div>
+                    {isWeekly(h) && (
+                      <div className="row-sub">
+                        {weekProgress(h, habitMap, nowDate).count}/{h.weekly_target} this week
+                      </div>
+                    )}
+                  </div>
+                  <HabitQuickLog
+                    habit={h}
+                    value={valueOn(h, todayISO, habitMap)}
+                    onLog={(v) => logHabit(h.id, todayISO, v)}
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {dueTasks.length > 0 && (
           <section className="today-section">
             <div className="section-label">To-do</div>
@@ -199,6 +283,37 @@ export default function TodayView({
                   </div>
                 </SwipeRow>
               ))}
+            </div>
+          </section>
+        )}
+
+        {dueLists.length > 0 && (
+          <section className="today-section">
+            <div className="section-label">Lists</div>
+            <div className="list">
+              {dueLists.map((item) => {
+                const l = item.list
+                const left = (data.listItems || []).filter(
+                  (it) => it.list_id === l.id && !it.checked_at,
+                ).length
+                return (
+                  <SwipeRow key={item.key} actions={[later(item)]} onClick={() => onOpenList(l.id)}>
+                    <div className="list-row">
+                      <span className="list-emoji">{l.icon || '📝'}</span>
+                      <div className="row-body">
+                        <div className="row-title">{l.name}</div>
+                        <div className="row-sub">
+                          {left ? `${left} item${left === 1 ? '' : 's'} left` : 'All done'}
+                        </div>
+                      </div>
+                      <div className="row-meta">
+                        <span className="row-time warn">{dueLabel(l.due_date)}</span>
+                        <ChevronRight size={18} className="row-chevron" />
+                      </div>
+                    </div>
+                  </SwipeRow>
+                )
+              })}
             </div>
           </section>
         )}

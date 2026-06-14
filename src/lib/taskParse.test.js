@@ -132,3 +132,30 @@ describe('titleFrom — dismissing a parsed token', () => {
     ).toBe('call mom for Rita')
   })
 })
+
+describe('time of day', () => {
+  it('parses "at 3pm" into a 24h due_time and a time token', () => {
+    const r = p('call dentist at 3pm')
+    expect(r.title).toBe('call dentist')
+    expect(r.due_time).toBe('15:00')
+    expect(r.tokens.find((t) => t.type === 'time')?.label).toBe('3 PM')
+  })
+  it('parses minutes and am, and a 24h colon time', () => {
+    expect(p('standup at 9:30am').due_time).toBe('09:30')
+    expect(p('deploy at 15:00').due_time).toBe('15:00')
+  })
+  it('handles noon and midnight', () => {
+    expect(p('lunch at 12pm').due_time).toBe('12:00')
+    expect(p('backup at 12am').due_time).toBe('00:00')
+  })
+  it('combines a date and a time', () => {
+    const r = p('dinner tomorrow at 7pm')
+    expect(r.due_date).toBe(plusDays(1))
+    expect(r.due_time).toBe('19:00')
+  })
+  it('does not read a bare hour or "at the 1st" as a time', () => {
+    expect(p('buy 2 apples').due_time).toBeNull()
+    expect(p('rent on the 1st').due_time).toBeNull()
+    expect(p('meet at home').due_time).toBeNull()
+  })
+})

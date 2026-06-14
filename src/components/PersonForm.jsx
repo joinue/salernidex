@@ -7,7 +7,17 @@ import AvatarUpload from './AvatarUpload'
 import DatePicker from './DatePicker'
 import AddressFields from './AddressFields'
 import PrivacyField from './PrivacyField'
-import { KEEP_IN_TOUCH_OPTIONS, TIERS, focusOnDesktop } from '../lib/constants'
+import ChannelEditor from './ChannelEditor'
+import {
+  KEEP_IN_TOUCH_OPTIONS,
+  TIERS,
+  EMAIL_LABELS,
+  PHONE_LABELS,
+  SOCIAL_PLATFORMS,
+  SOCIAL_BY_ID,
+  focusOnDesktop,
+} from '../lib/constants'
+import { cleanChannels } from '../lib/contactChannels'
 import { findDuplicates } from '../lib/duplicates'
 import { personMatchesGroup, groupJoinTags } from '../lib/groups'
 import { isSolo } from '../lib/household'
@@ -15,6 +25,11 @@ import { PRIVATE_LEVEL } from '../lib/privacy'
 
 const NEW_FAMILY = '__new__'
 const NEW_ORG = '__new_org__'
+
+const EMAIL_OPTS = EMAIL_LABELS.map((l) => ({ value: l, label: l }))
+const PHONE_OPTS = PHONE_LABELS.map((l) => ({ value: l, label: l }))
+const SOCIAL_OPTS = SOCIAL_PLATFORMS.map((p) => ({ value: p.id, label: p.label }))
+const socialPlaceholder = (id) => SOCIAL_BY_ID[id]?.placeholder || ''
 
 export default function PersonForm({
   person,
@@ -38,6 +53,9 @@ export default function PersonForm({
     role: person?.role || '',
     email: person?.email || '',
     phone: person?.phone || '',
+    emails: person?.emails || [],
+    phones: person?.phones || [],
+    socials: person?.socials || [],
     birthday: person?.birthday || '',
     address: person?.address || '',
     tags: person?.tags || [],
@@ -138,6 +156,9 @@ export default function PersonForm({
           family_id: familyId,
           organization_id: orgId,
           keep_in_touch_days: Number(form.keep_in_touch_days) || null,
+          emails: cleanChannels(form.emails),
+          phones: cleanChannels(form.phones),
+          socials: cleanChannels(form.socials),
         },
         person?.id,
       )
@@ -242,6 +263,15 @@ export default function PersonForm({
             autoCorrect="off"
             spellCheck={false}
           />
+          <ChannelEditor
+            items={form.emails}
+            onChange={(emails) => setForm({ ...form, emails })}
+            field="label"
+            options={EMAIL_OPTS}
+            inputType="email"
+            placeholder="email address"
+            addLabel="Add email"
+          />
         </div>
         <div className="field">
           <label className="label">Phone</label>
@@ -251,6 +281,27 @@ export default function PersonForm({
             onChange={set('phone')}
             inputMode="tel"
             autoComplete="off"
+          />
+          <ChannelEditor
+            items={form.phones}
+            onChange={(phones) => setForm({ ...form, phones })}
+            field="label"
+            options={PHONE_OPTS}
+            inputType="tel"
+            inputMode="tel"
+            placeholder="phone number"
+            addLabel="Add phone"
+          />
+        </div>
+        <div className="field">
+          <label className="label">Social profiles</label>
+          <ChannelEditor
+            items={form.socials}
+            onChange={(socials) => setForm({ ...form, socials })}
+            field="platform"
+            options={SOCIAL_OPTS}
+            placeholder={socialPlaceholder}
+            addLabel="Add profile"
           />
         </div>
         <div className="field">

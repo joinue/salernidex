@@ -1,18 +1,27 @@
 import { useMemo, useState } from 'react'
-import { ChevronRight, Calendar, Repeat as RepeatIcon, User, X, RotateCcw } from 'react-feather'
+import {
+  ChevronRight,
+  Calendar,
+  Clock,
+  Repeat as RepeatIcon,
+  User,
+  X,
+  RotateCcw,
+} from 'react-feather'
 import Modal from './Modal'
 import Segmented from './Segmented'
 import RecurrencePicker from './RecurrencePicker'
 import AssigneePicker from './AssigneePicker'
 import PrivacyField from './PrivacyField'
+import TagInput from './TagInput'
 import { focusOnDesktop } from '../lib/constants'
 import { normalizeAssignee, members, isSolo } from '../lib/household'
 import { PRIVATE_LEVEL } from '../lib/privacy'
-import { isoDateIn } from '../lib/tasks'
+import { isoDateIn, PRIORITY_OPTIONS } from '../lib/tasks'
 import { nextOccurrence } from '../lib/recurrence'
 import { parseTaskInput, titleFrom } from '../lib/taskParse'
 
-const TOKEN_ICON = { due: Calendar, repeat: RepeatIcon, who: User }
+const TOKEN_ICON = { due: Calendar, time: Clock, repeat: RepeatIcon, who: User }
 
 // Create or edit a single task. Flagging it a project unlocks the full-page
 // detail view (subtasks + linked contacts); subtasks themselves are added from
@@ -21,13 +30,24 @@ const TOKEN_ICON = { due: Calendar, repeat: RepeatIcon, who: User }
 // Progressive disclosure: most tasks are a title and maybe a date, so that's
 // all the form shows. Who/Repeat/Visibility/Notes live behind "More options",
 // auto-expanded when editing a task that already uses any of them.
-export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shared', areas = [] }) {
+export default function TaskForm({
+  task,
+  onSave,
+  onClose,
+  defaultPrivacy = 'shared',
+  areas = [],
+  tagSuggestions = [],
+}) {
   const [form, setForm] = useState({
     title: task?.title || '',
     is_project: task?.is_project || false,
     assignee: normalizeAssignee(task?.assignee),
     area: task?.area || '',
+    tags: task?.tags || [],
     due_date: task?.due_date || '',
+    start_date: task?.start_date || '',
+    due_time: task?.due_time ? task.due_time.slice(0, 5) : '',
+    priority: task?.priority ?? 0,
     recurrence: task?.recurrence || null,
     privacy_level: task?.privacy_level || (isSolo() ? PRIVATE_LEVEL : defaultPrivacy),
     notes: task?.notes || '',
@@ -36,6 +56,8 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
     !!task &&
       (normalizeAssignee(task.assignee) !== 'anyone' ||
         !!task.area ||
+        task.tags?.length > 0 ||
+        !!task.start_date ||
         !!task.recurrence ||
         (!isSolo() && task.privacy_level && task.privacy_level !== 'shared') ||
         !!task.notes),
@@ -76,8 +98,25 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
       // the rule, so it lands on the calendar immediately.
       let due = form.due_date || (uses('due') ? parsed.due_date : null)
       if (recurrence && !due) due = nextOccurrence(recurrence, isoDateIn(0), { inclusive: true })
+      // A time of day only means something with a date; a typed "at 3pm" with no
+      // date pins to today (matching Apple, which won't hold a time without one).
+      const due_time = form.due_time || (uses('time') ? parsed.due_time : null)
+      if (due_time && !due) due = isoDateIn(0)
       await onSave(
-        { ...form, title, recurrence, assignee, area: form.area.trim() || null, due_date: due },
+        {
+          ...form,
+          title,
+          recurrence,
+          assignee,
+          area: form.area.trim() || null,
+          tags: form.tags,
+          due_date: due,
+          // A defer date only makes sense up to the due date; keep it as typed
+          // otherwise (null when blank).
+          start_date: form.start_date || null,
+          due_time: due ? due_time || null : null,
+          priority: form.priority || 0,
+        },
         task?.id,
       )
       onClose()
@@ -153,7 +192,17 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
         </div>
         <div className="field">
           <label className="label">Due</label>
-          <input type="date" value={form.due_date} onChange={set('due_date')} />
+          <div className="due-row">
+            <input type="date" value={form.due_date} onChange={set('due_date')} />
+            {form.due_date && (
+              <input
+                type="time"
+                value={form.due_time}
+                onChange={set('due_time')}
+                aria-label="Time of day (optional)"
+              />
+            )}
+          </div>
           <div className="chips" style={{ marginTop: 8 }}>
             <button
               type="button"
@@ -180,7 +229,7 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
               <button
                 type="button"
                 className="chip"
-                onClick={() => setForm({ ...form, due_date: '' })}
+                onClick={() => setForm({ ...form, due_date: '', due_time: '' })}
               >
                 Clear
               </button>
@@ -188,12 +237,24 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
           </div>
         </div>
 
+        <div className="field">
+          <label className="label">Priority</label>
+          <Segmented
+            options={PRIORITY_OPTIONS}
+            value={form.priority}
+            onChange={(v) => setForm({ ...form, priority: v })}
+            size="sm"
+          />
+        </div>
+
         {!more ? (
           <button type="button" className="form-more-btn" onClick={() => setMore(true)}>
             <ChevronRight size={15} />
             More options
             <span className="form-more-hint">
-              {isSolo() ? 'area · repeat · notes' : 'who · area · repeat · visibility · notes'}
+              {isSolo()
+                ? 'area · tags · starts · repeat · notes'
+                : 'who · area · tags · starts · repeat · …'}
             </span>
           </button>
         ) : (
@@ -223,6 +284,38 @@ export default function TaskForm({ task, onSave, onClose, defaultPrivacy = 'shar
                   <option key={a} value={a} />
                 ))}
               </datalist>
+            </div>
+            <div className="field">
+              <label className="label">
+                Tags <span className="muted">(optional)</span>
+              </label>
+              <TagInput
+                tags={form.tags}
+                onChange={(tags) => setForm({ ...form, tags })}
+                suggestions={tagSuggestions}
+              />
+            </div>
+            <div className="field">
+              <label className="label">
+                Starts <span className="muted">(defer until)</span>
+              </label>
+              <input
+                type="date"
+                value={form.start_date}
+                max={form.due_date || undefined}
+                onChange={set('start_date')}
+              />
+              {form.start_date && (
+                <div className="chips" style={{ marginTop: 8 }}>
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={() => setForm({ ...form, start_date: '' })}
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
             </div>
             <div className="field">
               <label className="label">Repeat</label>

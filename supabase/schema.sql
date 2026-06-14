@@ -18,7 +18,10 @@
 -- on Supabase, but don't bet a migration on "usually".
 create extension if not exists pgcrypto with schema extensions;
 
--- Privacy enum
+-- Privacy enum. NOTE: 'marc_only' is the legacy "Private — only me" label kept
+-- here so the historical 0001 policies still apply on a fresh install; migration
+-- 0023 renames it to the generic 'private' (the app uses 'private' — see
+-- lib/privacy.js). Leave this base value as-is.
 create type privacy_level as enum ('marc_only', 'shared', 'family_shared', 'public');
 
 -- ------------------------------------------------------------
@@ -42,8 +45,11 @@ create table public.people (
   name          text not null,
   organization  text,
   role          text,
-  email         text,
-  phone         text,
+  email         text,                          -- primary email; drives search + duplicate detection
+  phone         text,                          -- primary phone; drives search + duplicate detection
+  emails        jsonb not null default '[]',    -- additional labeled emails: [{label, value}] (see 0012)
+  phones        jsonb not null default '[]',    -- additional labeled phones: [{label, value}] (see 0012)
+  socials       jsonb not null default '[]',    -- social profiles: [{platform, value}] (see 0012)
   birthday      date,
   address       text,
   tags          text[] not null default '{}',
@@ -160,8 +166,12 @@ create table public.tasks (
   notes         text,
   assignee      text not null default 'anyone',     -- member id | 'anyone'
   area          text,                                -- optional user-defined category ("Work", "Personal"); null = none (TasksView group-by)
+  tags          text[] not null default '{}',        -- cross-cutting labels, same shape as people.tags (0022); area is the one category, tags are the many
   due_date      date,
-  recurrence    jsonb,                              -- null = one-off; RRULE-lite (see lib/recurrence.js)
+  start_date    date,                                -- optional defer date (0021); until it arrives the task is hidden from Today + the sender and buckets under Upcoming. null = not deferred
+  due_time      time,                                -- optional local time-of-day; null = all-day (0013). Only meaningful with due_date; survives recurrence roll-forward
+  priority      smallint not null default 0 check (priority between 0 and 3),  -- 0 none · 1 low · 2 med · 3 high (0014); flag + tiebreaker, not the Tasks-page order
+  recurrence    jsonb,                              -- null = one-off; RRULE-lite (see lib/recurrence.js). Optional keys: until ('YYYY-MM-DD' end date, inclusive) and exdates (['YYYY-MM-DD'] skipped occurrences)
   parent_id     uuid references public.tasks(id) on delete cascade,  -- subtask of a project
   constraint no_self_parent check (parent_id <> id),
   is_project    boolean not null default false,     -- explicit project flag (also implied by having subtasks)
@@ -216,7 +226,12 @@ create table public.lists (
   id            uuid primary key default gen_random_uuid(),
   name          text not null,
   icon          text,                               -- emoji, e.g. 🛒
+  kind          text not null default 'standard'    -- 'standard' | 'grocery' (aisle-grouped); see groups.kind (0019)
+    check (kind in ('standard', 'grocery')),
   privacy_level privacy_level not null default 'family_shared',
+  due_date         date,                            -- optional "get it by" date; surfaces on Today (0016)
+  reminder_time    time,                            -- local HH:MM nudge; null = none (0016)
+  reminder_enabled boolean not null default false,  -- (0016)
   created_by    uuid default auth.uid(),
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
@@ -226,8 +241,13 @@ create table public.list_items (
   id          uuid primary key default gen_random_uuid(),
   list_id     uuid not null references public.lists(id) on delete cascade,
   text        text not null,
+  note        text,                                 -- optional detail line ("the oat one") (0015)
+  qty         text,                                 -- structured quantity ("2", "2 lbs", "a dozen") (0023)
+  category    text,                                 -- grocery aisle ("Produce"…); null = "Other" (0019)
+  is_heading  boolean not null default false,       -- standard-list section row, à la tasks.is_heading (0019)
   checked_at  timestamptz,                          -- null = not yet got/done
   sort_order  double precision,                     -- manual drag order (see tasks.sort_order)
+  assignee    uuid,                                 -- household_members FK; who's grabbing it, null = anyone (0023)
   created_by  uuid default auth.uid(),
   created_at  timestamptz not null default now()
 );
@@ -386,6 +406,7 @@ create index tasks_parent_idx on public.tasks (parent_id);
 create index task_completions_task_idx on public.task_completions (task_id, completed_at desc);
 create index task_links_task_idx on public.task_links (task_id);
 create index list_items_list_idx on public.list_items (list_id, created_at);
+create index lists_due_idx on public.lists (due_date) where due_date is not null;
 
 -- ------------------------------------------------------------
 -- Realtime (so edits sync live across devices)
@@ -442,6 +463,7 @@ create table public.household_members (
   user_id       uuid not null references auth.users(id) on delete cascade,
   display_name  text not null default '',
   role          text not null default 'member' check (role in ('owner', 'member')),
+  person_id     uuid references public.people(id) on delete set null,  -- this member's self contact card; its photo is the member's avatar (0025)
   joined_at     timestamptz not null default now(),
   unique (household_id, user_id)
 );
@@ -499,7 +521,7 @@ create policy "self leave or owner remove" on public.household_members
 -- Create a household and its owner membership atomically (RLS-safe).
 create or replace function public.create_household(household_name text default 'Our Household', member_name text default '')
 returns public.household_members language plpgsql security definer set search_path = public as $$
-declare h public.households; m public.household_members;
+declare h public.households; m public.household_members; pid uuid;
 begin
   if auth.uid() is null then raise exception 'Sign in first'; end if;
   insert into public.households (name, created_by)
@@ -508,6 +530,13 @@ begin
   insert into public.household_members (household_id, user_id, display_name, role)
   values (h.id, auth.uid(), coalesce(member_name, ''), 'owner')
   returning * into m;
+  -- Self contact card (see 0025): named from the display name ('Me' only as a
+  -- last resort so the card always has a name); 'shared' so co-members see it
+  -- and its photo becomes this member's avatar.
+  insert into public.people (household_id, name, created_by, privacy_level)
+  values (h.id, coalesce(nullif(member_name, ''), 'Me'), auth.uid(), 'shared')
+  returning id into pid;
+  update public.household_members set person_id = pid where id = m.id returning * into m;
   return m;
 end $$;
 
@@ -527,7 +556,7 @@ revoke execute on function public.create_household(text, text) from anon;
 --   drop policy if exists "authenticated full access" on public.people;
 --   create policy "household members" on public.people for all to authenticated
 --     using (public.is_member(household_id)
---            and (privacy_level <> 'marc_only' or created_by = auth.uid()))
+--            and (privacy_level <> 'private' or created_by = auth.uid()))  -- 'marc_only' before 0023
 --     with check (public.is_member(household_id));
 --
 -- Repeat for all data tables. The privacy clause (on tables that have
@@ -563,7 +592,7 @@ revoke execute on function public.create_household(text, text) from anon;
 -- same way (src/lib/joinCode.js).
 create or replace function public.join_household(code text, name text default '')
 returns public.household_members language plpgsql security definer set search_path = public as $$
-declare h public.households; m public.household_members;
+declare h public.households; m public.household_members; pid uuid;
 begin
   select * into h from public.households
    where upper(regexp_replace(join_code, '[^a-zA-Z0-9]', '', 'g'))
@@ -573,19 +602,76 @@ begin
   values (h.id, auth.uid(), coalesce(nullif(name,''), ''))
   on conflict (household_id, user_id) do update set display_name = excluded.display_name
   returning * into m;
+  -- First-time joiners get a self card (see 0025); a re-join keeps theirs
+  -- (person_id already set), so we never duplicate.
+  if m.person_id is null then
+    insert into public.people (household_id, name, created_by, privacy_level)
+    values (h.id, coalesce(nullif(name,''), 'Me'), auth.uid(), 'shared')
+    returning id into pid;
+    update public.household_members set person_id = pid where id = m.id returning * into m;
+  end if;
   return m;
 end $$;
 
 revoke execute on function public.join_household(text, text) from anon;
 
+-- Owner succession (added by 0020). After a member is removed, if the household
+-- still exists (not a cascade from deleting the household itself) and now has
+-- members but no owner, promote the longest-standing one — so the last owner
+-- leaving never strands the remaining members without anyone who can manage them.
+create or replace function public.promote_owner_on_leave()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from public.households where id = old.household_id) then
+    return old;  -- household gone already → cascade delete; nothing to promote
+  end if;
+  if not exists (
+    select 1 from public.household_members
+     where household_id = old.household_id and role = 'owner'
+  ) then
+    update public.household_members
+       set role = 'owner'
+     where id = (
+       select id from public.household_members
+        where household_id = old.household_id
+        order by joined_at, id
+        limit 1
+     );
+  end if;
+  return old;
+end $$;
+
+drop trigger if exists household_members_promote_owner on public.household_members;
+create trigger household_members_promote_owner
+  after delete on public.household_members
+  for each row execute function public.promote_owner_on_leave();
+
+-- Clean delete (added by 0020). Delete a household you're the SOLE member of —
+-- the honest "reset / start over". The on-delete cascades from 0001 take the
+-- membership row and every data table with it, so nothing is orphaned behind RLS.
+-- Guarded to one member so it can't nuke co-members' data; a multi-member
+-- household is left via a normal household_members row delete instead.
+create or replace function public.delete_household(hid uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare n integer;
+begin
+  if auth.uid() is null then raise exception 'Sign in first'; end if;
+  if not public.is_member(hid) then raise exception 'Not a member of this household'; end if;
+  select count(*) into n from public.household_members where household_id = hid;
+  if n > 1 then raise exception 'Household still has other members'; end if;
+  delete from public.households where id = hid;
+end $$;
+
+revoke execute on function public.delete_household(uuid) from anon;
+
 -- Member renames / joins sync live across devices (RLS filters events):
 alter publication supabase_realtime add table public.households;
 alter publication supabase_realtime add table public.household_members;
 
--- Pending (NOT yet done): the privacy_level enum value 'marc_only' is still
--- couple-specific and ideally renamed to a generic 'private' — the app and the
--- 0001 policies both still match 'marc_only', so rename both together if you do
--- it. Also consider a `profiles` table (user_id, default_household_id) to
+-- Done in 0023: the privacy_level enum value 'marc_only' was renamed to a
+-- generic 'private' (RENAME VALUE), and the four privacy-aware policies were
+-- recreated to match. The app reads 'private' via lib/privacy.js.
+-- Still pending: consider a `profiles` table (user_id, default_household_id) to
 -- remember the last-used household for the switcher across devices.
 
 
@@ -620,6 +706,7 @@ create table public.notification_prefs (
   id              uuid primary key default gen_random_uuid(),
   member_id       uuid not null unique references public.household_members(id) on delete cascade,
   tasks           boolean not null default true,
+  lists           boolean not null default true,  -- a list with a due date reaching today/overdue (added by 0021)
   nudges          boolean not null default true,
   dates           boolean not null default true,
   fyi             boolean not null default false,
@@ -725,9 +812,12 @@ alter publication supabase_realtime add table public.member_preferences;
 --     )
 --   $$);
 --
--- Skeleton: supabase/functions/send-reminders/index.ts. VAPID keys live in
--- function secrets (SUPABASE_VAPID_PUBLIC/PRIVATE), the public key is also
--- exposed to the client as VITE_VAPID_PUBLIC_KEY for subscribe().
+-- Implementation: supabase/functions/send-reminders/index.ts. Function secrets
+-- (set via `supabase secrets set`): VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY,
+-- VAPID_SUBJECT, TZ_NAME, and CRON_SECRET (the bearer the cron job sends; the
+-- function accepts it OR the service-role key). The public key is also exposed to
+-- the client as VITE_VAPID_PUBLIC_KEY for subscribe(); the private key lives ONLY
+-- in function secrets — never a VITE_ var (those ship to the browser).
 
 
 -- ============================================================
@@ -751,3 +841,107 @@ create policy "avatars household update" on storage.objects for update to authen
   with check (bucket_id = 'avatars' and public.is_member(((storage.foldername(name))[1])::uuid));
 create policy "avatars household delete" on storage.objects for delete to authenticated
   using (bucket_id = 'avatars' and public.is_member(((storage.foldername(name))[1])::uuid));
+
+
+-- ============================================================
+-- habits — personal habit tracking (see 0010)
+-- ============================================================
+-- Defined after the households / is_member section above because (unlike the
+-- pre-multitenancy tables) habits are household-scoped from birth. Polarity
+-- decides what a good day is (build/limit/track); membership = the day's logged
+-- value vs target, evaluated in src/lib/habits.js. Personal to member_id.
+create table public.habits (
+  id           uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  member_id    uuid not null references public.household_members(id) on delete cascade,
+  name         text not null,
+  polarity     text not null default 'build' check (polarity in ('build', 'limit', 'track')),
+  measure      text not null default 'count' check (measure in ('binary', 'count')),
+  unit         text,                              -- count habits: "drinks", "min", "glasses"
+  target       numeric,                           -- build: floor (>=); limit: ceiling (<=); track: none
+  track_streak boolean not null default true,     -- forced off for 'track' in the UI
+  active_days  smallint[] not null default '{}',  -- 0=Sun..6=Sat; empty = every day
+  weekly_target smallint,                          -- "N times per week, any day" (null = use active_days)
+  show_on_today boolean not null default false,   -- pinned to the Today dashboard card
+  reminder_time time,                              -- local HH:MM nudge; null = none
+  reminder_enabled boolean not null default false,
+  shared       boolean not null default false,     -- visible (read-only) to other household members
+  color        text,
+  icon         text,
+  sort_order   double precision,
+  archived_at  timestamptz,
+  deleted_at   timestamptz,
+  created_by   uuid default auth.uid(),
+  updated_by   uuid,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+create index habits_household_idx on public.habits (household_id);
+create index habits_member_idx on public.habits (member_id);
+
+-- one logged value per habit per day; the app upserts on (habit_id, date)
+create table public.habit_entries (
+  id           uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  habit_id     uuid not null references public.habits(id) on delete cascade,
+  date         date not null,
+  value        numeric not null default 0,
+  skipped      boolean not null default false,    -- one-off rest day; transparent to streaks
+  note         text,                              -- optional context for the day ("PR today")
+  created_by   uuid default auth.uid(),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  unique (habit_id, date)
+);
+create index habit_entries_household_idx on public.habit_entries (household_id);
+create index habit_entries_habit_idx on public.habit_entries (habit_id);
+
+create trigger habits_touch before update on public.habits
+  for each row execute function public.touch_updated_at();
+create trigger habit_entries_touch before update on public.habit_entries
+  for each row execute function public.touch_updated_at();
+create trigger habits_audit after insert or update or delete on public.habits
+  for each row execute function public.write_audit();
+create trigger habit_entries_audit after insert or update or delete on public.habit_entries
+  for each row execute function public.write_audit();
+
+alter table public.habits enable row level security;
+alter table public.habit_entries enable row level security;
+create policy "household members" on public.habits for all to authenticated
+  using (public.is_member(household_id)) with check (public.is_member(household_id));
+create policy "household members" on public.habit_entries for all to authenticated
+  using (public.is_member(household_id)) with check (public.is_member(household_id));
+
+-- ============================================================
+-- list_items.assignee FK + list_catalog (see 0023, 0024)
+-- ============================================================
+-- list_items.assignee (declared up in the table as a bare uuid, before the
+-- tenancy tables existed) becomes a real household_members reference here, the
+-- same way tasks.assignee does. null = "anyone".
+alter table public.list_items
+  add constraint list_items_assignee_fk
+  foreign key (assignee) references public.household_members(id) on delete set null;
+create index list_items_assignee_idx on public.list_items (assignee);
+
+-- Per-household catalog of items added to lists, powering add-as-you-type
+-- autocomplete. Durable across grocery-run clears; a derived frequency cache
+-- (kept out of the JSON backup); private-list items are never recorded (the app
+-- guards on privacy at write time, so a "marc_only" list can't leak names).
+create table public.list_catalog (
+  id           uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  text         text not null,                     -- display text, last casing used
+  norm         text not null,                     -- match/dedupe key (lowercased, trimmed)
+  category     text,                              -- last grocery aisle this item went to
+  use_count    integer not null default 1,
+  last_used_at timestamptz not null default now(),
+  created_at   timestamptz not null default now(),
+  unique (household_id, norm)
+);
+create index list_catalog_household_idx on public.list_catalog (household_id, use_count desc);
+
+alter table public.list_catalog enable row level security;
+create policy "household members" on public.list_catalog for all to authenticated
+  using (public.is_member(household_id)) with check (public.is_member(household_id));
+
+alter publication supabase_realtime add table public.list_catalog;

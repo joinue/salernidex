@@ -5,6 +5,7 @@ import {
   CheckSquare,
   List,
   Plus,
+  Activity,
   Share2,
   Briefcase,
   UserPlus,
@@ -13,12 +14,22 @@ import {
 import Sheet from './Sheet'
 import { useLongPress } from '../hooks/useLongPress'
 
-// Bottom bar: Today · People · ➕ · Tasks · Lists. The center ➕ is page-aware —
-// a tap creates the obvious thing for the current tab; a long-press opens the
-// full add menu so you can cross-create from anywhere. "More" lives in the
-// Today header now, not the bar.
+// Bottom bar: Today · People · Habits · Tasks · Lists, with a floating ➕ above
+// the pill. The FAB is page-aware — a tap creates the obvious thing for the
+// current tab; a long-press opens the full add menu so you can cross-create
+// from anywhere. (The ➕ used to sit in the bar's center, but adding Habits
+// needed that slot, so it floats now.)
 export default function MobileNav({ active, adds, badge = 0 }) {
-  const { go, onAddPerson, onAddTask, onAddList, onAddOrg, onAddGroup, onAddRelationship } = adds
+  const {
+    go,
+    onAddPerson,
+    onAddTask,
+    onAddList,
+    onAddHabit,
+    onAddOrg,
+    onAddGroup,
+    onAddRelationship,
+  } = adds
   const [sheet, setSheet] = useState(false)
   const close = () => setSheet(false)
   const pick = (fn) => () => {
@@ -31,6 +42,7 @@ export default function MobileNav({ active, adds, badge = 0 }) {
     people: onAddPerson,
     tasks: onAddTask,
     lists: onAddList,
+    habits: onAddHabit,
     orgs: onAddOrg,
     groups: onAddGroup,
     relationships: onAddRelationship,
@@ -51,14 +63,14 @@ export default function MobileNav({ active, adds, badge = 0 }) {
 
   return (
     <>
+      <button className="fab" onClick={onFab} aria-label="Add" {...longPress}>
+        <Plus size={26} />
+      </button>
+
       <nav className="tabbar">
         <Tab id="today" icon={Home} text="Today" count={badge} />
         <Tab id="people" icon={PeopleIcon} text="People" />
-        <button className="tab-add" onClick={onFab} aria-label="Add" {...longPress}>
-          <span className="add-circle">
-            <Plus size={24} />
-          </span>
-        </button>
+        <Tab id="habits" icon={Activity} text="Habits" />
         <Tab id="tasks" icon={CheckSquare} text="Tasks" />
         <Tab id="lists" icon={List} text="Lists" />
       </nav>
@@ -73,6 +85,9 @@ export default function MobileNav({ active, adds, badge = 0 }) {
           </button>
           <button className="sheet-item" onClick={pick(onAddList)}>
             <List size={20} /> List
+          </button>
+          <button className="sheet-item" onClick={pick(onAddHabit)}>
+            <Activity size={20} /> Habit
           </button>
           <button className="sheet-item" onClick={pick(onAddOrg)}>
             <Briefcase size={20} /> Organization

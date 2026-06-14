@@ -3,6 +3,8 @@
 // offers "Create New Contact" straight from Files/Mail/AirDrop; the import side
 // reads a .vcf the user exports from their phone to seed the rolodex.
 import { formatAddress } from './address'
+import { socialUrl, labelToVcardType } from './contactChannels'
+import { SOCIAL_BY_ID } from './constants'
 
 // Escape per RFC 2426: backslash, newlines, commas, semicolons.
 function esc(value) {
@@ -42,7 +44,17 @@ export function personToVcard(person, orgsById) {
   if (orgName) lines.push(`ORG:${esc(orgName)}`)
   if (person.role) lines.push(`TITLE:${esc(person.role)}`)
   if (person.email) lines.push(`EMAIL;TYPE=INTERNET:${esc(person.email)}`)
+  for (const em of person.emails || []) {
+    if (em?.value) lines.push(`EMAIL;TYPE=${labelToVcardType(em.label)}:${esc(em.value)}`)
+  }
   if (person.phone) lines.push(`TEL;TYPE=CELL:${esc(person.phone)}`)
+  for (const tel of person.phones || []) {
+    if (tel?.value) lines.push(`TEL;TYPE=${labelToVcardType(tel.label)}:${esc(tel.value)}`)
+  }
+  for (const s of person.socials || []) {
+    const url = socialUrl(s)
+    if (url) lines.push(`URL;TYPE=${(s.platform || 'other').toUpperCase()}:${esc(url)}`)
+  }
   if (person.birthday) lines.push(`BDAY:${person.birthday}`)
   if (person.address) lines.push(`ADR;TYPE=HOME:;;${esc(person.address)};;;;`)
   if ((person.tags || []).length) lines.push(`CATEGORIES:${person.tags.map(esc).join(',')}`)
@@ -136,9 +148,43 @@ function normalizeBday(value) {
   return null
 }
 
+// Collect a property's TYPE tokens, whether written as `TYPE=WORK` (one param)
+// or bare `WORK` (a valueless param), upper-cased and split on commas.
+function typeTokens(params) {
+  const toks = []
+  for (const [k, v] of Object.entries(params)) {
+    if (k === 'TYPE') toks.push(...String(v).toUpperCase().split(','))
+    else if (v === true) toks.push(k.toUpperCase())
+  }
+  return toks
+}
+
+// TYPE tokens → an email/phone label we offer in the editor.
+function typeToLabel(params) {
+  const toks = typeTokens(params)
+  if (toks.includes('CELL') || toks.includes('MOBILE')) return 'Mobile'
+  if (toks.includes('WORK')) return 'Work'
+  if (toks.includes('HOME')) return 'Home'
+  return 'Other'
+}
+
+// TYPE tokens (or the URL host) → a known social platform id, else 'website'.
+function typeToPlatform(params, value) {
+  const toks = typeTokens(params).map((t) => t.toLowerCase())
+  const known = toks.find((t) => SOCIAL_BY_ID[t])
+  if (known) return known
+  const v = (value || '').toLowerCase()
+  for (const id of Object.keys(SOCIAL_BY_ID)) {
+    if (id !== 'website' && id !== 'other' && v.includes(`${id}.com`)) return id
+  }
+  if (v.includes('twitter.com')) return 'x'
+  return 'website'
+}
+
 function cardToRecord(propLines) {
   const props = propLines.map(parseLine).filter(Boolean)
   const first = (n) => props.find((p) => p.name === n)
+  const all = (n) => props.filter((p) => p.name === n)
   const rec = {}
 
   const fn = first('FN')
@@ -159,10 +205,29 @@ function cardToRecord(propLines) {
   if (org) rec.organization = (splitOn(org.value, ';').map(unescapeVcf)[0] || '').trim()
   const title = first('TITLE')
   if (title) rec.role = unescapeVcf(title.value).trim()
-  const email = first('EMAIL')
-  if (email) rec.email = unescapeVcf(email.value).trim()
-  const tel = first('TEL')
-  if (tel) rec.phone = unescapeVcf(tel.value).trim()
+  // First email/phone become the primary scalar (where search + dedupe live);
+  // the rest land in the labeled arrays.
+  const emails = all('EMAIL')
+    .map((e) => ({ label: typeToLabel(e.params), value: unescapeVcf(e.value).trim() }))
+    .filter((e) => e.value)
+  if (emails.length) {
+    rec.email = emails[0].value
+    if (emails.length > 1) rec.emails = emails.slice(1)
+  }
+  const tels = all('TEL')
+    .map((t) => ({ label: typeToLabel(t.params), value: unescapeVcf(t.value).trim() }))
+    .filter((t) => t.value)
+  if (tels.length) {
+    rec.phone = tels[0].value
+    if (tels.length > 1) rec.phones = tels.slice(1)
+  }
+  const socials = [...all('URL'), ...all('X-SOCIALPROFILE')]
+    .map((u) => {
+      const value = unescapeVcf(u.value).trim()
+      return { platform: typeToPlatform(u.params, value), value }
+    })
+    .filter((s) => s.value)
+  if (socials.length) rec.socials = socials
 
   const bday = first('BDAY')
   if (bday) {

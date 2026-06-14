@@ -1,10 +1,11 @@
-// "Private — only me" enforcement. Rows whose privacy_level is 'marc_only'
-// (renamed to 'private' at the go-live migration) are visible ONLY to their
-// creator. Enforced once here at the data layer — every view, export, badge,
-// and reminder inherits it — and again at the database by the go-live RLS
-// policies in supabase/schema.sql. The full JSON backup deliberately bypasses
-// this (your own backup must be lossless), via the all* arrays in useData.
-export const PRIVATE_LEVEL = 'marc_only'
+// "Private — only me" enforcement. Rows whose privacy_level is 'private'
+// (renamed from the legacy 'marc_only' in migration 0023) are visible ONLY to
+// their creator. Enforced once here at the data layer — every view, export,
+// badge, and reminder inherits it — and again at the database by the RLS
+// policies in supabase/migrations/0023. The full JSON backup deliberately
+// bypasses this (your own backup must be lossless), via the all* arrays in
+// useData.
+export const PRIVATE_LEVEL = 'private'
 
 // `userId` is the auth user id (auth.uid()), NOT the household_member id —
 // created_by defaults to auth.uid(), so the "is this mine?" test compares

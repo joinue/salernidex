@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Segmented from './Segmented'
-import { WEEKDAYS_MIN, WEEKDAYS_SHORT, SETPOS_LABEL } from '../lib/recurrence'
+import { WEEKDAYS_MIN, WEEKDAYS_SHORT, SETPOS_LABEL, nextOccurrence } from '../lib/recurrence'
 import { isoDateIn } from '../lib/tasks'
 
 const FREQS = [
@@ -34,35 +34,48 @@ export default function RecurrencePicker({ value, dueDate, onChange }) {
     monthday: value?.monthday || ref.d,
     setpos: value?.setpos || 1,
     weekday: value?.weekday ?? refDow,
+    until: value?.until || '',
+    // skips are managed elsewhere (the "Skip this one" action), but carry them
+    // through so editing the rule here doesn't drop them.
+    exdates: value?.exdates || null,
   }))
 
   const build = (st) => {
     const anchor = refIso
+    let rule
     switch (st.freq) {
       case 'daily':
-        return { freq: 'daily', interval: st.interval, anchor }
+        rule = { freq: 'daily', interval: st.interval, anchor }
+        break
       case 'weekly':
-        return {
+        rule = {
           freq: 'weekly',
           interval: st.interval,
           weekdays: st.weekdays.length ? st.weekdays : [refDow],
           anchor,
         }
+        break
       case 'monthly':
-        return st.monthlyMode === 'weekday'
-          ? {
-              freq: 'monthly',
-              interval: st.interval,
-              setpos: st.setpos,
-              weekday: st.weekday,
-              anchor,
-            }
-          : { freq: 'monthly', interval: st.interval, monthday: st.monthday, anchor }
+        rule =
+          st.monthlyMode === 'weekday'
+            ? {
+                freq: 'monthly',
+                interval: st.interval,
+                setpos: st.setpos,
+                weekday: st.weekday,
+                anchor,
+              }
+            : { freq: 'monthly', interval: st.interval, monthday: st.monthday, anchor }
+        break
       case 'yearly':
-        return { freq: 'yearly', interval: st.interval, month: ref.m, monthday: ref.d, anchor }
+        rule = { freq: 'yearly', interval: st.interval, month: ref.m, monthday: ref.d, anchor }
+        break
       default:
         return null
     }
+    if (st.until) rule.until = st.until
+    if (st.exdates?.length) rule.exdates = st.exdates
+    return rule
   }
 
   const update = (patch) => {
@@ -70,6 +83,14 @@ export default function RecurrencePicker({ value, dueDate, onChange }) {
     setS(st)
     onChange(build(st))
   }
+
+  // First date the rule would land on (ignoring the end date) — used to floor the
+  // "Ends" picker and to flag an end date set before the series even starts.
+  const rule = s.freq !== 'never' ? build(s) : null
+  const firstOcc = rule
+    ? nextOccurrence({ ...rule, until: undefined }, refIso, { inclusive: true })
+    : null
+  const endsTooEarly = !!(s.until && firstOcc && s.until < firstOcc)
 
   const toggleWeekday = (w) => {
     const set = new Set(s.weekdays)
@@ -193,6 +214,36 @@ export default function RecurrencePicker({ value, dueDate, onChange }) {
         <div className="rec-row muted" style={{ fontSize: 14 }}>
           On {MONTHS[ref.m]} {ref.d} each year
         </div>
+      )}
+
+      {s.freq !== 'never' && (
+        <>
+          <div className="rec-row">
+            <span>Ends</span>
+            <input
+              type="date"
+              className="rec-select inline"
+              value={s.until}
+              min={firstOcc || refIso}
+              onChange={(e) => update({ until: e.target.value })}
+              aria-label="End date (optional)"
+            />
+            {s.until ? (
+              <button type="button" className="text-btn" onClick={() => update({ until: '' })}>
+                Clear
+              </button>
+            ) : (
+              <span className="muted" style={{ fontSize: 13 }}>
+                never
+              </span>
+            )}
+          </div>
+          {endsTooEarly && (
+            <div className="rec-row error-text" style={{ fontSize: 13 }}>
+              Ends before the first occurrence — this won’t repeat.
+            </div>
+          )}
+        </>
       )}
     </div>
   )

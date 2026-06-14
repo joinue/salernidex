@@ -1,5 +1,5 @@
-import { Check, Repeat } from 'react-feather'
-import { dueLabel, dueState } from '../lib/tasks'
+import { Check, Repeat, Flag, Clock } from 'react-feather'
+import { dueLabel, dueState, priorityLabel, startLabel } from '../lib/tasks'
 import { describeRecurrence } from '../lib/recurrence'
 import { assigneeLabel, normalizeAssignee } from '../lib/household'
 import SharedDot from './SharedDot'
@@ -9,9 +9,12 @@ import SharedDot from './SharedDot'
 // own tap (expand/open). `size="sm"` is used for subtasks.
 export default function TaskRow({ task, onToggle, size = 'md', progress, hideAssignee = false }) {
   const done = !!task.completed_at
-  const dl = dueLabel(task.due_date)
+  const dl = dueLabel(task.due_date, task.due_time)
   const ds = dueState(task.due_date)
   const showAssignee = !hideAssignee && normalizeAssignee(task.assignee) !== 'anyone'
+  const prio = task.priority || 0
+  const starts = startLabel(task) // "Starts Jun 20" while deferred, else null
+  const tags = task.tags || []
 
   return (
     <>
@@ -32,15 +35,37 @@ export default function TaskRow({ task, onToggle, size = 'md', progress, hideAss
           </div>
           <SharedDot item={task} />
         </div>
-        {(showAssignee || dl || task.recurrence || progress || task.area) && (
+        {(showAssignee ||
+          dl ||
+          task.recurrence ||
+          progress ||
+          task.area ||
+          prio > 0 ||
+          starts ||
+          tags.length > 0) && (
           <div className="task-meta">
+            {prio > 0 && (
+              <span className={`chip prio prio-${prio}`} title={`${priorityLabel(prio)} priority`}>
+                <Flag size={11} />
+              </span>
+            )}
             {task.area && <span className="chip area">{task.area}</span>}
+            {tags.map((t) => (
+              <span className="chip tag" key={t}>
+                {t}
+              </span>
+            ))}
             {progress && (
               <span className="chip">
                 {progress.done}/{progress.total}
               </span>
             )}
             {showAssignee && <span className="chip">{assigneeLabel(task.assignee)}</span>}
+            {starts && (
+              <span className="chip starts" title="Deferred — hidden from Today until then">
+                <Clock size={11} /> {starts}
+              </span>
+            )}
             {dl && <span className={`chip due-${ds}`}>{dl}</span>}
             {task.recurrence ? (
               <span className="chip" title={describeRecurrence(task.recurrence)}>

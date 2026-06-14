@@ -23,14 +23,34 @@ export function daysUntilDue(dateStr) {
   return Math.round((parseLocal(dateStr) - todayLocal()) / 86400000)
 }
 
-export function dueLabel(dateStr) {
+// Compact local time label: '15:00' → '3 PM', '09:30' → '9:30 AM'. The :00 is
+// dropped on the hour to keep chips short (design law: space-efficient). Accepts
+// 'HH:MM' or 'HH:MM:SS'; null/'' → null.
+export function timeLabel(timeStr) {
+  if (!timeStr) return null
+  const [h, m] = timeStr.split(':').map(Number)
+  const ampm = h < 12 ? 'AM' : 'PM'
+  const h12 = h % 12 || 12
+  return m ? `${h12}:${String(m).padStart(2, '0')} ${ampm}` : `${h12} ${ampm}`
+}
+
+// The due chip's text: relative date, with the time appended when the task is
+// timed ("Today, 3 PM" / "2d overdue, 8 AM"). timeStr is ignored without a date.
+export function dueLabel(dateStr, timeStr = null) {
   const d = daysUntilDue(dateStr)
   if (d === null) return null
-  if (d < 0) return `${-d}d overdue`
-  if (d === 0) return 'Today'
-  if (d === 1) return 'Tomorrow'
-  if (d < 7) return `in ${d}d`
-  return parseLocal(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const date =
+    d < 0
+      ? `${-d}d overdue`
+      : d === 0
+        ? 'Today'
+        : d === 1
+          ? 'Tomorrow'
+          : d < 7
+            ? `in ${d}d`
+            : parseLocal(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const time = timeLabel(timeStr)
+  return time ? `${date}, ${time}` : date
 }
 
 // 'overdue' | 'today' | 'tomorrow' | 'upcoming' | 'none'
@@ -43,8 +63,23 @@ export function dueState(dateStr) {
   return 'upcoming'
 }
 
-// Section bucket for an open top-level task.
+// A task is deferred while its start date is still in the future — it's parked
+// until then (hidden from Today + the sender, parked under Upcoming).
+export function isDeferred(task) {
+  const d = daysUntilDue(task.start_date)
+  return d !== null && d > 0
+}
+
+// "Starts Tomorrow" / "Starts in 3d" / "Starts Jun 20" — only meaningful while
+// the task is still deferred. Returns null otherwise.
+export function startLabel(task) {
+  return isDeferred(task) ? `Starts ${dueLabel(task.start_date)}` : null
+}
+
+// Section bucket for an open top-level task. A deferred task waits under Upcoming
+// regardless of its due date — you asked not to see it yet.
 export function taskBucket(task) {
+  if (isDeferred(task)) return 'upcoming'
   const s = dueState(task.due_date)
   if (s === 'overdue') return 'overdue'
   if (s === 'today') return 'today'
@@ -52,12 +87,38 @@ export function taskBucket(task) {
   return 'upcoming'
 }
 
+// Priority levels (match Apple Reminders): 0 none · 1 low · 2 medium · 3 high.
+// PRIORITY_OPTIONS is ascending for the form's segmented picker.
+export const PRIORITY_OPTIONS = [
+  { value: 0, label: 'None' },
+  { value: 1, label: 'Low' },
+  { value: 2, label: 'Med' },
+  { value: 3, label: 'High' },
+]
+const PRIORITY_LABELS = { 1: 'Low', 2: 'Medium', 3: 'High' }
+export function priorityLabel(p) {
+  return PRIORITY_LABELS[p] || 'None'
+}
+
 // Soonest-due-first comparator: overdue and near dates float up, undated tasks
 // sink to the bottom. ISO 'YYYY-MM-DD' strings sort correctly as plain strings.
+// Ties on the same date order by time (all-day first, then earliest), then by
+// higher priority, then by creation order — so this is also the priority sort on
+// surfaces that don't carry the Tasks page's manual order (Today, linked tasks).
 export function byDue(a, b) {
   const ad = a.due_date || '9999-99-99'
   const bd = b.due_date || '9999-99-99'
   if (ad !== bd) return ad < bd ? -1 : 1
+  const at = a.due_time || ''
+  const bt = b.due_time || ''
+  if (at !== bt) {
+    if (!at) return -1 // all-day sorts to the top of the day
+    if (!bt) return 1
+    return at < bt ? -1 : 1
+  }
+  const ap = a.priority || 0
+  const bp = b.priority || 0
+  if (ap !== bp) return bp - ap // higher priority first
   return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0
 }
 
@@ -70,6 +131,14 @@ export function areaNames(tasks) {
     const a = (t.area || '').trim()
     if (a) seen.add(a)
   }
+  return [...seen].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+}
+
+// Distinct tags in use across the given tasks, alphabetical — feeds the form's
+// tag autocomplete and the Tasks-page tag filter (keeps tags from fragmenting).
+export function taskTags(tasks) {
+  const seen = new Set()
+  for (const t of tasks) for (const tag of t.tags || []) if (tag) seen.add(tag)
   return [...seen].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
 }
 
@@ -119,11 +188,27 @@ export function linkedTasksFor(entityType, entityId, tasks, taskLinks) {
 
 // On completing a recurring chore, roll its due date forward to the next
 // scheduled occurrence (calendar-anchored) instead of closing it. One-offs just
-// get a completed timestamp.
+// get a completed timestamp. When the series has ended (an `until` date passed,
+// or every remaining occurrence is skipped) nextOccurrence returns null and the
+// task closes like a one-off.
 export function completionFields(task, done) {
   if (done && task.recurrence) {
     const next = nextOccurrence(task.recurrence, isoDateIn(0))
     if (next) return { due_date: next, completed_at: null }
   }
   return { completed_at: done ? new Date().toISOString() : null }
+}
+
+// "Skip this one": drop the current occurrence from a recurring task without
+// logging it as done. Records the skipped date in the rule's exdates and rolls
+// the due date to the next occurrence after it (honoring exdates + until). If
+// nothing remains, the task closes. Returns null for non-recurring/undated tasks.
+export function skipFields(task) {
+  if (!task.recurrence || !task.due_date) return null
+  const exdates = [...new Set([...(task.recurrence.exdates || []), task.due_date])]
+  const recurrence = { ...task.recurrence, exdates }
+  const next = nextOccurrence(recurrence, task.due_date)
+  return next
+    ? { recurrence, due_date: next, completed_at: null }
+    : { recurrence, completed_at: new Date().toISOString() }
 }

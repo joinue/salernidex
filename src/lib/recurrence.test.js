@@ -107,6 +107,44 @@ describe('nextOccurrence — yearly', () => {
   })
 })
 
+describe('nextOccurrence — until (end date)', () => {
+  const rule = (until) => ({
+    freq: 'weekly',
+    interval: 1,
+    weekdays: [1],
+    anchor: '2026-06-15',
+    until,
+  })
+  it('returns an occurrence on or before until', () => {
+    expect(nextOccurrence(rule('2026-06-30'), '2026-06-15')).toBe('2026-06-22')
+  })
+  it('treats until as inclusive', () => {
+    // next Monday after 6-15 is 6-22; until exactly 6-22 still allows it
+    expect(nextOccurrence(rule('2026-06-22'), '2026-06-15')).toBe('2026-06-22')
+  })
+  it('returns null once the series has ended', () => {
+    expect(nextOccurrence(rule('2026-06-20'), '2026-06-15')).toBeNull()
+  })
+})
+
+describe('nextOccurrence — exdates (skips)', () => {
+  it('skips an excluded occurrence and returns the next', () => {
+    const rule = {
+      freq: 'weekly',
+      interval: 1,
+      weekdays: [1],
+      anchor: '2026-06-15',
+      exdates: ['2026-06-22'],
+    }
+    // from 6-15 exclusive: 6-22 is skipped → 6-29
+    expect(nextOccurrence(rule, '2026-06-15')).toBe('2026-06-29')
+  })
+  it('an inclusive match that is excluded rolls to the next', () => {
+    const rule = { freq: 'daily', interval: 1, anchor: '2026-06-12', exdates: ['2026-06-12'] }
+    expect(nextOccurrence(rule, '2026-06-12', { inclusive: true })).toBe('2026-06-13')
+  })
+})
+
 describe('nextOccurrence — safety', () => {
   it('returns null (not a hang) for an empty rule', () => {
     expect(nextOccurrence(null, '2026-06-12')).toBeNull()
@@ -136,5 +174,10 @@ describe('describeRecurrence', () => {
     expect(describeRecurrence({ freq: 'monthly', interval: 1, monthday: 20 })).toBe(
       'Monthly on the 20th',
     )
+  })
+  it('appends an end date when until is set', () => {
+    expect(
+      describeRecurrence({ freq: 'weekly', interval: 1, weekdays: [1], until: '2026-08-31' }),
+    ).toBe('Every Mon, until Aug 31, 2026')
   })
 })

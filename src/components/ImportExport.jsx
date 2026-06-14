@@ -19,7 +19,11 @@ import { findDuplicates } from '../lib/duplicates'
 // v7: people reference orgs by organization_id (was the free-text `organization`
 //     name). Restoring a v<=6 backup find-or-creates orgs from the old string
 //     (see useData.restoreBackup).
-const BACKUP_VERSION = 7
+// v8: adds habits + habit_entries (personal habit tracking). Additive — older
+//     backups simply restore without them.
+// v9: privacy level 'marc_only' renamed to 'private' (migration 0023). Older
+//     backups restore fine — useData.restoreBackup maps the old label across.
+const BACKUP_VERSION = 9
 
 const SCHEMA_FIELDS = [
   '',
@@ -28,6 +32,9 @@ const SCHEMA_FIELDS = [
   'role',
   'email',
   'phone',
+  'additional_emails',
+  'additional_phones',
+  'socials',
   'birthday',
   'address',
   'tier',
@@ -35,12 +42,47 @@ const SCHEMA_FIELDS = [
   'notes',
 ]
 
+// Friendlier labels for the column-mapping dropdown; falls back to the raw
+// field name for anything not listed.
+const FIELD_LABELS = {
+  additional_emails: 'more emails',
+  additional_phones: 'more phones',
+  socials: 'social profiles',
+}
+
+// CSV holds one row per person, so the labeled multi-value channels (extra
+// emails/phones, socials) are packed as "label: value; label: value" — the same
+// human-readable, spreadsheet-friendly convention `tags` uses. These pack/parse
+// helpers keep a CSV round-trip lossless.
+const packChannels = (items, field) =>
+  (items || []).map((it) => `${it[field]}: ${it.value}`).join('; ')
+
+const parseChannels = (value, field, fallback) =>
+  String(value)
+    .split(';')
+    .map((part) => {
+      const t = part.trim()
+      if (!t) return null
+      const idx = t.indexOf(':')
+      if (idx === -1) return { [field]: fallback, value: t }
+      return { [field]: t.slice(0, idx).trim() || fallback, value: t.slice(idx + 1).trim() }
+    })
+    .filter((x) => x && x.value)
+
 // Auto-map CSV headers to schema fields by loose name match
 function guessField(header) {
   const h = header.toLowerCase().replace(/[^a-z]/g, '')
   if (h.includes('name')) return 'name'
   if (h.includes('org') || h.includes('company')) return 'organization'
   if (h.includes('role') || h.includes('title') || h.includes('position')) return 'role'
+  // Check the "additional"/social columns before the generic email/phone match,
+  // since "additionalemails" also contains "email".
+  if (h.includes('additionalemail') || h.includes('moreemail') || h.includes('otheremail'))
+    return 'additional_emails'
+  if (h.includes('additionalphone') || h.includes('morephone') || h.includes('otherphone'))
+    return 'additional_phones'
+  if (h.includes('social') || h.includes('linkedin') || h.includes('instagram') || h === 'urls')
+    return 'socials'
   if (h.includes('email') || h.includes('mail')) return 'email'
   if (h.includes('phone') || h.includes('mobile') || h.includes('cell')) return 'phone'
   if (h.includes('birth') || h.includes('bday') || h === 'dob') return 'birthday'
@@ -81,7 +123,7 @@ export default function ImportExport({ data }) {
   // Backup is lossless on purpose: it uses the unfiltered all* arrays, so
   // "Private — only me" rows survive the round-trip. CSV/vCard exports use
   // the filtered arrays above — they only ever contain what YOU can see.
-  const { allPeople, allOrgs, allTasks, allLists, allListItems } = data
+  const { allPeople, allOrgs, allTasks, allLists, allListItems, allHabits, allHabitEntries } = data
   const csvRef = useRef(null)
   const jsonRef = useRef(null)
   const vcfRef = useRef(null)
@@ -115,6 +157,8 @@ export default function ImportExport({ data }) {
       lists: allLists,
       list_items: allListItems,
       reminder_snoozes: reminderSnoozes,
+      habits: allHabits,
+      habit_entries: allHabitEntries,
       settings: {
         members: memberNames(),
         notifications: getAllPrefs(),
@@ -157,6 +201,8 @@ export default function ImportExport({ data }) {
         'lists',
         'list_items',
         'reminder_snoozes',
+        'habits',
+        'habit_entries',
       ]
         .map((k) => (backup[k] || []).length)
         .reduce((a, b) => a + b, 0)
@@ -201,6 +247,9 @@ export default function ImportExport({ data }) {
         role: csvSafe(p.role || ''),
         email: csvSafe(p.email || ''),
         phone: csvSafe(p.phone || ''),
+        additional_emails: csvSafe(packChannels(p.emails, 'label')),
+        additional_phones: csvSafe(packChannels(p.phones, 'label')),
+        socials: csvSafe(packChannels(p.socials, 'platform')),
         birthday: p.birthday || '',
         address: csvSafe(p.address || ''),
         tier: p.tier || '',
@@ -246,13 +295,20 @@ export default function ImportExport({ data }) {
           if (!field) continue
           const value = (row[header] || '').trim()
           if (!value) continue
-          rec[field] =
-            field === 'tags'
-              ? value
-                  .split(/[;,]/)
-                  .map((t) => t.trim())
-                  .filter(Boolean)
-              : value
+          if (field === 'tags') {
+            rec.tags = value
+              .split(/[;,]/)
+              .map((t) => t.trim())
+              .filter(Boolean)
+          } else if (field === 'additional_emails') {
+            rec.emails = parseChannels(value, 'label', 'Other')
+          } else if (field === 'additional_phones') {
+            rec.phones = parseChannels(value, 'label', 'Other')
+          } else if (field === 'socials') {
+            rec.socials = parseChannels(value, 'platform', 'other')
+          } else {
+            rec[field] = value
+          }
         }
         return rec
       })
@@ -464,7 +520,7 @@ export default function ImportExport({ data }) {
                 >
                   {SCHEMA_FIELDS.map((f) => (
                     <option key={f} value={f}>
-                      {f || 'skip'}
+                      {FIELD_LABELS[f] || f || 'skip'}
                     </option>
                   ))}
                 </select>

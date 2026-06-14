@@ -54,7 +54,9 @@ export function useHousehold(session) {
         .single(),
       supabase
         .from('household_members')
-        .select('id, user_id, display_name, role')
+        // Embed the linked self contact card so each member carries its photo
+        // (one many-to-one FK: household_members.person_id → people).
+        .select('id, user_id, display_name, role, person_id, self:people(avatar_url)')
         .eq('household_id', active.household_id)
         .order('joined_at'),
     ])
@@ -64,6 +66,8 @@ export function useHousehold(session) {
       name: m.display_name || 'Member',
       user_id: m.user_id,
       role: m.role,
+      person_id: m.person_id || null,
+      avatar_url: m.self?.avatar_url || null,
     }))
 
     setLocalHousehold(hh)
@@ -75,7 +79,12 @@ export function useHousehold(session) {
       id: hh.id,
       name: hh.name,
       join_code: hh.join_code,
-      members: memberRows.map((m) => ({ id: m.id, name: m.name })),
+      members: memberRows.map((m) => ({
+        id: m.id,
+        name: m.name,
+        avatar_url: m.avatar_url,
+        person_id: m.person_id,
+      })),
       current_member_id: active.id,
     })
     setStatus('ready')
@@ -120,6 +129,37 @@ export function useHousehold(session) {
     await load()
   }
 
+  // The current member's self contact card, if linked yet. New members get one
+  // from the create/join RPCs; existing (pre-0025) members link lazily below.
+  const personId = members.find((m) => m.id === memberId)?.person_id || null
+
+  // Make sure I have a self contact card and return its id. New members already
+  // have one (RPC-created); this only fires for existing members who predate the
+  // link, the first time they add a photo.
+  const ensureSelfPerson = async () => {
+    if (personId) return personId
+    if (!hid) return null
+    const meRow = members.find((m) => m.id === memberId)
+    const { data, error } = await supabase
+      .from('people')
+      .insert({ household_id: hid, name: meRow?.name || 'Me', privacy_level: 'shared' })
+      .select('id')
+      .single()
+    if (error) throw error
+    await supabase.from('household_members').update({ person_id: data.id }).eq('id', memberId)
+    await load()
+    return data.id
+  }
+
+  // Set my avatar = the photo on my self card (creating/linking the card first
+  // if needed). `url` is an avatars Storage path from AvatarUpload.
+  const setMyAvatar = async (url) => {
+    const pid = await ensureSelfPerson()
+    if (!pid) return
+    await supabase.from('people').update({ avatar_url: url }).eq('id', pid)
+    await load()
+  }
+
   // Remove a member (owner removes others; anyone can remove themselves = leave).
   const removeMember = async (id) => {
     await supabase.from('household_members').delete().eq('id', id)
@@ -140,7 +180,23 @@ export function useHousehold(session) {
     return code
   }
 
-  const leave = () => removeMember(memberId)
+  // Delete the whole household (the sole-member "start over"). The RPC cascades
+  // the membership row + every data table, so nothing is orphaned behind RLS.
+  // Then forget the active id and re-evaluate → onboarding (or another household
+  // if you somehow still have one).
+  const deleteHousehold = async () => {
+    if (!hid) return
+    const { error } = await supabase.rpc('delete_household', { hid })
+    if (error) throw error
+    localStorage.removeItem(ACTIVE_HOUSEHOLD_KEY)
+    setStatus('loading')
+    await load()
+  }
+
+  // Leave the active household. As the sole member, a bare membership delete
+  // would orphan the household + its data, so delete it cleanly instead. With
+  // co-members it's a plain leave — they keep everything and you can re-join.
+  const leave = () => (members.length <= 1 ? deleteHousehold() : removeMember(memberId))
 
   return {
     status,
@@ -149,12 +205,16 @@ export function useHousehold(session) {
     memberships,
     householdId: household?.id || null,
     memberId,
+    personId,
+    ensureSelfPerson,
+    setMyAvatar,
     refresh: load,
     switchHousehold,
     setName,
     renameMember,
     removeMember,
     regenerateCode,
+    deleteHousehold,
     leave,
   }
 }

@@ -128,7 +128,14 @@ function comingWeekday(base, target) {
 
 export function parseTaskInput(text, { today, members = [] } = {}) {
   const original = (text || '').trim()
-  const out = { title: original, due_date: null, recurrence: null, assignee: null, tokens: [] }
+  const out = {
+    title: original,
+    due_date: null,
+    due_time: null,
+    recurrence: null,
+    assignee: null,
+    tokens: [],
+  }
   if (!original) return out
 
   const base = today
@@ -329,6 +336,19 @@ export function parseTaskInput(text, { today, members = [] } = {}) {
     set(comingWeekday(base, WEEKDAYS[m[1].toLowerCase()]))
   }
 
+  // ---- time of day: "at 3pm", "at 3:30pm", "at 15:00" ----
+  // Requires am/pm or a colon, so "at the 1st", "buy 2 apples", "at home" never
+  // read as a time. A time without a date is left for TaskForm to pin to today.
+  let dueTime = null
+  let timeText = ''
+  if ((m = take(/\bat\s+(\d{1,2}):(\d{2})\s*(am|pm)?\b/i))) {
+    dueTime = to24(+m[1], +m[2], m[3])
+    timeText = m[0].trim()
+  } else if ((m = take(/\bat\s+(\d{1,2})\s*(am|pm)\b/i))) {
+    dueTime = to24(+m[1], 0, m[2])
+    timeText = m[0].trim()
+  }
+
   // ---- assignee: "@name" or "for <member>", only if it matches a member ----
   const matchMember = (word) => {
     const w = word.toLowerCase()
@@ -365,6 +385,10 @@ export function parseTaskInput(text, { today, members = [] } = {}) {
     out.due_date = due
     out.tokens.push({ type: 'due', label: formatDue(due, todayISO), text: dueText })
   }
+  if (dueTime) {
+    out.due_time = dueTime
+    out.tokens.push({ type: 'time', label: formatTime(dueTime), text: timeText })
+  }
   if (out.assignee) {
     const mem = members.find((x) => x.id === out.assignee)
     if (mem) out.tokens.push({ type: 'who', label: mem.name, text: whoText })
@@ -392,6 +416,28 @@ function monthDayYear(month, day, yearStr, base) {
   let d = clampDay(year, month, day)
   if (!yearStr && d < base) d = clampDay(year + 1, month, day)
   return d
+}
+
+// (hour, minute, 'am'|'pm'|undefined) → 'HH:MM' 24h, or null if out of range.
+// Without a meridiem the hour is taken as already 24h (e.g. "at 15:00").
+function to24(h, min, meridiem) {
+  let hh = h
+  if (meridiem) {
+    const pm = /pm/i.test(meridiem)
+    if (pm && hh < 12) hh += 12
+    if (!pm && hh === 12) hh = 0
+  }
+  if (hh > 23 || min > 59) return null
+  return `${pad(hh)}:${pad(min)}`
+}
+
+// Compact time for the preview chip — mirrors lib/tasks.timeLabel (kept local so
+// the parser stays self-contained, like formatDue).
+function formatTime(t) {
+  const [h, m] = t.split(':').map(Number)
+  const ampm = h < 12 ? 'AM' : 'PM'
+  const h12 = h % 12 || 12
+  return m ? `${h12}:${pad(m)} ${ampm}` : `${h12} ${ampm}`
 }
 
 // Short due label for the preview chip (parser-local so it doesn't depend on

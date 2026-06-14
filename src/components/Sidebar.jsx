@@ -3,6 +3,7 @@ import {
   User as PeopleIcon,
   CheckSquare,
   List,
+  Activity,
   Briefcase,
   Users,
   Share2,
@@ -48,6 +49,7 @@ export default function Sidebar({ active, go, onSearch, onLogout, badge = 0, cou
       <Item id="today" icon={Home} text="Today" count={badge} />
       <Item id="tasks" icon={CheckSquare} text="Tasks" count={counts.tasks} quiet />
       <Item id="lists" icon={List} text="Lists" count={counts.lists} quiet />
+      <Item id="habits" icon={Activity} text="Habits" />
 
       <div className="nav-group">Network</div>
       <Item id="people" icon={PeopleIcon} text="People" />

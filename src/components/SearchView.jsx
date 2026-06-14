@@ -7,7 +7,6 @@ import {
   RotateCcw,
   Trash2,
   Users,
-  MoreHorizontal,
   Sliders,
   UserPlus,
   Check,
@@ -45,7 +44,6 @@ export default function SearchView({
   onOpen,
   onEdit,
   onAdd,
-  onMore,
   memberId,
   hub,
 }) {
@@ -247,15 +245,16 @@ export default function SearchView({
 
   return (
     <div>
-      {/* Mobile: "More" overflow (the FAB handles adds). Desktop: add a person. */}
+      {/* The hub switcher lives in the title dropdown; the header action adds a
+          person (the FAB does the same on mobile). */}
       <PageHeader
         title="People"
         navOptions={hub?.options}
         navActive={hub?.active}
         onNavigate={hub?.onNavigate}
-        action={onMore || onAdd}
-        actionIcon={onMore ? MoreHorizontal : UserPlus}
-        actionLabel={onMore ? 'More' : 'Add person'}
+        action={onAdd}
+        actionIcon={UserPlus}
+        actionLabel="Add person"
       />
 
       <div className="search-wrap">

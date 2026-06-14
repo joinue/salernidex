@@ -7,7 +7,7 @@ import { PRIVATE_LEVEL } from '../lib/privacy'
 // with, so the form should default new items to PRIVATE_LEVEL and not ask. Once
 // a second member joins, the control appears.
 //
-// Binary by design: writes 'shared' or 'marc_only'. Legacy 'family_shared' /
+// Binary by design: writes 'shared' or 'private'. Legacy 'family_shared' /
 // 'public' values land on the "Shared" segment and are left untouched unless
 // the user actually toggles (the visibility rule already treats them as shared).
 const SHARED = 'shared'

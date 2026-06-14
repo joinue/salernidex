@@ -1,8 +1,11 @@
 import { useState } from 'react'
-import { ChevronRight, DownloadCloud, Plus, X, Check, Copy, LogOut, Bell } from 'react-feather'
+import { ChevronRight, DownloadCloud, Plus, X, Check, Copy, LogOut, Bell, ArrowLeft } from 'react-feather'
 import PageHeader from './PageHeader'
 import Segmented from './Segmented'
 import Avatar from './Avatar'
+import AvatarUpload from './AvatarUpload'
+import ConfirmDialog from './ConfirmDialog'
+import { supabase } from '../lib/supabase'
 import { useNotificationPrefs } from '../hooks/useNotificationPrefs'
 import { useAppPrefs } from '../hooks/useAppPrefs'
 import { PRIVACY_LABELS } from '../lib/constants'
@@ -347,7 +350,18 @@ function LiveHousehold({ household, meId, copied, copyCode }) {
           const editable = m.id === meId || isOwner
           return (
             <div className="value-row" key={m.id}>
-              <Avatar name={m.name} size={30} />
+              {m.id === meId ? (
+                <AvatarUpload
+                  variant="menu"
+                  size={30}
+                  name={m.name}
+                  value={m.avatar_url}
+                  entity="people"
+                  onChange={(url) => household.setMyAvatar(url)}
+                />
+              ) : (
+                <Avatar name={m.name} size={30} src={m.avatar_url} />
+              )}
               {editable ? (
                 <input
                   className="member-name-input"
@@ -403,11 +417,165 @@ function LiveHousehold({ household, meId, copied, copyCode }) {
   )
 }
 
+// Live-only account controls: the signed-in email, plus the auth actions
+// Supabase exposes to the user themselves (password / email changes go through
+// auth.updateUser; deletion needs the service role, so it rides the
+// delete-account Edge Function). Hidden in demo — there's no auth user there.
+function AccountSection({ email }) {
+  const [mode, setMode] = useState(null) // null | 'password' | 'email'
+  const [pw, setPw] = useState('')
+  const [pw2, setPw2] = useState('')
+  const [nextEmail, setNextEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const toggle = (m) => {
+    setNote(null)
+    setMode((cur) => (cur === m ? null : m))
+  }
+
+  const savePassword = async () => {
+    setNote(null)
+    if (pw.length < 8) return setNote('Use at least 8 characters.')
+    if (pw !== pw2) return setNote("Those passwords don't match.")
+    setBusy(true)
+    const { error } = await supabase.auth.updateUser({ password: pw })
+    setBusy(false)
+    if (error) return setNote(error.message)
+    setPw('')
+    setPw2('')
+    setMode(null)
+    setNote('Password updated.')
+  }
+
+  const saveEmail = async () => {
+    setNote(null)
+    const next = nextEmail.trim()
+    if (!next || next === email) return setNote('Enter a different email address.')
+    setBusy(true)
+    const { error } = await supabase.auth.updateUser({ email: next })
+    setBusy(false)
+    if (error) return setNote(error.message)
+    setNextEmail('')
+    setMode(null)
+    setNote(`Confirmation sent to ${next}. The change takes effect once you confirm from that inbox.`)
+  }
+
+  const deleteAccount = async () => {
+    setConfirmDelete(false)
+    setBusy(true)
+    const { error } = await supabase.functions.invoke('delete-account')
+    if (error) {
+      setBusy(false)
+      return setNote(`Couldn't delete the account: ${error.message}`)
+    }
+    await supabase.auth.signOut() // onAuthStateChange routes back to sign-in
+  }
+
+  return (
+    <>
+      <div className="section-label">Account</div>
+      <div className="list">
+        <div className="value-row">
+          <span className="v-label">Email</span>
+          <span className="v-value">{email}</span>
+        </div>
+
+        <button className="list-row" onClick={() => toggle('password')}>
+          <div className="row-body">
+            <div className="row-sub" style={{ color: 'var(--accent)' }}>
+              Change password
+            </div>
+          </div>
+          <ChevronRight size={18} className="row-chevron" />
+        </button>
+        {mode === 'password' && (
+          <div className="account-form">
+            <input
+              type="password"
+              placeholder="New password"
+              value={pw}
+              autoComplete="new-password"
+              onChange={(e) => setPw(e.target.value)}
+            />
+            <input
+              type="password"
+              placeholder="Confirm new password"
+              value={pw2}
+              autoComplete="new-password"
+              onChange={(e) => setPw2(e.target.value)}
+            />
+            <button className="text-btn" onClick={savePassword} disabled={busy}>
+              {busy ? <span className="dots">Saving</span> : 'Save password'}
+            </button>
+          </div>
+        )}
+
+        <button className="list-row" onClick={() => toggle('email')}>
+          <div className="row-body">
+            <div className="row-sub" style={{ color: 'var(--accent)' }}>
+              Change email
+            </div>
+          </div>
+          <ChevronRight size={18} className="row-chevron" />
+        </button>
+        {mode === 'email' && (
+          <div className="account-form">
+            <input
+              type="email"
+              placeholder="New email address"
+              value={nextEmail}
+              autoComplete="email"
+              onChange={(e) => setNextEmail(e.target.value)}
+            />
+            <button className="text-btn" onClick={saveEmail} disabled={busy}>
+              {busy ? <span className="dots">Sending</span> : 'Send confirmation'}
+            </button>
+          </div>
+        )}
+
+        <button
+          className="list-row"
+          onClick={() => {
+            setNote(null)
+            setConfirmDelete(true)
+          }}
+          disabled={busy}
+        >
+          <div className="row-body">
+            <div className="row-sub" style={{ color: 'var(--danger)' }}>
+              Delete account
+            </div>
+          </div>
+          <ChevronRight size={18} className="row-chevron" />
+        </button>
+      </div>
+      {note && (
+        <p className="muted" style={{ fontSize: 13, margin: '8px 4px 4px' }}>
+          {note}
+        </p>
+      )}
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Delete your account?"
+          message="This permanently deletes your login and any household you're the only member of — people, tasks, lists, and habits included. Shared households stay for their other members. It can't be undone; export your data first (below) if you want a copy."
+          confirmLabel="Delete account"
+          danger
+          onConfirm={deleteAccount}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
+    </>
+  )
+}
+
 // Household + member management. Two backends: demo runs on the localStorage
 // household model (add / rename / "I'm this"); live drives DB household_members
 // through the useHousehold hook passed in as `household`. meId (the signed-in
 // member id) keys notifications + push in both modes.
-export default function SettingsView({ go, household, isDemo = false }) {
+export default function SettingsView({ go, household, isDemo = false, onLogout, session, onBack }) {
   const [, bump] = useState(0)
   const refresh = () => bump((n) => n + 1)
 
@@ -431,21 +599,79 @@ export default function SettingsView({ go, household, isDemo = false }) {
     setTimeout(() => setCopied(false), 1500)
   }
 
-  const leave = () => {
-    if (isDemo) {
-      if (window.confirm('Leave this household? (Demo: resets to a fresh household.)')) {
-        leaveHousehold()
-        go('')
+  const [confirm, setConfirm] = useState(null) // null | 'leave' | 'delete'
+
+  // Two distinct exits, and exactly one applies:
+  //  • Leave — recoverable. You have another household to fall back to, or
+  //    co-members who keep the data and can re-invite you.
+  //  • Delete — the sole member of your only household. "Leaving" there would
+  //    just abandon everything (orphaning the household behind RLS), so we offer
+  //    an honest, clean cascade delete instead — a real "start over".
+  const activeName = isDemo ? getHousehold().name : household?.household?.name || 'this household'
+  const memberCount = isDemo ? getMembers().length : household?.members?.length || 1
+  const householdCount = isDemo ? 1 : household?.memberships?.length || 1
+  const canLeave = memberCount > 1 || householdCount > 1
+  const canDelete = !canLeave // sole member of your only household
+  const otherHousehold =
+    !isDemo && householdCount > 1
+      ? (household?.memberships || []).find((m) => m.household_id !== household?.householdId)
+          ?.household_name
+      : null
+
+  // Copy reflects the exact case in play, so the dialog never over- or
+  // under-states what the action does.
+  const leaveCopy = isDemo
+    ? {
+        title: 'Leave household?',
+        message:
+          'Demo mode resets this to a fresh household and clears the sample data. Nothing real is affected.',
       }
-    } else if (
-      window.confirm('Leave this household? You can re-join later with the invite code.')
-    ) {
-      household?.leave() // the household gate routes to onboarding if it was your last one
+    : householdCount > 1
+      ? {
+          title: `Leave ${activeName}?`,
+          message: `You'll switch to ${otherHousehold || 'another of your households'}. You can re-join ${activeName} later with its invite code.`,
+        }
+      : {
+          title: `Leave ${activeName}?`,
+          message:
+            "You'll lose access to this household's shared people, tasks, lists, and habits. The other members keep everything, and you can re-join later with the invite code.",
+        }
+
+  const deleteCopy = isDemo
+    ? {
+        title: 'Delete household?',
+        message:
+          'Demo mode resets this to a fresh household and clears the sample data. Nothing real is affected.',
+      }
+    : {
+        title: `Delete ${activeName}?`,
+        message:
+          "This permanently deletes the household and everything in it — people, tasks, lists, and habits. It can't be undone. Export your data first (above) if you want to keep a copy.",
+      }
+
+  // Demo has no real membership model: both exits just reset the local sandbox.
+  // Live: leave() self-heals the sole-member case into a clean delete; delete is
+  // the explicit start-over for the sole member of their only household.
+  const runExit = () => {
+    const which = confirm
+    setConfirm(null)
+    if (isDemo) {
+      leaveHousehold()
+      go('')
+    } else if (which === 'delete') {
+      household?.deleteHousehold()
+    } else {
+      household?.leave()
     }
   }
 
   return (
     <div>
+      {onBack && (
+        <button className="back-btn" onClick={onBack}>
+          <ArrowLeft size={18} /> Back
+        </button>
+      )}
       <PageHeader title="Settings" />
 
       {isDemo ? (
@@ -453,6 +679,8 @@ export default function SettingsView({ go, household, isDemo = false }) {
       ) : (
         <LiveHousehold household={household} meId={meId} copied={copied} copyCode={copyCode} />
       )}
+
+      {!isDemo && session?.user?.email && <AccountSection email={session.user.email} />}
 
       <div className="section-label">Appearance</div>
       <Segmented
@@ -542,6 +770,12 @@ export default function SettingsView({ go, household, isDemo = false }) {
           onChange={(v) => updatePrefs({ tasks: v })}
         />
         <Toggle
+          label="Lists"
+          sub="A list with a due date that's due or overdue"
+          on={prefs.lists}
+          onChange={(v) => updatePrefs({ lists: v })}
+        />
+        <Toggle
           label="Check-ins"
           sub="People you haven't caught up with in a while"
           on={prefs.nudges}
@@ -603,11 +837,34 @@ export default function SettingsView({ go, household, isDemo = false }) {
         </button>
       </div>
 
-      <div className="section-gap">
-        <button className="pill-btn danger" onClick={leave}>
-          <LogOut size={15} /> Leave household
-        </button>
+      <div className="section-gap" style={{ display: 'flex', gap: 10 }}>
+        {onLogout && (
+          <button className="pill-btn neutral" onClick={onLogout}>
+            <LogOut size={15} /> Log out
+          </button>
+        )}
+        {canLeave && (
+          <button className="pill-btn danger" onClick={() => setConfirm('leave')}>
+            Leave household
+          </button>
+        )}
+        {canDelete && (
+          <button className="pill-btn danger" onClick={() => setConfirm('delete')}>
+            Delete household
+          </button>
+        )}
       </div>
+
+      {confirm && (
+        <ConfirmDialog
+          title={(confirm === 'delete' ? deleteCopy : leaveCopy).title}
+          message={(confirm === 'delete' ? deleteCopy : leaveCopy).message}
+          confirmLabel={confirm === 'delete' ? 'Delete' : 'Leave'}
+          danger
+          onConfirm={runExit}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
     </div>
   )
 }

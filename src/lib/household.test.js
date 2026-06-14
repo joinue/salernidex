@@ -54,8 +54,8 @@ describe('assigneeLabel / options', () => {
   it('options lead with Anyone then members', () => {
     expect(assigneeOptions()).toEqual([
       { value: 'anyone', label: 'Anyone' },
-      { value: 'm-1', label: 'Marc' },
-      { value: 'm-2', label: 'Rita' },
+      { value: 'm-1', label: 'Marc', avatar_url: null },
+      { value: 'm-2', label: 'Rita', avatar_url: null },
     ])
     expect(members()).toHaveLength(2)
   })

@@ -7,6 +7,11 @@
 //   monthly by weekday:   { freq:'monthly', interval, setpos:1, weekday:1, anchor }  // setpos -1 = last
 //   yearly:               { freq:'yearly',  interval, month:5, monthday:12, anchor }
 //
+// Optional on any shape:
+//   until:   'YYYY-MM-DD' — last allowed date (inclusive); past it the series is
+//            over and nextOccurrence returns null (the task then closes).
+//   exdates: ['YYYY-MM-DD', …] — single occurrences to skip ("skip this one").
+//
 // `anchor` (ISO date) fixes the phase so "every 2 weeks"/"every 3 months" are
 // deterministic. `nextOccurrence` returns the next ISO date matching the rule,
 // strictly after (or on, if inclusive) the given date.
@@ -101,13 +106,19 @@ export function nextOccurrence(rule, from, { inclusive = false } = {}) {
   if (!rule || !rule.freq) return null
   const fromD = parse(from)
   const anchor = rule.anchor ? parse(rule.anchor) : fromD
+  const until = rule.until ? parse(rule.until) : null
+  const exdates = rule.exdates?.length ? new Set(rule.exdates) : null
   let d = inclusive ? fromD : addDays(fromD, 1)
   // Scan day-by-day for a match. The horizon scales with the interval but is
   // hard-capped (~274 years) so a pathological rule — e.g. an imported
   // `interval: 99999` — can never spin into a multi-million-iteration freeze.
   const cap = Math.min(370 * ((rule.interval || 1) + 1), 100000)
   for (let i = 0; i < cap; i++) {
-    if (matches(rule, d, anchor)) return toISO(d)
+    if (until && d > until) return null // series has ended
+    if (matches(rule, d, anchor)) {
+      const iso = toISO(d)
+      if (!exdates || !exdates.has(iso)) return iso // honor skipped occurrences
+    }
     d = addDays(d, 1)
   }
   return null
@@ -120,9 +131,23 @@ function ordinal(n) {
 }
 
 // Short human label for a rule, e.g. "Every Monday", "Monthly on the 20th",
-// "First Monday", "Every 2 weeks".
+// "First Monday", "Every 2 weeks" — with ", until Aug 31, 2026" appended when
+// the series has an end date.
 export function describeRecurrence(rule) {
   if (!rule || !rule.freq) return 'One-off'
+  const base = describeFreq(rule)
+  return rule.until ? `${base}, until ${untilLabel(rule.until)}` : base
+}
+
+function untilLabel(iso) {
+  return parse(iso).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function describeFreq(rule) {
   const every = rule.interval && rule.interval > 1 ? `${rule.interval} ` : ''
   switch (rule.freq) {
     case 'daily':

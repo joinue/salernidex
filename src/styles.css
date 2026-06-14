@@ -1468,6 +1468,734 @@ select {
   color: var(--accent);
 }
 
+/* ---------- habits ---------- */
+.habit-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.habit-streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--orange);
+  vertical-align: middle;
+}
+
+.habit-streak svg {
+  color: var(--orange);
+}
+
+.list-row.habit-offday {
+  opacity: 0.5;
+}
+
+/* Quick-log: a check for yes/no habits, a stepper for counts. */
+.habit-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--separator-strong);
+  color: #fff;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.habit-check.on {
+  background: var(--c);
+  border-color: var(--c);
+}
+
+.habit-step {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 2px;
+  background: var(--fill);
+  border-radius: 999px;
+}
+
+.habit-step-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--text);
+}
+
+.habit-step-btn:active {
+  background: var(--fill-2);
+}
+
+.habit-step-val {
+  min-width: 22px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.habit-detail {
+  padding: 10px 14px 16px 68px;
+  background: var(--surface);
+  border-bottom: 0.5px solid var(--separator);
+}
+
+.habit-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 14px;
+}
+
+.habit-cell {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border-radius: 3px;
+  background: var(--fill);
+  transition: transform 100ms ease;
+}
+
+.habit-cell:active {
+  transform: scale(0.85);
+}
+
+.habit-spark {
+  display: block;
+  margin-bottom: 14px;
+}
+
+/* backfill sheet: a single centered logger for the tapped day */
+.backfill-body {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0 10px;
+}
+
+.habit-cell.hit {
+  background: var(--green);
+}
+.habit-cell.miss {
+  background: color-mix(in srgb, var(--danger) 28%, transparent);
+}
+.habit-cell.today {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+}
+.habit-cell.logged {
+  background: var(--accent);
+}
+.habit-cell.off {
+  background: transparent;
+}
+.habit-cell.skip {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--separator-strong),
+    var(--separator-strong) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+}
+.habit-cell.future,
+.habit-cell.none {
+  background: transparent;
+  cursor: default;
+}
+/* A logged day carrying a note gets a small corner dot (tooltip shows the text). */
+.habit-cell.has-note {
+  position: relative;
+}
+.habit-cell.has-note::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text);
+  opacity: 0.6;
+  box-shadow: 0 0 0 1px var(--surface);
+}
+
+/* "Take a break" sheet: From / Until date inputs side by side. */
+.break-dates {
+  display: flex;
+  gap: 12px;
+}
+.break-dates .field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- habit detail page ---------- */
+.habit-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 18px;
+}
+
+.habit-dot.lg {
+  width: 52px;
+  height: 52px;
+  font-size: 22px;
+}
+
+/* Emoji icon instead of a letter: render the glyph a touch larger, unbolded. */
+.habit-dot.emoji {
+  font-size: 22px;
+  font-weight: 400;
+}
+
+.habit-dot.lg.emoji {
+  font-size: 30px;
+}
+
+/* The "letter" chip in the habit icon picker — a live preview of the dot. */
+.icon-pick.letter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  background: var(--c, var(--accent));
+}
+
+/* Shared (partner) habits: read-only rows under an owner heading. */
+.habit-shared {
+  margin-top: 26px;
+}
+
+.shared-label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.habit-shared .list + .shared-label {
+  margin-top: 18px;
+}
+
+.shared-status {
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+  color: var(--text-2);
+}
+
+.shared-status.done {
+  color: var(--good, #34c759);
+}
+
+.shared-by {
+  color: var(--text-2);
+}
+
+/* Per-day note: an editor in the backfill sheet + a corner marker on the cell. */
+.backfill-note {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--fill);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  resize: none;
+}
+
+.habit-cell.has-note {
+  position: relative;
+}
+
+.habit-cell.has-note::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 0 0 1px var(--surface);
+}
+
+.habit-detail-headtext {
+  flex: 1;
+  min-width: 0;
+}
+
+.habit-detail-name {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+
+.habit-today-log {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.insight-card {
+  padding: 12px 14px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+}
+
+.insight-value {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.insight-value svg {
+  color: var(--accent);
+}
+
+.insight-sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.insight-label {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+/* ---------- insights: rotating strip + page ---------- */
+/* One quiet tappable line on the Habits list; cycles through top insights. */
+.insight-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 16px;
+  padding: 9px 12px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  text-align: left;
+  overflow: hidden;
+}
+
+.insight-strip-icon {
+  flex: none;
+  color: var(--accent);
+}
+
+.insight-strip-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: insight-in 360ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.insight-strip-all {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.insight-strip-chevron {
+  flex: none;
+  color: var(--text-2);
+}
+
+@keyframes insight-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .insight-strip-text {
+    animation: none;
+  }
+}
+
+.insight-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.insight-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  text-align: left;
+}
+
+.insight-row-icon {
+  flex: none;
+  color: var(--accent);
+}
+
+.insight-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.insight-row-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.insight-row-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+/* ---------- habit starter templates ---------- */
+/* Empty-state one-line rail: one-tap starters that scroll sideways. */
+.template-rail {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.template-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.template-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 13px;
+  background: var(--fill);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* "Start from" sheet: a short grid of starters, Blank pinned first. */
+.template-sheet {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 4px 16px 20px;
+}
+
+.template-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  background: var(--fill);
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+
+.template-card.blank {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.template-emoji {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.template-card.blank .template-emoji {
+  display: inline-flex;
+}
+
+.template-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.template-card.blank .template-name {
+  color: var(--accent);
+}
+
+.template-sub {
+  font-size: 11px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.habit-section {
+  margin-bottom: 22px;
+}
+
+.habit-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.range-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--fill);
+  border-radius: 8px;
+}
+
+.range-toggle button {
+  padding: 4px 11px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.range-toggle button.on {
+  background: var(--elevated);
+  color: var(--text);
+  box-shadow: var(--shadow-thumb);
+}
+
+/* heatmap: columns of week, scroll horizontally if it overflows */
+.heatmap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
+.heatmap-months {
+  display: flex;
+  margin-bottom: 4px;
+}
+
+.heatmap-month {
+  width: 17px;
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.heatmap-grid {
+  display: flex;
+  gap: 3px;
+}
+
+.heatmap-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.heatmap .habit-cell {
+  width: 14px;
+  height: 14px;
+}
+
+.habit-chart {
+  display: block;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  box-shadow: var(--shadow-card);
+}
+
+/* weekly "times per week" stepper in the habit form */
+.weekly-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  background: var(--fill);
+  border-radius: 999px;
+}
+
+.weekly-count {
+  min-width: 40px;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* backfill sheet action row (rest day / clear) */
+.backfill-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 0 8px;
+}
+
+.pill-btn {
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--fill);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pill-btn.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.habit-stats {
+  display: flex;
+  gap: 22px;
+  margin-bottom: 14px;
+}
+
+.habit-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+}
+
+.habit-stat-label {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 1px;
+}
+
+.habit-actions {
+  display: flex;
+  gap: 16px;
+}
+
+.habit-archived {
+  margin-top: 16px;
+}
+
+/* habit form: color swatches + weekday picker + a label/switch row */
+.color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.color-swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--surface);
+  transition: transform 120ms ease;
+}
+
+.color-swatch.on {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--accent);
+  transform: scale(1.05);
+}
+
+.weekday-picker {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.weekday {
+  flex: 1;
+  height: 38px;
+  border-radius: 9px;
+  background: var(--fill);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-2);
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.weekday.on {
+  background: var(--accent);
+  color: #fff;
+}
+
+.field-row {
+  display: flex;
+  gap: 12px;
+}
+
+.toggle-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .row-chips {
   display: flex;
   gap: 6px;
@@ -1762,6 +2490,15 @@ select {
   margin-bottom: 4px;
 }
 
+/* Edit/delete sit at the trailing edge, aligned with the title. */
+.list-detail-head .head-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .list-add {
   display: flex;
   align-items: center;
@@ -1794,6 +2531,183 @@ select {
   border-radius: var(--radius-sm);
   background: var(--accent);
   color: #fff;
+}
+
+/* Inline item editor (tap a list item's text). Borderless fields that sit in
+   the row's footprint so editing feels in-place, not modal. */
+.list-row.editing {
+  cursor: default;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.list-edit-text,
+.list-edit-note {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 2px 0;
+}
+.list-edit-text {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+.list-edit-note {
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+
+/* The dimmed note/detail line under an item's text. */
+.list-item-note {
+  font-weight: 400;
+}
+
+/* Recent-items autocomplete, shown under the add box as you type. */
+.list-suggest {
+  display: flex;
+  flex-direction: column;
+  margin: -6px 0 10px;
+  background: var(--surface);
+  border: 0.5px solid var(--separator);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.07);
+}
+.list-suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  text-align: left;
+  background: var(--surface);
+  transition: background 100ms ease;
+}
+.list-suggest-item:not(:last-child) {
+  border-bottom: 0.5px solid var(--separator);
+}
+.list-suggest-item:hover {
+  background: var(--fill-2);
+}
+.list-suggest-item:active {
+  background: var(--fill);
+}
+.list-suggest-plus {
+  flex: none;
+  color: var(--accent);
+}
+.list-suggest-text {
+  flex: 1;
+  font-size: 15px;
+}
+.list-suggest-aisle {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-2);
+  background: var(--fill);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* Quantity stepper in the item editor (− N +). Freeform input so "2 lbs" works;
+   the buttons step the leading number. */
+.qty-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 8px;
+  padding: 2px;
+  background: var(--fill);
+  border-radius: var(--radius-sm);
+}
+.qty-stepper button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: calc(var(--radius-sm) - 2px);
+  color: var(--text);
+}
+.qty-stepper button:active {
+  background: var(--fill-2);
+}
+.qty-input {
+  width: 58px;
+  height: 30px;
+  background: transparent;
+  border: none;
+  outline: none;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Quantity badge on a row ("×2", "2 lbs"). */
+.qty-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 6px;
+}
+
+/* Who's grabbing it — assignee avatar at the row's trailing edge. */
+.list-item-assignee {
+  flex: none;
+  display: inline-flex;
+}
+
+/* Assignee chips in the item editor share the aisle picker's spacing. */
+.assignee-edit-chips {
+  margin-top: 8px;
+}
+
+.list-edit-heading {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 2px 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+/* Aisle picker inside the grocery item editor — wraps under the fields. */
+.aisle-chips {
+  margin-top: 8px;
+}
+
+/* Standard-list section header (an is_heading row), rendered as an inset
+   divider that the items below it visually belong to. */
+.list-row.heading-row {
+  padding-top: 16px;
+  padding-bottom: 6px;
+  cursor: pointer;
+}
+.list-heading {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+/* "Add section" affordance under the add-item row on standard lists. */
+.add-section-btn {
+  margin: -4px 2px 4px;
+}
+
+/* Grocery aisle groups: a touch of air between aisles. */
+.aisle-group {
+  margin-bottom: 14px;
 }
 
 .icon-row {
@@ -1881,6 +2795,47 @@ select {
 .chip.due-today {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+/* Priority flag: an icon-only chip, tinted by level (low → high). */
+.chip.prio {
+  padding: 3px 6px;
+  background: var(--fill);
+}
+.chip.prio-1 {
+  color: var(--text-2);
+}
+.chip.prio-2 {
+  background: color-mix(in srgb, var(--orange) 16%, transparent);
+  color: var(--orange);
+}
+.chip.prio-3 {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* Cross-cutting task tags — subtle, distinct from the single area chip. */
+.chip.tag {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Deferred ("Starts …") chip — quiet, it's a not-yet signal. */
+.chip.starts {
+  color: var(--text-2);
+}
+
+/* Due date + optional time-of-day, side by side in the task form. */
+.due-row {
+  display: flex;
+  gap: 8px;
+}
+.due-row input[type='date'] {
+  flex: 1;
+}
+.due-row input[type='time'] {
+  flex: 0 0 auto;
+  width: auto;
 }
 
 .task-expand {
@@ -2244,6 +3199,30 @@ select.rec-select + .segmented {
   margin-bottom: 18px;
 }
 
+/* Inline expanding forms inside a settings list (Account: change password /
+   email). Stacked inputs + a trailing action, indented to sit under the row. */
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px 14px;
+}
+
+.account-form input {
+  width: 100%;
+  height: 44px;
+  background: var(--fill);
+  border: none;
+  border-radius: var(--radius-sm);
+  outline: none;
+  padding: 0 14px;
+  font-size: 16px;
+}
+
+.account-form .text-btn {
+  align-self: flex-start;
+}
+
 .field input,
 .field textarea,
 .field select {
@@ -2279,6 +3258,45 @@ select.rec-select + .segmented {
 .field textarea:focus,
 .field select:focus {
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Multi-value channel editor (additional emails/phones, social profiles) */
+.channel-editor {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.channel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field .channel-row .channel-label {
+  width: 104px;
+  flex: 0 0 104px;
+  padding-right: 28px;
+  background-position: right 10px center;
+}
+
+.field .channel-row .channel-value {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.channel-add {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font-size: 14px;
+  color: var(--accent);
+  cursor: pointer;
 }
 
 /* Month / Day / Year picker — three selects sharing the field row. Month gets
@@ -3021,6 +4039,41 @@ select.rec-select + .segmented {
   margin-bottom: 0;
 }
 
+/* Mobile-only pitch carried inside the card (desktop hero is hidden below
+   860px). A single compact chip row — keeps value context without adding the
+   vertical height a stacked list would. Off by default; on in the media query. */
+.auth-card-pitch {
+  display: none;
+  margin-bottom: 20px;
+}
+
+.auth-card-values {
+  list-style: none;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.auth-card-values li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.auth-card-values .auth-value-icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  box-shadow: none;
+}
+
 .auth-title {
   font-size: 22px;
   font-weight: 700;
@@ -3038,6 +4091,41 @@ select.rec-select + .segmented {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+/* Password field with an inline show/hide affordance. The toggle floats over
+   the input's right edge; pad the input so typed text never slips under it. */
+.pw-input {
+  position: relative;
+}
+
+.pw-input input {
+  padding-right: 44px;
+}
+
+.pw-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  background: transparent;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.pw-toggle:hover {
+  color: var(--text);
+}
+
+/* Quiet helper under a field (e.g. password requirements on signup). */
+.field-hint {
+  margin-top: 7px;
+  font-size: 12.5px;
+  color: var(--text-2);
 }
 
 .auth-inline-link {
@@ -3111,6 +4199,10 @@ select.rec-select + .segmented {
   }
   .auth-card-brand {
     display: flex;
+    margin-bottom: 16px;
+  }
+  .auth-card-pitch {
+    display: block;
   }
   .auth-card {
     box-shadow: none;
@@ -3120,6 +4212,18 @@ select.rec-select + .segmented {
   }
   .auth-card-by {
     display: flex;
+    margin-top: 16px;
+  }
+  /* Pull the vertical rhythm in so the taller forms (signup) fit a single
+     phone viewport without a y-scroll. */
+  .auth-title {
+    margin-bottom: 14px;
+  }
+  .auth-card .field {
+    margin-bottom: 14px;
+  }
+  .auth-switch {
+    margin-top: 14px;
   }
 }
 
@@ -3330,29 +4434,25 @@ select.rec-select + .segmented {
   opacity: 0.5;
 }
 
-.tab-add {
-  flex: 1;
+/* Floating action button — page-aware ➕, sits above the floating tab pill. */
+.fab {
+  position: fixed;
+  right: 18px;
+  bottom: calc(env(safe-area-inset-bottom) + 74px);
+  z-index: 41;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-/* Folded inline into the pill (no longer pops above) so the rounded corners
-   stay clean. */
-.add-circle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
   background: var(--accent);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.35);
+  box-shadow: 0 6px 20px rgba(0, 122, 255, 0.42);
   transition: transform 120ms ease;
 }
 
-.tab-add:active .add-circle {
+.fab:active {
   transform: scale(0.92);
 }
 
@@ -3826,6 +4926,25 @@ select.rec-select + .segmented {
   animation: none;
 }
 
+/* The floating mobile chrome is position:fixed, so it must NOT be baked into
+   the root snapshot — that snapshot spans the full scroll height and is pinned
+   to the top, which strips a fixed element of its viewport-bottom anchoring and
+   makes the bar flicker/jump (looks like it "loads in" after the content) on
+   every route cross-fade. Giving each its own group keeps it anchored, and the
+   no-op animation means it simply stays put — truly persistent across nav. */
+.tabbar {
+  view-transition-name: tabbar;
+}
+
+.fab {
+  view-transition-name: fab;
+}
+
+::view-transition-group(tabbar),
+::view-transition-group(fab) {
+  animation: none;
+}
+
 ::view-transition-old(main-content) {
   animation: vt-out 140ms ease-in forwards;
 }
@@ -3867,6 +4986,31 @@ select.rec-select + .segmented {
 
 .search-bar-btn svg {
   flex-shrink: 0;
+}
+
+/* One-time "add your profile photo" prompt on Today. Quiet card with an inline
+   picker on the left and a dismiss on the right. */
+.profile-nudge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  background: var(--fill);
+  border-radius: 14px;
+}
+.profile-nudge-body {
+  flex: 1;
+  min-width: 0;
+}
+.profile-nudge-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.profile-nudge-sub {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-top: 1px;
 }
 
 .qf-overlay {
