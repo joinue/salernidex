@@ -8,10 +8,8 @@ import {
   FileText,
   MessageCircle,
   Clock,
-  BellOff,
   Check,
   Search,
-  SkipForward,
 } from 'react-feather'
 import { relativeTime } from '../lib/contact'
 import { dueLabel } from '../lib/tasks'
@@ -40,6 +38,7 @@ import SwipeRow from './SwipeRow'
 import TaskRow from './TaskRow'
 import ActivityRow from './ActivityRow'
 import ActionSheet from './ActionSheet'
+import SnoozeSheet from './SnoozeSheet'
 import InteractionForm from './InteractionForm'
 
 function greeting() {
@@ -176,50 +175,6 @@ export default function TodayView({
       until: new Date(Date.now() + days * DAY).toISOString(),
     })
   }
-
-  const snoozeChoices = laterItem && [
-    // Recurring task: skip just this occurrence (rolls to the next date) without
-    // logging it done. Sits above the snoozes — it's the more decisive choice.
-    ...(laterItem.kind === 'task' && laterItem.task?.recurrence
-      ? [
-          {
-            label: 'Skip this one',
-            icon: SkipForward,
-            onClick: () => {
-              haptics.light()
-              skipTaskOccurrence(laterItem.task)
-            },
-          },
-        ]
-      : []),
-    {
-      label: 'Remind me in 3 days',
-      icon: Clock,
-      onClick: () =>
-        snoozeReminder({
-          kind: laterItem.kind,
-          target_key: laterItem.key,
-          until: new Date(Date.now() + 3 * DAY).toISOString(),
-        }),
-    },
-    {
-      label: 'Remind me next week',
-      icon: Clock,
-      onClick: () =>
-        snoozeReminder({
-          kind: laterItem.kind,
-          target_key: laterItem.key,
-          until: new Date(Date.now() + 7 * DAY).toISOString(),
-        }),
-    },
-    {
-      label: "Don't remind me about this",
-      icon: BellOff,
-      danger: true,
-      onClick: () =>
-        snoozeReminder({ kind: laterItem.kind, target_key: laterItem.key, until: null }),
-    },
-  ]
 
   return (
     <div>
@@ -497,9 +452,12 @@ export default function TodayView({
         />
       )}
       {laterItem && (
-        <ActionSheet
-          title="Remind me later"
-          actions={snoozeChoices}
+        <SnoozeSheet
+          item={laterItem}
+          onSnooze={(until) =>
+            snoozeReminder({ kind: laterItem.kind, target_key: laterItem.key, until })
+          }
+          onSkip={(task) => skipTaskOccurrence(task)}
           onClose={() => setLaterItem(null)}
         />
       )}

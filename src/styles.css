@@ -6120,3 +6120,48 @@ a.value-row {
   display: flex;
   gap: 4px;
 }
+
+/* Snooze sheet: the custom "− N days +" stepper row */
+.snooze-custom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;
+}
+.snooze-stepper {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.snooze-stepper button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 0.5px solid var(--separator);
+  background: var(--fill);
+  color: var(--text);
+  cursor: pointer;
+}
+.snooze-stepper button:disabled {
+  opacity: 0.4;
+}
+.snooze-days {
+  min-width: 66px;
+  text-align: center;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.snooze-go {
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+}
