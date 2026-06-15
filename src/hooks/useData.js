@@ -20,13 +20,13 @@ import {
 import { completionFields, skipFields } from '../lib/tasks'
 import { categorize } from '../lib/aisles'
 import { buildCatalog, bumpCatalog, catalogKey } from '../lib/catalog'
-import { currentMember, currentMemberId, getHousehold } from '../lib/household'
+import { currentMember, currentMemberId, getHousehold, isSolo } from '../lib/household'
 import { entryMap, currentStreak, isScheduled, isSuccess, isWeekly, toISODate } from '../lib/habits'
 import haptics from '../lib/haptics'
 import { showToast } from '../lib/toast'
 import { friendlyError } from '../lib/errors'
 import { filterVisible, PRIVATE_LEVEL } from '../lib/privacy'
-import { hydrateAppPrefs, bindAppPrefsRemote } from '../lib/appPrefs'
+import { hydrateAppPrefs, bindAppPrefsRemote, getAppPrefs } from '../lib/appPrefs'
 import { hydrateNotifyPrefs, bindNotifyRemote } from '../lib/notifyPrefs'
 import { loadSnapshot, saveSnapshot } from '../lib/offlineCache'
 
@@ -35,9 +35,10 @@ const MILESTONES = new Set([7, 14, 30, 50, 75, 100, 150, 200, 365])
 
 // notification_prefs row <-> client notify-prefs shape. Column names already
 // match the client keys, so this just picks the persisted fields (dropping
-// id/member_id/digest_time/updated_at) — kept explicit so a schema change can't
-// silently round-trip an unexpected column.
-const NOTIFY_KEYS = ['tasks', 'lists', 'nudges', 'dates', 'fyi', 'dates_lead_days']
+// id/member_id/updated_at) — kept explicit so a schema change can't silently
+// round-trip an unexpected column. digest_time (the morning-summary push time)
+// round-trips too: the server reads it and the Settings picker sets it.
+const NOTIFY_KEYS = ['tasks', 'lists', 'nudges', 'dates', 'fyi', 'dates_lead_days', 'digest_time']
 const fromNotifyRow = (r) => Object.fromEntries(NOTIFY_KEYS.map((k) => [k, r[k]]))
 const toNotifyRow = (p) => Object.fromEntries(NOTIFY_KEYS.map((k) => [k, p[k]]))
 
@@ -1179,7 +1180,12 @@ export function useData(session) {
       }
       return o.id
     }
+    // Imported contacts honor the user's "new person" visibility default, same as
+    // PersonForm — solo households force private; a row that already carries a
+    // privacy_level (e.g. a JSON re-import) keeps its own.
+    const defaultPersonPrivacy = isSolo() ? PRIVATE_LEVEL : getAppPrefs(memberId).personPrivacy
     const peopleRows = rows.map(({ organization, ...rest }) => ({
+      privacy_level: defaultPersonPrivacy,
       ...rest,
       organization_id: rest.organization_id ?? resolveOrg(organization),
     }))
@@ -1193,7 +1199,6 @@ export function useData(session) {
           created_by: userId,
           created_at: now(),
           updated_at: now(),
-          privacy_level: 'shared',
           ...r,
           id: uuid(),
         })),

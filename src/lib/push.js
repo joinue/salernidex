@@ -11,6 +11,20 @@ import { demoMode } from './demo'
 // everyone re-enables on their devices (it's just the household).
 const DEV_VAPID_PUBLIC =
   'BN3suYncH9TP5CPZ4xLj0vpN8vkK3aGmt29xxuorjNrnmo7QLwV23sek9F_Miwz1-G4Pj8t7iCyHNXUMIsMixxM'
+
+// True only when a real key is configured. Subscriptions are bound to whichever
+// public key created them, and the SAME keypair's private half must sign on the
+// server (send-reminders). If a production build falls back to DEV_VAPID_PUBLIC,
+// the server signs with a different key and every push is rejected (403) while
+// the UI still says "Ready" — a silent, total delivery failure. Surface it.
+export const vapidConfigured = Boolean(import.meta.env.VITE_VAPID_PUBLIC_KEY)
+if (import.meta.env.PROD && !vapidConfigured) {
+  console.error(
+    '[push] VITE_VAPID_PUBLIC_KEY is unset in a production build — push delivery ' +
+      'will fail. Set it to the public half of the SAME keypair the send-reminders ' +
+      'function uses (npx web-push generate-vapid-keys).',
+  )
+}
 export const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || DEV_VAPID_PUBLIC
 
 const DEVICE_KEY = 'salernidex-push-device' // demo-mode stand-in for push_subscriptions

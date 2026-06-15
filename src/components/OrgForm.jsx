@@ -30,14 +30,21 @@ const ORG_TYPES = [
   'Other',
 ]
 
-export default function OrgForm({ org, orgs = [], onSave, onClose, isDemo = false }) {
+export default function OrgForm({
+  org,
+  orgs = [],
+  onSave,
+  onClose,
+  isDemo = false,
+  defaultPrivacy = 'shared',
+}) {
   const [form, setForm] = useState({
     name: org?.name || '',
     avatar_url: org?.avatar_url || null,
     type: org?.type || '',
     description: org?.description || '',
     tags: org?.tags || [],
-    privacy_level: org?.privacy_level || (isSolo() ? PRIVATE_LEVEL : 'shared'),
+    privacy_level: org?.privacy_level || (isSolo() ? PRIVATE_LEVEL : defaultPrivacy),
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)

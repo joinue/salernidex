@@ -4,6 +4,9 @@ import Segmented from './Segmented'
 import DatePicker from './DatePicker'
 import { byDue } from '../lib/tasks'
 import { focusOnDesktop } from '../lib/constants'
+import { isSolo, currentMemberId } from '../lib/household'
+import { getAppPrefs } from '../lib/appPrefs'
+import { PRIVATE_LEVEL } from '../lib/privacy'
 
 // The reverse of LinkEntityForm: attach a task/project to a person, org, or
 // group from that entity's page. Either spin up a new task (already linked) or
@@ -46,7 +49,10 @@ export default function LinkTaskForm({
       if (!t) return setError('Give the task a name.')
       setBusy(true)
       try {
-        link(addTask({ title: t, due_date: due || null }))
+        // No privacy field on this quick form, so apply the user's "new task"
+        // default (solo households force private) — same rule as TaskForm.
+        const privacy_level = isSolo() ? PRIVATE_LEVEL : getAppPrefs(currentMemberId()).taskPrivacy
+        link(addTask({ title: t, due_date: due || null, privacy_level }))
         onClose()
       } catch (err) {
         setError(err.message)

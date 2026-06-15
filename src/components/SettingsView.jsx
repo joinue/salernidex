@@ -786,12 +786,9 @@ export default function SettingsView({ go, household, isDemo = false, onLogout, 
           on={prefs.dates}
           onChange={(v) => updatePrefs({ dates: v })}
         />
-        <Toggle
-          label="Household activity"
-          sub="What others did — included once notifications arrive"
-          on={prefs.fyi}
-          onChange={(v) => updatePrefs({ fyi: v })}
-        />
+        {/* "Household activity" (prefs.fyi) is hidden until partner-activity
+            notifications are actually generated — no code produces them yet, so
+            the toggle would do nothing. The pref/column stay for when it lands. */}
       </div>
       {prefs.dates && (
         <>
@@ -804,6 +801,19 @@ export default function SettingsView({ go, household, isDemo = false, onLogout, 
             onChange={(v) => updatePrefs({ dates_lead_days: v })}
           />
         </>
+      )}
+      {(prefs.tasks || prefs.nudges || prefs.dates) && (
+        <div className="field" style={{ marginTop: 12 }}>
+          <label className="label">Daily summary time</label>
+          <input
+            type="time"
+            value={(prefs.digest_time || '08:00').slice(0, 5)}
+            onChange={(e) => updatePrefs({ digest_time: e.target.value || '08:00' })}
+          />
+          <p className="muted" style={{ fontSize: 12, margin: '6px 2px 0' }}>
+            When your morning rundown of the day's tasks, check-ins, and dates arrives.
+          </p>
+        </div>
       )}
       <PushSection memberId={meId} />
 

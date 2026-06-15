@@ -55,6 +55,7 @@ export default function TasksView({
   onSearch,
   defaultFilter = 'all',
   defaultShowCompleted = false,
+  defaultPrivacy = 'shared',
 }) {
   const {
     tasks,
@@ -65,19 +66,30 @@ export default function TasksView({
     skipTaskOccurrence,
     reorderTasks,
   } = data
+  // Ad-hoc filters persist for the session only (sessionStorage), so stepping
+  // into a task/project and back doesn't reset them — while a fresh app launch
+  // still falls back to the saved per-member defaults. Keyed by member so
+  // switching "I'm this" (demo) never carries one person's view onto another's.
+  const sessionKey = `salernidex-tasks-filters:${data.memberId || ''}`
+  const readSession = () => {
+    try {
+      return JSON.parse(sessionStorage.getItem(sessionKey) || '{}') || {}
+    } catch {
+      return {}
+    }
+  }
   // Default view from settings; fall back to 'all' if the saved member is gone.
-  const [filter, setFilter] = useState(() =>
-    defaultFilter === 'all' || members().some((m) => m.id === defaultFilter)
-      ? defaultFilter
-      : 'all',
-  )
+  const [filter, setFilter] = useState(() => {
+    const v = readSession().filter ?? defaultFilter
+    return v === 'all' || members().some((m) => m.id === v) ? v : 'all'
+  })
   // Optional narrowing to one area. The area pills only appear once areas exist
   // (see areaList below), so until then this is a no-op the user never sees.
-  const [areaFilter, setAreaFilter] = useState('all')
+  const [areaFilter, setAreaFilter] = useState(() => readSession().areaFilter ?? 'all')
   // Same idea for one tag (cross-cutting label). Independent of the area filter.
-  const [tagFilter, setTagFilter] = useState('all')
+  const [tagFilter, setTagFilter] = useState(() => readSession().tagFilter ?? 'all')
   const [expanded, setExpanded] = useState(expandId || null)
-  const [showDone, setShowDone] = useState(defaultShowCompleted)
+  const [showDone, setShowDone] = useState(() => readSession().showDone ?? defaultShowCompleted)
   const [showAllDone, setShowAllDone] = useState(false)
   const [draftSub, setDraftSub] = useState('')
   // Inline quick-add: type a line, Enter adds it (running the same NL parser the
@@ -95,6 +107,16 @@ export default function TasksView({
   useEffect(() => {
     if (expandId) setExpanded(expandId)
   }, [expandId])
+
+  // Mirror the active filters into sessionStorage so a remount (stepping into a
+  // task/project and back) restores them; naturally cleared when the PWA closes.
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(sessionKey, JSON.stringify({ filter, areaFilter, tagFilter, showDone }))
+    } catch {
+      // private mode / quota — non-essential, fine to skip
+    }
+  }, [sessionKey, filter, areaFilter, tagFilter, showDone])
 
   const filterOptions = [
     { value: 'all', label: 'Everyone' },
@@ -192,8 +214,14 @@ export default function TasksView({
     // When viewing one member's list, an unattributed quick task joins that list;
     // an explicit "for <name>" in the text still wins.
     if (fields.assignee === 'anyone' && filter !== 'all') fields.assignee = filter
+    // Inherit the active content filters so a quick task stays in the view you
+    // added it to — otherwise matches() hides it the moment it's created.
+    if (activeArea !== 'all') fields.area = activeArea
+    if (activeTag !== 'all') fields.tags = [activeTag]
     haptics.success()
-    addTask({ ...fields, privacy_level: isSolo() ? PRIVATE_LEVEL : 'shared' })
+    // Privacy follows the user's "new task" default, exactly like TaskForm — solo
+    // households are always private; otherwise it's the configured taskPrivacy.
+    addTask({ ...fields, privacy_level: isSolo() ? PRIVATE_LEVEL : defaultPrivacy })
     setQuickDraft('')
     quickRef.current?.focus()
   }

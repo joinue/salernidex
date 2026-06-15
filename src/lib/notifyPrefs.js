@@ -12,6 +12,7 @@ export const DEFAULT_PREFS = {
   dates: true,
   fyi: false, // partner activity — off by default, it's the noisiest
   dates_lead_days: 7,
+  digest_time: '08:00', // local HH:MM the morning summary push fires (server reads this)
 }
 
 const listeners = new Set()

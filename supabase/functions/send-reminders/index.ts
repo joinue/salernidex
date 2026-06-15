@@ -159,39 +159,75 @@ function checkIns(people: any[], interactions: any[], memberId: string): Item[] 
   return out
 }
 
-function dayOfDates(people: any[], keyDates: any[], today: string): Item[] {
+// Whole days from `today` (ISO) until an event's next occurrence. Annual events
+// (birthdays, anniversaries) recur on their month/day each year; one-offs count
+// to the literal date and go negative once past. UTC-noon avoids any zone shift,
+// matching the rest of this file's date math.
+function daysAhead(dateStr: string, today: string, annual: boolean): number {
+  const t = new Date(`${today}T12:00:00Z`)
+  const [y, m, d] = dateStr.split('-').map(Number)
+  let target = new Date(Date.UTC(annual ? t.getUTCFullYear() : y, m - 1, d, 12))
+  if (annual && target < t) target = new Date(Date.UTC(t.getUTCFullYear() + 1, m - 1, d, 12))
+  return Math.round((target.getTime() - t.getTime()) / 86400000)
+}
+
+// Human lead label matching the Settings options (3 days / 1 week / 2 weeks).
+const leadLabel = (n: number) => (n === 7 ? 'a week' : n === 14 ? '2 weeks' : `${n} days`)
+
+// Birthday / key-date reminders. Fires day-of (the celebration ping) and a
+// single heads-up exactly `leadDays` before — honoring the member's "heads-up
+// before a date" setting. The two use distinct targetKeys so claimSend treats
+// them as separate once-per-day notifications.
+function dateReminders(people: any[], keyDates: any[], today: string, leadDays: number): Item[] {
   const out: Item[] = []
   const td = monthDay(today)
   const byId = new Map(people.map((p) => [p.id, p]))
   for (const p of people) {
     if (p.deleted_at || !p.birthday) continue
-    if (monthDay(p.birthday) !== td) continue
-    const year = Number(p.birthday.slice(0, 4))
-    const turning = year ? Number(today.slice(0, 4)) - year : null
-    out.push({
-      kind: 'date',
-      targetKey: `date:b-${p.id}`,
-      title: `🎂 ${p.name}'s birthday`,
-      body: turning ? `${p.name} turns ${turning} today` : `It's ${p.name}'s birthday today`,
-      url: `/#/person/${p.id}`,
-    })
+    if (monthDay(p.birthday) === td) {
+      const year = Number(p.birthday.slice(0, 4))
+      const turning = year ? Number(today.slice(0, 4)) - year : null
+      out.push({
+        kind: 'date',
+        targetKey: `date:b-${p.id}`,
+        title: `🎂 ${p.name}'s birthday`,
+        body: turning ? `${p.name} turns ${turning} today` : `It's ${p.name}'s birthday today`,
+        url: `/#/person/${p.id}`,
+      })
+    } else if (daysAhead(p.birthday, today, true) === leadDays) {
+      out.push({
+        kind: 'date',
+        targetKey: `date:b-${p.id}:soon`,
+        title: `🎂 ${p.name}'s birthday soon`,
+        body: `${p.name}'s birthday is in ${leadLabel(leadDays)}`,
+        url: `/#/person/${p.id}`,
+      })
+    }
   }
   for (const kd of keyDates) {
     const p = byId.get(kd.person_id)
     if (!p || p.deleted_at) continue
-    const hit = kd.annual ? monthDay(kd.date) === td : kd.date === today
-    if (!hit) continue
-    const year = Number(kd.date.slice(0, 4))
-    const years = kd.annual && year ? Number(today.slice(0, 4)) - year : null
-    out.push({
-      kind: 'date',
-      targetKey: `date:${kd.id}`,
-      title: kd.label,
-      body: years
-        ? `${p.name} — ${kd.label}, ${years} years today`
-        : `${p.name} — ${kd.label} today`,
-      url: `/#/person/${p.id}`,
-    })
+    if (kd.annual ? monthDay(kd.date) === td : kd.date === today) {
+      const year = Number(kd.date.slice(0, 4))
+      const years = kd.annual && year ? Number(today.slice(0, 4)) - year : null
+      out.push({
+        kind: 'date',
+        targetKey: `date:${kd.id}`,
+        title: kd.label,
+        body: years
+          ? `${p.name} — ${kd.label}, ${years} years today`
+          : `${p.name} — ${kd.label} today`,
+        url: `/#/person/${p.id}`,
+      })
+    } else if (daysAhead(kd.date, today, !!kd.annual) === leadDays) {
+      out.push({
+        kind: 'date',
+        targetKey: `date:${kd.id}:soon`,
+        title: kd.label,
+        body: `${p.name} — ${kd.label} in ${leadLabel(leadDays)}`,
+        url: `/#/person/${p.id}`,
+      })
+    }
   }
   return out
 }
@@ -316,38 +352,75 @@ function habitReminders(
 }
 
 // ---- delivery -----------------------------------------------------------
-async function pushTo(
-  memberId: string,
+// Fan a payload out to a member's already-fetched subscriptions in parallel.
+// Returns the count that actually accepted it. Expired endpoints (404/410) are
+// pruned; any OTHER failure is logged (visibility) and counts as not-sent, so
+// the caller can roll its claim back and retry on the next tick.
+async function pushToSubs(
+  subs: any[],
   payload: { title: string; body: string; url: string; tag?: string },
 ) {
-  const { data: subs } = await supabase
-    .from('push_subscriptions')
-    .select('*')
-    .eq('member_id', memberId)
-  let sent = 0
-  for (const sub of subs ?? []) {
-    try {
-      await webpush.sendNotification(
-        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-        JSON.stringify(payload),
-      )
-      sent++
-    } catch (err) {
-      if (err?.statusCode === 404 || err?.statusCode === 410) {
-        await supabase.from('push_subscriptions').delete().eq('id', sub.id) // expired/revoked
+  let ok = 0
+  await Promise.allSettled(
+    subs.map(async (sub) => {
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          JSON.stringify(payload),
+        )
+        ok++
+      } catch (err) {
+        if (err?.statusCode === 404 || err?.statusCode === 410) {
+          await supabase.from('push_subscriptions').delete().eq('id', sub.id) // expired/revoked
+        } else {
+          // 403 (VAPID mismatch), 429 (rate limit), 5xx, network — keep the
+          // endpoint, surface it in the function logs, let the claim roll back.
+          console.error('[send-reminders] push failed', {
+            status: err?.statusCode,
+            subId: sub.id,
+            tag: payload.tag,
+          })
+        }
       }
-    }
-  }
-  return sent
+    }),
+  )
+  return ok
 }
 
 // Claim an item in notification_log; only the caller that inserts gets to
-// send (idempotent across 15-min runs).
+// send (idempotent across 15-min runs). Paired with unclaim() so a send that
+// delivered to zero devices (transient failure) is retried next tick instead of
+// being silently swallowed for the day.
 async function claim(memberId: string, kind: string, targetKey: string, sentFor: string) {
   const { error } = await supabase
     .from('notification_log')
     .insert({ member_id: memberId, kind, target_key: targetKey, sent_for: sentFor })
   return !error // unique violation = already sent today
+}
+
+async function unclaim(memberId: string, kind: string, targetKey: string, sentFor: string) {
+  await supabase
+    .from('notification_log')
+    .delete()
+    .match({ member_id: memberId, kind, target_key: targetKey, sent_for: sentFor })
+}
+
+// Claim → send → keep-or-roll-back. The atomic insert still guarantees a single
+// sender across concurrent runs; rolling back on a zero-delivery result is what
+// makes a transient push failure retryable. Re-sends are harmless: every push
+// carries tag = targetKey, so the push service REPLACES rather than stacks.
+async function claimSend(
+  subs: any[],
+  memberId: string,
+  kind: string,
+  targetKey: string,
+  sentFor: string,
+  payload: { title: string; body: string; url: string },
+) {
+  if (!(await claim(memberId, kind, targetKey, sentFor))) return 0
+  const n = await pushToSubs(subs, { ...payload, tag: targetKey || kind })
+  if (n === 0) await unclaim(memberId, kind, targetKey, sentFor)
+  return n
 }
 
 Deno.serve(async (req) => {
@@ -371,6 +444,7 @@ Deno.serve(async (req) => {
     members,
     prefsRows,
     snoozeRows,
+    subscriptions,
     people,
     interactions,
     tasks,
@@ -383,6 +457,7 @@ Deno.serve(async (req) => {
     supabase.from('household_members').select('*'),
     supabase.from('notification_prefs').select('*'),
     supabase.from('reminder_snoozes').select('*'),
+    supabase.from('push_subscriptions').select('*'),
     supabase.from('people').select('*'),
     supabase.from('interactions').select('person_id, occurred_at'),
     supabase.from('tasks').select('*'),
@@ -396,9 +471,20 @@ Deno.serve(async (req) => {
   const prefsByMember = new Map(
     prefsRows.map((p: any) => [p.member_id, { ...DEFAULT_PREFS, ...p }]),
   )
+  // Group subscriptions by member up front — one query, no per-item refetch.
+  const subsByMember = new Map<string, any[]>()
+  for (const sub of subscriptions) {
+    const list = subsByMember.get(sub.member_id) ?? []
+    list.push(sub)
+    subsByMember.set(sub.member_id, list)
+  }
   let sent = 0
 
   for (const member of members) {
+    // No device = nothing deliverable; skip before doing any per-member work.
+    const subs = subsByMember.get(member.id) ?? []
+    if (!subs.length) continue
+
     const prefs = prefsByMember.get(member.id) ?? DEFAULT_PREFS
     const hidden = new Set(
       snoozeRows
@@ -410,37 +496,34 @@ Deno.serve(async (req) => {
     const items: Item[] = [
       ...(prefs.tasks ? dueTasksToday(tasks, member.id, today, time) : []),
       ...(prefs.nudges ? checkIns(people, interactions, member.id) : []),
-      ...(prefs.dates ? dayOfDates(people, keyDates, today) : []),
+      ...(prefs.dates ? dateReminders(people, keyDates, today, prefs.dates_lead_days ?? 7) : []),
     ].filter((i) => !hidden.has(i.targetKey))
 
-    if (!items.length) continue
+    if (items.length) {
+      // Morning digest: one summary at the member's digest_time (±15 min).
+      const wantDigest = Math.abs(minutesOf(time) - minutesOf(prefs.digest_time ?? '08:00')) <= 15
+      if (wantDigest) {
+        const lead = items
+          .slice(0, 3)
+          .map((i) => i.body)
+          .join(' · ')
+        sent += await claimSend(subs, member.id, 'digest', '', today, {
+          title: items.length === 1 ? '1 thing today' : `${items.length} things today`,
+          body: lead + (items.length > 3 ? ` · +${items.length - 3} more` : ''),
+          url: '/',
+        })
+      }
 
-    // Morning digest: one summary at the member's digest_time (±15 min).
-    const wantDigest = Math.abs(minutesOf(time) - minutesOf(prefs.digest_time ?? '08:00')) <= 15
-    if (wantDigest && (await claim(member.id, 'digest', '', today))) {
-      const lead = items
-        .slice(0, 3)
-        .map((i) => i.body)
-        .join(' · ')
-      sent += await pushTo(member.id, {
-        title: items.length === 1 ? '1 thing today' : `${items.length} things today`,
-        body: lead + (items.length > 3 ? ` · +${items.length - 3} more` : ''),
-        url: '/',
-        tag: 'digest',
-      })
-    }
-
-    // Individual pings: day-of dates + tasks + habits (check-ins ride the digest
-    // — a "say hi" item is never urgent enough to interrupt someone's day). A
-    // timed task that isn't due yet (ready === false) waits for a later tick.
-    for (const item of items.filter((i) => i.kind !== 'nudge' && i.ready !== false)) {
-      if (!(await claim(member.id, item.kind, item.targetKey, today))) continue
-      sent += await pushTo(member.id, {
-        title: item.title,
-        body: item.body,
-        url: item.url,
-        tag: item.targetKey,
-      })
+      // Individual pings: day-of dates + tasks (check-ins ride the digest — a
+      // "say hi" item is never urgent enough to interrupt someone's day). A
+      // timed task that isn't due yet (ready === false) waits for a later tick.
+      for (const item of items.filter((i) => i.kind !== 'nudge' && i.ready !== false)) {
+        sent += await claimSend(subs, member.id, item.kind, item.targetKey, today, {
+          title: item.title,
+          body: item.body,
+          url: item.url,
+        })
+      }
     }
 
     // Habit reminders fire at each habit's own reminder_time, independent of the
@@ -449,12 +532,10 @@ Deno.serve(async (req) => {
       (i) => !hidden.has(i.targetKey),
     )
     for (const item of habitItems) {
-      if (!(await claim(member.id, item.kind, item.targetKey, today))) continue
-      sent += await pushTo(member.id, {
+      sent += await claimSend(subs, member.id, item.kind, item.targetKey, today, {
         title: item.title,
         body: item.body,
         url: item.url,
-        tag: item.targetKey,
       })
     }
 
@@ -466,16 +547,15 @@ Deno.serve(async (req) => {
         (i) => !hidden.has(i.targetKey),
       )
       for (const item of listItemsToSend) {
-        if (!(await claim(member.id, item.kind, item.targetKey, today))) continue
-        sent += await pushTo(member.id, {
+        sent += await claimSend(subs, member.id, item.kind, item.targetKey, today, {
           title: item.title,
           body: item.body,
           url: item.url,
-          tag: item.targetKey,
         })
       }
     }
   }
 
+  console.log('[send-reminders]', { date: today, time, members: members.length, sent })
   return Response.json({ ok: true, members: members.length, sent })
 })

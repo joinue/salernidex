@@ -507,6 +507,7 @@ function Shell({ session, onLogout, household }) {
                 onSearch={isMobile ? () => setQuickFind(true) : undefined}
                 defaultFilter={appPrefs.taskFilter}
                 defaultShowCompleted={appPrefs.showCompleted}
+                defaultPrivacy={appPrefs.taskPrivacy}
               />
             )}
             {route.name === 'project' && (
@@ -716,6 +717,7 @@ function Shell({ session, onLogout, household }) {
           onSave={data.saveOrg}
           onClose={() => setEditingOrg(null)}
           isDemo={isDemo}
+          defaultPrivacy={appPrefs.personPrivacy}
         />
       )}
       {editingGroup && (

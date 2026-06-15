@@ -13,7 +13,13 @@ export function lastInteraction(personId, interactions = []) {
 
 export function daysSince(iso) {
   if (!iso) return null
-  return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+  // Calendar days between local midnights — not a rolling 24h window, so a task
+  // done late yesterday reads "yesterday" this morning, not "today".
+  const then = new Date(iso)
+  const now = new Date()
+  const startThen = new Date(then.getFullYear(), then.getMonth(), then.getDate())
+  const startNow = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return Math.round((startNow - startThen) / 86400000)
 }
 
 // Compact relative label: "today", "yesterday", "5d", "3w", "4mo", "2y".
