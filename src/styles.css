@@ -3259,13 +3259,41 @@ select.rec-select + .segmented {
   word-break: break-word;
 }
 
-.value-row a.v-value {
-  color: var(--accent);
-}
-
 .value-row svg {
   color: var(--text-2);
   flex-shrink: 0;
+}
+
+/* Contact section: iOS-style stacked rows (label over value), tappable links */
+a.value-row {
+  text-decoration: none;
+  color: inherit;
+}
+
+.contact-list .value-row {
+  align-items: center;
+}
+
+.contact-list .v-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.contact-list .v-label {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.contact-list .v-value {
+  text-align: left;
+  flex: none;
+}
+
+.contact-list a.value-row .v-value {
+  color: var(--accent);
 }
 
 .notes {
@@ -5420,6 +5448,19 @@ select.rec-select + .segmented {
   z-index: 0; /* own stacking context — contains Leaflet's pane/control z-indexes
                  (tiles 200, markers 600, controls 800) so the card can sit above */
   background: var(--surface-2);
+}
+
+/* CARTO's dark_all basemap is near-black with very low contrast under our dark
+   UI. Lift the blacks toward charcoal and nudge contrast so streets/water read.
+   Scoped to the tile pane only — avatar markers (marker pane) and zoom controls
+   are untouched. Mirrors the dark-mode selectors used elsewhere + darkTheme(). */
+:root[data-theme='dark'] .map-canvas .leaflet-tile-pane {
+  filter: brightness(1.65) contrast(0.92);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .map-canvas .leaflet-tile-pane {
+    filter: brightness(1.65) contrast(0.92);
+  }
 }
 
 .map-empty {

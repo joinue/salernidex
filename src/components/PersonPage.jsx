@@ -238,40 +238,40 @@ export default function PersonPage({
       {hasContact && (
         <>
           <div className="section-label">Contact</div>
-          <div className="list">
+          <div className="list contact-list">
             {person.email && (
-              <a className="value-row" href={`mailto:${person.email}`}>
+              <a className="value-row" href={`mailto:${person.email.trim()}`}>
                 <Mail size={18} />
-                <span className="v-label">Email</span>
-                <span className="v-value" style={{ color: 'var(--accent)' }}>
-                  {person.email}
+                <span className="v-col">
+                  <span className="v-label">Email</span>
+                  <span className="v-value">{person.email}</span>
                 </span>
               </a>
             )}
             {(person.emails || []).map((em, i) => (
-              <a className="value-row" key={`em-${i}`} href={`mailto:${em.value}`}>
+              <a className="value-row" key={`em-${i}`} href={`mailto:${em.value.trim()}`}>
                 <Mail size={18} />
-                <span className="v-label">{em.label || 'Email'}</span>
-                <span className="v-value" style={{ color: 'var(--accent)' }}>
-                  {em.value}
+                <span className="v-col">
+                  <span className="v-label">{em.label || 'Email'}</span>
+                  <span className="v-value">{em.value}</span>
                 </span>
               </a>
             ))}
             {person.phone && (
-              <a className="value-row" href={`tel:${person.phone}`}>
+              <a className="value-row" href={`tel:${person.phone.trim()}`}>
                 <Phone size={18} />
-                <span className="v-label">Phone</span>
-                <span className="v-value" style={{ color: 'var(--accent)' }}>
-                  {person.phone}
+                <span className="v-col">
+                  <span className="v-label">Phone</span>
+                  <span className="v-value">{person.phone}</span>
                 </span>
               </a>
             )}
             {(person.phones || []).map((ph, i) => (
-              <a className="value-row" key={`ph-${i}`} href={`tel:${ph.value}`}>
+              <a className="value-row" key={`ph-${i}`} href={`tel:${ph.value.trim()}`}>
                 <Phone size={18} />
-                <span className="v-label">{ph.label || 'Phone'}</span>
-                <span className="v-value" style={{ color: 'var(--accent)' }}>
-                  {ph.value}
+                <span className="v-col">
+                  <span className="v-label">{ph.label || 'Phone'}</span>
+                  <span className="v-value">{ph.value}</span>
                 </span>
               </a>
             ))}
@@ -287,31 +287,37 @@ export default function PersonPage({
                   rel="noreferrer"
                 >
                   <Globe size={18} />
-                  <span className="v-label">{label}</span>
-                  <span className="v-value" style={{ color: 'var(--accent)' }}>
-                    {s.value}
+                  <span className="v-col">
+                    <span className="v-label">{label}</span>
+                    <span className="v-value">{s.value}</span>
                   </span>
                 </a>
               ) : (
                 <div className="value-row" key={`so-${i}`}>
                   <Globe size={18} />
-                  <span className="v-label">{label}</span>
-                  <span className="v-value">{s.value}</span>
+                  <span className="v-col">
+                    <span className="v-label">{label}</span>
+                    <span className="v-value">{s.value}</span>
+                  </span>
                 </div>
               )
             })}
             {person.address && (
               <div className="value-row">
                 <MapPin size={18} />
-                <span className="v-label">Address</span>
-                <span className="v-value">{person.address}</span>
+                <span className="v-col">
+                  <span className="v-label">Address</span>
+                  <span className="v-value">{person.address}</span>
+                </span>
               </div>
             )}
             {person.birthday && (
               <div className="value-row">
                 <Gift size={18} />
-                <span className="v-label">Birthday</span>
-                <span className="v-value">{formatDate(person.birthday)}</span>
+                <span className="v-col">
+                  <span className="v-label">Birthday</span>
+                  <span className="v-value">{formatDate(person.birthday)}</span>
+                </span>
               </div>
             )}
           </div>
