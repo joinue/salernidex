@@ -1,9 +1,81 @@
-// SALERNIDEX service worker — push display + click-through only.
-// Deliberately NO offline caching while the app is under active development
-// (stale-cache bugs cost more than offline support is worth right now).
+// SALERNIDEX service worker — push display + click-through, plus a Tier-1
+// offline app-shell cache so a cold launch with no network still paints the app
+// (the data layer hydrates from its own IndexedDB snapshot; see lib/offlineCache).
+//
+// Caching is scoped to OUR static shell only — Supabase API/realtime traffic is
+// cross-origin and is never touched here. Strategy, chosen to avoid the
+// stale-cache bugs that kept caching off before:
+//   • navigations  → network-first, fall back to the cached shell when offline
+//                    (online users always get fresh index.html → latest chunks)
+//   • /assets/*     → cache-first (Vite hashes these; the name IS the version)
+//   • other GETs    → stale-while-revalidate (icons, manifest, favicons)
+const SHELL_CACHE = 'salernidex-shell-v1'
+const SHELL_URL = '/index.html'
 
-self.addEventListener('install', () => self.skipWaiting())
-self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()))
+self.addEventListener('install', (e) => {
+  e.waitUntil(
+    caches
+      .open(SHELL_CACHE)
+      .then((c) => c.add(SHELL_URL))
+      .catch(() => {})
+      .then(() => self.skipWaiting()),
+  )
+})
+
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== SHELL_CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim()),
+  )
+})
+
+const putInCache = (request, response) => {
+  // Only cache successful, basic (same-origin) responses; clone before the body
+  // is consumed by the page.
+  if (response && response.ok && response.type === 'basic') {
+    const copy = response.clone()
+    caches.open(SHELL_CACHE).then((c) => c.put(request, copy))
+  }
+  return response
+}
+
+self.addEventListener('fetch', (e) => {
+  const { request } = e
+  if (request.method !== 'GET') return
+  const url = new URL(request.url)
+  if (url.origin !== self.location.origin) return // leave Supabase & other origins alone
+
+  // SPA navigations: prefer the network (keeps the app fresh), fall back to the
+  // cached shell when offline so a cold launch isn't a blank screen.
+  if (request.mode === 'navigate') {
+    e.respondWith(
+      fetch(request)
+        .then((res) => putInCache(SHELL_URL, res))
+        .catch(() => caches.match(SHELL_URL)),
+    )
+    return
+  }
+
+  // Hashed build assets are immutable — serve from cache, fetch+store on a miss.
+  if (url.pathname.startsWith('/assets/')) {
+    e.respondWith(
+      caches.match(request).then((hit) => hit || fetch(request).then((res) => putInCache(request, res))),
+    )
+    return
+  }
+
+  // Everything else same-origin (icons, manifest, favicons): stale-while-revalidate.
+  e.respondWith(
+    caches.match(request).then((hit) => {
+      const net = fetch(request)
+        .then((res) => putInCache(request, res))
+        .catch(() => hit)
+      return hit || net
+    }),
+  )
+})
 
 // 6b: the send-reminders Edge Function pushes { title, body, url, tag }.
 self.addEventListener('push', (e) => {
@@ -20,7 +92,7 @@ self.addEventListener('push', (e) => {
       badge: '/favicon-96x96.png',
       tag: data.tag || undefined, // same tag replaces, so re-sends don't stack
       data: { url: data.url || '/' },
-    })
+    }),
   )
 })
 
@@ -38,6 +110,6 @@ self.addEventListener('notificationclick', (e) => {
         }
       }
       return self.clients.openWindow(url)
-    })
+    }),
   )
 })

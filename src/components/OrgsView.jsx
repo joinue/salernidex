@@ -14,7 +14,6 @@ export default function OrgsView({ data, onOpen, onAdd, hub }) {
         navOptions={hub?.options}
         navActive={hub?.active}
         onNavigate={hub?.onNavigate}
-        subtitle={orgs.length ? `${orgs.length} ${orgs.length === 1 ? 'org' : 'orgs'}` : null}
         action={onAdd}
         actionLabel="Add organization"
       />

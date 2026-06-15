@@ -10,6 +10,8 @@ import {
   byUpcoming,
   priorityLabel,
   completionsFor,
+  completionLog,
+  capCompletionLog,
   lastCompletion,
   projectProgress,
   isProject,
@@ -273,6 +275,87 @@ describe('completionFields', () => {
     )
     expect(f.due_date).toBeUndefined()
     expect(f.completed_at).not.toBeNull()
+  })
+})
+
+describe('completionLog', () => {
+  // "now" is Fri 2026-06-12 noon (see beforeEach).
+  it('groups check-offs by local day, newest first', () => {
+    const tasks = [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }]
+    const completions = [
+      { id: 'c1', task_id: 'a', completed_at: '2026-06-12T09:00:00', completed_by: 'm1' },
+      { id: 'c2', task_id: 'b', completed_at: '2026-06-11T20:00:00', completed_by: null },
+    ]
+    const log = completionLog(tasks, completions)
+    expect(log.map((g) => g.label)).toEqual(['Today', 'Yesterday'])
+    expect(log[0].events[0].id).toBe('c1')
+    expect(log[0].events[0].completedBy).toBe('m1')
+  })
+
+  it('includes recurring check-offs even though the task rolled forward', () => {
+    // The task carries no completed_at (it advanced), but its log entry remains.
+    const tasks = [{ id: 'r', title: 'Trash', recurrence: { freq: 'weekly' }, completed_at: null }]
+    const completions = [{ id: 'c1', task_id: 'r', completed_at: '2026-06-12T08:00:00' }]
+    const log = completionLog(tasks, completions)
+    expect(log[0].events[0].task.id).toBe('r')
+  })
+
+  it('does not double-count a one-off that has both completed_at and a log entry', () => {
+    const tasks = [{ id: 'o', title: 'One-off', completed_at: '2026-06-12T10:00:00' }]
+    const completions = [{ id: 'c1', task_id: 'o', completed_at: '2026-06-12T10:00:00' }]
+    const log = completionLog(tasks, completions)
+    expect(log[0].events).toHaveLength(1)
+    expect(log[0].events[0].id).toBe('c1')
+  })
+
+  it('folds in legacy one-offs that predate the completion log', () => {
+    const tasks = [{ id: 'o', title: 'Old', completed_at: '2026-06-12T10:00:00' }]
+    const log = completionLog(tasks, [])
+    expect(log[0].events[0].task.id).toBe('o')
+  })
+
+  it('excludes subtasks and honors the keep filter', () => {
+    const tasks = [
+      { id: 's', title: 'Sub', parent_id: 'p', completed_at: '2026-06-12T10:00:00' },
+      { id: 'a', title: 'A', area: 'Home', completed_at: '2026-06-12T11:00:00' },
+      { id: 'b', title: 'B', area: 'Work', completed_at: '2026-06-12T11:00:00' },
+    ]
+    const log = completionLog(tasks, [], (t) => t.area === 'Home')
+    const ids = log.flatMap((g) => g.events.map((e) => e.task.id))
+    expect(ids).toEqual(['a'])
+  })
+})
+
+describe('capCompletionLog', () => {
+  // "now" is Fri 2026-06-12 noon (see beforeEach).
+  const event = (day) => ({ id: `${day}`, completedAt: `${day}T10:00:00` })
+  const group = (day, n) => ({
+    day,
+    label: day,
+    events: Array.from({ length: n }, (_, i) => event(`${day}#${i}`)),
+  })
+
+  it('drops days older than the window and counts them as omitted', () => {
+    const log = [group('2026-06-12', 1), group('2026-05-20', 1)] // 23 days ago
+    const { groups, omitted } = capCompletionLog(log, { withinDays: 14, max: 30 })
+    expect(groups).toHaveLength(1)
+    expect(groups[0].day).toBe('2026-06-12')
+    expect(omitted).toBe(1)
+  })
+
+  it('caps total events at max, splitting a group and reporting the remainder', () => {
+    const log = [group('2026-06-12', 20), group('2026-06-11', 20)]
+    const { groups, omitted } = capCompletionLog(log, { withinDays: 14, max: 30 })
+    expect(groups[0].events).toHaveLength(20)
+    expect(groups[1].events).toHaveLength(10) // 30 - 20
+    expect(omitted).toBe(10)
+  })
+
+  it('returns everything untrimmed when under both limits', () => {
+    const log = [group('2026-06-12', 3)]
+    const { groups, omitted } = capCompletionLog(log, { withinDays: 14, max: 30 })
+    expect(groups).toEqual(log)
+    expect(omitted).toBe(0)
   })
 })
 

@@ -51,9 +51,6 @@ export default function RelationshipsView({ data, onOpenPerson, onAdd, hub }) {
         navOptions={hub?.options}
         navActive={hub?.active}
         onNavigate={hub?.onNavigate}
-        subtitle={
-          rows.length ? `${rows.length} ${rows.length === 1 ? 'connection' : 'connections'}` : null
-        }
         action={onAdd}
         actionLabel="Add relationship"
       />

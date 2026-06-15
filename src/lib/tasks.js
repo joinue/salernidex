@@ -165,6 +165,94 @@ export function lastCompletion(taskId, completions = []) {
   return completionsFor(taskId, completions)[0] || null
 }
 
+// Local 'YYYY-MM-DD' for an ISO timestamp — the calendar day a check-off lands
+// on in the user's timezone (completed_at is stored UTC).
+function localDay(iso) {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// Time-of-day label for an ISO timestamp ('3 PM') — the right-aligned stamp on
+// each Done-log row. Reuses timeLabel so it matches due-time formatting.
+export function completionTime(iso) {
+  const d = new Date(iso)
+  return timeLabel(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)
+}
+
+// Friendly header for a completion day: Today / Yesterday / weekday within the
+// last week / 'Mon, Jun 9' beyond that.
+export function dayLabel(dayStr) {
+  const daysAgo = -daysUntilDue(dayStr)
+  if (daysAgo <= 0) return 'Today'
+  if (daysAgo === 1) return 'Yesterday'
+  const d = parseLocal(dayStr)
+  if (daysAgo < 7) return d.toLocaleDateString(undefined, { weekday: 'long' })
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+// The "Done" logbook: every check-off as a dated event, grouped by day (newest
+// first, newest within each day first). Built from the completion log so
+// recurring tasks — which roll forward and never carry completed_at — still
+// appear the day they were done. Modern one-offs are logged too, so they come
+// from the same source; legacy one-offs that predate the log are folded in via
+// their completed_at. `keep(task)` applies the member/area/tag filters. Subtasks
+// are excluded (they aren't logged and don't belong in the log).
+export function completionLog(tasks, completions = [], keep = () => true) {
+  const byId = new Map(tasks.map((t) => [t.id, t]))
+  const logged = new Set()
+  const events = []
+  for (const c of completions) {
+    const task = byId.get(c.task_id)
+    if (!task || task.parent_id || !keep(task)) continue
+    logged.add(task.id)
+    events.push({ id: c.id, task, completedAt: c.completed_at, completedBy: c.completed_by || null })
+  }
+  for (const t of tasks) {
+    if (t.parent_id || !t.completed_at || logged.has(t.id) || !keep(t)) continue
+    events.push({ id: t.id, task: t, completedAt: t.completed_at, completedBy: null })
+  }
+  events.sort((a, b) => (a.completedAt < b.completedAt ? 1 : -1))
+  const groups = []
+  const index = new Map()
+  for (const e of events) {
+    const day = localDay(e.completedAt)
+    let g = index.get(day)
+    if (!g) {
+      g = { day, label: dayLabel(day), events: [] }
+      index.set(day, g)
+      groups.push(g)
+    }
+    g.events.push(e)
+  }
+  return groups
+}
+
+// Trim a completion log (from completionLog) to a recent window for inline
+// display: keep events from the last `withinDays` days, capped at `max` total —
+// whichever limit bites first. Groups are already newest-first, so this walks
+// forward and stops. Returns the trimmed groups plus how many events were left
+// out, so the UI can offer to reveal the rest without a separate history page.
+export function capCompletionLog(groups, { withinDays = 14, max = 30 } = {}) {
+  const cutoff = isoDateIn(-withinDays)
+  let kept = 0
+  let omitted = 0
+  const out = []
+  for (const g of groups) {
+    const room = g.day < cutoff ? 0 : max - kept
+    if (room <= 0) {
+      omitted += g.events.length
+    } else if (g.events.length <= room) {
+      out.push(g)
+      kept += g.events.length
+    } else {
+      out.push({ ...g, events: g.events.slice(0, room) })
+      kept += room
+      omitted += g.events.length - room
+    }
+  }
+  return { groups: out, omitted }
+}
+
 // Subtask progress for a project, or null if it has no children.
 // Heading rows are structure, not work — they never count.
 export function projectProgress(taskId, all) {

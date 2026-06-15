@@ -52,6 +52,9 @@ create table public.people (
   socials       jsonb not null default '[]',    -- social profiles: [{platform, value}] (see 0012)
   birthday      date,
   address       text,
+  latitude      double precision,              -- geocoded from `address` (see 0027); null = not yet/failed
+  longitude     double precision,
+  geocoded_address text,                       -- the `address` string these coords were resolved from; re-geocode when it differs
   tags          text[] not null default '{}',
   tier          text check (tier in ('family', 'inner', 'close', 'network', 'acquaintance')),  -- relationship tier; null = unsorted. Order (closest→loosest) drives TIER_RANK in lib/constants.js
   organization_id uuid,                         -- employer; FK to organizations added below (that table is defined after this one). null = none

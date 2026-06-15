@@ -11,6 +11,9 @@ import {
 import {
   taskBucket,
   completionsFor,
+  completionLog,
+  capCompletionLog,
+  completionTime,
   isProject,
   areaNames,
   taskTags,
@@ -18,6 +21,7 @@ import {
   byUpcoming,
   isoDateIn,
 } from '../lib/tasks'
+import { describeRecurrence } from '../lib/recurrence'
 import { parseTaskInput, quickTaskFields } from '../lib/taskParse'
 import { PRIVATE_LEVEL } from '../lib/privacy'
 import { relativeTime } from '../lib/contact'
@@ -27,8 +31,10 @@ import haptics from '../lib/haptics'
 import PageHeader from './PageHeader'
 import Segmented from './Segmented'
 import TaskRow from './TaskRow'
+import SharedDot from './SharedDot'
 import ReorderableList from './ReorderableList'
 import AddToCalendar from './AddToCalendar'
+import { Check } from 'react-feather'
 
 // Icons for the quick-add preview chips, matching TaskForm's smart-add tokens.
 const TOKEN_ICON = { due: Calendar, time: Clock, repeat: RepeatIcon, who: User }
@@ -72,6 +78,7 @@ export default function TasksView({
   const [tagFilter, setTagFilter] = useState('all')
   const [expanded, setExpanded] = useState(expandId || null)
   const [showDone, setShowDone] = useState(defaultShowCompleted)
+  const [showAllDone, setShowAllDone] = useState(false)
   const [draftSub, setDraftSub] = useState('')
   // Inline quick-add: type a line, Enter adds it (running the same NL parser the
   // modal uses), and the field stays focused for the next one — fast capture
@@ -127,14 +134,20 @@ export default function TasksView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tasks, filter, activeArea, activeTag],
   )
-  const done = useMemo(
-    () =>
-      tasks
-        .filter((t) => !t.parent_id && t.completed_at && matches(t))
-        .sort((a, b) => (a.completed_at < b.completed_at ? 1 : -1)),
+  // Done is a dated logbook of check-offs, not a list of completed task rows.
+  // Recurring tasks roll forward (completed_at stays null), so they'd never show
+  // here otherwise — completionLog reads the completion log so every check-off
+  // appears the day it happened. See lib/tasks.completionLog.
+  const log = useMemo(
+    () => completionLog(tasks, completions, matches),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tasks, filter, activeArea, activeTag],
+    [tasks, completions, filter, activeArea, activeTag],
   )
+  const logCount = useMemo(() => log.reduce((n, g) => n + g.events.length, 0), [log])
+  // Inline view is capped to the last 2 weeks / 30 check-offs (whichever bites
+  // first) so the list can't run away; "Show N earlier" reveals the rest in place.
+  const { groups: cappedLog, omitted } = useMemo(() => capCompletionLog(log), [log])
+  const shownLog = showAllDone ? log : cappedLog
   const grouped = useMemo(() => {
     const g = { overdue: [], today: [], upcoming: [], someday: [] }
     for (const t of topOpen) g[taskBucket(t)].push(t)
@@ -291,6 +304,46 @@ export default function TasksView({
     )
   }
 
+  // One row in the Done logbook. Reads "done" (filled check, struck title) with a
+  // right-aligned time-of-day stamp. One-offs keep their un-check (tap the check
+  // to reopen); recurring occurrences are historical events, so their check is a
+  // static marker — tap the row to open the live task.
+  const renderLogEvent = (event) => {
+    const { task } = event
+    const oneOff = !task.recurrence
+    return (
+      <div className="list-row" key={event.id} onClick={() => onEdit(task)}>
+        <button
+          className="task-check done"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (oneOff) toggle(task)
+          }}
+          aria-label={oneOff ? 'Mark not done' : 'Completed'}
+          disabled={!oneOff}
+        >
+          <Check size={15} />
+        </button>
+        <div className="row-body">
+          <div className="row-titleline">
+            <div className="row-title task-done">{task.title}</div>
+            <SharedDot item={task} />
+          </div>
+          <div className="task-meta">
+            {task.recurrence && (
+              <span className="chip" title={describeRecurrence(task.recurrence)}>
+                <RepeatIcon size={11} />
+              </span>
+            )}
+            {task.area && <span className="chip area">{task.area}</span>}
+            {event.completedBy && <span className="chip">{assigneeLabel(event.completedBy)}</span>}
+            <span className="log-time">{completionTime(event.completedAt)}</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div>
       <PageHeader title="Tasks" action={onAdd} actionLabel="New task" onSearch={onSearch} />
@@ -418,13 +471,27 @@ export default function TasksView({
         )
       )}
 
-      {done.length > 0 && (
+      {logCount > 0 && (
         <>
           <button className="section-label section-toggle" onClick={() => setShowDone((v) => !v)}>
-            Done · {done.length}{' '}
+            Done · {logCount}{' '}
             <ChevronRight size={13} style={{ transform: showDone ? 'rotate(90deg)' : 'none' }} />
           </button>
-          {showDone && <div className="list">{done.map(renderTask)}</div>}
+          {showDone && (
+            <>
+              {shownLog.map((g) => (
+                <div key={g.day}>
+                  <div className="log-day">{g.label}</div>
+                  <div className="list">{g.events.map(renderLogEvent)}</div>
+                </div>
+              ))}
+              {omitted > 0 && (
+                <button className="text-btn log-more" onClick={() => setShowAllDone((v) => !v)}>
+                  {showAllDone ? 'Show less' : `Show ${omitted} earlier`}
+                </button>
+              )}
+            </>
+          )}
         </>
       )}
     </div>

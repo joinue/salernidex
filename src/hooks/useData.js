@@ -28,6 +28,7 @@ import { friendlyError } from '../lib/errors'
 import { filterVisible, PRIVATE_LEVEL } from '../lib/privacy'
 import { hydrateAppPrefs, bindAppPrefsRemote } from '../lib/appPrefs'
 import { hydrateNotifyPrefs, bindNotifyRemote } from '../lib/notifyPrefs'
+import { loadSnapshot, saveSnapshot } from '../lib/offlineCache'
 
 // Streak lengths (days, or weeks for weekly habits) worth a small celebration.
 const MILESTONES = new Set([7, 14, 30, 50, 75, 100, 150, 200, 365])
@@ -101,6 +102,10 @@ export function useData(session) {
   // are in flight — the server read can still be missing our just-added row and
   // would momentarily clobber it. We defer the refetch until this hits 0.
   const pendingWrites = useRef(0)
+  // Once a real server refresh has landed, the IndexedDB snapshot must never
+  // overwrite it (the cache hydrate is async and can resolve after the network
+  // when both race on a warm start). This flag lets the hydrate bail.
+  const serverLoaded = useRef(false)
 
   // Two distinct identities, deliberately kept apart (live mode used to conflate
   // them, which broke privacy and snoozes):
@@ -207,6 +212,28 @@ export function useData(session) {
       if (!h.error) setHabits(h.data || [])
       if (!he.error) setHabitEntries(he.data || [])
       if (!lc.error) setListCatalog(lc.data || [])
+      // Server truth is in: from here the offline snapshot must not clobber it,
+      // and we persist this pull as the new last-known-good for the next cold
+      // launch. Best-effort — saveSnapshot swallows its own failures.
+      serverLoaded.current = true
+      saveSnapshot(householdId, {
+        people: p.data,
+        orgs: o.data,
+        relationships: r.data,
+        interactions: i.data,
+        groups: g.data,
+        tasks: t.data,
+        completions: c.data,
+        taskLinks: tl.data,
+        lists: l.data,
+        listItems: li.data,
+        families: f.data,
+        keyDates: kd.data,
+        reminderSnoozes: sn.error ? [] : sn.data || [],
+        habits: h.error ? [] : h.data || [],
+        habitEntries: he.error ? [] : he.data || [],
+        listCatalog: lc.error ? [] : lc.data || [],
+      })
     }
     setLoading(false)
   }, [isDemo, memberId, householdId])
@@ -236,6 +263,38 @@ export function useData(session) {
       .maybeSingle()
     if (!prefErr && data) hydrateNotifyPrefs(memberId, fromNotifyRow(data))
   }, [isDemo, memberId])
+
+  // Tier-1 offline: paint last-known-good data from IndexedDB immediately, so a
+  // cold launch (especially with no/slow network) shows the household instead of
+  // empty lists. Bails if a server refresh has already landed — fresh truth wins
+  // the race. Keyed by householdId so each household reads its own snapshot.
+  useEffect(() => {
+    if (isDemo || !householdId) return
+    let cancelled = false
+    loadSnapshot(householdId).then((snap) => {
+      if (cancelled || !snap || serverLoaded.current) return
+      setPeople(snap.people || [])
+      setOrgs(snap.orgs || [])
+      setRelationships(snap.relationships || [])
+      setInteractions(snap.interactions || [])
+      setGroups(snap.groups || [])
+      setTasks(snap.tasks || [])
+      setCompletions(snap.completions || [])
+      setTaskLinks(snap.taskLinks || [])
+      setLists(snap.lists || [])
+      setListItems(snap.listItems || [])
+      setFamilies(snap.families || [])
+      setKeyDates(snap.keyDates || [])
+      setReminderSnoozes(snap.reminderSnoozes || [])
+      setHabits(snap.habits || [])
+      setHabitEntries(snap.habitEntries || [])
+      setListCatalog(snap.listCatalog || [])
+      setLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [isDemo, householdId])
 
   useEffect(() => {
     if (!session || isDemo) return

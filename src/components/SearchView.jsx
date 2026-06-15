@@ -11,6 +11,7 @@ import {
   UserPlus,
   Check,
   ArrowDown,
+  Map as MapIcon,
 } from 'react-feather'
 import {
   searchPeople,
@@ -32,6 +33,7 @@ import SwipeRow from './SwipeRow'
 import ActionSheet from './ActionSheet'
 import InteractionForm from './InteractionForm'
 import ConfirmDialog from './ConfirmDialog'
+import PeopleMap from './PeopleMap'
 import { useAppPrefs } from '../hooks/useAppPrefs'
 
 export default function SearchView({
@@ -65,6 +67,7 @@ export default function SearchView({
   const setShowDeleted = (v) => setFilters((f) => ({ ...f, showDeleted: v }))
   const [filterOpen, setFilterOpen] = useState(false)
   const [sortOpen, setSortOpen] = useState(false)
+  const [mapOpen, setMapOpen] = useState(false)
   const [actionPerson, setActionPerson] = useState(null)
   const [logPerson, setLogPerson] = useState(null)
   const [purgePersonTarget, setPurgePersonTarget] = useState(null) // person pending permanent delete
@@ -80,6 +83,7 @@ export default function SearchView({
     groups,
     orgs,
     loading,
+    savePerson,
     deletePerson,
     restorePerson,
     purgePerson,
@@ -93,6 +97,12 @@ export default function SearchView({
   const searching = query.trim().length > 0
 
   const allTags = useMemo(() => [...new Set(people.flatMap((p) => p.tags || []))].sort(), [people])
+  // Active people with an address — fed to the map, and used to hide the map
+  // button entirely when there's nothing to plot.
+  const mappable = useMemo(
+    () => people.filter((p) => !p.deleted_at && p.address && p.address.trim()),
+    [people],
+  )
   // Orgs actually in use by a (non-archived) person — the org filter only offers
   // values that can match. Stored/compared by id; shown by name.
   const allOrgs = useMemo(() => {
@@ -255,6 +265,9 @@ export default function SearchView({
         action={onAdd}
         actionIcon={UserPlus}
         actionLabel="Add person"
+        secondaryAction={mappable.length > 0 ? () => setMapOpen(true) : undefined}
+        secondaryActionIcon={MapIcon}
+        secondaryActionLabel="Map"
       />
 
       <div className="search-wrap">
@@ -450,6 +463,15 @@ export default function SearchView({
             setPurgePersonTarget(null)
           }}
           onCancel={() => setPurgePersonTarget(null)}
+        />
+      )}
+      {mapOpen && (
+        <PeopleMap
+          people={mappable}
+          orgsById={orgsById}
+          onOpen={onOpen}
+          onSave={savePerson}
+          onClose={() => setMapOpen(false)}
         />
       )}
     </div>

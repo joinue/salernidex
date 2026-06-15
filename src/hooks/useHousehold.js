@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { setHousehold, newJoinCode } from '../lib/household'
+import { getHousehold, setHousehold, newJoinCode } from '../lib/household'
 
 // Which household is active on this device (one auth user can belong to several
 // and switch between them). Onboarding + the Settings switcher write this.
@@ -33,7 +33,29 @@ export function useHousehold(session) {
     if (error) {
       // A read error (network blip, transient RLS/500) is NOT "no membership" —
       // routing it to Onboarding would let an existing member accidentally
-      // create a SECOND household. Surface a retryable error state instead.
+      // create a SECOND household.
+      // Tier-1 offline: if we've been online before, the household cache is
+      // already hydrated (real uuid id). Render the app from it instead of the
+      // retry screen so the offline data snapshot (useData) has a gate to pass.
+      // Only a genuine never-loaded state (no cache) falls through to the retry.
+      const cached = getHousehold()
+      if (cached?.id) {
+        setLocalHousehold({ id: cached.id, name: cached.name, join_code: cached.join_code })
+        setMembers(
+          (cached.members || []).map((m) => ({
+            id: m.id,
+            name: m.name,
+            user_id: null,
+            role: null,
+            person_id: m.person_id || null,
+            avatar_url: m.avatar_url || null,
+          })),
+        )
+        setMemberId(cached.current_member_id)
+        setMemberships([]) // the household switcher needs the network; offline shows just the active one
+        setStatus('ready')
+        return
+      }
       setStatus('error')
       return
     }

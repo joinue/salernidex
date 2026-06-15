@@ -10,6 +10,7 @@ import { useNotificationPrefs } from './hooks/useNotificationPrefs'
 import { useAppPrefs } from './hooks/useAppPrefs'
 import { useEdgeBack } from './hooks/useEdgeBack'
 import { currentMemberId, clearHousehold } from './lib/household'
+import { clearSnapshots } from './lib/offlineCache'
 import { areaNames, taskTags, isProject } from './lib/tasks'
 import InstallHint from './components/InstallHint'
 import AuthScreen from './components/AuthScreen'
@@ -146,6 +147,7 @@ function AuthedApp({ onDemo }) {
       // different user signing in on this device) never reads stale members.
       if (event === 'SIGNED_OUT') {
         clearHousehold()
+        clearSnapshots() // drop the offline data snapshot too — next user/device state starts clean
         try {
           localStorage.removeItem(ACTIVE_HOUSEHOLD_KEY)
         } catch {

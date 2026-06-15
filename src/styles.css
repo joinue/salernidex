@@ -748,6 +748,26 @@ select {
   font-variant-numeric: tabular-nums;
 }
 
+/* Done logbook: day header (lighter than a section label) + the right-aligned
+   time-of-day stamp on each completed row. */
+.log-day {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+  margin: 14px 4px 6px;
+}
+
+.log-time {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.log-more {
+  margin: 10px 4px 0;
+}
+
 /* ---------- People A–Z browse (Apple Contacts style) ---------- */
 
 .people-browse {
@@ -4561,7 +4581,12 @@ select.rec-select + .segmented {
   padding: 6px 12px calc(16px + env(safe-area-inset-bottom));
   animation: sheet-up 300ms cubic-bezier(0.32, 0.72, 0, 1);
   overscroll-behavior: contain;
-  touch-action: pan-y;
+  /* The sheet isn't a scroll container (it grows with its content), so let our
+     pointer drag own every vertical gesture across the whole body — not just
+     the grip. `pan-y` here would hand vertical pans to the browser, which then
+     bleeds them to the page behind (the sheet is portaled outside `.main`) and
+     fires pointercancel before our drag-to-dismiss can engage. */
+  touch-action: none;
   will-change: transform;
 }
 
@@ -5325,4 +5350,233 @@ select.rec-select + .segmented {
   .qf-row-sub {
     font-size: 13.5px;
   }
+}
+
+/* People map — full-screen Leaflet overlay (see components/PeopleMap.jsx). Sits
+   above the bottom tab bar and sheets; the map canvas fills the space below a
+   compact iOS-style bar. */
+.map-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  animation: fade-in 180ms ease-out;
+}
+
+.map-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  padding-top: calc(10px + env(safe-area-inset-top));
+  background: var(--surface);
+  border-bottom: 1px solid var(--separator);
+}
+
+.map-bar-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.map-bar-title svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.map-status {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.map-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.map-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0; /* own stacking context — contains Leaflet's pane/control z-indexes
+                 (tiles 200, markers 600, controls 800) so the card can sit above */
+  background: var(--surface-2);
+}
+
+.map-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-2);
+}
+
+.map-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Avatar markers. The person's <Avatar> is portaled into `.avatar-pin-mount`;
+   the marker root carries a little tail so it reads as a dropped pin. We strip
+   Leaflet's default div-icon chrome (white box + border). */
+/* Higher specificity than Leaflet's own `.leaflet-div-icon` — its stylesheet is
+   injected at runtime (after this one), so an equal-specificity reset would lose
+   and the default white box would come back. */
+.leaflet-div-icon.avatar-pin {
+  background: transparent;
+  border: none;
+}
+.avatar-pin-mount {
+  position: absolute;
+  top: 0;
+  left: 3px;
+  display: block;
+  transition: transform 160ms ease;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.4));
+}
+.avatar-pin .avatar {
+  border: 2.5px solid var(--surface);
+  box-sizing: border-box;
+}
+/* Tail: a rotated square in the avatar's ring colour, tucked behind it. */
+.avatar-pin::after {
+  content: '';
+  position: absolute;
+  top: 33px;
+  left: 50%;
+  width: 13px;
+  height: 13px;
+  background: var(--surface);
+  transform: translateX(-50%) rotate(45deg);
+  border-radius: 0 0 3px 0;
+}
+.avatar-pin.selected .avatar-pin-mount {
+  transform: scale(1.14);
+}
+.avatar-pin.selected .avatar {
+  border-color: var(--accent);
+}
+
+/* Apple-Maps-style detail card pinned to the bottom of the map. */
+.map-card {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  max-width: 440px;
+  margin-inline: auto;
+  z-index: 5;
+  padding: 12px;
+  background: var(--surface);
+  border-radius: 18px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.28);
+  animation: map-card-up 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes map-card-up {
+  from {
+    transform: translateY(130%);
+    opacity: 0.4;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.map-card-open {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.map-card-text {
+  flex: 1;
+  min-width: 0;
+}
+.map-card-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.map-card-sub {
+  margin-top: 1px;
+  font-size: 13.5px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.map-card-addr {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+.map-card-addr svg {
+  flex-shrink: 0;
+}
+.map-card-chevron {
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+.map-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.map-card-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  border: none;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.map-card-btn.primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.leaflet-container {
+  font: inherit;
 }
