@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Minus, Plus, Trash2, Edit2 } from 'react-feather'
 import SwipeRow from './SwipeRow'
 import ReorderableList from './ReorderableList'
 import Avatar from './Avatar'
+import { useConfirm } from '../hooks/useConfirm'
 import { byOrder, moveUpdates } from '../lib/order'
 import { groupByAisle, AISLES, OTHER } from '../lib/aisles'
 import { suggestItems } from '../lib/catalog'
@@ -174,6 +175,7 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
     return (
       <SwipeRow
         actions={[
+          { label: 'Edit', icon: Edit2, onClick: open },
           { label: 'Delete', icon: Trash2, variant: 'danger', onClick: () => onDelete(it.id) },
         ]}
         onClick={open}
@@ -191,6 +193,7 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
   return (
     <SwipeRow
       actions={[
+        { label: 'Edit', icon: Edit2, onClick: open },
         { label: 'Delete', icon: Trash2, variant: 'danger', onClick: () => onDelete(it.id) },
       ]}
       onClick={open}
@@ -240,6 +243,7 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
     deleteList,
     reorderListItems,
   } = data
+  const confirm = useConfirm()
   const list = lists.find((l) => l.id === listId)
   const grocery = list?.kind === 'grocery'
   const [draft, setDraft] = useState('')
@@ -306,6 +310,19 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
     toggleListItem(it)
   }
 
+  const removeList = async () => {
+    const ok = await confirm({
+      title: `Delete “${list.name}”?`,
+      message: 'This removes the list and everything on it.',
+      confirmLabel: 'Delete',
+      danger: true,
+    })
+    if (ok) {
+      onBack()
+      deleteList(listId)
+    }
+  }
+
   const row = (it) => (
     <ListItemRow
       key={it.id}
@@ -337,11 +354,7 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
           <button className="icon-btn" onClick={() => onEdit(list)} aria-label="Edit list">
             <Edit2 size={18} />
           </button>
-          <button
-            className="icon-btn danger"
-            onClick={() => window.confirm(`Delete "${list.name}"?`) && (onBack(), deleteList(listId))}
-            aria-label="Delete list"
-          >
+          <button className="icon-btn danger" onClick={removeList} aria-label="Delete list">
             <Trash2 size={18} />
           </button>
         </div>

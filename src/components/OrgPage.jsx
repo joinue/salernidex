@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ArrowLeft, Edit2, Trash2, Download, Plus, Briefcase, ChevronRight } from 'react-feather'
 import { isProject, projectProgress, linkedTasksFor } from '../lib/tasks'
+import { notesMentioning, noteTitle, noteSnippet } from '../lib/notes'
 import { downloadVcf } from '../lib/vcard'
 import haptics from '../lib/haptics'
 import Avatar from './Avatar'
@@ -17,6 +18,7 @@ export default function OrgPage({
   orgId,
   onOpenPerson,
   onOpenTask,
+  onOpenNote,
   onBack,
   onEdit,
   isDemo = false,
@@ -26,6 +28,7 @@ export default function OrgPage({
     people,
     tasks,
     taskLinks,
+    notes,
     addTask,
     addTaskLink,
     completeTask,
@@ -44,6 +47,10 @@ export default function OrgPage({
   const linkedTasks = useMemo(
     () => linkedTasksFor('organization', orgId, tasks, taskLinks),
     [taskLinks, tasks, orgId],
+  )
+  const mentionedNotes = useMemo(
+    () => notesMentioning(notes, 'organization', orgId),
+    [notes, orgId],
   )
 
   const toggleTask = (t) => {
@@ -148,7 +155,9 @@ export default function OrgPage({
       </div>
       <div className="list">
         {linkedTasks.length === 0 ? (
-          <p className="empty-inline">No tasks linked yet — a contract to renew, a follow-up to send.</p>
+          <p className="empty-inline">
+            No tasks linked yet — a contract to renew, a follow-up to send.
+          </p>
         ) : (
           linkedTasks.map((t) => (
             <div className="list-row" key={t.id} role="button" onClick={() => onOpenTask(t)}>
@@ -158,6 +167,23 @@ export default function OrgPage({
           ))
         )}
       </div>
+
+      {mentionedNotes.length > 0 && onOpenNote && (
+        <>
+          <div className="section-label">Mentioned in notes</div>
+          <div className="list">
+            {mentionedNotes.map((n) => (
+              <div className="list-row" key={n.id} role="button" onClick={() => onOpenNote(n.id)}>
+                <div className="row-body">
+                  <div className="row-title">{noteTitle(n)}</div>
+                  {noteSnippet(n) && <div className="row-sub">{noteSnippet(n, 60)}</div>}
+                </div>
+                <ChevronRight size={18} className="row-chevron" />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {linkingTask && (
         <LinkTaskForm

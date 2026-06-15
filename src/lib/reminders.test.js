@@ -54,6 +54,21 @@ describe('buildAttention — list kind', () => {
   })
 })
 
+describe('buildAttention — nudges are soft', () => {
+  // A contact well past their keep-in-touch cadence: surfaces as a check-in.
+  const person = (over = {}) => ({ id: 'p1', name: 'Sam', keep_in_touch_days: 30, ...over })
+
+  it('surfaces a drifting contact as a soft nudge', () => {
+    const items = buildAttention({ ...base, people: [person()] }, prefs)
+    expect(items).toMatchObject([{ kind: 'nudge', key: 'nudge:p1', urgency: 'soft' }])
+  })
+
+  it('keeps soft nudges out of the red badge', () => {
+    const items = buildAttention({ ...base, people: [person()] }, prefs)
+    expect(badgeCount(items)).toBe(0)
+  })
+})
+
 describe('buildAttention — projects vs tasks', () => {
   const task = (over = {}) => ({ id: 't', title: 'A', assignee: 'anyone', priority: 0, ...over })
 

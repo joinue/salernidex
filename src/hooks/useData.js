@@ -16,6 +16,7 @@ import {
   demoKeyDates,
   demoHabits,
   demoHabitEntries,
+  demoNotes,
 } from '../lib/demo'
 import { completionFields, skipFields } from '../lib/tasks'
 import { categorize } from '../lib/aisles'
@@ -97,6 +98,7 @@ export function useData(session) {
   const [keyDates, setKeyDates] = useState(isDemo ? demoKeyDates : [])
   const [habits, setHabits] = useState(isDemo ? demoHabits : [])
   const [habitEntries, setHabitEntries] = useState(isDemo ? demoHabitEntries : [])
+  const [notes, setNotes] = useState(isDemo ? demoNotes : [])
   const [reminderSnoozes, setReminderSnoozes] = useState([])
   const [loading, setLoading] = useState(!isDemo)
   const [error, setError] = useState(null)
@@ -144,7 +146,7 @@ export function useData(session) {
     // would see their households' data commingled. (reminder_snoozes is
     // member-scoped, not household-scoped, so it filters on member_id instead.)
     if (isDemo || !householdId) return
-    const [p, o, r, i, g, t, c, tl, l, li, f, kd, sn, h, he, lc] = await Promise.all([
+    const [p, o, r, i, g, t, c, tl, l, li, f, kd, sn, h, he, lc, nt] = await Promise.all([
       supabase.from('people').select('*').eq('household_id', householdId).order('name'),
       supabase.from('organizations').select('*').eq('household_id', householdId).order('name'),
       supabase.from('relationships').select('*').eq('household_id', householdId),
@@ -178,6 +180,13 @@ export function useData(session) {
       // Recent-items catalog (autocomplete). Kept OUT of firstError too — a
       // missing table degrades to "no suggestions", not a blanked app.
       supabase.from('list_catalog').select('*').eq('household_id', householdId),
+      // Notebook. Kept OUT of firstError as well — a missing notes table
+      // (migration 0029 not yet run) must degrade to "no notes", not blank the app.
+      supabase
+        .from('notes')
+        .select('*')
+        .eq('household_id', householdId)
+        .order('updated_at', { ascending: false }),
     ])
     const firstError =
       p.error ||
@@ -215,6 +224,7 @@ export function useData(session) {
       if (!h.error) setHabits(h.data || [])
       if (!he.error) setHabitEntries(he.data || [])
       if (!lc.error) setListCatalog(lc.data || [])
+      if (!nt.error) setNotes(nt.data || [])
       // Server truth is in: from here the offline snapshot must not clobber it,
       // and we persist this pull as the new last-known-good for the next cold
       // launch. Best-effort — saveSnapshot swallows its own failures.
@@ -236,6 +246,7 @@ export function useData(session) {
         habits: h.error ? [] : h.data || [],
         habitEntries: he.error ? [] : he.data || [],
         listCatalog: lc.error ? [] : lc.data || [],
+        notes: nt.error ? [] : nt.data || [],
       })
     }
     setLoading(false)
@@ -292,6 +303,7 @@ export function useData(session) {
       setHabits(snap.habits || [])
       setHabitEntries(snap.habitEntries || [])
       setListCatalog(snap.listCatalog || [])
+      setNotes(snap.notes || [])
       setLoading(false)
     })
     return () => {
@@ -926,6 +938,87 @@ export function useData(session) {
     })
   }
 
+  // Notebook (Apple Notes-style). A note's body is sanitized HTML; `mentions`
+  // is the denormalized [{type,id}] index of the entities it @-mentions inline,
+  // recomputed by the editor on save and used for entity-page backlinks.
+  // addNote returns the new row id so the caller can navigate straight into it.
+  const addNote = (fields = {}) => {
+    const rowId = uuid()
+    setNotes((prev) => [
+      stamp({
+        title: '',
+        body: '',
+        tags: [],
+        mentions: [],
+        privacy_level: 'shared',
+        pinned: false,
+        created_by: userId,
+        created_at: now(),
+        updated_at: now(),
+        ...fields,
+        id: rowId,
+      }),
+      ...prev,
+    ])
+    sync(() => supabase.from('notes').insert(stamp({ ...fields, id: rowId })))
+    return rowId
+  }
+
+  // Every edit stamps the last editor (updated_by) so the note can show
+  // "Edited by …" — the couple's-OS touch. updated_at is bumped locally and by
+  // the DB trigger.
+  const updateNote = (id, fields) => {
+    const patch = { ...fields, updated_by: memberId }
+    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch, updated_at: now() } : n)))
+    sync(() => supabase.from('notes').update(patch).eq('id', id))
+  }
+
+  const togglePinNote = (id) => {
+    const note = notes.find((n) => n.id === id)
+    if (!note) return
+    updateNote(id, { pinned: !note.pinned })
+  }
+
+  const restoreNote = (id) => {
+    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, deleted_at: null } : n)))
+    sync(() => supabase.from('notes').update({ deleted_at: null }).eq('id', id))
+  }
+
+  // Soft delete: move the note to Recently Deleted (reversible), à la Apple
+  // Notes — restore or delete-forever from the trash view.
+  const deleteNote = (id) => {
+    const gone = notes.find((n) => n.id === id)
+    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, deleted_at: now() } : n)))
+    sync(() => supabase.from('notes').update({ deleted_at: new Date().toISOString() }).eq('id', id))
+    if (!gone) return
+    showToast(gone.title ? `Deleted “${gone.title}”` : 'Note deleted', {
+      actionLabel: 'Undo',
+      onAction: () => restoreNote(id),
+    })
+  }
+
+  // Permanent delete from Recently Deleted.
+  const purgeNote = (id) => {
+    const gone = notes.find((n) => n.id === id)
+    setNotes((prev) => prev.filter((n) => n.id !== id))
+    sync(() => supabase.from('notes').delete().eq('id', id))
+    if (!gone) return
+    showToast('Note deleted for good', {
+      actionLabel: 'Undo',
+      onAction: () => {
+        setNotes((prev) => [gone, ...prev])
+        sync(() => supabase.from('notes').upsert(gone))
+      },
+    })
+  }
+
+  // Silent hard-delete for auto-discard of an untouched, empty new note — no
+  // trash, no toast (it never became real content).
+  const discardNote = (id) => {
+    setNotes((prev) => prev.filter((n) => n.id !== id))
+    sync(() => supabase.from('notes').delete().eq('id', id))
+  }
+
   // Contact family units ("The Parks"). saveFamily returns the saved row so
   // callers (e.g. PersonForm's inline "new family") can link to it right away.
   const saveFamily = (fields, id) => {
@@ -1239,10 +1332,11 @@ export function useData(session) {
       habits: backup.habits,
       habit_entries: backup.habit_entries,
       list_catalog: backup.list_catalog,
+      notes: backup.notes,
     }
     // Backups taken before migration 0023 store the old 'marc_only' privacy
     // label; map it to 'private' so they still restore against the renamed enum.
-    for (const t of ['people', 'organizations', 'tasks', 'lists']) {
+    for (const t of ['people', 'organizations', 'tasks', 'lists', 'notes']) {
       if (Array.isArray(tables[t])) {
         tables[t] = tables[t].map((row) =>
           row?.privacy_level === 'marc_only' ? { ...row, privacy_level: 'private' } : row,
@@ -1310,6 +1404,7 @@ export function useData(session) {
       if (tables.habits) setHabits((prev) => merge(prev, tables.habits))
       if (tables.habit_entries) setHabitEntries((prev) => merge(prev, tables.habit_entries))
       if (tables.list_catalog) setListCatalog((prev) => merge(prev, tables.list_catalog))
+      if (tables.notes) setNotes((prev) => merge(prev, tables.notes))
       return
     }
     // Live: re-home each row into the active household, sanitize legacy ids
@@ -1350,6 +1445,7 @@ export function useData(session) {
       'habits',
       'habit_entries',
       'list_catalog',
+      'notes',
     ]) {
       const rows = tables[name]
       if (!rows?.length) continue
@@ -1367,6 +1463,15 @@ export function useData(session) {
   const visiblePeople = filterVisible(people, userId)
   const visibleOrgs = filterVisible(orgs, userId)
   const visibleTasks = filterVisible(tasks, userId)
+  // Live notebook vs Recently Deleted, each privacy-filtered for the viewer.
+  const visibleNotes = filterVisible(
+    notes.filter((n) => !n.deleted_at),
+    userId,
+  )
+  const deletedNotes = filterVisible(
+    notes.filter((n) => n.deleted_at),
+    userId,
+  )
   const visibleLists = filterVisible(lists, userId)
   const visibleListIds = new Set(visibleLists.map((l) => l.id))
   const visibleListItems =
@@ -1402,6 +1507,9 @@ export function useData(session) {
     habits: myHabits,
     sharedHabits,
     habitEntries,
+    notes: visibleNotes,
+    deletedNotes,
+    allNotes: notes,
     allPeople: people,
     allOrgs: orgs,
     allTasks: tasks,
@@ -1442,6 +1550,13 @@ export function useData(session) {
     updateListItem,
     deleteListItem,
     clearCheckedItems,
+    addNote,
+    updateNote,
+    deleteNote,
+    restoreNote,
+    purgeNote,
+    discardNote,
+    togglePinNote,
     saveGroup,
     deleteGroup,
     addHabit,

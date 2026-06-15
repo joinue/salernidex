@@ -3,6 +3,7 @@ import Papa from 'papaparse'
 import { Download, Upload, Database, FileText, RotateCcw } from 'react-feather'
 import PageHeader from './PageHeader'
 import Segmented from './Segmented'
+import { useConfirm } from '../hooks/useConfirm'
 import { memberNames, setMemberNames } from '../lib/household'
 import { getAllPrefs, setAllPrefs } from '../lib/notifyPrefs'
 import { getAllAppPrefs, setAllAppPrefs } from '../lib/appPrefs'
@@ -125,6 +126,7 @@ export default function ImportExport({ data }) {
   // "Private — only me" rows survive the round-trip. CSV/vCard exports use
   // the filtered arrays above — they only ever contain what YOU can see.
   const { allPeople, allOrgs, allTasks, allLists, allListItems, allHabits, allHabitEntries } = data
+  const confirm = useConfirm()
   const csvRef = useRef(null)
   const jsonRef = useRef(null)
   const vcfRef = useRef(null)
@@ -208,12 +210,14 @@ export default function ImportExport({ data }) {
       ]
         .map((k) => (backup[k] || []).length)
         .reduce((a, b) => a + b, 0)
-      if (
-        !window.confirm(
-          `Restore ${counts} records from this backup? Existing records with the same id are overwritten; the rest are kept.`,
-        )
-      )
-        return
+      const ok = await confirm({
+        title: `Restore ${counts} records?`,
+        message:
+          'Existing records with the same id are overwritten; everything else is kept. Export a backup first if you want a safety copy.',
+        confirmLabel: 'Restore',
+        danger: true,
+      })
+      if (!ok) return
       setBusy(true)
       try {
         await restoreBackup(backup)

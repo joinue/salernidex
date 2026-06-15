@@ -1,5 +1,6 @@
 import { isProject, dueLabel } from './tasks'
 import { groupMembers } from './groups'
+import { noteTitle, htmlToText } from './notes'
 
 // Quick Find: one ranked index across every entity — people, tasks, lists,
 // orgs, groups — plus pages and create actions. Same scoring idea as
@@ -36,6 +37,7 @@ export const TYPE_LABELS = {
   project: 'Projects',
   task: 'Tasks',
   list: 'Lists',
+  note: 'Notes',
   org: 'Organizations',
   group: 'Groups',
   nav: 'Pages',
@@ -128,6 +130,21 @@ export function buildIndex(data) {
       fields: [
         [l.name, 80],
         [itemsByList.get(l.id), 15],
+      ],
+    })
+  }
+
+  for (const n of data.notes || []) {
+    const title = noteTitle(n)
+    add({
+      type: 'note',
+      id: n.id,
+      title,
+      sub: 'Note',
+      fields: [
+        [title, 70],
+        [htmlToText(n.body), 15],
+        [(n.tags || []).join(' '), 20],
       ],
     })
   }

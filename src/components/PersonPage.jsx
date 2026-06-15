@@ -33,6 +33,7 @@ import {
 } from '../lib/constants'
 import { lastInteraction, relativeTime } from '../lib/contact'
 import { isProject, projectProgress, linkedTasksFor } from '../lib/tasks'
+import { notesMentioning, noteTitle, noteSnippet } from '../lib/notes'
 import { memberName } from '../lib/household'
 import haptics from '../lib/haptics'
 import Avatar from './Avatar'
@@ -42,12 +43,14 @@ import InteractionForm from './InteractionForm'
 import KeyDateForm from './KeyDateForm'
 import LinkTaskForm from './LinkTaskForm'
 import ConfirmDialog from './ConfirmDialog'
+import { useConfirm } from '../hooks/useConfirm'
 
 export default function PersonPage({
   data,
   personId,
   onOpenPerson,
   onOpenTask,
+  onOpenNote,
   onBack,
   onEdit,
   onConnect,
@@ -62,6 +65,7 @@ export default function PersonPage({
     keyDates,
     tasks,
     taskLinks,
+    notes,
     completeTask,
     addTask,
     addTaskLink,
@@ -84,6 +88,24 @@ export default function PersonPage({
   const [addingDate, setAddingDate] = useState(false)
   const [linkingTask, setLinkingTask] = useState(false)
   const [confirmPurge, setConfirmPurge] = useState(false) // permanent-delete confirmation
+  const confirm = useConfirm()
+
+  // Both of these wipe a row with no undo toast behind them, so a quick tap on
+  // the little X shouldn't be enough — ask first.
+  const removeKeyDate = async (kd) => {
+    if (await confirm({ title: `Remove “${kd.label}”?`, confirmLabel: 'Remove', danger: true }))
+      deleteKeyDate(kd.id)
+  }
+  const removeConnection = async (rel, other) => {
+    if (
+      await confirm({
+        title: `Remove your connection to ${other.name}?`,
+        confirmLabel: 'Remove',
+        danger: true,
+      })
+    )
+      deleteRelationship(rel.id)
+  }
 
   const timeline = useMemo(
     () =>
@@ -98,6 +120,11 @@ export default function PersonPage({
   const linkedTasks = useMemo(
     () => linkedTasksFor('person', personId, tasks, taskLinks),
     [taskLinks, tasks, personId],
+  )
+  // Notes that @-mention this contact — the reverse of the note's inline chip.
+  const mentionedNotes = useMemo(
+    () => notesMentioning(notes, 'person', personId),
+    [notes, personId],
   )
 
   const toggleTask = (t) => {
@@ -127,12 +154,12 @@ export default function PersonPage({
   const last = lastInteraction(person.id, interactions)
   const hasContact = Boolean(
     person.email ||
-      person.phone ||
-      person.address ||
-      person.birthday ||
-      (person.emails || []).length ||
-      (person.phones || []).length ||
-      (person.socials || []).length,
+    person.phone ||
+    person.address ||
+    person.birthday ||
+    (person.emails || []).length ||
+    (person.phones || []).length ||
+    (person.socials || []).length,
   )
   const family = person.family_id ? families.find((f) => f.id === person.family_id) : null
   const familyMembers = family
@@ -345,7 +372,7 @@ export default function PersonPage({
               </span>
               <button
                 className="icon-btn danger"
-                onClick={() => deleteKeyDate(kd.id)}
+                onClick={() => removeKeyDate(kd)}
                 aria-label={`Delete ${kd.label}`}
               >
                 <X size={15} />
@@ -401,6 +428,24 @@ export default function PersonPage({
         )}
       </div>
 
+      {/* Notes that mention this contact — the backlink to the notebook */}
+      {mentionedNotes.length > 0 && onOpenNote && (
+        <>
+          <div className="section-label">Mentioned in notes</div>
+          <div className="list">
+            {mentionedNotes.map((n) => (
+              <div className="list-row" key={n.id} role="button" onClick={() => onOpenNote(n.id)}>
+                <div className="row-body">
+                  <div className="row-title">{noteTitle(n)}</div>
+                  {noteSnippet(n) && <div className="row-sub">{noteSnippet(n, 60)}</div>}
+                </div>
+                <ChevronRight size={18} className="row-chevron" />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* Activity timeline */}
       <div className="section-label">Activity</div>
       <div className="list">
@@ -454,7 +499,7 @@ export default function PersonPage({
                   className="icon-btn danger"
                   onClick={(e) => {
                     e.stopPropagation()
-                    deleteRelationship(rel.id)
+                    removeConnection(rel, other)
                   }}
                   aria-label="Remove connection"
                 >

@@ -27,6 +27,9 @@ import TaskRow from './TaskRow'
 import ReorderableList from './ReorderableList'
 import LinkEntityForm from './LinkEntityForm'
 import AddToCalendar from './AddToCalendar'
+import Sheet from './Sheet'
+import SwipeRow from './SwipeRow'
+import { useConfirm } from '../hooks/useConfirm'
 
 // Full-page view for a project (a task flagged is_project and/or with
 // subtasks). Adds two things a plain task doesn't get: linked people/orgs
@@ -64,10 +67,12 @@ export default function ProjectDetail({
     deleteTaskLink,
     saveList,
   } = data
+  const confirm = useConfirm()
   const task = tasks.find((t) => t.id === taskId)
   const [draftSub, setDraftSub] = useState('')
   const [draftList, setDraftList] = useState('')
   const [linking, setLinking] = useState(false)
+  const [attaching, setAttaching] = useState(false)
   // Notes are edited inline (this is the project's reference scratchpad —
   // measurements, confirmation #s). Seeded from the row; saved on blur.
   const [notesDraft, setNotesDraft] = useState(task?.notes || '')
@@ -75,6 +80,17 @@ export default function ProjectDetail({
   const projectLists = useMemo(
     () => lists.filter((l) => l.project_id === taskId),
     [lists, taskId],
+  )
+
+  // Free-standing lists (not already tied to a project) you can pull in. Keeping
+  // it to unattached lists means attaching here never quietly steals a list from
+  // another project.
+  const attachableLists = useMemo(
+    () =>
+      lists
+        .filter((l) => !l.project_id)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [lists],
   )
 
   const orgsById = useMemo(() => new Map(orgs.map((o) => [o.id, o])), [orgs])
@@ -147,12 +163,35 @@ export default function ProjectDetail({
     setDraftList('')
   }
 
+  // Pull an existing household list into this project (it keeps living in global
+  // Lists too — project_id is just a tag). Detach reverses it without deleting.
+  const attachList = (listId) => {
+    saveList({ project_id: task.id }, listId)
+    setAttaching(false)
+  }
+  const detachList = async (listId) => {
+    const l = lists.find((x) => x.id === listId)
+    const ok = await confirm({
+      title: `Remove “${l?.name || 'this list'}”?`,
+      message: 'It comes off this project but stays in your Lists — nothing is deleted.',
+      confirmLabel: 'Remove',
+      danger: true,
+    })
+    if (ok) saveList({ project_id: null }, listId)
+  }
+
   const setStatus = (status) => updateTask(task.id, { project_status: status })
   const toggleDone = () => completeTask(task, !task.completed_at)
   const setDate = (field, value) => updateTask(task.id, { [field]: value || null })
 
-  const remove = () => {
-    if (window.confirm(`Delete "${task.title}" and its subtasks?`)) {
+  const remove = async () => {
+    const ok = await confirm({
+      title: `Delete “${task.title}”?`,
+      message: 'This deletes the project and all its subtasks.',
+      confirmLabel: 'Delete',
+      danger: true,
+    })
+    if (ok) {
       deleteTask(task.id)
       onBack()
     }
@@ -241,27 +280,21 @@ export default function ProjectDetail({
             )}
           </button>
         </div>
-        <div
-          className="due-row"
-          style={{
-            display: 'flex',
-            gap: 14,
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexWrap: 'wrap',
-            marginTop: 12,
-          }}
-        >
-          <label className="muted" style={{ fontSize: 13, display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-            <Calendar size={13} /> Start
+        <div className="project-dates">
+          <label className="project-date-field">
+            <span className="project-date-label">
+              <Calendar size={13} /> Start
+            </span>
             <input
               type="date"
               value={task.start_date || ''}
               onChange={(e) => setDate('start_date', e.target.value)}
             />
           </label>
-          <label className="muted" style={{ fontSize: 13, display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-            Target
+          <label className="project-date-field">
+            <span className="project-date-label">
+              <Calendar size={13} /> Target
+            </span>
             <input
               type="date"
               value={task.end_date || ''}
@@ -273,7 +306,7 @@ export default function ProjectDetail({
       </div>
 
       <div className="section-label">Notes</div>
-      <div className="list" style={{ padding: 10 }}>
+      <div className="list project-notes-card">
         <textarea
           className="project-notes-edit"
           value={notesDraft}
@@ -368,18 +401,31 @@ export default function ProjectDetail({
             (it) => it.list_id === l.id && !it.checked_at,
           ).length
           return (
-            <div
-              className="list-row project-list-row"
+            <SwipeRow
               key={l.id}
               onClick={() => onOpenList?.(l.id)}
+              actions={[
+                {
+                  label: 'Remove',
+                  icon: X,
+                  variant: 'danger',
+                  onClick: () => detachList(l.id),
+                },
+              ]}
             >
-              <span className="list-emoji">{l.icon || (l.kind === 'grocery' ? '🛒' : '📝')}</span>
-              <div className="row-body">
-                <div className="row-title">{l.name}</div>
-                <div className="row-sub">{left ? `${left} item${left === 1 ? '' : 's'} left` : 'All done'}</div>
+              <div className="list-row project-list-row">
+                <span className="list-emoji">
+                  {l.icon || (l.kind === 'grocery' ? '🛒' : '📝')}
+                </span>
+                <div className="row-body">
+                  <div className="row-title">{l.name}</div>
+                  <div className="row-sub">
+                    {left ? `${left} item${left === 1 ? '' : 's'} left` : 'All done'}
+                  </div>
+                </div>
+                <ChevronRight size={18} className="row-chevron" />
               </div>
-              <ChevronRight size={18} className="row-chevron" />
-            </div>
+            </SwipeRow>
           )
         })}
         <div className={`subtask-composer ${projectLists.length > 0 ? 'divided' : ''}`}>
@@ -395,9 +441,23 @@ export default function ProjectDetail({
               }
             }}
           />
-          <button className="text-btn" onClick={addList} disabled={!draftList.trim()}>
-            <Plus size={15} /> Add list
-          </button>
+          <div className="subtask-composer-actions">
+            <button className="text-btn" onClick={addList} disabled={!draftList.trim()}>
+              <Plus size={15} /> Add list
+            </button>
+            <button
+              className="text-btn quiet"
+              onClick={() => setAttaching(true)}
+              disabled={attachableLists.length === 0}
+              title={
+                attachableLists.length === 0
+                  ? 'No unattached lists to add'
+                  : 'Attach a list you already have'
+              }
+            >
+              Attach existing
+            </button>
+          </div>
         </div>
       </div>
 
@@ -489,6 +549,36 @@ export default function ProjectDetail({
           onSave={addTaskLink}
           onClose={() => setLinking(false)}
         />
+      )}
+
+      {attaching && (
+        <Sheet title="Attach a list" onClose={() => setAttaching(false)}>
+          <div className="list">
+            {attachableLists.length === 0 ? (
+              <p className="empty-inline">No unattached lists. Create one above instead.</p>
+            ) : (
+              attachableLists.map((l) => {
+                const left = (data.listItems || []).filter(
+                  (it) => it.list_id === l.id && !it.checked_at,
+                ).length
+                return (
+                  <div className="list-row" key={l.id} onClick={() => attachList(l.id)}>
+                    <span className="list-emoji">
+                      {l.icon || (l.kind === 'grocery' ? '🛒' : '📝')}
+                    </span>
+                    <div className="row-body">
+                      <div className="row-title">{l.name}</div>
+                      <div className="row-sub">
+                        {left ? `${left} item${left === 1 ? '' : 's'} left` : 'All done'}
+                      </div>
+                    </div>
+                    <Plus size={18} className="row-chevron" />
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </Sheet>
       )}
     </div>
   )

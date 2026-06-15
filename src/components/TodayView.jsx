@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Sun,
   Settings,
+  FileText,
   MessageCircle,
   Clock,
   BellOff,
@@ -14,6 +15,7 @@ import {
 } from 'react-feather'
 import { relativeTime } from '../lib/contact'
 import { dueLabel } from '../lib/tasks'
+import { noteTitle, noteSnippet } from '../lib/notes'
 import { buildAttention } from '../lib/reminders'
 import { buildActivityFeed } from '../lib/activity'
 import { personActions } from '../lib/personActions'
@@ -82,6 +84,8 @@ export default function TodayView({
   onSettings,
   onSearch,
   onOpenHabits,
+  onOpenNotes,
+  onOpenNote,
   household,
 }) {
   const {
@@ -149,7 +153,14 @@ export default function TodayView({
   const feed = useMemo(() => buildActivityFeed(data), [data])
   const recent = useMemo(() => feed.slice(0, 6), [feed])
 
-  const nothing = attention.length === 0 && recent.length === 0 && todayHabits.length === 0
+  // Pinned notes as quick reference on the dashboard (a few, tap to open).
+  const pinnedNotes = (data.notes || []).filter((n) => n.pinned).slice(0, 4)
+
+  const nothing =
+    attention.length === 0 &&
+    recent.length === 0 &&
+    todayHabits.length === 0 &&
+    pinnedNotes.length === 0
 
   // Swipe action: "Later" → sheet with gentle snooze choices.
   const later = (item) => ({ label: 'Later', icon: Clock, onClick: () => setLaterItem(item) })
@@ -218,6 +229,9 @@ export default function TodayView({
         action={onSettings}
         actionIcon={Settings}
         actionLabel="Settings"
+        secondaryAction={onOpenNotes}
+        secondaryActionIcon={FileText}
+        secondaryActionLabel="Notes"
       />
 
       {/* iOS-style search bar under the large title — opens Quick Find.
@@ -267,6 +281,31 @@ export default function TodayView({
                     value={valueOn(h, todayISO, habitMap)}
                     onLog={(v) => logHabit(h.id, todayISO, v)}
                   />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {pinnedNotes.length > 0 && onOpenNote && (
+          <section className="today-section">
+            <div className="section-head">
+              <div className="section-label">Notes</div>
+              {onOpenNotes && (
+                <button className="see-all" onClick={onOpenNotes}>
+                  All notes
+                </button>
+              )}
+            </div>
+            <div className="list">
+              {pinnedNotes.map((n) => (
+                <div className="list-row note-row" key={n.id} onClick={() => onOpenNote(n.id)}>
+                  <span className="list-emoji">📝</span>
+                  <div className="row-body">
+                    <div className="row-title">{noteTitle(n)}</div>
+                    {noteSnippet(n) && <div className="row-sub">{noteSnippet(n, 60)}</div>}
+                  </div>
+                  <ChevronRight size={18} className="row-chevron" />
                 </div>
               ))}
             </div>

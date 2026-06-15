@@ -31,6 +31,7 @@ import {
 } from '../lib/habits'
 import HabitQuickLog from './HabitQuickLog'
 import Sheet from './Sheet'
+import { useConfirm } from '../hooks/useConfirm'
 import { memberName } from '../lib/household'
 
 const DOW_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -189,9 +190,23 @@ export default function HabitDetail({ data, habitId, onBack, onEdit }) {
     pauseHabit,
     resumeHabit,
   } = data
+  const confirm = useConfirm()
   const [weeks, setWeeks] = useState(13)
   const [editingDay, setEditingDay] = useState(null)
   const [breaking, setBreaking] = useState(false)
+
+  const remove = async () => {
+    const ok = await confirm({
+      title: `Delete “${habit.name}”?`,
+      message: 'This erases the habit and its entire history. This can’t be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
+    })
+    if (ok) {
+      onBack()
+      deleteHabit(habit.id)
+    }
+  }
 
   const today = useMemo(() => new Date(), [])
   const todayISO = toISODate(today)
@@ -357,13 +372,7 @@ export default function HabitDetail({ data, habitId, onBack, onEdit }) {
           <button className="text-btn" onClick={() => archiveHabit(habit.id, true)}>
             <Archive size={14} /> Archive
           </button>
-          <button
-            className="text-btn danger"
-            onClick={() =>
-              window.confirm(`Delete “${habit.name}” and all its history?`) &&
-              (onBack(), deleteHabit(habit.id))
-            }
-          >
+          <button className="text-btn danger" onClick={remove}>
             <Trash2 size={14} /> Delete
           </button>
         </div>

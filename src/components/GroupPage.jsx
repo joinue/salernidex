@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { ArrowLeft, Edit2, Trash2, Download, Plus, Users, ChevronRight } from 'react-feather'
 import { groupMembers, describeGroup } from '../lib/groups'
 import { isProject, projectProgress, linkedTasksFor } from '../lib/tasks'
+import { notesMentioning, noteTitle, noteSnippet } from '../lib/notes'
 import { downloadVcf } from '../lib/vcard'
 import haptics from '../lib/haptics'
 import Avatar from './Avatar'
@@ -18,6 +19,7 @@ export default function GroupPage({
   groupId,
   onOpenPerson,
   onOpenTask,
+  onOpenNote,
   onBack,
   onEdit,
   isDemo = false,
@@ -28,6 +30,7 @@ export default function GroupPage({
     orgs,
     tasks,
     taskLinks,
+    notes,
     addTask,
     addTaskLink,
     completeTask,
@@ -45,6 +48,7 @@ export default function GroupPage({
     () => linkedTasksFor('group', groupId, tasks, taskLinks),
     [taskLinks, tasks, groupId],
   )
+  const mentionedNotes = useMemo(() => notesMentioning(notes, 'group', groupId), [notes, groupId])
 
   const toggleTask = (t) => {
     if (!t.completed_at) haptics.success()
@@ -135,7 +139,9 @@ export default function GroupPage({
       </div>
       <div className="list">
         {linkedTasks.length === 0 ? (
-          <p className="empty-inline">No tasks linked yet — a shared project, an errand for the group.</p>
+          <p className="empty-inline">
+            No tasks linked yet — a shared project, an errand for the group.
+          </p>
         ) : (
           linkedTasks.map((t) => (
             <div className="list-row" key={t.id} role="button" onClick={() => onOpenTask(t)}>
@@ -145,6 +151,23 @@ export default function GroupPage({
           ))
         )}
       </div>
+
+      {mentionedNotes.length > 0 && onOpenNote && (
+        <>
+          <div className="section-label">Mentioned in notes</div>
+          <div className="list">
+            {mentionedNotes.map((n) => (
+              <div className="list-row" key={n.id} role="button" onClick={() => onOpenNote(n.id)}>
+                <div className="row-body">
+                  <div className="row-title">{noteTitle(n)}</div>
+                  {noteSnippet(n) && <div className="row-sub">{noteSnippet(n, 60)}</div>}
+                </div>
+                <ChevronRight size={18} className="row-chevron" />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {linkingTask && (
         <LinkTaskForm

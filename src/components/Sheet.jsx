@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useScrollLock } from '../hooks/useScrollLock'
 import { DRAG_SLOP_PX } from '../lib/gestures'
@@ -20,7 +20,22 @@ export default function Sheet({ title, onClose, children }) {
   const [y, setY] = useState(0)
   const [dragging, setDragging] = useState(false)
   const [closing, setClosing] = useState(false)
+  // A short sheet keeps touch-action:none so the pointer drag owns the whole
+  // body; only once the content overflows do we let the browser scroll it
+  // (pan-y, via the .scrollable class). Measure after layout, and again on
+  // resize/orientation change since that shifts what fits.
+  const [scrollable, setScrollable] = useState(false)
   useScrollLock()
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = sheetRef.current
+      if (el) setScrollable(el.scrollHeight > el.clientHeight + 1)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [children])
 
   const dismiss = () => {
     if (closing) return
@@ -92,7 +107,7 @@ export default function Sheet({ title, onClose, children }) {
     >
       <div
         ref={sheetRef}
-        className="sheet"
+        className={`sheet ${scrollable ? 'scrollable' : ''}`}
         role="dialog"
         aria-label={title}
         style={{

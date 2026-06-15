@@ -955,3 +955,37 @@ create policy "household members" on public.list_catalog for all to authenticate
   using (public.is_member(household_id)) with check (public.is_member(household_id));
 
 alter publication supabase_realtime add table public.list_catalog;
+
+-- ------------------------------------------------------------
+-- notes — a household notebook (Apple Notes-style; see migration 0029)
+-- ------------------------------------------------------------
+-- Rich-text documents (sanitized HTML in `body`) with free-text tags and a
+-- denormalized `mentions` index of the contacts/orgs/groups they @-mention
+-- inline. Household-scoped (RLS) and privacy-aware like people/tasks/lists.
+create table public.notes (
+  id            uuid primary key default gen_random_uuid(),
+  household_id  uuid not null references public.households(id) on delete cascade,
+  title         text,                                 -- optional; falls back to the first body line
+  body          text not null default '',             -- sanitized HTML from the editor
+  tags          text[] not null default '{}',         -- cross-cutting labels, like tasks.tags
+  mentions      jsonb not null default '[]',          -- [{type,id}] of @-mentioned entities (from body)
+  privacy_level privacy_level not null default 'shared',
+  pinned        boolean not null default false,       -- sticks to the top of the Notes index
+  deleted_at    timestamptz,                          -- null = live; set = in Recently Deleted (0030)
+  created_by    uuid default auth.uid(),
+  updated_by    uuid,                                 -- household_members.id of the last editor
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create index notes_household_idx on public.notes (household_id);
+
+create trigger notes_touch before update on public.notes
+  for each row execute function public.touch_updated_at();
+create trigger notes_audit after insert or update or delete on public.notes
+  for each row execute function public.write_audit();
+
+alter table public.notes enable row level security;
+create policy "household members" on public.notes for all to authenticated
+  using (public.is_member(household_id)) with check (public.is_member(household_id));
+
+alter publication supabase_realtime add table public.notes;
