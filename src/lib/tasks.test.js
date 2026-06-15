@@ -7,6 +7,7 @@ import {
   timeLabel,
   taskBucket,
   byDue,
+  byUpcoming,
   priorityLabel,
   completionsFor,
   lastCompletion,
@@ -116,6 +117,29 @@ describe('byDue', () => {
       .sort(byDue)
       .map((t) => t.id)
     expect(ids).toEqual(['high', 'low'])
+  })
+})
+
+describe('byUpcoming', () => {
+  it('keys a deferred task on its start date, not its nearer due date', () => {
+    // "soon-due" is due in 2 days but doesn't start for 2 weeks, so it should sit
+    // below "starts-first", which wakes up tomorrow.
+    const ids = [
+      { id: 'soon-due', start_date: '2026-06-26', due_date: '2026-06-14', created_at: '1' },
+      { id: 'starts-first', start_date: '2026-06-13', due_date: '2026-06-20', created_at: '1' },
+    ]
+      .sort(byUpcoming)
+      .map((t) => t.id)
+    expect(ids).toEqual(['starts-first', 'soon-due'])
+  })
+  it('falls back to due date for non-deferred tasks', () => {
+    const ids = [
+      { id: 'late', due_date: '2026-06-20', created_at: '1' },
+      { id: 'soon', due_date: '2026-06-14', created_at: '1' },
+    ]
+      .sort(byUpcoming)
+      .map((t) => t.id)
+    expect(ids).toEqual(['soon', 'late'])
   })
 })
 

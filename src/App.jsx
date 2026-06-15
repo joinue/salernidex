@@ -4,12 +4,12 @@ import { supabase } from './lib/supabase'
 import { demoMode } from './lib/demo'
 import { buildAttention, badgeCount } from './lib/reminders'
 import { useData } from './hooks/useData'
-import { useHousehold } from './hooks/useHousehold'
+import { useHousehold, ACTIVE_HOUSEHOLD_KEY } from './hooks/useHousehold'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { useNotificationPrefs } from './hooks/useNotificationPrefs'
 import { useAppPrefs } from './hooks/useAppPrefs'
 import { useEdgeBack } from './hooks/useEdgeBack'
-import { currentMemberId } from './lib/household'
+import { currentMemberId, clearHousehold } from './lib/household'
 import { areaNames, taskTags, isProject } from './lib/tasks'
 import InstallHint from './components/InstallHint'
 import AuthScreen from './components/AuthScreen'
@@ -142,6 +142,16 @@ function AuthedApp({ onDemo }) {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       if (event === 'PASSWORD_RECOVERY') setRecovering(true)
+      // Drop the previous user's hydrated household so a sign-out (or a
+      // different user signing in on this device) never reads stale members.
+      if (event === 'SIGNED_OUT') {
+        clearHousehold()
+        try {
+          localStorage.removeItem(ACTIVE_HOUSEHOLD_KEY)
+        } catch {
+          /* ignore */
+        }
+      }
       setSession(s)
     })
     return () => sub.subscription.unsubscribe()
@@ -197,6 +207,16 @@ function HouseholdGate({ session, onLogout }) {
     return (
       <div className="login-wrap">
         <span className="muted dots">Loading</span>
+      </div>
+    )
+  }
+  if (hh.status === 'error') {
+    return (
+      <div className="login-wrap">
+        <span className="muted">Couldn’t load your household.</span>
+        <button className="btn-primary" onClick={hh.refresh}>
+          Try again
+        </button>
       </div>
     )
   }
@@ -646,7 +666,15 @@ function Shell({ session, onLogout, household }) {
         <QuickFind data={data} onPick={pickQuickFind} onClose={() => setQuickFind(false)} />
       )}
 
-      {isMobile && <MobileNav active={activeNav} adds={adds} badge={badge} />}
+      {isMobile && (
+        <MobileNav
+          active={activeNav}
+          adds={adds}
+          badge={badge}
+          hideFab={route.name === 'list'}
+          forceMenu={DETAIL_ROUTES.includes(route.name) && route.name !== 'list'}
+        />
+      )}
 
       {confirmLogout && (
         <ConfirmDialog

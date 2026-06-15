@@ -105,9 +105,7 @@ export function priorityLabel(p) {
 // Ties on the same date order by time (all-day first, then earliest), then by
 // higher priority, then by creation order — so this is also the priority sort on
 // surfaces that don't carry the Tasks page's manual order (Today, linked tasks).
-export function byDue(a, b) {
-  const ad = a.due_date || '9999-99-99'
-  const bd = b.due_date || '9999-99-99'
+function compareWhen(a, b, ad, bd) {
   if (ad !== bd) return ad < bd ? -1 : 1
   const at = a.due_time || ''
   const bt = b.due_time || ''
@@ -120,6 +118,20 @@ export function byDue(a, b) {
   const bp = b.priority || 0
   if (ap !== bp) return bp - ap // higher priority first
   return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0
+}
+
+export function byDue(a, b) {
+  return compareWhen(a, b, a.due_date || '9999-99-99', b.due_date || '9999-99-99')
+}
+
+// Upcoming sort: a deferred task is keyed on its start date — when it wakes up is
+// what "coming up next" means for it — while everything else keys on its due
+// date. Without this, a task that starts in two weeks but happens to carry a
+// nearer due date would wrongly jump to the top of Upcoming.
+export function byUpcoming(a, b) {
+  const ad = (isDeferred(a) ? a.start_date : a.due_date) || '9999-99-99'
+  const bd = (isDeferred(b) ? b.start_date : b.due_date) || '9999-99-99'
+  return compareWhen(a, b, ad, bd)
 }
 
 // Distinct area names currently in use, alphabetical — feeds TaskForm's

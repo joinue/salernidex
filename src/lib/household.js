@@ -66,6 +66,16 @@ export function getHousehold() {
 export function setHousehold(h) {
   if (h && Array.isArray(h.members)) save(h)
 }
+// Forget the hydrated household on sign-out so the next user (or the signed-out
+// state) never reads the previous user's cached household — load() otherwise
+// falls back to a fabricated default and never returns null.
+export function clearHousehold() {
+  try {
+    localStorage.removeItem(KEY)
+  } catch {
+    /* ignore */
+  }
+}
 export function setHouseholdName(name) {
   save({ ...load(), name })
 }

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import Modal from './Modal'
 import Segmented from './Segmented'
+import RecurrencePicker from './RecurrencePicker'
+import { describeRecurrence } from '../lib/recurrence'
 import { focusOnDesktop } from '../lib/constants'
 import { isSolo } from '../lib/household'
 
@@ -48,9 +50,10 @@ export default function HabitForm({ habit, onSave, onClose }) {
     unit: habit?.unit || '',
     target: habit?.target ?? '',
     track_streak: habit?.track_streak ?? true,
-    freq: habit?.weekly_target ? 'weekly' : 'days',
+    freq: habit?.rrule ? 'custom' : habit?.weekly_target ? 'weekly' : 'days',
     active_days: habit?.active_days || [],
     weekly_target: habit?.weekly_target ?? 3,
+    rule: habit?.rrule || null,
     color: habit?.color || COLORS[0],
     show_on_today: habit?.show_on_today ?? false,
     reminder_enabled: habit?.reminder_enabled ?? false,
@@ -78,6 +81,11 @@ export default function HabitForm({ habit, onSave, onClose }) {
       setError('Give the habit a name.')
       return
     }
+    const custom = !isTrack && form.freq === 'custom'
+    if (custom && !form.rule) {
+      setError('Pick how this habit repeats.')
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -95,8 +103,11 @@ export default function HabitForm({ habit, onSave, onClose }) {
           unit: isCount ? form.unit.trim() || null : null,
           target,
           track_streak: isTrack ? false : form.track_streak,
+          // rrule overrides the other two modes; the unused ones are cleared so
+          // a habit only ever carries one schedule.
+          rrule: custom ? form.rule : null,
           weekly_target: weekly ? Math.max(1, Math.min(7, Number(form.weekly_target) || 1)) : null,
-          active_days: weekly ? [] : form.active_days,
+          active_days: weekly || custom ? [] : form.active_days,
           icon: form.icon || null,
           shared: form.shared,
           color: form.color,
@@ -223,8 +234,9 @@ export default function HabitForm({ habit, onSave, onClose }) {
               value={form.freq}
               onChange={set('freq')}
               options={[
-                { value: 'days', label: 'Specific days' },
-                { value: 'weekly', label: 'Times / week' },
+                { value: 'days', label: 'Days' },
+                { value: 'weekly', label: 'Per week' },
+                { value: 'custom', label: 'Custom' },
               ]}
             />
           </div>
@@ -253,7 +265,7 @@ export default function HabitForm({ habit, onSave, onClose }) {
                 : 'Off-days don’t count against the streak.'}
             </p>
           </div>
-        ) : (
+        ) : form.freq === 'weekly' ? (
           <div className="field">
             <label className="label">Times per week</label>
             <div className="weekly-stepper">
@@ -277,6 +289,20 @@ export default function HabitForm({ habit, onSave, onClose }) {
             </div>
             <p className="muted" style={{ fontSize: 13 }}>
               Hit it any {form.weekly_target} days a week — the streak counts whole weeks.
+            </p>
+          </div>
+        ) : (
+          <div className="field">
+            <label className="label">Repeats</label>
+            <RecurrencePicker
+              value={form.rule}
+              dueDate={habit?.rrule?.anchor || habit?.created_at?.slice(0, 10)}
+              onChange={set('rule')}
+            />
+            <p className="muted" style={{ fontSize: 13 }}>
+              {form.rule
+                ? `${describeRecurrence(form.rule)} — the streak counts each time it’s due.`
+                : 'Repeat every few days, monthly, or yearly. Off-days don’t count against the streak.'}
             </p>
           </div>
         )}

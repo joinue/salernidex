@@ -862,6 +862,7 @@ create table public.habits (
   track_streak boolean not null default true,     -- forced off for 'track' in the UI
   active_days  smallint[] not null default '{}',  -- 0=Sun..6=Sat; empty = every day
   weekly_target smallint,                          -- "N times per week, any day" (null = use active_days)
+  rrule        jsonb,                              -- RRULE-lite (lib/recurrence.js): every N days/weeks, monthly, yearly. Set => overrides active_days/weekly_target
   show_on_today boolean not null default false,   -- pinned to the Today dashboard card
   reminder_time time,                              -- local HH:MM nudge; null = none
   reminder_enabled boolean not null default false,

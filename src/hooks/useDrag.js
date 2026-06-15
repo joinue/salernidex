@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react'
+import { LONG_PRESS_MS, DRAG_SLOP_PX } from '../lib/gestures'
+import haptics from '../lib/haptics'
 
 // Core pointer-drag primitive shared by every gesture in the app (swipe rows,
 // drag-to-dismiss sheets). One hardened pipeline so behavior is consistent.
@@ -19,7 +21,7 @@ export function useDrag({
   onMove,
   onEnd,
   onLongPress,
-  longPressDelay = 450,
+  longPressDelay = LONG_PRESS_MS,
   enabled = true,
 } = {}) {
   const state = useRef(null)
@@ -56,6 +58,7 @@ export function useDrag({
         const s = state.current
         if (s && !s.locked && !s.moved) {
           s.longPressed = true
+          haptics.medium() // match useLongPress: a hold always confirms with a buzz
           onLongPress({ x: s.x0, y: s.y0 })
         }
       }, longPressDelay)
@@ -67,12 +70,12 @@ export function useDrag({
     if (!s) return
     const dx = e.clientX - s.x0
     const dy = e.clientY - s.y0
-    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
+    if (Math.abs(dx) > DRAG_SLOP_PX || Math.abs(dy) > DRAG_SLOP_PX) {
       s.moved = true
       clearLP()
     }
     if (!s.locked) {
-      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return
+      if (Math.abs(dx) < DRAG_SLOP_PX && Math.abs(dy) < DRAG_SLOP_PX) return
       const horizontal = Math.abs(dx) > Math.abs(dy)
       const wanted = axis === 'x' ? horizontal : !horizontal
       if (!wanted) {

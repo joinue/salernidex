@@ -6,7 +6,7 @@ import Avatar from './Avatar'
 import { byOrder, moveUpdates } from '../lib/order'
 import { groupByAisle, AISLES, OTHER } from '../lib/aisles'
 import { suggestItems } from '../lib/catalog'
-import { stepQty, qtyLabel } from '../lib/listItems'
+import { stepQty, qtyLabel, parseQty } from '../lib/listItems'
 import { assigneeOptions, assigneeLabel, isSolo } from '../lib/household'
 import haptics from '../lib/haptics'
 
@@ -273,9 +273,16 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
   }
 
   const add = () => {
-    const text = draft.trim()
-    if (!text) return
-    addListItem(listId, text)
+    const raw = draft.trim()
+    if (!raw) return
+    // On a grocery list a leading number is almost always a count ("2 avocados",
+    // "12 oz cream cheese"), so peel it into the qty instead of the item name.
+    if (grocery) {
+      const { qty, text } = parseQty(raw)
+      addListItem(listId, text, qty ? { qty } : {})
+    } else {
+      addListItem(listId, raw)
+    }
     setDraft('')
     inputRef.current?.focus() // stay focused for rapid entry
   }
@@ -347,45 +354,6 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
         </div>
       )}
 
-      <div className="list-add">
-        <input
-          ref={inputRef}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Add an item…"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              add()
-            }
-          }}
-        />
-        <button className="list-add-btn" onClick={add} aria-label="Add item">
-          <Plus size={20} />
-        </button>
-      </div>
-      {suggestions.length > 0 && (
-        <div className="list-suggest" role="listbox" aria-label="Suggestions">
-          {suggestions.map((s) => (
-            <button
-              key={s.norm}
-              type="button"
-              className="list-suggest-item"
-              onClick={() => pickSuggestion(s)}
-            >
-              <Plus size={14} className="list-suggest-plus" />
-              <span className="list-suggest-text">{s.text}</span>
-              {grocery && s.category && <span className="list-suggest-aisle">{s.category}</span>}
-            </button>
-          ))}
-        </div>
-      )}
-      {!grocery && (
-        <button className="text-btn add-section-btn" onClick={addSection}>
-          <Plus size={14} /> Add section
-        </button>
-      )}
-
       {items.open.length === 0 && items.done.length === 0 ? (
         <p className="empty">Nothing here yet. Add the first item above.</p>
       ) : grocery ? (
@@ -410,6 +378,51 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
           {doneSection}
         </>
       )}
+
+      {/* Add dock sits at the bottom, within thumb reach while shopping. On
+          mobile it sticks just above the tab bar; suggestions grow upward from
+          the input so the field itself never moves. */}
+      <div className="list-add-dock">
+        {!grocery && (
+          <button className="text-btn add-section-btn" onClick={addSection}>
+            <Plus size={14} /> Add section
+          </button>
+        )}
+        {suggestions.length > 0 && (
+          <div className="list-suggest" role="listbox" aria-label="Suggestions">
+            {suggestions.map((s) => (
+              <button
+                key={s.norm}
+                type="button"
+                className="list-suggest-item"
+                onClick={() => pickSuggestion(s)}
+              >
+                <Plus size={14} className="list-suggest-plus" />
+                <span className="list-suggest-text">{s.text}</span>
+                {grocery && s.category && <span className="list-suggest-aisle">{s.category}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="list-add">
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Add an item…"
+            enterKeyHint="done"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                add()
+              }
+            }}
+          />
+          <button className="list-add-btn" onClick={add} aria-label="Add item">
+            <Plus size={20} />
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

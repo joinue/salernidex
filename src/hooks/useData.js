@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import {
   demoMode,
@@ -96,6 +96,11 @@ export function useData(session) {
   const [reminderSnoozes, setReminderSnoozes] = useState([])
   const [loading, setLoading] = useState(!isDemo)
   const [error, setError] = useState(null)
+  // How many optimistic writes are still settling. A realtime echo (our own
+  // write, or a co-member's) must NOT trigger a full refetch while our writes
+  // are in flight — the server read can still be missing our just-added row and
+  // would momentarily clobber it. We defer the refetch until this hits 0.
+  const pendingWrites = useRef(0)
 
   // Two distinct identities, deliberately kept apart (live mode used to conflate
   // them, which broke privacy and snoozes):
@@ -124,20 +129,34 @@ export function useData(session) {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
 
   const refresh = useCallback(async () => {
-    if (isDemo) return
+    // Bail if the active household isn't known yet (Shell only mounts once the
+    // household cache is hydrated, so this is just a guard). Crucially, every
+    // read is filtered to householdId: RLS's is_member() returns rows for ALL
+    // households you belong to, so without this filter a multi-household user
+    // would see their households' data commingled. (reminder_snoozes is
+    // member-scoped, not household-scoped, so it filters on member_id instead.)
+    if (isDemo || !householdId) return
     const [p, o, r, i, g, t, c, tl, l, li, f, kd, sn, h, he, lc] = await Promise.all([
-      supabase.from('people').select('*').order('name'),
-      supabase.from('organizations').select('*').order('name'),
-      supabase.from('relationships').select('*'),
-      supabase.from('interactions').select('*').order('occurred_at', { ascending: false }),
-      supabase.from('groups').select('*').order('name'),
-      supabase.from('tasks').select('*').order('created_at'),
-      supabase.from('task_completions').select('*').order('completed_at', { ascending: false }),
-      supabase.from('task_links').select('*'),
-      supabase.from('lists').select('*').order('created_at'),
-      supabase.from('list_items').select('*').order('created_at'),
-      supabase.from('families').select('*').order('name'),
-      supabase.from('key_dates').select('*').order('date'),
+      supabase.from('people').select('*').eq('household_id', householdId).order('name'),
+      supabase.from('organizations').select('*').eq('household_id', householdId).order('name'),
+      supabase.from('relationships').select('*').eq('household_id', householdId),
+      supabase
+        .from('interactions')
+        .select('*')
+        .eq('household_id', householdId)
+        .order('occurred_at', { ascending: false }),
+      supabase.from('groups').select('*').eq('household_id', householdId).order('name'),
+      supabase.from('tasks').select('*').eq('household_id', householdId).order('created_at'),
+      supabase
+        .from('task_completions')
+        .select('*')
+        .eq('household_id', householdId)
+        .order('completed_at', { ascending: false }),
+      supabase.from('task_links').select('*').eq('household_id', householdId),
+      supabase.from('lists').select('*').eq('household_id', householdId).order('created_at'),
+      supabase.from('list_items').select('*').eq('household_id', householdId).order('created_at'),
+      supabase.from('families').select('*').eq('household_id', householdId).order('name'),
+      supabase.from('key_dates').select('*').eq('household_id', householdId).order('date'),
       // My snoozes/dismissals (RLS already limits to own rows; member_id is
       // explicit too). Kept OUT of firstError below for the same reason
       // member_preferences is loaded separately — a missing Phase 6 table must
@@ -146,11 +165,11 @@ export function useData(session) {
       // Habits (Phase: habit tracking). Kept OUT of firstError below, like
       // snoozes — a missing table (migration not yet run) must degrade to "no
       // habits", not blank the whole app.
-      supabase.from('habits').select('*').order('created_at'),
-      supabase.from('habit_entries').select('*'),
+      supabase.from('habits').select('*').eq('household_id', householdId).order('created_at'),
+      supabase.from('habit_entries').select('*').eq('household_id', householdId),
       // Recent-items catalog (autocomplete). Kept OUT of firstError too — a
       // missing table degrades to "no suggestions", not a blanked app.
-      supabase.from('list_catalog').select('*'),
+      supabase.from('list_catalog').select('*').eq('household_id', householdId),
     ])
     const firstError =
       p.error ||
@@ -190,7 +209,7 @@ export function useData(session) {
       if (!lc.error) setListCatalog(lc.data || [])
     }
     setLoading(false)
-  }, [isDemo, memberId])
+  }, [isDemo, memberId, householdId])
 
   // App preferences are loaded apart from the main data pull so a pref-specific
   // failure — most likely the member_preferences table not existing yet because
@@ -245,7 +264,16 @@ export function useData(session) {
     let refreshTimer
     const debouncedRefresh = () => {
       clearTimeout(refreshTimer)
-      refreshTimer = setTimeout(refresh, 250)
+      refreshTimer = setTimeout(() => {
+        // Hold off while our own optimistic writes are still settling so a
+        // stale server read can't drop a just-added row; their echoes keep
+        // re-arming this, and we refetch once everything has landed.
+        if (pendingWrites.current > 0) {
+          debouncedRefresh()
+          return
+        }
+        refresh()
+      }, 250)
     }
     const channel = supabase
       .channel('salernidex-sync')
@@ -278,6 +306,7 @@ export function useData(session) {
   // On error: toast + refresh, which snaps local state back to the server's.
   const sync = (op) => {
     if (isDemo) return
+    pendingWrites.current += 1
     Promise.resolve()
       .then(op)
       .then((res) => {
@@ -286,6 +315,9 @@ export function useData(session) {
       .catch((err) => {
         showToast(friendlyError(err), { variant: 'error', duration: 6000 })
         refresh()
+      })
+      .finally(() => {
+        pendingWrites.current = Math.max(0, pendingWrites.current - 1)
       })
   }
 
@@ -1140,6 +1172,7 @@ export function useData(session) {
       reminder_snoozes: backup.reminder_snoozes,
       habits: backup.habits,
       habit_entries: backup.habit_entries,
+      list_catalog: backup.list_catalog,
     }
     // Backups taken before migration 0023 store the old 'marc_only' privacy
     // label; map it to 'private' so they still restore against the renamed enum.
@@ -1210,6 +1243,7 @@ export function useData(session) {
         setReminderSnoozes((prev) => merge(prev, tables.reminder_snoozes))
       if (tables.habits) setHabits((prev) => merge(prev, tables.habits))
       if (tables.habit_entries) setHabitEntries((prev) => merge(prev, tables.habit_entries))
+      if (tables.list_catalog) setListCatalog((prev) => merge(prev, tables.list_catalog))
       return
     }
     // Live: re-home each row into the active household, sanitize legacy ids
@@ -1220,7 +1254,14 @@ export function useData(session) {
       rows.map((r) => {
         // reminder_snoozes is member-scoped (no household_id); the rest are
         // household-scoped. Restoring snoozes makes them mine.
-        const row = name === 'reminder_snoozes' ? { ...r, member_id: memberId } : stamp({ ...r })
+        if (name === 'reminder_snoozes') return { ...r, member_id: memberId }
+        // list_catalog dedupes on (household_id, norm); drop the source id so a
+        // re-home merges into any existing entry instead of fighting the PK.
+        if (name === 'list_catalog') {
+          const { id: _id, ...rest } = r
+          return stamp(rest)
+        }
+        const row = stamp({ ...r })
         if (name === 'tasks') row.assignee = isUuid(row.assignee) ? row.assignee : null
         if (name === 'task_completions')
           row.completed_by = isUuid(row.completed_by) ? row.completed_by : null
@@ -1242,10 +1283,13 @@ export function useData(session) {
       'reminder_snoozes',
       'habits',
       'habit_entries',
+      'list_catalog',
     ]) {
       const rows = tables[name]
       if (!rows?.length) continue
-      const { error } = await supabase.from(name).upsert(prep(name, rows))
+      // list_catalog has no stable id across households; merge on its natural key.
+      const opts = name === 'list_catalog' ? { onConflict: 'household_id,norm' } : undefined
+      const { error } = await supabase.from(name).upsert(prep(name, rows), opts)
       if (error) throw error
     }
     await refresh()

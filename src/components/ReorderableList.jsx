@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react'
 import haptics from '../lib/haptics'
+import { LONG_PRESS_MS, DRAG_SLOP_PX, REORDER_CANCEL_PX } from '../lib/gestures'
 
 // Drag-to-reorder wrapper for grouped-inset lists.
 //
 // Lift affordance matches the platform:
-//  - touch: long-press (450ms, with haptic) lifts the row, then drag; moving
+//  - touch: long-press (LONG_PRESS_MS, with haptic) lifts the row, then drag; moving
 //    before the timer fires bows out so scrolling and swipe-rows keep working
 //  - mouse: press and drag vertically a few px (a plain click stays a click)
 //
@@ -85,12 +86,12 @@ export default function ReorderableList({ items, onMove, renderItem, className =
         const dy = ev.clientY - y0
         if (isTouch) {
           // moved before the long-press armed → it's a scroll or a swipe
-          if (Math.abs(dx) > 8 || Math.abs(dy) > 8) cleanup()
+          if (Math.abs(dx) > REORDER_CANCEL_PX || Math.abs(dy) > REORDER_CANCEL_PX) cleanup()
           return
         }
-        if (Math.abs(dy) > 6 && Math.abs(dy) > Math.abs(dx)) {
+        if (Math.abs(dy) > DRAG_SLOP_PX && Math.abs(dy) > Math.abs(dx)) {
           lift(index, ev.clientY, pointerId)
-        } else if (Math.abs(dx) > 8) {
+        } else if (Math.abs(dx) > REORDER_CANCEL_PX) {
           cleanup()
         }
         return
@@ -136,7 +137,7 @@ export default function ReorderableList({ items, onMove, renderItem, className =
       wrap.addEventListener('touchmove', onTouchMoveEv, { passive: false })
       lpTimer = setTimeout(() => {
         if (sess.current && !sess.current.lifted) lift(index, y0, pointerId)
-      }, 450)
+      }, LONG_PRESS_MS)
     }
   }
 

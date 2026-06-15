@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { stepQty, hasQty, qtyLabel } from './listItems'
+import { stepQty, hasQty, qtyLabel, parseQty } from './listItems'
 
 describe('stepQty', () => {
   it('treats blank as one: up → 2, down → blank', () => {
@@ -39,6 +39,28 @@ describe('hasQty', () => {
     expect(hasQty('1')).toBe(false)
     expect(hasQty('2')).toBe(true)
     expect(hasQty('2 lbs')).toBe(true)
+  })
+})
+
+describe('parseQty', () => {
+  it('peels a leading count off the item name', () => {
+    expect(parseQty('2 avocados')).toEqual({ qty: '2', text: 'avocados' })
+    expect(parseQty('12 eggs')).toEqual({ qty: '12', text: 'eggs' })
+  })
+
+  it('folds a recognized unit into the qty', () => {
+    expect(parseQty('2 lbs chicken')).toEqual({ qty: '2 lbs', text: 'chicken' })
+    expect(parseQty('12 oz cream cheese')).toEqual({ qty: '12 oz', text: 'cream cheese' })
+  })
+
+  it('treats an unrecognized word after the number as part of the name', () => {
+    expect(parseQty('2 percent milk')).toEqual({ qty: '2', text: 'percent milk' })
+  })
+
+  it('leaves plain text and bare numbers untouched', () => {
+    expect(parseQty('milk')).toEqual({ qty: '', text: 'milk' })
+    expect(parseQty('5')).toEqual({ qty: '', text: '5' })
+    expect(parseQty('  bananas ')).toEqual({ qty: '', text: 'bananas' })
   })
 })
 

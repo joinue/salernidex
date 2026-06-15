@@ -21,6 +21,31 @@ export function stepQty(qty, delta) {
   return unit ? `${Math.max(n, 0)} ${unit}` : String(Math.max(n, 0))
 }
 
+// Units we recognize when a number leads the typed text, so "2 lbs chicken"
+// folds the unit into the qty instead of the item name. A leading number with
+// no known unit ("2 avocados") is still a count.
+const QTY_UNITS = new Set([
+  'lb', 'lbs', 'oz', 'g', 'kg', 'ml', 'l', 'gal', 'qt', 'pt',
+  'dozen', 'doz', 'pack', 'packs', 'pk', 'ct', 'count', 'bag', 'bags',
+  'box', 'boxes', 'can', 'cans', 'bottle', 'bottles', 'bunch', 'jar', 'jars', 'loaf', 'head',
+])
+
+// Split a leading quantity off freeform add-item text so the count doesn't end
+// up baked into the name. "2 milk" → { qty: '2', text: 'milk' }; "12 oz cream
+// cheese" → { qty: '12 oz', text: 'cream cheese' }; "milk" or a bare "5" → no
+// qty (a number with nothing after it is the item, not a count).
+export function parseQty(input) {
+  const raw = (input || '').trim()
+  const m = raw.match(/^(\d+)\s+(.*)$/)
+  if (!m) return { qty: '', text: raw }
+  const [, n, rest] = m
+  const um = rest.match(/^([a-zA-Z]+)\s+(.+)$/)
+  if (um && QTY_UNITS.has(um[1].toLowerCase()) && um[2].trim()) {
+    return { qty: `${n} ${um[1].toLowerCase()}`, text: um[2].trim() }
+  }
+  return { qty: n, text: rest.trim() }
+}
+
 // Whether a qty is worth showing on the row: anything set and not just "1".
 export function hasQty(qty) {
   const raw = (qty || '').trim()

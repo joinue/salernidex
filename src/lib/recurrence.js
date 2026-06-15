@@ -124,6 +124,14 @@ export function nextOccurrence(rule, from, { inclusive = false } = {}) {
   return null
 }
 
+// Does `rule` land on the given ISO date? Reuses nextOccurrence (inclusive),
+// which matches the date on its first step when it's an occurrence — so it also
+// honors `until`/`exdates` for free. Used by habits to drive their schedule.
+export function occursOn(rule, iso) {
+  if (!rule || !rule.freq) return false
+  return nextOccurrence(rule, iso, { inclusive: true }) === iso
+}
+
 function ordinal(n) {
   const s = ['th', 'st', 'nd', 'rd']
   const v = n % 100

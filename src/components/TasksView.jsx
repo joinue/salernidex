@@ -1,6 +1,25 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ChevronRight, Plus, CheckSquare } from 'react-feather'
-import { taskBucket, completionsFor, isProject, areaNames, taskTags } from '../lib/tasks'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  ChevronRight,
+  Plus,
+  CheckSquare,
+  Calendar,
+  Clock,
+  Repeat as RepeatIcon,
+  User,
+} from 'react-feather'
+import {
+  taskBucket,
+  completionsFor,
+  isProject,
+  areaNames,
+  taskTags,
+  byDue,
+  byUpcoming,
+  isoDateIn,
+} from '../lib/tasks'
+import { parseTaskInput, quickTaskFields } from '../lib/taskParse'
+import { PRIVATE_LEVEL } from '../lib/privacy'
 import { relativeTime } from '../lib/contact'
 import { members, assigneeLabel, normalizeAssignee, isSolo } from '../lib/household'
 import { byOrder, moveUpdates } from '../lib/order'
@@ -10,6 +29,9 @@ import Segmented from './Segmented'
 import TaskRow from './TaskRow'
 import ReorderableList from './ReorderableList'
 import AddToCalendar from './AddToCalendar'
+
+// Icons for the quick-add preview chips, matching TaskForm's smart-add tokens.
+const TOKEN_ICON = { due: Calendar, time: Clock, repeat: RepeatIcon, who: User }
 
 const BUCKETS = [
   { id: 'overdue', label: 'Overdue' },
@@ -51,6 +73,16 @@ export default function TasksView({
   const [expanded, setExpanded] = useState(expandId || null)
   const [showDone, setShowDone] = useState(defaultShowCompleted)
   const [draftSub, setDraftSub] = useState('')
+  // Inline quick-add: type a line, Enter adds it (running the same NL parser the
+  // modal uses), and the field stays focused for the next one — fast capture
+  // without opening the full form. The FAB/"New task" still opens the modal when
+  // you want priority, area, notes, etc.
+  const [quickDraft, setQuickDraft] = useState('')
+  const quickRef = useRef(null)
+  const quickPreview = useMemo(
+    () => parseTaskInput(quickDraft, { today: isoDateIn(0), members: members() }),
+    [quickDraft],
+  )
 
   // Deep link from Quick Find (#/tasks/<id>): land with that task expanded.
   useEffect(() => {
@@ -106,8 +138,21 @@ export default function TasksView({
   const grouped = useMemo(() => {
     const g = { overdue: [], today: [], upcoming: [], someday: [] }
     for (const t of topOpen) g[taskBucket(t)].push(t)
+    // Upcoming is date-driven, so read it chronologically (soonest first) rather
+    // than by manual drag order — what's "coming up next" belongs at the top.
+    g.upcoming.sort(byUpcoming)
     return g
   }, [topOpen])
+
+  // Today splits in two: clock-anchored tasks lead in time order (a 9 AM
+  // commitment shouldn't sink under untimed to-dos), then untimed tasks keep the
+  // user's manual order below. All Today tasks share today's date, so byDue here
+  // collapses to time-of-day, then priority.
+  const todayParts = useMemo(() => {
+    const timed = grouped.today.filter((t) => t.due_time).sort(byDue)
+    const untimed = grouped.today.filter((t) => !t.due_time)
+    return { timed, untimed }
+  }, [grouped.today])
 
   const subtasks = (id) => tasks.filter((t) => t.parent_id === id && !t.is_heading)
 
@@ -126,6 +171,18 @@ export default function TasksView({
       privacy_level: parent.privacy_level,
     })
     setDraftSub('')
+  }
+
+  const addQuick = () => {
+    if (!quickDraft.trim()) return
+    const fields = quickTaskFields(quickDraft, { today: isoDateIn(0), members: members() })
+    // When viewing one member's list, an unattributed quick task joins that list;
+    // an explicit "for <name>" in the text still wins.
+    if (fields.assignee === 'anyone' && filter !== 'all') fields.assignee = filter
+    haptics.success()
+    addTask({ ...fields, privacy_level: isSolo() ? PRIVATE_LEVEL : 'shared' })
+    setQuickDraft('')
+    quickRef.current?.focus()
   }
 
   const renderTask = (task) => {
@@ -188,6 +245,7 @@ export default function TasksView({
                 value={expanded === task.id ? draftSub : ''}
                 onChange={(e) => setDraftSub(e.target.value)}
                 placeholder="Add a subtask…"
+                enterKeyHint="done"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
@@ -280,6 +338,40 @@ export default function TasksView({
         </div>
       )}
 
+      <div className="task-quickadd">
+        <div className="task-quickadd-row">
+          <Plus size={18} className="task-quickadd-icon" />
+          <input
+            ref={quickRef}
+            value={quickDraft}
+            onChange={(e) => setQuickDraft(e.target.value)}
+            placeholder="Add a task… e.g. trash out every Monday"
+            enterKeyHint="done"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                addQuick()
+              }
+            }}
+          />
+        </div>
+        {quickPreview.tokens.length > 0 && (
+          <div className="nl-preview" aria-live="polite">
+            <span className="nl-preview-title">{quickPreview.title}</span>
+            <span className="nl-chips">
+              {quickPreview.tokens.map((t) => {
+                const Icon = TOKEN_ICON[t.type]
+                return (
+                  <span key={t.type} className={`nl-chip nl-${t.type}`}>
+                    {Icon && <Icon size={11} />} {t.label}
+                  </span>
+                )
+              })}
+            </span>
+          </div>
+        )}
+      </div>
+
       {topOpen.length === 0 ? (
         <div className="empty">
           <CheckSquare size={28} className="empty-icon" />
@@ -297,11 +389,30 @@ export default function TasksView({
           grouped[b.id].length ? (
             <div key={b.id}>
               <div className="section-label">{b.label}</div>
-              <ReorderableList
-                items={grouped[b.id]}
-                onMove={(from, to) => reorderTasks(moveUpdates(grouped[b.id], from, to))}
-                renderItem={renderTask}
-              />
+              {b.id === 'upcoming' ? (
+                // Date-driven: chronological, no manual reorder.
+                <div className="list">{grouped[b.id].map(renderTask)}</div>
+              ) : b.id === 'today' ? (
+                // Timed tasks lead in clock order; untimed stay reorderable below.
+                <>
+                  {todayParts.timed.length > 0 && (
+                    <div className="list">{todayParts.timed.map(renderTask)}</div>
+                  )}
+                  <ReorderableList
+                    items={todayParts.untimed}
+                    onMove={(from, to) =>
+                      reorderTasks(moveUpdates(todayParts.untimed, from, to))
+                    }
+                    renderItem={renderTask}
+                  />
+                </>
+              ) : (
+                <ReorderableList
+                  items={grouped[b.id]}
+                  onMove={(from, to) => reorderTasks(moveUpdates(grouped[b.id], from, to))}
+                  renderItem={renderTask}
+                />
+              )}
             </div>
           ) : null,
         )

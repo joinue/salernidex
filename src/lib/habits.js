@@ -5,7 +5,11 @@
 //   limit  — minimize; success when value <= target (target defaults to 0)
 //   track  — neither; just a number to watch (no success, no streak)
 //
-// Scheduling has two modes:
+// Scheduling has three modes (checked in this order):
+//   rrule   — an RRULE-lite rule (lib/recurrence.js): every N days/weeks,
+//             monthly (by date or weekday), or yearly. A day is scheduled iff
+//             the rule lands on it; streaks count consecutive matching dates.
+//             Overrides the two modes below when present.
 //   weekday — `active_days` (0–6, Sun–Sat; empty = every day). Per-day success;
 //             daily streak. Off-days are transparent (skipped, not broken).
 //   weekly  — `weekly_target` "N times per week, any day". Success is measured
@@ -14,11 +18,19 @@
 // A `skipped` entry is a one-off rest day: transparent to streaks, like an
 // off-day, and distinct from a logged 0. Absence of any entry = value 0.
 
+import { occursOn, describeRecurrence } from './recurrence'
+
+export function hasRule(habit) {
+  return !!(habit.rrule && habit.rrule.freq)
+}
+
 export function isWeekly(habit) {
-  return habit.weekly_target != null && habit.weekly_target > 0
+  // An rrule schedules per-occurrence (a daily-style streak), never weekly.
+  return !hasRule(habit) && habit.weekly_target != null && habit.weekly_target > 0
 }
 
 export function isScheduled(habit, date) {
+  if (hasRule(habit)) return occursOn(habit.rrule, toISODate(date))
   if (isWeekly(habit)) return true // any day is fair game
   const days = habit.active_days
   if (!days || days.length === 0) return true
@@ -70,6 +82,16 @@ export function noteOn(habit, isoDate, map) {
 // they can't predate the habit.
 const startOf = (habit) => (habit.created_at ? String(habit.created_at).slice(0, 10) : null)
 
+// How many calendar days back the daily-streak walk scans. A day-per-step walk
+// counts occurrences, so sparse rules (monthly/yearly) need a wider window to
+// surface long streaks; daily/weekly stay at a year.
+function dayStreakHorizon(habit) {
+  const f = habit.rrule?.freq
+  if (f === 'yearly') return 366 * 25
+  if (f === 'monthly') return 366 * 12
+  return 366
+}
+
 // Monday-start week containing `date`.
 function weekStartOf(date) {
   const d = new Date(date.getFullYear(), date.getMonth(), date.getDate())
@@ -87,8 +109,9 @@ export function currentStreak(habit, map, today = new Date()) {
   const todayISO = toISODate(today)
   const startISO = startOf(habit)
   let streak = 0
+  const horizon = dayStreakHorizon(habit)
   const d = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  for (let i = 0; i < 366; i++) {
+  for (let i = 0; i < horizon; i++) {
     if (startISO && toISODate(d) < startISO) break
     if (isScheduled(habit, d)) {
       const iso = toISODate(d)
@@ -113,8 +136,9 @@ export function bestStreak(habit, map, today = new Date()) {
   const todayISO = toISODate(today)
   let best = 0
   let run = 0
+  const horizon = dayStreakHorizon(habit)
   const d = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  for (let i = 0; i < 366; i++) {
+  for (let i = 0; i < horizon; i++) {
     if (startISO && toISODate(d) < startISO) break
     if (isScheduled(habit, d)) {
       const iso = toISODate(d)
@@ -253,13 +277,20 @@ const DOW2 = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 export function goalLabel(h) {
   if (h.polarity === 'track') return h.unit ? `Tracking ${h.unit}` : 'Tracking'
   const u = h.unit ? ` ${h.unit}` : ''
-  if (h.measure === 'binary') return h.polarity === 'limit' ? 'Avoid each day' : 'Once a day'
+  // An rrule isn't a daily cadence, so drop the "/day"/"each day" wording and let
+  // cadenceLabel ("Every 3 days", "Monthly on the 20th") carry the frequency.
+  const per = hasRule(h) ? '' : '/day'
+  if (h.measure === 'binary') {
+    if (hasRule(h)) return h.polarity === 'limit' ? 'Avoid' : 'Each time'
+    return h.polarity === 'limit' ? 'Avoid each day' : 'Once a day'
+  }
   return h.polarity === 'limit'
-    ? `Limit ≤ ${h.target ?? 0}${u}/day`
-    : `Goal ≥ ${h.target ?? 1}${u}/day`
+    ? `Limit ≤ ${h.target ?? 0}${u}${per}`
+    : `Goal ≥ ${h.target ?? 1}${u}${per}`
 }
 
 export function cadenceLabel(h) {
+  if (hasRule(h)) return describeRecurrence(h.rrule)
   if (isWeekly(h)) return `${h.weekly_target}× / week`
   return !h.active_days?.length || h.active_days.length === 7
     ? 'Daily'

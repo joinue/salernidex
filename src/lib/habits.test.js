@@ -13,6 +13,9 @@ import {
   bestDayOfWeek,
   trend,
   totals,
+  hasRule,
+  cadenceLabel,
+  goalLabel,
 } from './habits'
 
 // Build entries spanning back from a fixed "today" so tests are deterministic.
@@ -45,6 +48,77 @@ describe('isScheduled', () => {
     expect(isScheduled(h, new Date(2026, 0, 5))).toBe(true) // Mon
     expect(isScheduled(h, new Date(2026, 0, 6))).toBe(false) // Tue
     expect(isScheduled(h, new Date(2026, 0, 3))).toBe(false) // Sat
+  })
+})
+
+describe('rrule scheduling', () => {
+  it('hasRule / isWeekly respect an rrule', () => {
+    const h = { rrule: { freq: 'daily', interval: 2, anchor: '2026-01-01' }, weekly_target: 3 }
+    expect(hasRule(h)).toBe(true)
+    // rrule is a per-occurrence (daily-style) schedule, never weekly — even if a
+    // stale weekly_target lingers, the rule wins.
+    expect(isWeekly(h)).toBe(false)
+    expect(hasRule({ active_days: [] })).toBe(false)
+  })
+
+  it('every-2-days rule schedules only matching dates', () => {
+    const h = { rrule: { freq: 'daily', interval: 2, anchor: '2026-01-01' } }
+    expect(isScheduled(h, new Date(2026, 0, 1))).toBe(true)
+    expect(isScheduled(h, new Date(2026, 0, 2))).toBe(false)
+    expect(isScheduled(h, new Date(2026, 0, 3))).toBe(true)
+    expect(isScheduled(h, new Date(2026, 0, 5))).toBe(true)
+  })
+
+  it('monthly-by-date rule schedules only that day', () => {
+    const h = { rrule: { freq: 'monthly', monthday: 20, anchor: '2026-01-20' } }
+    expect(isScheduled(h, new Date(2026, 0, 20))).toBe(true)
+    expect(isScheduled(h, new Date(2026, 0, 21))).toBe(false)
+    expect(isScheduled(h, new Date(2026, 1, 20))).toBe(true) // next month
+  })
+
+  it('streak counts consecutive occurrences; off-days are transparent', () => {
+    const today = new Date(2026, 0, 5) // occurrence day (Jan 1/3/5)
+    const h = {
+      id: 'h',
+      polarity: 'build',
+      target: 1,
+      track_streak: true,
+      created_at: '2026-01-01',
+      rrule: { freq: 'daily', interval: 2, anchor: '2026-01-01' },
+    }
+    // idx 0=Jan5, 2=Jan3, 4=Jan1 are the occurrences (1,3 are off-days)
+    expect(currentStreak(h, map('h', [1, 0, 1, 0, 1], today), today)).toBe(3)
+    // today (Jan5) unmet rides on grace → Jan3 + Jan1 still count
+    expect(currentStreak(h, map('h', [0, 0, 1, 0, 1], today), today)).toBe(2)
+    // a missed past occurrence (Jan3) breaks it back to Jan5 only
+    expect(currentStreak(h, map('h', [1, 0, 0, 0, 1], today), today)).toBe(1)
+  })
+
+  it('cadenceLabel describes the rule', () => {
+    expect(cadenceLabel({ rrule: { freq: 'daily', interval: 3, anchor: '2026-01-01' } })).toBe(
+      'Every 3 days',
+    )
+    expect(cadenceLabel({ rrule: { freq: 'monthly', monthday: 20, anchor: '2026-01-20' } })).toBe(
+      'Monthly on the 20th',
+    )
+  })
+
+  it('goalLabel drops the per-day wording for rule-based habits', () => {
+    const rule = { freq: 'monthly', monthday: 20, anchor: '2026-01-20' }
+    // daily habits keep the "/day"/"a day" phrasing...
+    expect(goalLabel({ polarity: 'build', measure: 'count', target: 8, unit: 'glasses' })).toBe(
+      'Goal ≥ 8 glasses/day',
+    )
+    expect(goalLabel({ polarity: 'build', measure: 'binary' })).toBe('Once a day')
+    // ...rule-based ones let cadenceLabel carry the frequency instead.
+    expect(
+      goalLabel({ polarity: 'build', measure: 'count', target: 8, unit: 'glasses', rrule: rule }),
+    ).toBe('Goal ≥ 8 glasses')
+    expect(goalLabel({ polarity: 'limit', measure: 'count', target: 2, rrule: rule })).toBe(
+      'Limit ≤ 2',
+    )
+    expect(goalLabel({ polarity: 'build', measure: 'binary', rrule: rule })).toBe('Each time')
+    expect(goalLabel({ polarity: 'limit', measure: 'binary', rrule: rule })).toBe('Avoid')
   })
 })
 

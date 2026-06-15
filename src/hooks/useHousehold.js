@@ -13,6 +13,7 @@ export const ACTIVE_HOUSEHOLD_KEY = 'salernidex-active-household'
 // returns real household_members uuids without any call-site changes.
 //
 // status: 'loading' → checking; 'none' → no membership yet (show Onboarding);
+//         'error' → couldn't load memberships (show a retry, not Onboarding);
 //         'ready' → cache hydrated, safe to render the app.
 export function useHousehold(session) {
   const [status, setStatus] = useState('loading')
@@ -30,9 +31,10 @@ export function useHousehold(session) {
       .eq('user_id', userId)
     const mine = mineRaw?.map((m) => ({ ...m, household_name: m.households?.name || 'Household' }))
     if (error) {
-      // Can't tell membership state — surface as onboarding rather than trap
-      // the user on a spinner; the RPCs will no-op gracefully if they retry.
-      setStatus('none')
+      // A read error (network blip, transient RLS/500) is NOT "no membership" —
+      // routing it to Onboarding would let an existing member accidentally
+      // create a SECOND household. Surface a retryable error state instead.
+      setStatus('error')
       return
     }
     if (!mine?.length) {

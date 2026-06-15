@@ -1,13 +1,23 @@
 # Salernidex — roadmap & status
 
-_Last updated: 2026-06-12 (Phase 7 shipped)_
+_Last updated: 2026-06-14 (live on Supabase; habits + deferred-tasks shipped)_
 
 **Vision:** a joint **household operating system** — the shared layer next to Apple Calendar.
 You share the *when* (Calendar); this owns the shared **who** (rolodex), **to-do**
-(tasks/chores/projects), and **to-get** (lists), unified by a **Today** spine.
+(tasks/chores/projects), **to-get** (lists), and **habits**, unified by a **Today** spine.
 Multitenant: any household type (couple, family, roommates), N members.
 
 Legend: ✅ done · 🟡 partial · ⬜ not started
+
+---
+
+## Status in one line
+
+**The app is live.** Supabase is wired and the full multitenant stack runs against a real
+project: per-user auth, create/join household by code, household switching, `household_id` +
+RLS scoping on every write, realtime sync, and deployed edge functions (`send-reminders`,
+`delete-account`). The 0001→0026 migrations are applied. Demo mode (no `.env`) remains as the
+zero-setup dev/preview fallback, not the primary target.
 
 ---
 
@@ -16,60 +26,54 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 ### ✅ Done
 - **Design system** — iOS-native primitives (Avatar, grouped lists, Segmented, large titles, frosted bars), light/dark.
 - **CRM heart** — interactions (touchpoints), keep-in-touch cadence, "last contacted" / overdue signals.
-- **Portability** — full round-trippable JSON backup + restore; CSV people import/export. (No vendor lock-in.)
-- **Today hub** — greeting, To-do (due tasks), Birthdays, Recent activity. (Needs-a-nudge moved to Phase 6 with the rest of proactive reminders.)
-- **Tasks** — one model for to-dos + recurring chores + projects; **recurrence engine** (RRULE-lite: the 20th, first Monday, etc.); **completion history** (who/when, for accountability).
-- **Lists** — shared household lists (groceries/etc.), rapid add, check-off, "Got it" section.
-- **Gesture groundwork** — `useDrag`/`useLongPress`, haptics, SwipeRow, drag-to-dismiss sheets, pull-to-refresh, long-press action sheets.
-- **Navigation** — bottom bar `Today · People · ➕ · Tasks · Lists` (capped at 5), page-aware FAB, More hub, grouped desktop sidebar.
-- **Settings + members** — household name, N members (add/rename/remove, "you are"), join code, theme, leave household.
-- **Multitenancy foundation** — household + member model with **member-based assignee** ("Anyone" / member); live schema designed (households, household_members, `household_id` + RLS, `join_household` RPC) in `supabase/schema.sql`.
+- **Today hub** — greeting, To-do (due/overdue + deferred), **Check in**, Dates (birthdays + key dates), recent activity.
+- **Tasks** — one model for to-dos + recurring chores + projects with subtasks; **recurrence engine** (RRULE-lite: the 20th, first Monday, etc.); **completion history** (who/when); priority, tags, due-time, and member-based assignees.
+- **Deferred / two-axis dates (the Things idea, now shipped)** — a task's `start_date` parks it under Upcoming until it's due to surface ("Starts …"), separate from the deadline. Wired through `isDeferred`/`taskBucket` in [`src/lib/tasks.js`](src/lib/tasks.js), the Overdue/Today/Upcoming/Someday grouping, and the form. Optional, so the plain one-tap to-do is unchanged.
+- **Lists** — shared household lists (groceries/hardware/packing), rapid add, check-off, "Got it" section; list types + sections, per-item qty/assignee/note/due, and a learned **list catalog** for fast re-add.
+- **Habits** — full habit tracker: flexible recurrence (weekday sets, "N times per week", and RRULE-lite for every-N-days / weekly / monthly-by-date-or-weekday / yearly), quick-log, streaks + insights ([`HabitInsightsView`](src/components/HabitInsightsView.jsx)), templates, per-habit sharing, entry notes.
+- **Portability** — full round-trippable JSON backup + restore (**v9**); CSV people import/export with column mapping + duplicate review; **vCard 3.0 export** (person / group / everyone) with stable UIDs straight into the phone's address book.
+- **People** — fuzzy search, **tiers** (inner circle / close / network) with filter + "closest first" sort, **family units** ("The Parks", bidirectional), **key dates** beyond birthday, contact channels, smart groups from tag rules (AND/OR/NOT), live duplicate detection, soft-delete with restore, a **self** person record.
 - **Project ↔ contact bridge** — link people/orgs to a project (`task_links`, LinkEntityForm, ProjectDetail). The integration a generic to-do app can't do.
 - **Activity feed** — unified household log (touchpoints + task completions + lists) at `#/activity` (`lib/activity.js`).
-- **Polish (ongoing)** — logo mark, ConfirmDialog (iOS-style confirms), live duplicate detection in the add-person form (`lib/duplicates.js`).
-- **Phase 7 — richer relationships** — tiers (inner circle / close / network: form picker, profile badge, People filter + "closest first" sort), contact **family units** ("The Parks": assign or create inline in the form, bidirectional family section on profiles, distinct from the household/tenant model), and **key dates** beyond birthday (annual or one-off, "N years" counting, add/remove on the profile) merged with birthdays into Today's **Dates** section. All in backup v3 + CSV (tier).
-- **Phase 6a — in-app reminders** — the attention engine (`lib/reminders.js`, one pure function feeding every surface), Today's **Check in** section (warm copy — "It's been a while", never salesy/CRM language per Marc), per-member swipe-to-snooze on all attention rows (3d / 1w / never via action sheet, `reminder_snoozes` in backup v4), badges on the Today tab/sidebar + app icon (Badging API), and Settings → Notifications (per-member category toggles, FYIs off by default, date lead-time picker). Push delivery is 6b.
-- **Phase 8a — vCard export** (`lib/vcard.js`): "Save contact" on every profile, per-group "Export contacts", and an all-people .vcf in Import/Export — vCard 3.0 with stable UIDs (`salernidex-<id>`, so re-imports update rather than duplicate, and CardDAV-ready for 8b). Imports straight into iPhone/Google contacts.
-- **iOS polish pass** — standalone PWA chrome (apple-mobile-web-app metas, black-translucent status bar with safe-area padding, theme-colors matched to the grouped palette), **edge-swipe back** on detail pages (`useEdgeBack`, content tracks the finger), a dismissible **Add to Home Screen** hint card on iPhone Safari, 16px inputs on touch (kills Safari's focus zoom), `enterkeyhint`/`inputMode` keyboard hints. Splash-screen image matrix deliberately skipped. Verified by `scripts/ios-smoke.mjs`.
+- **Reminders — in-app + push (live)** — the attention engine (`lib/reminders.js`, one pure function feeding every surface), Today's **Check in** (warm copy, never CRM-speak), per-member swipe-to-snooze (3d / 1w / never, `reminder_snoozes`), app-icon + tab badges (Badging API), and Settings → Notifications (per-member category toggles, FYIs off by default, date lead-time). **Web-push delivery is deployed:** service worker + real subscriptions on the client, `send-reminders` edge function (morning digest, day-of pings, dedupe, dead-sub pruning) on a cron.
+- **Multitenancy (live)** — per-user signup/login/reset/recover ([`AuthScreen`](src/components/AuthScreen.jsx)), create-or-join-by-code onboarding via the `create_household` / `join_household` RPCs ([`Onboarding`](src/components/Onboarding.jsx)), household switcher across memberships ([`useHousehold`](src/hooks/useHousehold.js), Settings + People hub), `household_id` stamped on every insert with RLS rejecting unscoped rows, realtime re-hydration.
+- **Account lifecycle** — `delete-account` edge function (full account + data removal); household leave/lifecycle.
+- **iOS polish pass** — standalone PWA chrome, **edge-swipe back** (content tracks the finger), Add-to-Home-Screen hint, 16px touch inputs (no focus zoom), `enterkeyhint`/`inputMode` hints. Verified by `scripts/ios-smoke.mjs`.
 
 ### 🟡 Partial
-- **Reminders + notifications** — in-app layer (6a) done; **web-push delivery** (6b) waits on Supabase go-live.
-- **Branding/polish** — underway, not a final pass.
+- **Real-usage hardening** — the live stack runs end-to-end, but RLS policies and realtime sync want more day-to-day, multi-account mileage to shake out edge cases.
+- **Branding / final polish** — ongoing, not a final pass.
 
 ### ⬜ Remaining
-- **Phase 6b — push delivery**: **code-complete, deploy-only.** Client half shipped and tested (service worker, Settings enable flow, real subscriptions, local test notifications); the send-reminders Edge Function is fully implemented (server-side attention port, morning digest, day-of pings, dedupe, dead-sub pruning) but unexercised against a live project. Remaining work = the 7-step go-live runbook in `docs/phase6-reminders.md` (apply schema, fresh VAPID keys, deploy, cron, enable on phones).
-- **Phase 8b — CardDAV sync**: live address-book sync (needs a CardDAV server — weigh whether recurring vCard exports already cover the value before building this).
-- **Multitenancy go-live**: real signup/login UI, join-by-code screen, household switcher, thread `household_id` into every insert. (Activates when Supabase is wired.)
+- **Phase 8b — CardDAV sync**: live two-way address-book sync (needs a CardDAV server — weigh whether the recurring vCard export already covers the value before building this).
+- **Things polish still worth stealing** (lower priority than the date model, which is now done): the check-off animation, calendar events inline in Today, keyboard-driven Quick Find.
 - **Final polish + branding pass.**
 
 ---
 
-## Ideas to explore (not committed)
-
-### Steal from Things 3 — the two-axis date model
-Things' most-loved feature is splitting a task's **"when"** from its **"deadline"**:
-- **Start / "when" date** — *when the task shows up in Today* (a.k.a. defer date). Lets you plan a day without the list being a wall of everything-ever. Pairs with a **"This Evening"** sub-bucket on Today (plan the morning vs. the night).
-- **Deadline** — a separate, hard due date shown as a red flag, independent of when it surfaces.
-
-Today Salernidex has a single due date doing both jobs. Splitting it is the highest-leverage task-UX win and fits the existing model: thread a `start_date`/`defer_date` (and keep `due` as the deadline) through `taskBucket` in [`src/lib/tasks.js`](src/lib/tasks.js), the Overdue/Today/Upcoming/Someday grouping in [`TasksView.jsx`](src/components/TasksView.jsx), and [`TaskForm.jsx`](src/components/TaskForm.jsx). Keep it optional so the simple "just a to-do" case stays one-tap. Goes into backup vN + recurrence interplay (defer relative to next occurrence).
-
-**Context:** came out of a 2026-06-13 Salernidex-vs-Things comparison. Things is single-user/tasks-only by design — our moat (household/multiplayer, people-as-objects, lists, reminders-as-a-layer) is elsewhere; this is the one place worth closing the polish gap rather than out-scoping them. Other Things polish to watch but lower priority: the check-off animation, calendar events inline in Today, keyboard-driven Quick Find.
-
----
-
 ## Key decisions / constraints
-- **Demo-first.** Everything runs in-memory (`src/lib/demo.js`); `supabase/schema.sql` is an evolving **design doc**. NO migration is run until the app is polished and the schema is proven — then one clean migration.
-- **Multitenant + per-user accounts.** Each person signs in with their own login; invite via **shareable join code**; users can **leave and join another** household and belong to several. Members are a list of **N** (not a fixed pair).
-- **Portability is a feature.** Every new table goes into the backup/restore. Keep the model backend-agnostic.
+- **Live, demo-as-fallback.** The app runs against a real Supabase project; `supabase/schema.sql` mirrors the applied `migrations/` (0001→0026). With no `.env`, it falls back to in-memory **demo mode** (`src/lib/demo.js`) for zero-setup dev/preview.
+- **Multitenant + per-user accounts.** Each person signs in with their own login; invite via **shareable join code**; users can **leave and join another** household and belong to several. Members are a list of **N**.
+- **Portability is a feature.** Every table rides in the backup/restore (now v9). Keep the model backend-agnostic.
 - **Design law.** Consistent, space-efficient, elegant iOS, best-in-class mobile. Reuse existing primitives — no bespoke one-offs.
 - **Assignee** is a stable member id (or `anyone`); legacy `me/partner/either` mapped on read (`normalizeAssignee`).
+- **Warm, not salesy.** Relationship features read like staying close to people you care about, never working a pipeline.
 
 ## Run it
 ```sh
 npm install
-npm run dev        # http://localhost:5173 ; no .env = demo mode (any login, in-memory)
-node scripts/tasks-smoke.mjs   # + lists-smoke.mjs / demo-smoke.mjs (Playwright, Chrome channel)
+npm run dev        # http://localhost:5173
+                   # no .env  → demo mode (any login, in-memory)
+                   # with .env → live Supabase (real auth + sync)
+node scripts/tasks-smoke.mjs   # + lists- / demo- / habit- / push- / ios- smoke (Playwright, Chrome channel)
 ```
 
+To run live, set `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_VAPID_PUBLIC_KEY`
+(and `VITE_VAPID_PRIVATE_KEY` for the reminder function). Migrations live in
+`supabase/migrations/`; the push runbook is in `docs/phase6-reminders.md`.
+
 ## Recommended next
-**Go-live.** The demo-buildable backlog is done (phases 1–8a). Everything left — push delivery, per-user accounts, join-by-code, the household actually using it from phones — is parked behind wiring Supabase: apply the schema, real signup/login, thread `household_id` into inserts, deploy send-reminders per the runbook in `docs/phase6-reminders.md`. Migration path for demo data: JSON backup export → restore into live.
+The go-live backlog is done — the household can run the app from their phones today. The
+highest-leverage remaining work is **real-usage hardening** (live RLS/realtime under daily,
+multi-account use) plus the small Things-style UI polish above. CardDAV (8b) is the only
+sizable unbuilt feature, and only if recurring vCard export proves insufficient.

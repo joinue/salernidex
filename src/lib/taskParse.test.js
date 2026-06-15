@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseTaskInput, titleFrom } from './taskParse'
+import { parseTaskInput, titleFrom, quickTaskFields } from './taskParse'
 
 const TODAY = '2026-06-12' // Friday, fixed so date math is deterministic
 const MEMBERS = [
@@ -157,5 +157,48 @@ describe('time of day', () => {
     expect(p('buy 2 apples').due_time).toBeNull()
     expect(p('rent on the 1st').due_time).toBeNull()
     expect(p('meet at home').due_time).toBeNull()
+  })
+})
+
+describe('quickTaskFields (inline quick-add payload)', () => {
+  const q = (text) => quickTaskFields(text, { today: TODAY, members: MEMBERS })
+
+  it('applies every parsed token to a ready-to-save payload', () => {
+    const f = q('call dentist tomorrow at 3pm for Marc')
+    expect(f.title).toBe('call dentist')
+    expect(f.due_date).toBe(plusDays(1))
+    expect(f.due_time).toBe('15:00')
+    expect(f.assignee).toBe('m-1')
+    expect(f.recurrence).toBeNull()
+  })
+
+  it('defaults assignee to "anyone" and dates to null for a bare title', () => {
+    const f = q('water the plants')
+    expect(f).toMatchObject({
+      title: 'water the plants',
+      assignee: 'anyone',
+      due_date: null,
+      due_time: null,
+      recurrence: null,
+    })
+  })
+
+  it('seeds a recurring task with no explicit date from its first occurrence', () => {
+    const f = q('trash out every Monday')
+    expect(f.recurrence).toBeTruthy()
+    expect(f.due_date).toBe(coming(1)) // next Monday on/after today
+  })
+
+  it('pins a timed task with no date to today', () => {
+    const f = q('standup at 9am')
+    expect(f.due_date).toBe(TODAY)
+    expect(f.due_time).toBe('09:00')
+  })
+
+  it('drops a stray time when no date survives (never holds a time alone)', () => {
+    // "meet at home" parses no time, so the payload stays dateless + timeless.
+    const f = q('meet at home')
+    expect(f.due_date).toBeNull()
+    expect(f.due_time).toBeNull()
   })
 })

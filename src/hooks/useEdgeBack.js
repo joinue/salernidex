@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { EDGE_BACK_SLOP_PX } from '../lib/gestures'
 
 // iOS-style edge-swipe back: drag right from the left screen edge on a
 // detail page to go back, with the content tracking your finger. Installed
@@ -30,11 +31,11 @@ export function useEdgeBack(ref, enabled, onBack) {
       const dx = e.clientX - startX
       const dy = e.clientY - startY
       if (!intent) {
-        if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) {
+        if (Math.abs(dy) > EDGE_BACK_SLOP_PX && Math.abs(dy) > Math.abs(dx)) {
           active = false // they're scrolling
           return
         }
-        if (!(dx > 12 && Math.abs(dx) > Math.abs(dy))) return
+        if (!(dx > EDGE_BACK_SLOP_PX && Math.abs(dx) > Math.abs(dy))) return
         intent = true
       }
       const c = content()

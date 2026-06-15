@@ -1,4 +1,4 @@
-import { describeRecurrence } from './recurrence'
+import { describeRecurrence, nextOccurrence } from './recurrence'
 
 // Natural-language parsing for task quick-add. Pure + (almost) dependency-free
 // so it's unit-testable and reusable. Turns a typed line like
@@ -409,6 +409,28 @@ export function titleFrom(original, tokens = []) {
     if (i >= 0) s = `${s.slice(0, i)} ${s.slice(i + t.text.length)}`
   }
   return tidy(s) || original.trim()
+}
+
+// One-line natural-language text → a ready-to-save task payload, applying every
+// parsed token (no manual overrides). Powers the inline quick-add bar. Mirrors
+// the "parsed fills blanks" half of TaskForm.submit so a task typed into the bar
+// lands identically to one typed into the modal's title field and saved as-is.
+export function quickTaskFields(text, { today, members = [] } = {}) {
+  const parsed = parseTaskInput(text, { today, members })
+  // A recurring task with no explicit date gets its first due date from the rule,
+  // so it lands on the calendar immediately (matches TaskForm).
+  let due = parsed.due_date
+  if (parsed.recurrence && !due) due = nextOccurrence(parsed.recurrence, today, { inclusive: true })
+  // A time of day only means something with a date; "at 3pm" with no date pins to
+  // today, as Apple does.
+  if (parsed.due_time && !due) due = today
+  return {
+    title: parsed.title,
+    recurrence: parsed.recurrence,
+    assignee: parsed.assignee || 'anyone',
+    due_date: due,
+    due_time: due ? parsed.due_time : null,
+  }
 }
 
 function monthDayYear(month, day, yearStr, base) {

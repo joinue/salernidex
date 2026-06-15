@@ -117,6 +117,7 @@ export default function ImportExport({ data }) {
     families,
     keyDates,
     reminderSnoozes,
+    listCatalog,
     importPeople,
     restoreBackup,
   } = data
@@ -159,6 +160,7 @@ export default function ImportExport({ data }) {
       reminder_snoozes: reminderSnoozes,
       habits: allHabits,
       habit_entries: allHabitEntries,
+      list_catalog: listCatalog, // rebuildable autocomplete cache; included so the backup is complete
       settings: {
         members: memberNames(),
         notifications: getAllPrefs(),

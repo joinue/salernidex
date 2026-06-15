@@ -202,9 +202,72 @@ function dayOfDates(people: any[], keyDates: any[], today: string): Item[] {
 // due today and not already satisfied — a gentle "time to log this".
 const dowOf = (iso: string) => new Date(`${iso}T12:00:00Z`).getUTCDay() // 0=Sun..6=Sat
 
+// Server port of lib/recurrence.js occursOn: does `rule` land on this ISO date?
+// Anchored phase for "every N" intervals; honors until/exdates. UTC-noon dates
+// avoid any DST/zone day-shift (matches the rest of this file's date math).
+function ruleOccursOn(rule: any, iso: string): boolean {
+  if (!rule || !rule.freq) return false
+  if (rule.until && iso > rule.until) return false
+  if (rule.exdates?.includes(iso)) return false
+  const DAY = 86400000
+  const d = new Date(`${iso}T12:00:00Z`)
+  const a = new Date(`${rule.anchor || iso}T12:00:00Z`)
+  const interval = rule.interval || 1
+  const dim = (y: number, m: number) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
+  switch (rule.freq) {
+    case 'daily': {
+      const diff = Math.round((d.getTime() - a.getTime()) / DAY)
+      return diff >= 0 && diff % interval === 0
+    }
+    case 'weekly': {
+      if (!rule.weekdays?.includes(d.getUTCDay())) return false
+      const wsNum = (x: Date) => Math.floor(x.getTime() / DAY) - x.getUTCDay()
+      const weeks = Math.round((wsNum(d) - wsNum(a)) / 7)
+      return weeks >= 0 && weeks % interval === 0
+    }
+    case 'monthly': {
+      const months =
+        (d.getUTCFullYear() - a.getUTCFullYear()) * 12 + (d.getUTCMonth() - a.getUTCMonth())
+      if (months < 0 || months % interval !== 0) return false
+      if (rule.setpos) {
+        const y = d.getUTCFullYear()
+        const m = d.getUTCMonth()
+        let day: number
+        if (rule.setpos === -1) {
+          const last = dim(y, m)
+          const lastDow = new Date(Date.UTC(y, m, last)).getUTCDay()
+          day = last - ((lastDow - rule.weekday + 7) % 7)
+        } else {
+          const firstDow = new Date(Date.UTC(y, m, 1)).getUTCDay()
+          day = 1 + ((rule.weekday - firstDow + 7) % 7) + (rule.setpos - 1) * 7
+          if (day > dim(y, m)) return false
+        }
+        return d.getUTCDate() === day
+      }
+      return d.getUTCDate() === Math.min(rule.monthday, dim(d.getUTCFullYear(), d.getUTCMonth()))
+    }
+    case 'yearly': {
+      const years = d.getUTCFullYear() - a.getUTCFullYear()
+      if (years < 0 || years % interval !== 0) return false
+      return (
+        d.getUTCMonth() === rule.month &&
+        d.getUTCDate() === Math.min(rule.monthday, dim(d.getUTCFullYear(), rule.month))
+      )
+    }
+  }
+  return false
+}
+
 function habitDueToday(h: any, entries: any[], today: string): boolean {
   const todayEntry = entries.find((e) => e.habit_id === h.id && e.date === today)
   if (todayEntry?.skipped) return false // rest day
+
+  if (h.rrule) {
+    // rrule overrides the weekday/weekly modes; only nudge on a matching day.
+    if (!ruleOccursOn(h.rrule, today)) return false
+    if (h.polarity === 'build') return Number(todayEntry?.value ?? 0) < (h.target ?? 1)
+    return true
+  }
 
   if (h.weekly_target) {
     // Monday-start week; already hit the weekly target → nothing to nudge.

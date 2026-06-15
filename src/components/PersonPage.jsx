@@ -125,14 +125,15 @@ export default function PersonPage({
     .filter((c) => c.other && !c.other.deleted_at)
 
   const last = lastInteraction(person.id, interactions)
-  const hasContact =
+  const hasContact = Boolean(
     person.email ||
-    person.phone ||
-    person.address ||
-    person.birthday ||
-    (person.emails || []).length ||
-    (person.phones || []).length ||
-    (person.socials || []).length
+      person.phone ||
+      person.address ||
+      person.birthday ||
+      (person.emails || []).length ||
+      (person.phones || []).length ||
+      (person.socials || []).length,
+  )
   const family = person.family_id ? families.find((f) => f.id === person.family_id) : null
   const familyMembers = family
     ? people.filter((p) => p.family_id === family.id && p.id !== person.id && !p.deleted_at)

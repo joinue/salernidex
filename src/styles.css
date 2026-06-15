@@ -2503,7 +2503,41 @@ select {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 16px 0;
+}
+
+/* The add affordance is docked at the bottom of the list, within thumb reach.
+   It sticks to the viewport bottom while items scroll behind it; on mobile it
+   clears the floating tab pill. The "Add section" button and suggestions stack
+   above the input so the field itself stays put as you type. */
+.list-add-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px -8px 0;
+  padding: 12px 8px calc(12px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 72%, transparent);
+}
+
+@media (max-width: 720px) {
+  .list-add-dock {
+    margin: 12px -14px 0;
+    padding: 12px 14px;
+    bottom: calc(env(safe-area-inset-bottom) + 74px);
+  }
+}
+
+/* Inside the dock the flex gap owns spacing; drop the legacy margins these had
+   when they sat under the top-anchored input. */
+.list-add-dock .add-section-btn {
+  align-self: flex-start;
+  margin: 0;
+}
+
+.list-add-dock .list-suggest {
+  margin: 0;
 }
 
 .list-add input {
@@ -2738,6 +2772,7 @@ select {
 /* ---------- tasks ---------- */
 
 .task-check {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2752,6 +2787,16 @@ select {
     border-color 140ms ease,
     color 140ms ease,
     transform 100ms ease;
+}
+
+/* Extend the tap target to ~44px without growing the visible circle, so a near
+   miss still checks the item off instead of falling through to the row's edit
+   tap. The invisible pad reaches into the row's padding and a sliver of the
+   text; both favor the far more common toggle over an accidental edit. */
+.task-check::before {
+  content: '';
+  position: absolute;
+  inset: -10px -12px;
 }
 
 .task-check.sm {
@@ -2871,6 +2916,47 @@ select {
   outline: none;
   padding: 0 12px;
   font-size: 15px;
+}
+
+/* Inline quick-add at the top of the Tasks list — type + Enter to capture a
+   task, the NL parser previews what it read below. Mirrors the list dock's fast
+   capture without owning the bottom of the screen (the FAB lives there). */
+.task-quickadd {
+  margin: 4px 0 14px;
+}
+
+.task-quickadd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 12px;
+  background: var(--fill);
+  border-radius: var(--radius-sm);
+}
+
+.task-quickadd-row:focus-within {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.task-quickadd-icon {
+  flex-shrink: 0;
+  color: var(--text-2);
+}
+
+.task-quickadd-row input {
+  flex: 1;
+  height: 100%;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 16px;
+  color: var(--text);
+}
+
+/* Preview chips here are read-only (no dismiss), unlike the modal's. */
+.task-quickadd .nl-chip {
+  cursor: default;
 }
 
 /* Add-subtask composer: a full-width input stacked over a clean action row,

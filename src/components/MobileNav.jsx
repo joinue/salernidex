@@ -19,7 +19,7 @@ import { useLongPress } from '../hooks/useLongPress'
 // current tab; a long-press opens the full add menu so you can cross-create
 // from anywhere. (The ➕ used to sit in the bar's center, but adding Habits
 // needed that slot, so it floats now.)
-export default function MobileNav({ active, adds, badge = 0 }) {
+export default function MobileNav({ active, adds, badge = 0, hideFab = false, forceMenu = false }) {
   const {
     go,
     onAddPerson,
@@ -47,7 +47,10 @@ export default function MobileNav({ active, adds, badge = 0 }) {
     groups: onAddGroup,
     relationships: onAddRelationship,
   }[active]
-  const onFab = () => (primary ? primary() : setSheet(true))
+  // On an entity detail page the tab's "primary" create would make a sibling
+  // (another person while viewing one), so fall back to the cross-create menu —
+  // the FAB stays a quick-capture button without the misleading default.
+  const onFab = () => (primary && !forceMenu ? primary() : setSheet(true))
   const longPress = useLongPress(() => setSheet(true))
 
   const Tab = ({ id, icon: Icon, text, count = 0 }) => (
@@ -63,9 +66,14 @@ export default function MobileNav({ active, adds, badge = 0 }) {
 
   return (
     <>
-      <button className="fab" onClick={onFab} aria-label="Add" {...longPress}>
-        <Plus size={26} />
-      </button>
+      {/* The list detail screen hides the FAB outright — its add-item dock owns
+          creation. Other detail pages keep it (see forceMenu above) so global
+          quick-capture stays one tap away. */}
+      {!hideFab && (
+        <button className="fab" onClick={onFab} aria-label="Add" {...longPress}>
+          <Plus size={26} />
+        </button>
+      )}
 
       <nav className="tabbar">
         <Tab id="today" icon={Home} text="Today" count={badge} />
