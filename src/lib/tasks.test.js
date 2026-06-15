@@ -15,6 +15,9 @@ import {
   lastCompletion,
   projectProgress,
   isProject,
+  projectBucket,
+  projectDate,
+  byProjects,
   completionFields,
   skipFields,
   linkedTasksFor,
@@ -30,6 +33,42 @@ beforeEach(() => {
 })
 afterEach(() => {
   vi.useRealTimers()
+})
+
+describe('projectBucket', () => {
+  it('reads a completed_at as done regardless of status', () => {
+    expect(projectBucket({ completed_at: '2026-06-01T00:00:00Z', project_status: 'active' })).toBe('done')
+  })
+  it('reads project_status someday', () => {
+    expect(projectBucket({ project_status: 'someday' })).toBe('someday')
+  })
+  it('defaults a missing/active status to active', () => {
+    expect(projectBucket({})).toBe('active')
+    expect(projectBucket({ project_status: 'active' })).toBe('active')
+  })
+})
+
+describe('projectDate', () => {
+  it('prefers end_date, then due_date, then null', () => {
+    expect(projectDate({ end_date: '2026-07-01', due_date: '2026-06-20' })).toBe('2026-07-01')
+    expect(projectDate({ due_date: '2026-06-20' })).toBe('2026-06-20')
+    expect(projectDate({})).toBeNull()
+  })
+})
+
+describe('byProjects', () => {
+  const a = { title: 'Beta', created_at: '2026-01-01', updated_at: '2026-06-01', end_date: '2026-07-01' }
+  const b = { title: 'alpha', created_at: '2026-05-01', updated_at: '2026-05-01', due_date: '2026-06-10' }
+  it('name sorts case-insensitively', () => {
+    expect([a, b].sort(byProjects('name')).map((p) => p.title)).toEqual(['alpha', 'Beta'])
+  })
+  it('due sorts soonest project-date first, undated last', () => {
+    const c = { title: 'C' } // no date → last
+    expect([a, c, b].sort(byProjects('due')).map((p) => p.title)).toEqual(['alpha', 'Beta', 'C'])
+  })
+  it('recent sorts most-recently-touched first', () => {
+    expect([b, a].sort(byProjects('recent')).map((p) => p.title)).toEqual(['Beta', 'alpha'])
+  })
 })
 
 describe('isoDateIn / daysUntilDue', () => {

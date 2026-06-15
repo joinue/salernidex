@@ -34,6 +34,7 @@ export default function TaskForm({
   task,
   onSave,
   onClose,
+  onMakeProject,
   defaultPrivacy = 'shared',
   areas = [],
   tagSuggestions = [],
@@ -149,9 +150,24 @@ export default function TaskForm({
               { value: 'project', label: 'Project' },
             ]}
             value={form.is_project ? 'project' : 'task'}
-            onChange={(v) => setForm({ ...form, is_project: v === 'project' })}
+            onChange={(v) => {
+              // Starting a NEW project hands off to the template picker so the
+              // experience matches "New project" everywhere else — a bare project
+              // is never created from here. Editing keeps the inline toggle so a
+              // task can still be promoted (or a project demoted) in place.
+              if (v === 'project' && !task && onMakeProject) {
+                onMakeProject(form.title.trim())
+                return
+              }
+              setForm({ ...form, is_project: v === 'project' })
+            }}
             size="sm"
           />
+          {!task && (
+            <p className="muted" style={{ fontSize: 13, margin: '6px 2px 0' }}>
+              A project holds phased subtasks, its own lists, and the people involved.
+            </p>
+          )}
         </div>
         <div className="field">
           <label className="label">{form.is_project ? 'Project' : 'Task'}</label>

@@ -77,6 +77,7 @@ export default function TodayView({
   onOpenPerson,
   onOpenList,
   onOpenTasks,
+  onOpenProject,
   onOpenActivity,
   onSettings,
   onSearch,
@@ -277,9 +278,17 @@ export default function TodayView({
             <div className="section-label">To-do</div>
             <div className="list">
               {dueTasks.map((item) => (
-                <SwipeRow key={item.key} actions={[later(item)]}>
+                <SwipeRow
+                  key={item.key}
+                  actions={[later(item)]}
+                  onClick={item.project ? () => onOpenProject?.(item.project.id) : undefined}
+                >
                   <div className="list-row">
-                    <TaskRow task={item.task} onToggle={toggleTask} />
+                    <TaskRow
+                      task={item.task}
+                      onToggle={toggleTask}
+                      breadcrumb={item.project?.title || null}
+                    />
                   </div>
                 </SwipeRow>
               ))}

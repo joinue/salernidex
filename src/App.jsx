@@ -12,6 +12,8 @@ import { useEdgeBack } from './hooks/useEdgeBack'
 import { currentMemberId, clearHousehold } from './lib/household'
 import { clearSnapshots } from './lib/offlineCache'
 import { areaNames, taskTags, isProject } from './lib/tasks'
+import { setAppPrefs } from './lib/appPrefs'
+import { buildProjectRows } from './lib/projectTemplates'
 import InstallHint from './components/InstallHint'
 import AuthScreen from './components/AuthScreen'
 import Onboarding from './components/Onboarding'
@@ -24,6 +26,7 @@ import ActivityView from './components/ActivityView'
 import PullToRefresh from './components/PullToRefresh'
 import SearchView from './components/SearchView'
 import TasksView from './components/TasksView'
+import ProjectsView from './components/ProjectsView'
 import ListsView from './components/ListsView'
 import ListDetail from './components/ListDetail'
 import ProjectDetail from './components/ProjectDetail'
@@ -47,6 +50,7 @@ import Toasts from './components/Toasts'
 const ImportExport = lazy(() => import('./components/ImportExport'))
 import PersonForm from './components/PersonForm'
 import TaskForm from './components/TaskForm'
+import ProjectTemplatePicker from './components/ProjectTemplatePicker'
 import ListForm from './components/ListForm'
 import OrgForm from './components/OrgForm'
 import GroupForm from './components/GroupForm'
@@ -83,6 +87,7 @@ const KNOWN_ROUTES = [
   'today',
   'activity',
   'tasks',
+  'projects',
   'project',
   'lists',
   'list',
@@ -110,6 +115,14 @@ const HUB_OPTIONS = [
   { id: 'groups', label: 'Groups' },
   { id: 'orgs', label: 'Organizations' },
   { id: 'relationships', label: 'Relationships' },
+]
+
+// The "Work" hub: Tasks (everyday to-dos) and Projects (bigger things you start
+// deliberately). Same mobile title-dropdown treatment as the People hub — on
+// desktop the sidebar breaks them out instead.
+const WORK_OPTIONS = [
+  { id: 'tasks', label: 'Tasks' },
+  { id: 'projects', label: 'Projects' },
 ]
 
 export default function App() {
@@ -241,6 +254,8 @@ function Shell({ session, onLogout, household }) {
   const [editingHabit, setEditingHabit] = useState(null)
   const [pickingHabit, setPickingHabit] = useState(false) // template "start from" sheet
   const [editingTask, setEditingTask] = useState(null) // null | 'new' | task
+  const [pickingProject, setPickingProject] = useState(false) // template "new project" sheet
+  const [projectSeedName, setProjectSeedName] = useState('') // title carried from the task form
   const [editingList, setEditingList] = useState(null) // null | 'new' | list
   const [relationshipFrom, setRelationshipFrom] = useState(null) // null | 'new' | person
   const [quickFind, setQuickFind] = useState(false)
@@ -288,6 +303,29 @@ function Shell({ session, onLogout, household }) {
   // Mobile only — desktop keeps these broken out in the sidebar.
   const hubNav = (active) =>
     isMobile ? { options: HUB_OPTIONS, active, onNavigate: go } : undefined
+  // Tasks↔Projects switcher — mobile only, mirroring hubNav. Desktop reaches
+  // Projects through its own sidebar item.
+  const workNav = (active) =>
+    isMobile ? { options: WORK_OPTIONS, active, onNavigate: go } : undefined
+
+  // One entry to the template picker, used by every "New project" affordance
+  // (Projects page, cross-create sheet, FAB) and the task form's Project toggle.
+  // `seed` carries a title typed in the task form so it pre-fills the name.
+  const openProjectPicker = (seed = '') => {
+    setProjectSeedName(seed)
+    setPickingProject(true)
+  }
+
+  // Stamp out a project from a template (+ the picker's review overrides), then
+  // open it. addTask returns its client id synchronously, so children can carry
+  // parent_id and scoped lists carry project_id in the same pass — no awaiting.
+  const createProject = (template, opts) => {
+    const { project, children, lists } = buildProjectRows(template, opts)
+    const projectId = data.addTask(project)
+    for (const child of children) data.addTask({ ...child, parent_id: projectId })
+    for (const list of lists) data.saveList({ ...list, project_id: projectId })
+    openProject(projectId)
+  }
 
   // iOS-style edge-swipe back on detail pages (mobile only).
   useEdgeBack(mainRef, isMobile && DETAIL_ROUTES.includes(route.name), () => window.history.back())
@@ -314,6 +352,7 @@ function Shell({ session, onLogout, household }) {
                   : {
                   activity: 'Activity',
                   tasks: 'Tasks',
+                  projects: 'Projects',
                   lists: 'Lists',
                   people: 'People',
                   orgs: 'Organizations',
@@ -414,7 +453,12 @@ function Shell({ session, onLogout, household }) {
   // Quiet sidebar counts: open top-level tasks, unchecked list items.
   const navCounts = useMemo(
     () => ({
-      tasks: data.tasks.filter((t) => !t.parent_id && !t.completed_at && !t.is_heading).length,
+      tasks: data.tasks.filter(
+        (t) => !t.parent_id && !t.completed_at && !t.is_heading && !t.is_project,
+      ).length,
+      projects: data.tasks.filter(
+        (t) => t.is_project && !t.completed_at && t.project_status !== 'someday',
+      ).length,
       lists: data.listItems.filter((it) => !it.checked_at).length,
     }),
     [data.tasks, data.listItems],
@@ -430,7 +474,7 @@ function Shell({ session, onLogout, household }) {
           : route.name === 'list'
             ? 'lists'
             : route.name === 'project'
-              ? 'tasks'
+              ? 'projects'
               : route.name === 'habit'
                 ? 'habits'
                 : route.name === 'activity'
@@ -441,6 +485,7 @@ function Shell({ session, onLogout, household }) {
     go,
     onAddPerson: () => setEditingPerson('new'),
     onAddTask: () => setEditingTask('new'),
+    onAddProject: () => openProjectPicker(),
     onAddList: () => setEditingList('new'),
     onAddOrg: () => setEditingOrg('new'),
     onAddGroup: () => setEditingGroup('new'),
@@ -482,6 +527,7 @@ function Shell({ session, onLogout, household }) {
                 onOpenPerson={openPerson}
                 onOpenList={openList}
                 onOpenTasks={() => go('tasks')}
+                onOpenProject={openProject}
                 onOpenActivity={() => go('activity')}
                 onSettings={isMobile ? () => go('settings') : undefined}
                 onSearch={isMobile ? () => setQuickFind(true) : undefined}
@@ -505,9 +551,21 @@ function Shell({ session, onLogout, household }) {
                 onEdit={(t) => setEditingTask(t)}
                 onOpenProject={openProject}
                 onSearch={isMobile ? () => setQuickFind(true) : undefined}
+                hub={workNav('tasks')}
                 defaultFilter={appPrefs.taskFilter}
                 defaultShowCompleted={appPrefs.showCompleted}
                 defaultPrivacy={appPrefs.taskPrivacy}
+              />
+            )}
+            {route.name === 'projects' && (
+              <ProjectsView
+                data={data}
+                onOpenProject={openProject}
+                onAdd={() => openProjectPicker()}
+                onSearch={isMobile ? () => setQuickFind(true) : undefined}
+                hub={workNav('projects')}
+                sort={appPrefs.projectsSort}
+                onSort={(v) => setAppPrefs(meId, { projectsSort: v })}
               />
             )}
             {route.name === 'project' && (
@@ -519,6 +577,7 @@ function Shell({ session, onLogout, household }) {
                 onOpenPerson={openPerson}
                 onOpenOrg={openOrg}
                 onOpenGroup={openGroup}
+                onOpenList={openList}
               />
             )}
             {route.name === 'lists' && (
@@ -751,9 +810,24 @@ function Shell({ session, onLogout, household }) {
           task={editingTask === 'new' ? null : editingTask}
           onSave={(fields, id) => (id ? data.updateTask(id, fields) : data.addTask(fields))}
           onClose={() => setEditingTask(null)}
+          onMakeProject={(title) => {
+            setEditingTask(null)
+            openProjectPicker(title)
+          }}
           defaultPrivacy={appPrefs.taskPrivacy}
           areas={areaNames(data.tasks)}
           tagSuggestions={taskTags(data.tasks)}
+        />
+      )}
+      {pickingProject && (
+        <ProjectTemplatePicker
+          onCreate={createProject}
+          onClose={() => {
+            setPickingProject(false)
+            setProjectSeedName('')
+          }}
+          defaultPrivacy={appPrefs.taskPrivacy}
+          initialName={projectSeedName}
         />
       )}
       {editingList && (

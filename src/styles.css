@@ -2519,6 +2519,25 @@ select {
   flex-shrink: 0;
 }
 
+/* One consistent gap between the header block (title row, and the Clear-checked
+   row when present) and the first item or section — whatever leads the body:
+   a grocery aisle label, a plain reorderable list, or the "Got it" group. Each
+   block's own top margin would otherwise vary (24px label vs. 0px list), so
+   flatten the leader and let this wrapper own the single gap. */
+.list-detail-body {
+  margin-top: 16px;
+}
+
+.list-detail-body > :first-child {
+  margin-top: 0;
+}
+
+/* The grocery label sits inside a <section>, so the wrapper's :first-child
+   reset lands on the section, not the label — reach in and flatten it too. */
+.list-detail-body > .aisle-group:first-child .section-label {
+  margin-top: 0;
+}
+
 .list-add {
   display: flex;
   align-items: center;
@@ -5620,4 +5639,56 @@ a.value-row {
 
 .leaflet-container {
   font: inherit;
+}
+
+/* ── Projects ─────────────────────────────────────────────────────────────
+   The index cards (ProjectsView) and ProjectDetail extras. A project reuses
+   the standard list-row; these add the progress bar, the linked-people avatar
+   stack, and the detail-page date/status/list affordances. */
+.project-bar {
+  margin-top: 7px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--fill);
+  overflow: hidden;
+}
+.project-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 240ms ease;
+}
+
+/* Overlapped faces of linked people on a project card. */
+.avatar-stack {
+  display: inline-flex;
+  flex-direction: row-reverse; /* first listed sits on top, on the left */
+  align-items: center;
+}
+.avatar-stack .avatar {
+  margin-left: -8px;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.avatar-stack .avatar:last-child {
+  margin-left: 0;
+}
+
+/* ProjectDetail: the date-range + status control row, and the scoped-lists
+   cards. Kept light — they lean on existing chip/list-row styling. */
+.project-status-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 4px 0 2px;
+}
+.project-notes-edit {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  font: inherit;
+}
+.list-row.project-list-row .list-emoji {
+  font-size: 22px;
 }

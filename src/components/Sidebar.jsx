@@ -2,6 +2,7 @@ import {
   Home,
   User as PeopleIcon,
   CheckSquare,
+  Folder,
   List,
   Activity,
   Briefcase,
@@ -48,10 +49,11 @@ export default function Sidebar({ active, go, onSearch, onLogout, badge = 0, cou
 
       <Item id="today" icon={Home} text="Today" count={badge} />
       <Item id="tasks" icon={CheckSquare} text="Tasks" count={counts.tasks} quiet />
+      <Item id="projects" icon={Folder} text="Projects" count={counts.projects} quiet />
       <Item id="lists" icon={List} text="Lists" count={counts.lists} quiet />
       <Item id="habits" icon={Activity} text="Habits" />
 
-      <div className="nav-group">Network</div>
+      <div className="nav-group">Contacts</div>
       <Item id="people" icon={PeopleIcon} text="People" />
       <Item id="relationships" icon={Share2} text="Relationships" />
       <Item id="orgs" icon={Briefcase} text="Organizations" />

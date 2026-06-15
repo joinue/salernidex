@@ -354,30 +354,32 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
         </div>
       )}
 
-      {items.open.length === 0 && items.done.length === 0 ? (
-        <p className="empty">Nothing here yet. Add the first item above.</p>
-      ) : grocery ? (
-        <>
-          {groupByAisle(items.open.filter((it) => !it.is_heading)).map((g) => (
-            <section className="aisle-group" key={g.aisle}>
-              <div className="section-label">{g.aisle}</div>
-              <div className="list">{g.items.map(row)}</div>
-            </section>
-          ))}
-          {doneSection}
-        </>
-      ) : (
-        <>
-          {items.open.length > 0 && (
-            <ReorderableList
-              items={items.open}
-              onMove={(from, to) => reorderListItems(moveUpdates(items.open, from, to))}
-              renderItem={(it) => row(it)}
-            />
-          )}
-          {doneSection}
-        </>
-      )}
+      <div className="list-detail-body">
+        {items.open.length === 0 && items.done.length === 0 ? (
+          <p className="empty">Nothing here yet. Add the first item above.</p>
+        ) : grocery ? (
+          <>
+            {groupByAisle(items.open.filter((it) => !it.is_heading)).map((g) => (
+              <section className="aisle-group" key={g.aisle}>
+                <div className="section-label">{g.aisle}</div>
+                <div className="list">{g.items.map(row)}</div>
+              </section>
+            ))}
+            {doneSection}
+          </>
+        ) : (
+          <>
+            {items.open.length > 0 && (
+              <ReorderableList
+                items={items.open}
+                onMove={(from, to) => reorderListItems(moveUpdates(items.open, from, to))}
+                renderItem={(it) => row(it)}
+              />
+            )}
+            {doneSection}
+          </>
+        )}
+      </div>
 
       {/* Add dock sits at the bottom, within thumb reach while shopping. On
           mobile it sticks just above the tab bar; suggestions grow upward from

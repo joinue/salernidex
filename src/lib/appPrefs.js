@@ -30,6 +30,8 @@ export const DEFAULT_APP_PREFS = {
   showCompleted: false, // start with the Done section expanded
   // People page default sort: 'name' | 'recent' | 'tier' (lib/search.js).
   peopleSort: LEGACY_PEOPLE_SORT,
+  // Projects index sort: 'recent' | 'name' | 'due' (lib/tasks.byProjects).
+  projectsSort: 'recent',
 }
 
 const listeners = new Set()

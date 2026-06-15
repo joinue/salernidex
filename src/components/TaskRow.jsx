@@ -7,7 +7,14 @@ import SharedDot from './SharedDot'
 // Presentational task line: completion circle + title + meta chips (assignee,
 // due, recurring). The checkbox stops propagation so the surrounding row can
 // own tap (expand/open). `size="sm"` is used for subtasks.
-export default function TaskRow({ task, onToggle, size = 'md', progress, hideAssignee = false }) {
+export default function TaskRow({
+  task,
+  onToggle,
+  size = 'md',
+  progress,
+  hideAssignee = false,
+  breadcrumb = null,
+}) {
   const done = !!task.completed_at
   const dl = dueLabel(task.due_date, task.due_time)
   const ds = dueState(task.due_date)
@@ -42,8 +49,14 @@ export default function TaskRow({ task, onToggle, size = 'md', progress, hideAss
           task.area ||
           prio > 0 ||
           starts ||
+          breadcrumb ||
           tags.length > 0) && (
           <div className="task-meta">
+            {breadcrumb && (
+              <span className="chip" title={`Part of ${breadcrumb}`}>
+                ↳ {breadcrumb}
+              </span>
+            )}
             {prio > 0 && (
               <span className={`chip prio prio-${prio}`} title={`${priorityLabel(prio)} priority`}>
                 <Flag size={11} />

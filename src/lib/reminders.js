@@ -38,11 +38,22 @@ export function buildAttention(
   const items = []
 
   if (prefs.tasks) {
+    const byId = new Map(tasks.map((t) => [t.id, t]))
     for (const t of tasks) {
-      if (t.parent_id || t.completed_at) continue
+      if (t.completed_at || t.is_heading) continue
+      // A project lives in the Projects index, not the To-do list — but its
+      // dated steps should still nudge you on the right day. So we skip the
+      // project container itself and instead surface a subtask when its parent
+      // is a project AND it carries its own due date (loose subtasks of a plain
+      // task stay checklist detail, never Today rows). Top-level non-project
+      // tasks behave exactly as before.
+      if (t.is_project) continue
+      const parent = t.parent_id ? byId.get(t.parent_id) : null
+      if (t.parent_id && !(parent && parent.is_project && t.due_date)) continue
       const bucket = taskBucket(t)
       if (bucket !== 'overdue' && bucket !== 'today') continue
-      items.push({ kind: 'task', key: `task:${t.id}`, urgency: bucket, task: t })
+      const project = parent && parent.is_project ? parent : null
+      items.push({ kind: 'task', key: `task:${t.id}`, urgency: bucket, task: t, project })
     }
     // Soonest first, then earliest time of day, then higher priority (byDue).
     items.sort((a, b) => byDue(a.task, b.task))

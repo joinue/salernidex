@@ -53,3 +53,44 @@ describe('buildAttention — list kind', () => {
     expect(badgeCount(items)).toBe(1)
   })
 })
+
+describe('buildAttention — projects vs tasks', () => {
+  const task = (over = {}) => ({ id: 't', title: 'A', assignee: 'anyone', priority: 0, ...over })
+
+  it('keeps a plain top-level task due today', () => {
+    const items = buildAttention({ ...base, tasks: [task({ due_date: isoDateIn(0) })] }, prefs)
+    expect(items.map((i) => i.key)).toEqual(['task:t'])
+    expect(items[0].project).toBeNull()
+  })
+
+  it('does NOT surface the project container itself, even when due today', () => {
+    const tasks = [task({ id: 'p', is_project: true, due_date: isoDateIn(0) })]
+    expect(buildAttention({ ...base, tasks }, prefs)).toHaveLength(0)
+  })
+
+  it('surfaces a dated project subtask, tagged with its project for the breadcrumb', () => {
+    const tasks = [
+      task({ id: 'p', title: 'Italy trip', is_project: true }),
+      task({ id: 's', title: 'Confirm car', parent_id: 'p', due_date: isoDateIn(0) }),
+    ]
+    const items = buildAttention({ ...base, tasks }, prefs)
+    expect(items.map((i) => i.key)).toEqual(['task:s'])
+    expect(items[0].project.title).toBe('Italy trip')
+  })
+
+  it('ignores a project subtask with no due date of its own', () => {
+    const tasks = [
+      task({ id: 'p', is_project: true }),
+      task({ id: 's', parent_id: 'p', due_date: null }),
+    ]
+    expect(buildAttention({ ...base, tasks }, prefs)).toHaveLength(0)
+  })
+
+  it('ignores a dated subtask whose parent is a plain task (not a project)', () => {
+    const tasks = [
+      task({ id: 'pt', is_project: false }),
+      task({ id: 's', parent_id: 'pt', due_date: isoDateIn(0) }),
+    ]
+    expect(buildAttention({ ...base, tasks }, prefs)).toHaveLength(0)
+  })
+})

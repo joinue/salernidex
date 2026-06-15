@@ -51,6 +51,7 @@ const fromPrefRow = (r) => ({
   taskFilter: r.task_filter || 'all',
   showCompleted: r.show_completed,
   peopleSort: r.people_sort,
+  projectsSort: r.projects_sort,
 })
 const toPrefRow = (p) => ({
   default_task_privacy: p.taskPrivacy,
@@ -59,6 +60,7 @@ const toPrefRow = (p) => ({
   task_filter: p.taskFilter === 'all' ? null : p.taskFilter,
   show_completed: p.showCompleted,
   people_sort: p.peopleSort,
+  projects_sort: p.projectsSort,
 })
 
 const uuid = () => crypto.randomUUID()

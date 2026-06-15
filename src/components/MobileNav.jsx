@@ -3,6 +3,7 @@ import {
   Home,
   User as PeopleIcon,
   CheckSquare,
+  Folder,
   List,
   Plus,
   Activity,
@@ -24,6 +25,7 @@ export default function MobileNav({ active, adds, badge = 0, hideFab = false, fo
     go,
     onAddPerson,
     onAddTask,
+    onAddProject,
     onAddList,
     onAddHabit,
     onAddOrg,
@@ -41,6 +43,7 @@ export default function MobileNav({ active, adds, badge = 0, hideFab = false, fo
   const primary = {
     people: onAddPerson,
     tasks: onAddTask,
+    projects: onAddProject,
     lists: onAddList,
     habits: onAddHabit,
     orgs: onAddOrg,
@@ -77,7 +80,7 @@ export default function MobileNav({ active, adds, badge = 0, hideFab = false, fo
 
       <nav className="tabbar">
         <Tab id="today" icon={Home} text="Today" count={badge} />
-        <Tab id="people" icon={PeopleIcon} text="People" />
+        <Tab id="people" icon={PeopleIcon} text="Contacts" />
         <Tab id="habits" icon={Activity} text="Habits" />
         <Tab id="tasks" icon={CheckSquare} text="Tasks" />
         <Tab id="lists" icon={List} text="Lists" />
@@ -90,6 +93,9 @@ export default function MobileNav({ active, adds, badge = 0, hideFab = false, fo
           </button>
           <button className="sheet-item" onClick={pick(onAddTask)}>
             <CheckSquare size={20} /> Task
+          </button>
+          <button className="sheet-item" onClick={pick(onAddProject)}>
+            <Folder size={20} /> Project
           </button>
           <button className="sheet-item" onClick={pick(onAddList)}>
             <List size={20} /> List

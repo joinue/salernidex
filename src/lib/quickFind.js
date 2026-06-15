@@ -12,7 +12,7 @@ const NAV = [
   { route: '', title: 'Today', alias: 'home dashboard' },
   { route: 'tasks', title: 'Tasks', alias: 'todos chores projects' },
   { route: 'lists', title: 'Lists', alias: 'groceries shopping' },
-  { route: 'people', title: 'People', alias: 'contacts rolodex' },
+  { route: 'people', title: 'Contacts', alias: 'people contacts rolodex network' },
   { route: 'activity', title: 'Activity', alias: 'history log touchpoints' },
   { route: 'relationships', title: 'Relationships', alias: 'network connections' },
   { route: 'orgs', title: 'Organizations', alias: 'companies orgs' },

@@ -53,6 +53,7 @@ export default function TasksView({
   onEdit,
   onOpenProject,
   onSearch,
+  hub,
   defaultFilter = 'all',
   defaultShowCompleted = false,
   defaultPrivacy = 'shared',
@@ -151,8 +152,13 @@ export default function TasksView({
 
   // `matches` closes over filter/activeArea/activeTag — all listed below; ESLint
   // just can't see through the helper, so the dep lists are in fact complete.
+  // Projects are excluded here — they live in their own index (ProjectsView),
+  // reached via the Tasks↔Projects switcher. The Tasks list stays pure to-dos.
   const topOpen = useMemo(
-    () => tasks.filter((t) => !t.parent_id && !t.completed_at && matches(t)).sort(byOrder),
+    () =>
+      tasks
+        .filter((t) => !t.parent_id && !t.completed_at && !isProject(t) && matches(t))
+        .sort(byOrder),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tasks, filter, activeArea, activeTag],
   )
@@ -160,8 +166,10 @@ export default function TasksView({
   // Recurring tasks roll forward (completed_at stays null), so they'd never show
   // here otherwise — completionLog reads the completion log so every check-off
   // appears the day it happened. See lib/tasks.completionLog.
+  // Completed projects belong to the Projects › Done section, not the Tasks
+  // logbook — keep them out so a finished project surfaces in exactly one place.
   const log = useMemo(
-    () => completionLog(tasks, completions, matches),
+    () => completionLog(tasks, completions, (t) => matches(t) && !isProject(t)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tasks, completions, filter, activeArea, activeTag],
   )
@@ -374,7 +382,15 @@ export default function TasksView({
 
   return (
     <div>
-      <PageHeader title="Tasks" action={onAdd} actionLabel="New task" onSearch={onSearch} />
+      <PageHeader
+        title="Tasks"
+        navOptions={hub?.options}
+        navActive={hub?.active}
+        onNavigate={hub?.onNavigate}
+        action={onAdd}
+        actionLabel="New task"
+        onSearch={onSearch}
+      />
 
       {/* Member filter only makes sense with someone to filter by (see isSolo). */}
       {!isSolo() && <Segmented options={filterOptions} value={filter} onChange={setFilter} />}

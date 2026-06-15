@@ -9,6 +9,12 @@ import {
   Repeat,
   Users,
   SkipForward,
+  Calendar,
+  Moon,
+  CheckCircle,
+  RotateCcw,
+  ChevronRight,
+  List as ListIcon,
 } from 'react-feather'
 import { completionsFor, dueLabel, dueState } from '../lib/tasks'
 import { relativeTime } from '../lib/contact'
@@ -38,6 +44,7 @@ export default function ProjectDetail({
   onOpenPerson,
   onOpenOrg,
   onOpenGroup,
+  onOpenList,
 }) {
   const {
     tasks,
@@ -46,17 +53,29 @@ export default function ProjectDetail({
     people,
     orgs,
     groups = [],
+    lists = [],
     addTask,
+    updateTask,
     deleteTask,
     completeTask,
     skipTaskOccurrence,
     reorderTasks,
     addTaskLink,
     deleteTaskLink,
+    saveList,
   } = data
   const task = tasks.find((t) => t.id === taskId)
   const [draftSub, setDraftSub] = useState('')
+  const [draftList, setDraftList] = useState('')
   const [linking, setLinking] = useState(false)
+  // Notes are edited inline (this is the project's reference scratchpad —
+  // measurements, confirmation #s). Seeded from the row; saved on blur.
+  const [notesDraft, setNotesDraft] = useState(task?.notes || '')
+
+  const projectLists = useMemo(
+    () => lists.filter((l) => l.project_id === taskId),
+    [lists, taskId],
+  )
 
   const orgsById = useMemo(() => new Map(orgs.map((o) => [o.id, o])), [orgs])
 
@@ -119,12 +138,28 @@ export default function ProjectDetail({
     setDraftSub('')
   }
 
+  const addList = () => {
+    const name = draftList.trim()
+    if (!name) return
+    // Scoped to this project (project_id) yet still a normal household list —
+    // it shows in global Lists too. Privacy follows the project's.
+    saveList({ name, kind: 'standard', privacy_level: task.privacy_level, project_id: task.id })
+    setDraftList('')
+  }
+
+  const setStatus = (status) => updateTask(task.id, { project_status: status })
+  const toggleDone = () => completeTask(task, !task.completed_at)
+  const setDate = (field, value) => updateTask(task.id, { [field]: value || null })
+
   const remove = () => {
     if (window.confirm(`Delete "${task.title}" and its subtasks?`)) {
       deleteTask(task.id)
       onBack()
     }
   }
+
+  const isDone = !!task.completed_at
+  const isSomeday = task.project_status === 'someday'
 
   return (
     <div className="detail">
@@ -140,6 +175,13 @@ export default function ProjectDetail({
               {progress.done}/{progress.total} done
             </span>
           )}
+          {isDone ? (
+            <span className="chip">Done</span>
+          ) : isSomeday ? (
+            <span className="chip">
+              <Moon size={11} /> Someday
+            </span>
+          ) : null}
           {normalizeAssignee(task.assignee) !== 'anyone' && (
             <span className="chip">{assigneeLabel(task.assignee)}</span>
           )}
@@ -166,14 +208,82 @@ export default function ProjectDetail({
         </div>
       </div>
 
-      {task.notes && (
-        <>
-          <div className="section-label">Notes</div>
-          <div className="list">
-            <p className="notes">{task.notes}</p>
-          </div>
-        </>
-      )}
+      <div className="section-label">Status &amp; dates</div>
+      <div className="list" style={{ padding: 12 }}>
+        <div className="project-status-row">
+          <button
+            className={`pill-btn ${!isDone && !isSomeday ? 'on' : ''}`}
+            onClick={() => {
+              if (isDone) toggleDone()
+              setStatus('active')
+            }}
+          >
+            Active
+          </button>
+          <button
+            className={`pill-btn ${!isDone && isSomeday ? 'on' : ''}`}
+            onClick={() => {
+              if (isDone) toggleDone()
+              setStatus('someday')
+            }}
+          >
+            <Moon size={14} /> Someday
+          </button>
+          <button className={`pill-btn ${isDone ? 'on' : ''}`} onClick={toggleDone}>
+            {isDone ? (
+              <>
+                <RotateCcw size={14} /> Reopen
+              </>
+            ) : (
+              <>
+                <CheckCircle size={14} /> Mark done
+              </>
+            )}
+          </button>
+        </div>
+        <div
+          className="due-row"
+          style={{
+            display: 'flex',
+            gap: 14,
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            marginTop: 12,
+          }}
+        >
+          <label className="muted" style={{ fontSize: 13, display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+            <Calendar size={13} /> Start
+            <input
+              type="date"
+              value={task.start_date || ''}
+              onChange={(e) => setDate('start_date', e.target.value)}
+            />
+          </label>
+          <label className="muted" style={{ fontSize: 13, display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+            Target
+            <input
+              type="date"
+              value={task.end_date || ''}
+              min={task.start_date || undefined}
+              onChange={(e) => setDate('end_date', e.target.value)}
+            />
+          </label>
+        </div>
+      </div>
+
+      <div className="section-label">Notes</div>
+      <div className="list" style={{ padding: 10 }}>
+        <textarea
+          className="project-notes-edit"
+          value={notesDraft}
+          onChange={(e) => setNotesDraft(e.target.value)}
+          onBlur={() => {
+            if (notesDraft !== (task.notes || '')) updateTask(task.id, { notes: notesDraft })
+          }}
+          placeholder="Measurements, confirmation #s, links — anything you want at hand."
+        />
+      </div>
 
       <div className="section-label">
         Subtasks
@@ -248,6 +358,46 @@ export default function ProjectDetail({
               Add as heading
             </button>
           </div>
+        </div>
+      </div>
+
+      <div className="section-label">Lists</div>
+      <div className="list">
+        {projectLists.map((l) => {
+          const left = (data.listItems || []).filter(
+            (it) => it.list_id === l.id && !it.checked_at,
+          ).length
+          return (
+            <div
+              className="list-row project-list-row"
+              key={l.id}
+              onClick={() => onOpenList?.(l.id)}
+            >
+              <span className="list-emoji">{l.icon || (l.kind === 'grocery' ? '🛒' : '📝')}</span>
+              <div className="row-body">
+                <div className="row-title">{l.name}</div>
+                <div className="row-sub">{left ? `${left} item${left === 1 ? '' : 's'} left` : 'All done'}</div>
+              </div>
+              <ChevronRight size={18} className="row-chevron" />
+            </div>
+          )
+        })}
+        <div className={`subtask-composer ${projectLists.length > 0 ? 'divided' : ''}`}>
+          <ListIcon size={15} className="muted" style={{ flexShrink: 0 }} />
+          <input
+            value={draftList}
+            onChange={(e) => setDraftList(e.target.value)}
+            placeholder={projectLists.length ? 'Add a list…' : 'Add a packing or materials list…'}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                addList()
+              }
+            }}
+          />
+          <button className="text-btn" onClick={addList} disabled={!draftList.trim()}>
+            <Plus size={15} /> Add list
+          </button>
         </div>
       </div>
 

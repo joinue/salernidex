@@ -172,12 +172,15 @@ create table public.tasks (
   tags          text[] not null default '{}',        -- cross-cutting labels, same shape as people.tags (0022); area is the one category, tags are the many
   due_date      date,
   start_date    date,                                -- optional defer date (0021); until it arrives the task is hidden from Today + the sender and buckets under Upcoming. null = not deferred
+  end_date      date,                                -- optional project target finish (0028); pairs with start_date so a project can span a range (trip depart→return). Ignored on plain tasks
   due_time      time,                                -- optional local time-of-day; null = all-day (0013). Only meaningful with due_date; survives recurrence roll-forward
   priority      smallint not null default 0 check (priority between 0 and 3),  -- 0 none · 1 low · 2 med · 3 high (0014); flag + tiebreaker, not the Tasks-page order
   recurrence    jsonb,                              -- null = one-off; RRULE-lite (see lib/recurrence.js). Optional keys: until ('YYYY-MM-DD' end date, inclusive) and exdates (['YYYY-MM-DD'] skipped occurrences)
   parent_id     uuid references public.tasks(id) on delete cascade,  -- subtask of a project
   constraint no_self_parent check (parent_id <> id),
-  is_project    boolean not null default false,     -- explicit project flag (also implied by having subtasks)
+  is_project    boolean not null default false,     -- explicit project flag (only an is_project task gets the full-page ProjectDetail + Projects index)
+  project_status text not null default 'active'      -- project lifecycle (0028): 'active' | 'someday'. 'done' is NOT stored here — done = completed_at is not null. Ignored on plain tasks
+    check (project_status in ('active', 'someday')),
   is_heading    boolean not null default false,     -- Things-style section row inside a project; groups the subtasks that follow it in manual order
   sort_order    double precision,                   -- manual drag order (fractional ranks, lib/order.js); null = never placed, sorts after ranked rows by created_at
   privacy_level privacy_level not null default 'shared',
@@ -235,6 +238,7 @@ create table public.lists (
   due_date         date,                            -- optional "get it by" date; surfaces on Today (0016)
   reminder_time    time,                            -- local HH:MM nudge; null = none (0016)
   reminder_enabled boolean not null default false,  -- (0016)
+  project_id       uuid references public.tasks(id) on delete set null,  -- optional home project (0028); the list still appears in global Lists. On delete: keep the list, just unscope it
   created_by    uuid default auth.uid(),
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
@@ -410,6 +414,7 @@ create index task_completions_task_idx on public.task_completions (task_id, comp
 create index task_links_task_idx on public.task_links (task_id);
 create index list_items_list_idx on public.list_items (list_id, created_at);
 create index lists_due_idx on public.lists (due_date) where due_date is not null;
+create index lists_project_idx on public.lists (project_id) where project_id is not null;
 
 -- ------------------------------------------------------------
 -- Realtime (so edits sync live across devices)
@@ -736,6 +741,7 @@ create table public.member_preferences (
   task_filter            uuid references public.household_members(id) on delete set null,
   show_completed         boolean not null default false,
   people_sort            text not null default 'name' check (people_sort in ('name', 'recent', 'tier')),
+  projects_sort          text not null default 'recent' check (projects_sort in ('recent', 'name', 'due')),  -- Projects-index sort (0028), mirrors people_sort
   updated_at             timestamptz not null default now()
 );
 

@@ -957,6 +957,78 @@ export const demoTasks = [
     parent_id: null,
     completed_at: daysAgo(1),
   },
+  // ── Projects ───────────────────────────────────────────────────────────
+  // An ACTIVE project: a date range, a scoped packing list (l-trip below), a
+  // linked travel companion, and one dated step that surfaces on Today with a
+  // "↳ Italy trip" breadcrumb (the project itself never shows there).
+  {
+    ...taskBase,
+    id: 't-trip',
+    title: 'Italy trip',
+    assignee: 'either',
+    due_date: null,
+    start_date: dateIn(20),
+    end_date: dateIn(28),
+    recurrence: null,
+    parent_id: null,
+    is_project: true,
+    project_status: 'active',
+    notes: 'Rome → Florence. Confirmation #s and the rental agreement live here.',
+  },
+  {
+    ...taskBase,
+    id: 't-trip-h1',
+    title: 'Before you go',
+    assignee: 'either',
+    due_date: null,
+    recurrence: null,
+    parent_id: 't-trip',
+    is_heading: true,
+    sort_order: 1,
+  },
+  {
+    ...taskBase,
+    id: 't-trip-1',
+    title: 'Confirm the rental car',
+    assignee: 'me',
+    due_date: dateIn(0), // today → shows on Today with the project breadcrumb
+    recurrence: null,
+    parent_id: 't-trip',
+    sort_order: 2,
+  },
+  {
+    ...taskBase,
+    id: 't-trip-2',
+    title: 'Refill prescriptions',
+    assignee: 'partner',
+    due_date: null,
+    recurrence: null,
+    parent_id: 't-trip',
+    sort_order: 3,
+  },
+  // A SOMEDAY project — parked in the index's Someday bucket until you start it.
+  {
+    ...taskBase,
+    id: 't-kitchen',
+    title: 'Kitchen refresh',
+    assignee: 'either',
+    due_date: null,
+    recurrence: null,
+    parent_id: null,
+    is_project: true,
+    project_status: 'someday',
+    notes: 'New backsplash + paint. Someday — gathering ideas.',
+  },
+  {
+    ...taskBase,
+    id: 't-kitchen-1',
+    title: 'Collect paint swatches',
+    assignee: 'either',
+    due_date: null,
+    recurrence: null,
+    parent_id: 't-kitchen',
+    sort_order: 1,
+  },
 ]
 
 // Shared household lists.
@@ -983,9 +1055,10 @@ export const demoLists = [
   },
   {
     id: 'l-trip',
-    name: 'Packing — weekend trip',
+    name: 'Packing',
     icon: '🧳',
     privacy_level: 'family_shared',
+    project_id: 't-trip', // scoped to the Italy trip project; still shows in Lists
     created_at: now,
     updated_at: now,
   },
@@ -1152,6 +1225,14 @@ export const demoTaskLinks = [
     entity_type: 'organization',
     entity_id: 'o-reyes',
     role: 'contractor',
+    created_at: now,
+  },
+  {
+    id: 'tk3',
+    task_id: 't-trip',
+    entity_type: 'person',
+    entity_id: 'p-maria',
+    role: 'travel companion',
     created_at: now,
   },
 ]

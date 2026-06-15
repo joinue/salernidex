@@ -269,6 +269,43 @@ export function isProject(task) {
   return !!task.is_project
 }
 
+// Lifecycle bucket for the Projects index. "Done" is derived, never stored:
+// a project is done once it carries a completed_at (same check-off as any task),
+// so completion + history reuse the existing machinery. Otherwise project_status
+// ('active' | 'someday') decides; a missing/legacy value reads as active.
+export function projectBucket(project) {
+  if (project.completed_at) return 'done'
+  return project.project_status === 'someday' ? 'someday' : 'active'
+}
+
+// The project's own date for sorting/labels: a target finish (end_date) if set,
+// else its due_date. Trips set a range (start→end); simpler projects may just
+// carry a due_date or nothing.
+export function projectDate(project) {
+  return project.end_date || project.due_date || null
+}
+
+// Comparator factory for the Projects index. 'recent' = most recently touched
+// first; 'name' = alphabetical; 'due' = soonest project date first, undated last.
+export function byProjects(sort) {
+  if (sort === 'name') {
+    return (a, b) => (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase())
+  }
+  if (sort === 'due') {
+    return (a, b) => {
+      const ad = projectDate(a) || '9999-99-99'
+      const bd = projectDate(b) || '9999-99-99'
+      return ad < bd ? -1 : ad > bd ? 1 : 0
+    }
+  }
+  // 'recent' (default): newest activity first.
+  return (a, b) => {
+    const at = a.updated_at || a.created_at || ''
+    const bt = b.updated_at || b.created_at || ''
+    return at < bt ? 1 : at > bt ? -1 : 0
+  }
+}
+
 // Tasks/projects linked to an entity (person | organization | group) via
 // task_links — the reverse of ProjectDetail's "Related people & orgs". Open
 // first (soonest-due), completed after; heading rows are structure, not work.
