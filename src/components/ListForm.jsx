@@ -3,6 +3,8 @@ import Modal from './Modal'
 import PrivacyField from './PrivacyField'
 import Segmented from './Segmented'
 import IconPicker from './IconPicker'
+import ColorPicker from './ColorPicker'
+import { COLORS } from '../lib/colors'
 import { focusOnDesktop } from '../lib/constants'
 import { isSolo } from '../lib/household'
 import { PRIVATE_LEVEL } from '../lib/privacy'
@@ -20,6 +22,7 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
   const [name, setName] = useState(list?.name || '')
   const [kind, setKind] = useState(list?.kind || 'standard')
   const [icon, setIcon] = useState(list?.icon || '🛒')
+  const [color, setColor] = useState(list?.color || COLORS[0])
   const [privacy, setPrivacy] = useState(
     list?.privacy_level || (isSolo() ? PRIVATE_LEVEL : defaultPrivacy),
   )
@@ -42,6 +45,7 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
         {
           name,
           icon,
+          color,
           // kind is fixed at creation — a list's grouping model can't flip later
           // without re-filing every item, so we only send it on a new list.
           ...(list ? {} : { kind }),
@@ -97,6 +101,11 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
         <div className="field">
           <label className="label">Icon</label>
           <IconPicker value={icon} onChange={setIcon} />
+        </div>
+
+        <div className="field">
+          <label className="label">Color</label>
+          <ColorPicker value={color} onChange={setColor} />
         </div>
 
         <div className="field">

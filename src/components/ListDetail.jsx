@@ -348,7 +348,9 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
       </button>
 
       <div className="list-detail-head">
-        <span className="list-emoji lg">{list.icon || (grocery ? '🛒' : '📝')}</span>
+        <span className="list-emoji lg" style={list.color ? { background: list.color } : undefined}>
+          {list.icon || (grocery ? '🛒' : '📝')}
+        </span>
         <h1 className="person-name">{list.name}</h1>
         <div className="head-actions">
           <button className="icon-btn" onClick={() => onEdit(list)} aria-label="Edit list">

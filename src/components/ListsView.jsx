@@ -51,7 +51,7 @@ export default function ListsView({ data, onOpenList, onEditList, onAdd, onSearc
                 ]}
               >
                 <div className="list-row">
-                  <span className="list-emoji">
+                  <span className="list-emoji" style={l.color ? { background: l.color } : undefined}>
                     {l.icon || (l.kind === 'grocery' ? '🛒' : '📝')}
                   </span>
                   <div className="row-body">

@@ -302,7 +302,9 @@ export default function TodayView({
                 return (
                   <SwipeRow key={item.key} actions={[later(item)]} onClick={() => onOpenList(l.id)}>
                     <div className="list-row">
-                      <span className="list-emoji">{l.icon || '📝'}</span>
+                      <span className="list-emoji" style={l.color ? { background: l.color } : undefined}>
+                        {l.icon || '📝'}
+                      </span>
                       <div className="row-body">
                         <div className="row-title">{l.name}</div>
                         <div className="row-sub">

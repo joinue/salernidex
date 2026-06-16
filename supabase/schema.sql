@@ -232,6 +232,7 @@ create table public.lists (
   id            uuid primary key default gen_random_uuid(),
   name          text not null,
   icon          text,                               -- emoji, e.g. 🛒
+  color         text,                               -- optional accent tint for the emoji tile (0031)
   kind          text not null default 'standard'    -- 'standard' | 'grocery' (aisle-grouped); see groups.kind (0019)
     check (kind in ('standard', 'grocery')),
   privacy_level privacy_level not null default 'family_shared',

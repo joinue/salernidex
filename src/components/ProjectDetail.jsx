@@ -414,7 +414,7 @@ export default function ProjectDetail({
               ]}
             >
               <div className="list-row project-list-row">
-                <span className="list-emoji">
+                <span className="list-emoji" style={l.color ? { background: l.color } : undefined}>
                   {l.icon || (l.kind === 'grocery' ? '🛒' : '📝')}
                 </span>
                 <div className="row-body">
@@ -563,7 +563,7 @@ export default function ProjectDetail({
                 ).length
                 return (
                   <div className="list-row" key={l.id} onClick={() => attachList(l.id)}>
-                    <span className="list-emoji">
+                    <span className="list-emoji" style={l.color ? { background: l.color } : undefined}>
                       {l.icon || (l.kind === 'grocery' ? '🛒' : '📝')}
                     </span>
                     <div className="row-body">

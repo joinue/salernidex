@@ -3,6 +3,8 @@ import Modal from './Modal'
 import Segmented from './Segmented'
 import RecurrencePicker from './RecurrencePicker'
 import IconPicker from './IconPicker'
+import ColorPicker from './ColorPicker'
+import { COLORS } from '../lib/colors'
 import { describeRecurrence } from '../lib/recurrence'
 import { focusOnDesktop } from '../lib/constants'
 import { isSolo } from '../lib/household'
@@ -18,16 +20,6 @@ const MEASURES = [
 ]
 // index = Date.getDay() (0=Sun..6=Sat)
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-const COLORS = [
-  '#34c759',
-  '#0a84ff',
-  '#ff9f0a',
-  '#bf5af2',
-  '#ff375f',
-  '#5ac8fa',
-  '#ffd60a',
-  '#8e8e93',
-]
 
 const POLARITY_HINT = {
   build: 'Build — do more of a good thing. A day counts when you hit your goal.',
@@ -158,19 +150,7 @@ export default function HabitForm({ habit, onSave, onClose }) {
 
         <div className="field">
           <label className="label">Color</label>
-          <div className="color-swatches">
-            {COLORS.map((c) => (
-              <button
-                type="button"
-                key={c}
-                className={`color-swatch ${form.color === c ? 'on' : ''}`}
-                style={{ background: c }}
-                onClick={() => set('color')(c)}
-                aria-label={`Color ${c}`}
-                aria-pressed={form.color === c}
-              />
-            ))}
-          </div>
+          <ColorPicker value={form.color} onChange={set('color')} />
         </div>
 
         <div className="field">

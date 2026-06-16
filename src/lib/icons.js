@@ -24,6 +24,7 @@ export const ICON_GROUPS = [
       ['🧴', 'skincare lotion sunscreen'],
       ['🚭', 'no smoking quit cigarette'],
       ['🍷', 'wine alcohol drink limit'],
+      ['☕', 'coffee caffeine tea drink'],
       ['🚰', 'tap water hydrate'],
       ['⚖️', 'weight scale weigh'],
       ['🩺', 'health checkup doctor'],
