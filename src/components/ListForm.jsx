@@ -2,12 +2,12 @@ import { useState } from 'react'
 import Modal from './Modal'
 import PrivacyField from './PrivacyField'
 import Segmented from './Segmented'
+import IconPicker from './IconPicker'
 import { focusOnDesktop } from '../lib/constants'
 import { isSolo } from '../lib/household'
 import { PRIVATE_LEVEL } from '../lib/privacy'
 import { isoDateIn } from '../lib/tasks'
 
-const ICONS = ['🛒', '🛍️', '🔧', '🧳', '📝', '🎁', '🏠', '🍽️']
 const KIND_OPTIONS = [
   { value: 'standard', label: 'Standard' },
   { value: 'grocery', label: 'Grocery' },
@@ -96,18 +96,7 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
         )}
         <div className="field">
           <label className="label">Icon</label>
-          <div className="icon-row">
-            {ICONS.map((ic) => (
-              <button
-                type="button"
-                key={ic}
-                className={`icon-pick ${icon === ic ? 'on' : ''}`}
-                onClick={() => setIcon(ic)}
-              >
-                {ic}
-              </button>
-            ))}
-          </div>
+          <IconPicker value={icon} onChange={setIcon} />
         </div>
 
         <div className="field">
