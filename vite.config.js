@@ -3,11 +3,17 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  // Unit tests for the pure logic libs (recurrence, parsing, ordering, groups,
-  // privacy …). Co-located as src/**/*.test.js; run with `npm test`.
+  // Two test surfaces, both colocated with their source and both run by
+  // `npm test`:
+  //   *.test.js  — pure logic (recurrence, parsing, ordering, privacy …), node
+  //   *.test.jsx — primitives with real behaviour, jsdom + Testing Library
   test: {
-    environment: 'node',
-    include: ['src/**/*.test.js'],
+    include: ['src/**/*.test.{js,jsx}'],
+    setupFiles: ['./src/test/setup.js'],
+    environmentMatchGlobs: [
+      ['src/**/*.test.jsx', 'jsdom'],
+      ['src/**/*.test.js', 'node'],
+    ],
   },
   build: {
     rollupOptions: {
