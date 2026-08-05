@@ -47,6 +47,12 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return // leave Supabase & other origins alone
 
+  // Dev-server traffic is never ours to cache: unhashed /src modules and Vite's
+  // own /@vite, /@fs, /@id endpoints would land in stale-while-revalidate below
+  // and hand every edit back one reload late. None of these paths exist in a
+  // build, so this is a no-op in production.
+  if (url.pathname.startsWith('/src/') || url.pathname.startsWith('/@')) return
+
   // SPA navigations: prefer the network (keeps the app fresh), fall back to the
   // cached shell when offline so a cold launch isn't a blank screen.
   if (request.mode === 'navigate') {
