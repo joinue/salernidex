@@ -112,6 +112,7 @@ Add a specimen there whenever you add one.
 | `Modal` / `Sheet` / `ActionSheet` / `ConfirmDialog` | overlays |
 | `SwipeRow` / `PressableRow` / `ReorderableList` | row interaction |
 | `Segmented` / `DatePicker` / `TagInput` / `AssigneePicker` / `PrivacyField` | inputs |
+| `SelectRow` | a dropdown **inside a sheet** — drills into a list instead of opening the iOS picker over it |
 
 A form sheet's primary button is the **last child of its `<form>`**; `Modal`
 sticks it to the foot of the sheet from there, so no form has to arrange that
@@ -121,6 +122,27 @@ Dates: native `<input type="date">` for near-term dates (the OS picker and
 keyboard entry win), `DatePicker` for birthdays and anniversaries reaching
 decades back (where the native picker buries the year). Both are styled by
 `styles/primitives/forms.css`.
+
+## Text controls are 16px, always
+
+iOS Safari zooms the whole page when a control under 16px takes focus, and it
+does not zoom back out — the layout shifts under the user's thumb mid-typing.
+Every `<input>`, `<textarea>` and `<select>` is therefore **at least 16px**,
+whatever the surrounding type scale is doing. A control that needs to read as
+quieter does it with colour or weight, not size.
+
+`npm run audit:zoom` enforces this in two passes: a static sweep of the CSS
+(which reaches states a crawler can't) and a `getComputedStyle` pass over the
+running app. A runtime-only version of that check once reported clean while
+eight controls were still under 16px.
+
+## Dropdowns inside a sheet
+
+A native `<select>` in a bottom sheet is the one control iOS fights: tapping it
+slides the system picker over the bottom ~300px of the screen, which is exactly
+where the sheet is. Use `SelectRow` there — it shows the current value and
+drills into a list, so the options are always the topmost surface. A plain
+`<select>` is still right in a full-height form, where nothing is underneath it.
 
 ## Testing
 

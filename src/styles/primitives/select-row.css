@@ -1,0 +1,54 @@
+/* ---------- select row (drill-in dropdown) ----------
+
+   The grouped-list row that replaces a native <select> wherever one would sit
+   inside a sheet — label on the left, current value on the right, chevron. See
+   components/ui/SelectRow.jsx for why the native control can't be used there. */
+
+.select-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: 0 4px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.select-row + .select-row {
+  box-shadow: inset 0 0.5px 0 var(--separator);
+}
+
+.select-row-label {
+  flex: 0 0 auto;
+  font-size: 16px;
+  color: var(--text);
+}
+
+/* The value takes the slack and truncates, so a long organization name shortens
+   rather than pushing the chevron off the row. */
+.select-row-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  font-size: 16px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.select-row-value.placeholder {
+  color: var(--text-3);
+}
+
+.select-row-chevron {
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+
+.select-row:active {
+  background: var(--fill-2);
+}

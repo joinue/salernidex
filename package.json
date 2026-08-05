@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "audit:mobile": "node scripts/mobile-audit.mjs",
+    "audit:zoom": "node scripts/ios-zoom-audit.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

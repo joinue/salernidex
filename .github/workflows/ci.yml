@@ -22,3 +22,23 @@ jobs:
       - run: npm run format:check
       - run: npm test
       - run: npm run build
+
+      # The mobile audits drive a real browser against a running app, so they
+      # need Chrome and a server. They guard the two rules that keep getting
+      # lost by hand: nothing under a 44px tap target or the floating chrome,
+      # and no text control under 16px (which makes iOS zoom on focus).
+      #
+      # Server, wait and both audits are one step on purpose — a background
+      # process started in its own `run:` isn't guaranteed to outlive it.
+      - run: npx playwright install --with-deps chrome
+      - name: Mobile + iOS zoom audits
+        run: |
+          npm run preview -- --port 5173 &
+          server=$!
+          trap 'kill $server' EXIT
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:5173 >/dev/null && break
+            sleep 1
+          done
+          npm run audit:mobile
+          npm run audit:zoom

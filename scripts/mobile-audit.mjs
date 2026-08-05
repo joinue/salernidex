@@ -76,12 +76,29 @@ const audit = () =>
       // Probe the axis extremes, not the corners: round buttons are the iOS
       // norm and the corners of a 44px square fall outside a 44px circle, so
       // corner probes would fail every correctly-sized round control.
+      // A probe that lands on sticky or fixed chrome says nothing about the
+      // control's own size — the first row under the sticky search bar always
+      // loses the top of its extension, at every scroll position, however big
+      // the button is. Drop those the way off-screen probes are dropped;
+      // chrome that genuinely covers a control is the occlusion check's job.
+      const onFloatingChrome = (node) => {
+        for (let n = node; n && n !== document.body; n = n.parentElement) {
+          if (el === n || el.contains(n)) return false
+          const pos = getComputedStyle(n).position
+          if (pos === 'fixed' || pos === 'sticky') return true
+        }
+        return false
+      }
       const probes = [
         [cx - 20, cy],
         [cx + 20, cy],
         [cx, cy - 20],
         [cx, cy + 20],
-      ].filter(([x, y]) => x > 0 && y > 0 && x < innerWidth && y < innerHeight)
+      ].filter(([x, y]) => {
+        if (!(x > 0 && y > 0 && x < innerWidth && y < innerHeight)) return false
+        const hit = document.elementFromPoint(x, y)
+        return !hit || !onFloatingChrome(hit)
+      })
       const hits = probes.filter(([x, y]) => {
         const hit = document.elementFromPoint(x, y)
         return hit && (hit === el || el.contains(hit) || hit.contains(el))
@@ -89,11 +106,14 @@ const audit = () =>
       // Wide row-like controls (segmented control, list rows, search fields) are
       // allowed to be shorter — UISegmentedControl itself is 32pt tall. The rule
       // is: 44 in both dimensions, unless it's ≥120px wide and ≥34px tall.
-      const wideEnough = r.width >= 120 && r.height >= 34
+      // Compare on the same rounded numbers the report prints, or a 119.53px
+      // button fails the >=120 test and then logs as "120x38", which reads like
+      // a bug in the audit and gets ignored.
+      const w = Math.round(r.width)
+      const h = Math.round(r.height)
+      const wideEnough = w >= 120 && h >= 34
       if (probes.length && hits.length < probes.length && !wideEnough) {
-        out.small.push(
-          `${el.className || el.tagName} "${name}" ${Math.round(r.width)}x${Math.round(r.height)}`,
-        )
+        out.small.push(`${el.className || el.tagName} "${name}" ${w}x${h}`)
       }
 
       for (const [sel, cel, cr] of chrome) {

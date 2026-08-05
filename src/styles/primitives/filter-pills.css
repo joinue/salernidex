@@ -8,16 +8,17 @@
   margin-bottom: 18px;
 }
 
+/* 16px is not a style choice: iOS Safari zooms the page when a control smaller
+   than that takes focus, and a zoomed page with an open picker is disorienting
+   to get back out of. The pill absorbs it by growing a little and truncating. */
 .filter-select {
-  height: 32px;
+  height: 36px;
   max-width: 200px;
   padding: 0 28px 0 12px;
-  font-size: 13.5px;
+  font-size: 16px;
   font-weight: 500;
   color: var(--text);
-  background: var(--fill)
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a8a8e' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")
-    no-repeat right 11px center;
+  background: var(--fill) var(--chevron) no-repeat right 11px center;
   border: none;
   border-radius: 999px;
   outline: none;

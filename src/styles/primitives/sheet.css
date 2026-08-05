@@ -20,8 +20,10 @@
   /* Never let a tall sheet (e.g. the people filter's stack of selects) grow past
      the screen and push its grip off the top — cap it and scroll the overflow.
      The drag-to-dismiss handler only engages at scrollTop 0, so scrolling and
-     pull-to-dismiss coexist. */
-  max-height: 88vh;
+     pull-to-dismiss coexist.
+     dvh, not vh: on iOS `vh` resolves against the *large* viewport (URL bar
+     hidden), so with the bar showing an 88vh cap overshoots what's visible. */
+  max-height: 88dvh;
   overflow-y: auto;
   /* A short sheet stays touch-action:none so our pointer drag owns every
      vertical gesture across the whole body (no native pan to race with → no

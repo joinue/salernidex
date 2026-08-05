@@ -12,6 +12,7 @@ import Segmented from '../../components/ui/Segmented'
 import StatTile, { StatGrid } from '../../components/ui/StatTile'
 import Stepper from '../../components/ui/Stepper'
 import Sheet from '../../components/ui/Sheet'
+import SelectRow from '../../components/ui/SelectRow'
 import Modal from '../../components/ui/Modal'
 import { useConfirm } from '../../hooks/useConfirm'
 import { showToast } from '../../lib/toast'
@@ -28,6 +29,7 @@ export default function KitchenSink() {
   const [seg, setSeg] = useState('a')
   const [count, setCount] = useState(3)
   const [sheet, setSheet] = useState(false)
+  const [tier, setTier] = useState('')
   const [modal, setModal] = useState(false)
   const confirm = useConfirm()
 
@@ -113,6 +115,27 @@ export default function KitchenSink() {
           <Stepper value={count} onChange={setCount} label="glasses" />
           <Stepper value={0} onChange={() => {}} min={0} label="at minimum" />
         </div>
+      </Card>
+
+      <SectionLabel>Select row</SectionLabel>
+      <Card padded>
+        <SelectRow
+          label="Tier"
+          value={tier}
+          onChange={setTier}
+          placeholder="All tiers"
+          options={[
+            { value: '', label: 'All tiers' },
+            { value: 'family', label: 'Family' },
+            { value: 'inner', label: 'Inner circle' },
+          ]}
+        />
+        <SelectRow
+          label="A very long current value"
+          value="x"
+          onChange={() => {}}
+          options={[{ value: 'x', label: 'Truncates rather than pushing the chevron off' }]}
+        />
       </Card>
 
       <SectionLabel>Fields</SectionLabel>

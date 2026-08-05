@@ -253,7 +253,9 @@
   background: var(--fill);
   color: var(--text);
   font: inherit;
-  font-size: 14px;
+  /* 16px or iOS zooms the page on focus — and this one lives in a bottom sheet,
+     where a zoom on top of the keyboard is especially disorienting. */
+  font-size: 16px;
   resize: none;
 }
 

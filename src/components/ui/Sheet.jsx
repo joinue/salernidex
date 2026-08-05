@@ -1,6 +1,7 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useScrollLock } from '../../hooks/useScrollLock'
+import { useVisualViewport } from '../../hooks/useVisualViewport'
 import { DRAG_SLOP_PX } from '../../lib/gestures'
 import haptics from '../../lib/haptics'
 
@@ -17,6 +18,7 @@ const DISMISS_VY = 0.5 // …or a downward flick this fast (px/ms)
 export default function Sheet({ title, onClose, children }) {
   const sheetRef = useRef(null)
   const drag = useRef(null)
+  const backdropDown = useRef(false)
   const [y, setY] = useState(0)
   const [dragging, setDragging] = useState(false)
   const [closing, setClosing] = useState(false)
@@ -26,6 +28,19 @@ export default function Sheet({ title, onClose, children }) {
   // resize/orientation change since that shifts what fits.
   const [scrollable, setScrollable] = useState(false)
   useScrollLock()
+  // iOS doesn't shrink the layout viewport for the keyboard, so a bottom-anchored
+  // sheet ends up behind it — the backfill note editor and the member picker both
+  // sit in one. Clamping the overlay to the visual viewport rests the sheet on
+  // top of the keyboard instead. Modal has always done this; Sheet hadn't.
+  const viewport = useVisualViewport()
+
+  // Escape closes, as it does in Modal. Without it a keyboard or switch-control
+  // user can only leave a sheet by finding the backdrop.
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   useLayoutEffect(() => {
     const measure = () => {
@@ -100,10 +115,19 @@ export default function Sheet({ title, onClose, children }) {
     <div
       className="sheet-overlay"
       style={{
+        ...(viewport || {}),
         background: `rgba(0, 0, 0, ${0.4 * Math.max(0, 1 - y / (window.innerHeight * 0.6))})`,
       }}
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
-      onTouchStart={(e) => e.target === e.currentTarget && onClose()}
+      // Dismiss on tap *release*, not on touch-down: a press that turns into a
+      // drag shouldn't close the sheet out from under the finger. One pointer
+      // pair also replaces the old mousedown+touchstart, which both fired on iOS.
+      onPointerDown={(e) => {
+        backdropDown.current = e.target === e.currentTarget
+      }}
+      onPointerUp={(e) => {
+        if (backdropDown.current && e.target === e.currentTarget) onClose()
+        backdropDown.current = false
+      }}
     >
       <div
         ref={sheetRef}

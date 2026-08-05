@@ -49,7 +49,8 @@
   height: 32px;
   padding: 0 8px;
   border-radius: 8px;
-  font-size: 14px;
+  /* 16px or iOS zooms the page on focus. */
+  font-size: 16px;
 }
 
 .project-notes-edit {
@@ -116,7 +117,8 @@
   outline: none;
   resize: vertical;
   font: inherit;
-  font-size: 15px;
+  /* 16px or iOS zooms the page on focus. */
+  font-size: 16px;
   line-height: 1.5;
 }
 .project-notes-edit::placeholder {

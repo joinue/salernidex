@@ -29,6 +29,7 @@ import Avatar from '../../components/ui/Avatar'
 import PageHeader from '../../components/shell/PageHeader'
 import SharedDot from '../../components/ui/SharedDot'
 import Sheet from '../../components/ui/Sheet'
+import SelectRow from '../../components/ui/SelectRow'
 import SwipeRow from '../../components/ui/SwipeRow'
 import ActionSheet from '../../components/ui/ActionSheet'
 import InteractionForm from './InteractionForm'
@@ -337,72 +338,68 @@ export default function SearchView({
 
       {filterOpen && (
         <Sheet title="Filter people" onClose={() => setFilterOpen(false)}>
+          {/* Drill-in rows, not native selects: six <select>s stacked in a sheet
+              put four of them underneath the iOS picker wheel. See SelectRow. */}
           <div className="filter-sheet">
-            <div className="field">
-              <label className="label">Organization</label>
-              <select value={orgFilter} onChange={(e) => setOrgFilter(e.target.value)}>
-                <option value="">All organizations</option>
-                {allOrgs.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label className="label">Group</label>
-              <select value={groupFilter} onChange={(e) => setGroupFilter(e.target.value)}>
-                <option value="">All groups</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label className="label">Tag</label>
-              <select value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
-                <option value="">All tags</option>
-                {allTags.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label className="label">Tier</label>
-              <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value)}>
-                <option value="">All tiers</option>
-                {TIERS.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label className="label">Privacy</label>
-              <select value={privacyFilter} onChange={(e) => setPrivacyFilter(e.target.value)}>
-                <option value="">All privacy levels</option>
-                {Object.entries(PRIVACY_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label className="label">Status</label>
-              <select
-                value={showDeleted ? '1' : ''}
-                onChange={(e) => setShowDeleted(Boolean(e.target.value))}
-              >
-                <option value="">Active</option>
-                <option value="1">Archived</option>
-              </select>
-            </div>
+            <SelectRow
+              label="Organization"
+              value={orgFilter}
+              onChange={setOrgFilter}
+              placeholder="All organizations"
+              options={[
+                { value: '', label: 'All organizations' },
+                ...allOrgs.map((o) => ({ value: o.id, label: o.name })),
+              ]}
+            />
+            <SelectRow
+              label="Group"
+              value={groupFilter}
+              onChange={setGroupFilter}
+              placeholder="All groups"
+              options={[
+                { value: '', label: 'All groups' },
+                ...groups.map((g) => ({ value: g.id, label: g.name })),
+              ]}
+            />
+            <SelectRow
+              label="Tag"
+              value={tagFilter}
+              onChange={setTagFilter}
+              placeholder="All tags"
+              options={[
+                { value: '', label: 'All tags' },
+                ...allTags.map((t) => ({ value: t, label: t })),
+              ]}
+            />
+            <SelectRow
+              label="Tier"
+              value={tierFilter}
+              onChange={setTierFilter}
+              placeholder="All tiers"
+              options={[
+                { value: '', label: 'All tiers' },
+                ...TIERS.map((t) => ({ value: t.value, label: t.label })),
+              ]}
+            />
+            <SelectRow
+              label="Privacy"
+              value={privacyFilter}
+              onChange={setPrivacyFilter}
+              placeholder="All privacy levels"
+              options={[
+                { value: '', label: 'All privacy levels' },
+                ...Object.entries(PRIVACY_LABELS).map(([v, l]) => ({ value: v, label: l })),
+              ]}
+            />
+            <SelectRow
+              label="Status"
+              value={showDeleted ? '1' : ''}
+              onChange={(v) => setShowDeleted(Boolean(v))}
+              options={[
+                { value: '', label: 'Active' },
+                { value: '1', label: 'Archived' },
+              ]}
+            />
             <div className="filter-sheet-actions">
               <button className="text-btn" onClick={clearAll} disabled={!activeCount}>
                 Clear all

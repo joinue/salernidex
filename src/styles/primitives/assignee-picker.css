@@ -53,7 +53,8 @@
   background: transparent;
   border: none;
   outline: none;
-  font-size: 15px;
+  /* 16px or iOS zooms the page on focus. */
+  font-size: 16px;
   color: var(--text);
   padding: 4px 0;
 }

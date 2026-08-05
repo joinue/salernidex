@@ -10,6 +10,11 @@
   justify-content: center;
   width: 32px;
   height: 32px;
+  /* These sizes are a floor, not a suggestion. Most icon buttons live in a flex
+     row next to a growing label, and without this they get squeezed — the
+     "Remove connection" X on /relationships was painting at 16–20px wide, which
+     also pushes adjacent hit areas into each other. */
+  flex-shrink: 0;
   border-radius: 8px;
   color: var(--text-2);
   transition: transform 120ms cubic-bezier(0.32, 0.72, 0, 1);

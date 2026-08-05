@@ -47,6 +47,7 @@
 @import './features/import-export.css';
 @import './shell/tabbar.css';
 @import './primitives/sheet.css';
+@import './primitives/select-row.css';
 @import './primitives/icon-picker.css';
 @import './primitives/color-picker.css';
 @import './responsive.css';

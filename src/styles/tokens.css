@@ -6,11 +6,6 @@
    ============================================================ */
 
 :root {
-  /* Tell the browser to render native controls (date pickers, scrollbars) in
-     light by default; the dark blocks below flip this so the OS calendar popup
-     and the date field's picker indicator follow the app's theme. */
-  color-scheme: light;
-
   /* Tells the engine which palette to draw native UI with — date/time pickers,
      their calendar popups, scrollbars, autofill. Without it those stay light on
      a black page, which is the one thing tokens alone can't repaint. Set
@@ -48,9 +43,19 @@
   --shadow-thumb: 0 3px 8px rgba(0, 0, 0, 0.12), 0 1px 1px rgba(0, 0, 0, 0.04);
 
   --radius: 14px;
+  --radius-md: 12px;
   --radius-sm: 10px;
   --header-blur: saturate(180%) blur(20px);
   --mono: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
+
+  /* Text that sits on a filled --accent/--danger surface. Stays white in both
+     themes — it's "on top of the accent", not part of the text ramp. */
+  --on-accent: #ffffff;
+
+  /* The disclosure chevron on a <select>. A background-image can't read
+     currentColor, so the tint has to live here and be re-stated per theme —
+     otherwise every dropdown arrow in the app is light-mode grey on black. */
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a8a8e' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
 
   /* Motion. One signature curve (iOS sheet easing) + a small duration scale, so
      a transition is never hand-typed. */
@@ -119,7 +124,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    color-scheme: dark;
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2398989f' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
     --bg: #000000;
     --surface: #1c1c1e;
     --surface-2: #2c2c2e;

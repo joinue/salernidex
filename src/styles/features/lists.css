@@ -169,7 +169,9 @@
   letter-spacing: -0.2px;
 }
 .list-edit-note {
-  font-size: 13.5px;
+  /* 16px or iOS zooms the page on focus. It reads as the quieter line through
+     colour, not size. */
+  font-size: 16px;
   color: var(--text-2);
 }
 
@@ -255,7 +257,8 @@
   border: none;
   outline: none;
   text-align: center;
-  font-size: 15px;
+  /* 16px or iOS zooms the page on focus. */
+  font-size: 16px;
   font-weight: 600;
 }
 
