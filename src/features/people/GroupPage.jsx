@@ -7,6 +7,7 @@ import haptics from '../../lib/haptics'
 import Avatar from '../../components/ui/Avatar'
 import AvatarUpload from '../../components/ui/AvatarUpload'
 import TaskRow from '../tasks/TaskRow'
+import { notesMentioning, noteTitle, noteSnippet } from '../../lib/notes'
 import LinkTaskForm from './LinkTaskForm'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import NavBar from '../../components/ui/NavBar'
@@ -21,6 +22,7 @@ export default function GroupPage({
   groupId,
   onOpenPerson,
   onOpenTask,
+  onOpenNote,
   onBack,
   onEdit,
   isDemo = false,
@@ -31,6 +33,7 @@ export default function GroupPage({
     orgs,
     tasks,
     taskLinks,
+    notes,
     addTask,
     addTaskLink,
     completeTask,
@@ -48,6 +51,7 @@ export default function GroupPage({
     () => linkedTasksFor('group', groupId, tasks, taskLinks),
     [taskLinks, tasks, groupId],
   )
+  const mentionedNotes = useMemo(() => notesMentioning(notes, 'group', groupId), [notes, groupId])
 
   const toggleTask = (t) => {
     if (!t.completed_at) haptics.success()
@@ -146,6 +150,23 @@ export default function GroupPage({
           ))
         )}
       </div>
+
+      {mentionedNotes.length > 0 && onOpenNote && (
+        <>
+          <div className="section-label">Mentioned in notes</div>
+          <div className="list">
+            {mentionedNotes.map((n) => (
+              <div className="list-row" key={n.id} role="button" onClick={() => onOpenNote(n.id)}>
+                <div className="row-body">
+                  <div className="row-title">{noteTitle(n)}</div>
+                  {noteSnippet(n) && <div className="row-sub">{noteSnippet(n, 60)}</div>}
+                </div>
+                <ChevronRight size={18} className="row-chevron" />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {linkingTask && (
         <LinkTaskForm

@@ -6,6 +6,7 @@ import {
   Folder,
   List,
   Activity,
+  FileText,
   Briefcase,
   Users,
   Share2,
@@ -97,6 +98,7 @@ export default function Sidebar({ active, go, onSearch, onLogout, badge = 0, cou
       <Item id="projects" icon={Folder} text="Projects" count={counts.projects} quiet />
       <Item id="lists" icon={List} text="Lists" count={counts.lists} quiet />
       <Item id="habits" icon={Activity} text="Habits" />
+      <Item id="notes" icon={FileText} text="Notes" />
 
       <div className="nav-group">Contacts</div>
       <Item id="people" icon={PeopleIcon} text="People" />

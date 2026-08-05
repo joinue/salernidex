@@ -184,10 +184,23 @@ export default function HabitDetail({ data, habitId, onBack, onEdit }) {
     pauseHabit,
     resumeHabit,
   } = data
-  const { confirm, dialog } = useConfirm()
+  const confirm = useConfirm()
   const [weeks, setWeeks] = useState(13)
   const [editingDay, setEditingDay] = useState(null)
   const [breaking, setBreaking] = useState(false)
+
+  const remove = async () => {
+    const ok = await confirm({
+      title: `Delete “${habit.name}”?`,
+      message: 'This erases the habit and its entire history. This can’t be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
+    })
+    if (ok) {
+      onBack()
+      deleteHabit(habit.id)
+    }
+  }
 
   const today = useMemo(() => new Date(), [])
   const todayISO = toISODate(today)
@@ -359,19 +372,7 @@ export default function HabitDetail({ data, habitId, onBack, onEdit }) {
           <button className="text-btn" onClick={() => archiveHabit(habit.id, true)}>
             <Archive size={14} /> Archive
           </button>
-          <button
-            className="text-btn danger"
-            onClick={async () => {
-              const ok = await confirm({
-                title: `Delete “${habit.name}”?`,
-                message: "Every logged day and the streak go with it. This can't be undone.",
-                confirmLabel: 'Delete habit',
-              })
-              if (!ok) return
-              onBack()
-              deleteHabit(habit.id)
-            }}
-          >
+          <button className="text-btn danger" onClick={remove}>
             <Trash2 size={14} /> Delete
           </button>
         </div>
@@ -427,7 +428,6 @@ export default function HabitDetail({ data, habitId, onBack, onEdit }) {
           onClose={() => setBreaking(false)}
         />
       )}
-      {dialog}
     </div>
   )
 }

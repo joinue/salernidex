@@ -124,6 +124,15 @@ select {
   color: var(--text);
 }
 
+/* Native <option> popups don't inherit the select's custom background, and on
+   Chromium/Windows a translucent select background can leave the popup list
+   mismatched (light list in dark mode, low-contrast text). Pin options to the
+   solid surface + text colors so every dropdown's menu follows the theme. */
+select option {
+  background: var(--surface);
+  color: var(--text);
+}
+
 ::placeholder {
   color: var(--text-2);
 }

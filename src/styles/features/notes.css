@@ -1,0 +1,377 @@
+/* ---------- notes ---------- */
+
+/* ============================================================
+   Notebook (Apple Notes-style)
+   ============================================================ */
+
+/* Index search */
+.note-search {
+  width: 100%;
+  height: 38px;
+  margin: 4px 0 14px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--fill);
+  color: var(--text);
+  font-size: 16px;
+}
+.note-search::placeholder {
+  color: var(--text-3);
+}
+
+/* Index rows: title, a one-line time · snippet, and tag chips */
+.note-row .row-body {
+  min-width: 0;
+}
+.note-row-sub {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.note-time {
+  color: var(--text-2);
+}
+.note-snippet {
+  color: var(--text-2);
+}
+.note-row-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* Detail / editor page */
+.note-detail-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.note-title-input {
+  width: 100%;
+  margin: 6px 0 2px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.note-title-input::placeholder {
+  color: var(--text-3);
+}
+
+.note-editor {
+  position: relative;
+}
+/* Toolbar: a quiet row of icon buttons. Sticks just under the title so it
+   stays in reach above the mobile keyboard. */
+.note-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  gap: 2px;
+  padding: 6px 0;
+  margin-bottom: 4px;
+  background: var(--bg);
+  border-bottom: 0.5px solid var(--separator);
+  /* Ten tools won't fit a phone — let the bar scroll rather than wrap. */
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.note-toolbar::-webkit-scrollbar {
+  display: none;
+}
+.note-tool {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 34px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.note-tool-glyph {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+}
+.note-tool:hover {
+  background: var(--fill);
+}
+.note-tool:active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.note-editable-wrap {
+  position: relative;
+}
+.note-placeholder {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  color: var(--text-3);
+  pointer-events: none;
+  font-size: 17px;
+}
+.note-editable {
+  min-height: 50vh;
+  padding: 8px 0 40vh; /* tall tail so the caret never hides behind the keyboard */
+  outline: none;
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1.5;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.note-editable h1,
+.note-editable h2 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 12px 0 4px;
+}
+.note-editable ul,
+.note-editable ol {
+  padding-left: 24px;
+  margin: 6px 0;
+}
+.note-editable li {
+  margin: 2px 0;
+}
+
+/* Checklist: a tappable box drawn in the left gutter (toggles data-checked). */
+.note-editable ul.checklist {
+  list-style: none;
+  padding-left: 4px;
+}
+.note-editable li.checklist-item {
+  position: relative;
+  padding-left: 28px;
+  list-style: none;
+}
+.note-editable li.checklist-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 19px;
+  height: 19px;
+  border: 1.5px solid var(--text-3);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.note-editable li.checklist-item[data-checked='true'] {
+  color: var(--text-2);
+  text-decoration: line-through;
+}
+.note-editable li.checklist-item[data-checked='true']::before {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.note-editable li.checklist-item[data-checked='true']::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  width: 6px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.note-meta {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 0.5px solid var(--separator);
+}
+
+/* Mention chip — used in the editor and rendered note bodies */
+.mention {
+  display: inline;
+  color: var(--accent);
+  font-weight: 500;
+  background: var(--accent-soft);
+  border-radius: 5px;
+  padding: 0 4px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* @-mention picker, anchored to the caret */
+.mention-picker {
+  z-index: 60;
+  max-height: 260px;
+  width: 240px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--elevated);
+  border: 0.5px solid var(--separator);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+}
+.mention-option {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+.mention-option.active,
+.mention-option:hover {
+  background: var(--accent-soft);
+}
+.mention-option-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mention-option-type {
+  flex-shrink: 0;
+  color: var(--text-3);
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+/* Rich blocks inside the editor + rendered note bodies */
+.note-editable blockquote {
+  margin: 8px 0;
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid var(--accent-soft);
+  color: var(--text-2);
+}
+.note-editable hr {
+  border: none;
+  border-top: 0.5px solid var(--separator);
+  margin: 14px 0;
+}
+.note-editable ol {
+  padding-left: 24px;
+  margin: 6px 0;
+}
+.note-editable a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.note-editable img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+  margin: 8px 0;
+  display: block;
+}
+
+/* "Edited 2h ago · by Partner" under the title */
+.note-edited {
+  margin: 0 0 6px;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+/* Index controls: sort segmented + tag chip row */
+.notes-controls {
+  margin: 2px 0 10px;
+}
+.notes-tag-row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+.notes-tag-row::-webkit-scrollbar {
+  display: none;
+}
+.notes-tag-row .chip {
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+/* "Recently Deleted" entry + the trash rows' restore/purge buttons */
+.notes-trash-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 18px 0 8px;
+  padding: 6px 2px;
+  background: none;
+  border: none;
+  color: var(--text-2);
+  font-size: 14px;
+  cursor: pointer;
+}
+.notes-trash-link:hover {
+  color: var(--text);
+}
+.trash-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* Snooze sheet: the custom "− N days +" stepper row */
+.snooze-custom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;
+}
+.snooze-stepper {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.snooze-stepper button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 0.5px solid var(--separator);
+  background: var(--fill);
+  color: var(--text);
+  cursor: pointer;
+}
+.snooze-stepper button:disabled {
+  opacity: 0.4;
+}
+.snooze-days {
+  min-width: 66px;
+  text-align: center;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.snooze-go {
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+}

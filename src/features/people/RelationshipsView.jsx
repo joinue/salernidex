@@ -3,11 +3,25 @@ import { Share2, X, Plus, Search } from 'react-feather'
 import PageHeader from '../../components/shell/PageHeader'
 import EmptyState from '../../components/ui/EmptyState'
 import IconButton from '../../components/ui/IconButton'
+import { useConfirm } from '../../hooks/useConfirm'
 
 export default function RelationshipsView({ data, onOpenPerson, onAdd, hub }) {
   const { relationships, people, loading, deleteRelationship } = data
   const [personFilter, setPersonFilter] = useState('')
   const [query, setQuery] = useState('')
+  const confirm = useConfirm()
+
+  // No undo behind a relationship delete, so confirm the single-tap X first.
+  const removeRel = async (rel, a, b) => {
+    if (
+      await confirm({
+        title: `Remove the connection between ${a.name} and ${b.name}?`,
+        confirmLabel: 'Remove',
+        danger: true,
+      })
+    )
+      deleteRelationship(rel.id)
+  }
 
   const byId = useMemo(() => new Map(people.map((p) => [p.id, p])), [people])
 
@@ -119,7 +133,7 @@ export default function RelationshipsView({ data, onOpenPerson, onAdd, hub }) {
                 icon={X}
                 variant="danger"
                 label="Remove"
-                onClick={() => deleteRelationship(rel.id)}
+                onClick={() => removeRel(rel, a, b)}
               />
             </div>
           ))}

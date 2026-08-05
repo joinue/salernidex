@@ -29,7 +29,7 @@ export default function KitchenSink() {
   const [count, setCount] = useState(3)
   const [sheet, setSheet] = useState(false)
   const [modal, setModal] = useState(false)
-  const { confirm, dialog } = useConfirm()
+  const confirm = useConfirm()
 
   return (
     <div>
@@ -231,7 +231,6 @@ export default function KitchenSink() {
           </form>
         </Modal>
       )}
-      {dialog}
     </div>
   )
 }

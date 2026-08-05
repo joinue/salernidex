@@ -32,7 +32,12 @@ export default function ActivityRow({
   if (e.kind === 'list') {
     return (
       <PressableRow key={e.key} onClick={() => onOpenList(e.list.id)}>
-        <span className="list-emoji">{e.list.icon || '📝'}</span>
+        <span
+          className="list-emoji"
+          style={e.list.color ? { background: e.list.color } : undefined}
+        >
+          {e.list.icon || '📝'}
+        </span>
         <div className="row-body">
           <div className="row-title">{e.list.name}</div>
           <div className="row-sub">

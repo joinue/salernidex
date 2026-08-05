@@ -33,6 +33,7 @@
 @import './primitives/stat-tile.css';
 @import './features/entity-detail.css';
 @import './features/lists.css';
+@import './features/notes.css';
 @import './features/tasks.css';
 @import './primitives/forms.css';
 @import './primitives/navbar.css';
@@ -46,6 +47,8 @@
 @import './features/import-export.css';
 @import './shell/tabbar.css';
 @import './primitives/sheet.css';
+@import './primitives/icon-picker.css';
+@import './primitives/color-picker.css';
 @import './responsive.css';
 @import './primitives/assignee-picker.css';
 @import './primitives/reorderable.css';

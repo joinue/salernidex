@@ -6,6 +6,7 @@ import haptics from '../../lib/haptics'
 import Avatar from '../../components/ui/Avatar'
 import AvatarUpload from '../../components/ui/AvatarUpload'
 import TaskRow from '../tasks/TaskRow'
+import { notesMentioning, noteTitle, noteSnippet } from '../../lib/notes'
 import LinkTaskForm from './LinkTaskForm'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import NavBar from '../../components/ui/NavBar'
@@ -20,12 +21,23 @@ export default function OrgPage({
   orgId,
   onOpenPerson,
   onOpenTask,
+  onOpenNote,
   onBack,
   onEdit,
   isDemo = false,
 }) {
-  const { orgs, people, tasks, taskLinks, addTask, addTaskLink, completeTask, saveOrg, deleteOrg } =
-    data
+  const {
+    orgs,
+    people,
+    tasks,
+    taskLinks,
+    notes,
+    addTask,
+    addTaskLink,
+    completeTask,
+    saveOrg,
+    deleteOrg,
+  } = data
   const org = orgs.find((o) => o.id === orgId)
   const orgsById = useMemo(() => new Map(orgs.map((o) => [o.id, o])), [orgs])
   const [linkingTask, setLinkingTask] = useState(false)
@@ -38,6 +50,10 @@ export default function OrgPage({
   const linkedTasks = useMemo(
     () => linkedTasksFor('organization', orgId, tasks, taskLinks),
     [taskLinks, tasks, orgId],
+  )
+  const mentionedNotes = useMemo(
+    () => notesMentioning(notes, 'organization', orgId),
+    [notes, orgId],
   )
 
   const toggleTask = (t) => {
@@ -150,6 +166,23 @@ export default function OrgPage({
           ))
         )}
       </div>
+
+      {mentionedNotes.length > 0 && onOpenNote && (
+        <>
+          <div className="section-label">Mentioned in notes</div>
+          <div className="list">
+            {mentionedNotes.map((n) => (
+              <div className="list-row" key={n.id} role="button" onClick={() => onOpenNote(n.id)}>
+                <div className="row-body">
+                  <div className="row-title">{noteTitle(n)}</div>
+                  {noteSnippet(n) && <div className="row-sub">{noteSnippet(n, 60)}</div>}
+                </div>
+                <ChevronRight size={18} className="row-chevron" />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {linkingTask && (
         <LinkTaskForm

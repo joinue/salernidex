@@ -127,6 +127,7 @@ export default function ImportExport({ data }) {
   // "Private — only me" rows survive the round-trip. CSV/vCard exports use
   // the filtered arrays above — they only ever contain what YOU can see.
   const { allPeople, allOrgs, allTasks, allLists, allListItems, allHabits, allHabitEntries } = data
+  const confirm = useConfirm()
   const csvRef = useRef(null)
   const jsonRef = useRef(null)
   const vcfRef = useRef(null)
@@ -135,7 +136,6 @@ export default function ImportExport({ data }) {
   const [status, setStatus] = useState(null)
   const [busy, setBusy] = useState(false)
   const [review, setReview] = useState(null) // { records: [{rec, matches, action}] }
-  const { confirm, dialog } = useConfirm()
 
   const active = people.filter((p) => !p.deleted_at)
   // Resolve organization_id → name for the string-based exports (CSV/vCard).
@@ -214,9 +214,9 @@ export default function ImportExport({ data }) {
       const ok = await confirm({
         title: `Restore ${counts} records?`,
         message:
-          'Anything with a matching id is overwritten by the backup. Everything else you have now is kept.',
+          'Existing records with the same id are overwritten; everything else is kept. Export a backup first if you want a safety copy.',
         confirmLabel: 'Restore',
-        danger: false,
+        danger: true,
       })
       if (!ok) return
       setBusy(true)
@@ -589,7 +589,6 @@ export default function ImportExport({ data }) {
             </div>
           )
         })()}
-      {dialog}
     </div>
   )
 }

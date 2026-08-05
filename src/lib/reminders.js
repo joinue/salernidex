@@ -8,7 +8,9 @@
 //                  (internal name; the UI says "check in" — never "nudge"/"follow up")
 //   kind 'date'  — birthday or key date inside the lead window     (payload: entry from upcomingDates)
 //   kind 'list'  — a list with a due_date that's due today/overdue  (payload: list)
-//   urgency: 'overdue' | 'today' | 'upcoming'
+//   urgency: 'overdue' | 'today' | 'upcoming' | 'soft'
+//     'soft' is the ambient tier (relationship check-ins): shown in Today, but
+//     kept out of the red count badge so it can't perpetually inflate it.
 //   key: stable id, doubles as reminder_snoozes.target_key
 //
 // Per-member snoozes hide items: until=null means dismissed for good,
@@ -79,7 +81,9 @@ export function buildAttention(
       checkIns.push({
         kind: 'nudge',
         key: `nudge:${p.id}`,
-        urgency: 'overdue',
+        // Ambient, never-expiring relationship nudge — soft, not a deadline, so
+        // it stays out of the red badge (see badgeCount) while still showing here.
+        urgency: 'soft',
         person: p,
         state: f.state,
         lastIso: last?.occurred_at || null,
@@ -106,7 +110,9 @@ export function buildAttention(
   return items.filter((i) => !hidden.has(i.key))
 }
 
-// Tab + app-icon badge: only what's actionable right now.
+// Tab + app-icon badge: only what's actionable right now. Soft items (ambient
+// relationship check-ins) are deliberately excluded — a count badge that never
+// drops to zero loses its meaning and trains the eye to ignore it.
 export function badgeCount(items) {
   return items.filter((i) => i.urgency === 'overdue' || i.urgency === 'today').length
 }

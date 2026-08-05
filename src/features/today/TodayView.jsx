@@ -5,18 +5,18 @@ import {
   ChevronRight,
   Sun,
   Settings,
+  FileText,
   MessageCircle,
   Clock,
-  BellOff,
   Check,
   Search,
-  SkipForward,
 } from 'react-feather'
 import { relativeTime } from '../../lib/contact'
 import { dueLabel } from '../../lib/tasks'
 import { buildAttention } from '../../lib/reminders'
 import { buildActivityFeed } from '../../lib/activity'
 import { personActions } from '../../lib/personActions'
+import { noteTitle, noteSnippet } from '../../lib/notes'
 import {
   entryMap,
   valueOn,
@@ -38,6 +38,7 @@ import SwipeRow from '../../components/ui/SwipeRow'
 import TaskRow from '../tasks/TaskRow'
 import ActivityRow from '../activity/ActivityRow'
 import ActionSheet from '../../components/ui/ActionSheet'
+import SnoozeSheet from '../../components/ui/SnoozeSheet'
 import InteractionForm from '../people/InteractionForm'
 import SectionLabel from '../../components/ui/SectionLabel'
 import EmptyState from '../../components/ui/EmptyState'
@@ -85,6 +86,8 @@ export default function TodayView({
   onSettings,
   onSearch,
   onOpenHabits,
+  onOpenNotes,
+  onOpenNote,
   household,
 }) {
   const {
@@ -152,7 +155,14 @@ export default function TodayView({
   const feed = useMemo(() => buildActivityFeed(data), [data])
   const recent = useMemo(() => feed.slice(0, 6), [feed])
 
-  const nothing = attention.length === 0 && recent.length === 0 && todayHabits.length === 0
+  // Pinned notes as quick reference on the dashboard (a few, tap to open).
+  const pinnedNotes = (data.notes || []).filter((n) => n.pinned).slice(0, 4)
+
+  const nothing =
+    attention.length === 0 &&
+    recent.length === 0 &&
+    todayHabits.length === 0 &&
+    pinnedNotes.length === 0
 
   // Swipe action: "Later" → sheet with gentle snooze choices.
   const later = (item) => ({ label: 'Later', icon: Clock, onClick: () => setLaterItem(item) })
@@ -169,50 +179,6 @@ export default function TodayView({
     })
   }
 
-  const snoozeChoices = laterItem && [
-    // Recurring task: skip just this occurrence (rolls to the next date) without
-    // logging it done. Sits above the snoozes — it's the more decisive choice.
-    ...(laterItem.kind === 'task' && laterItem.task?.recurrence
-      ? [
-          {
-            label: 'Skip this one',
-            icon: SkipForward,
-            onClick: () => {
-              haptics.light()
-              skipTaskOccurrence(laterItem.task)
-            },
-          },
-        ]
-      : []),
-    {
-      label: 'Remind me in 3 days',
-      icon: Clock,
-      onClick: () =>
-        snoozeReminder({
-          kind: laterItem.kind,
-          target_key: laterItem.key,
-          until: new Date(Date.now() + 3 * DAY).toISOString(),
-        }),
-    },
-    {
-      label: 'Remind me next week',
-      icon: Clock,
-      onClick: () =>
-        snoozeReminder({
-          kind: laterItem.kind,
-          target_key: laterItem.key,
-          until: new Date(Date.now() + 7 * DAY).toISOString(),
-        }),
-    },
-    {
-      label: "Don't remind me about this",
-      icon: BellOff,
-      danger: true,
-      onClick: () =>
-        snoozeReminder({ kind: laterItem.kind, target_key: laterItem.key, until: null }),
-    },
-  ]
-
   return (
     <div>
       <PageHeader
@@ -221,6 +187,9 @@ export default function TodayView({
         action={onSettings}
         actionIcon={Settings}
         actionLabel="Settings"
+        secondaryAction={onOpenNotes}
+        secondaryActionIcon={FileText}
+        secondaryActionLabel="Notes"
       />
 
       {/* iOS-style search bar under the large title — opens Quick Find.
@@ -300,6 +269,34 @@ export default function TodayView({
           </section>
         )}
 
+        {pinnedNotes.length > 0 && onOpenNote && (
+          <section className="today-section">
+            <SectionLabel
+              action={
+                onOpenNotes && (
+                  <button className="see-all" onClick={onOpenNotes}>
+                    All notes
+                  </button>
+                )
+              }
+            >
+              Notes
+            </SectionLabel>
+            <div className="list">
+              {pinnedNotes.map((n) => (
+                <div className="list-row note-row" key={n.id} onClick={() => onOpenNote(n.id)}>
+                  <span className="list-emoji">📝</span>
+                  <div className="row-body">
+                    <div className="row-title">{noteTitle(n)}</div>
+                    {noteSnippet(n) && <div className="row-sub">{noteSnippet(n, 60)}</div>}
+                  </div>
+                  <ChevronRight size={18} className="row-chevron" />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {dueLists.length > 0 && (
           <section className="today-section">
             <SectionLabel>Lists</SectionLabel>
@@ -312,7 +309,12 @@ export default function TodayView({
                 return (
                   <SwipeRow key={item.key} actions={[later(item)]} onClick={() => onOpenList(l.id)}>
                     <div className="list-row">
-                      <span className="list-emoji">{l.icon || '📝'}</span>
+                      <span
+                        className="list-emoji"
+                        style={l.color ? { background: l.color } : undefined}
+                      >
+                        {l.icon || '📝'}
+                      </span>
                       <div className="row-body">
                         <div className="row-title">{l.name}</div>
                         <div className="row-sub">
@@ -462,9 +464,12 @@ export default function TodayView({
         />
       )}
       {laterItem && (
-        <ActionSheet
-          title="Remind me later"
-          actions={snoozeChoices}
+        <SnoozeSheet
+          item={laterItem}
+          onSnooze={(until) =>
+            snoozeReminder({ kind: laterItem.kind, target_key: laterItem.key, until })
+          }
+          onSkip={(task) => skipTaskOccurrence(task)}
           onClose={() => setLaterItem(null)}
         />
       )}

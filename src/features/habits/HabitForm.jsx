@@ -5,6 +5,9 @@ import RecurrencePicker from '../../components/ui/RecurrencePicker'
 import { describeRecurrence } from '../../lib/recurrence'
 import { focusOnDesktop } from '../../lib/constants'
 import { isSolo } from '../../lib/household'
+import IconPicker from '../../components/ui/IconPicker'
+import ColorPicker from '../../components/ui/ColorPicker'
+import { COLORS } from '../../lib/colors'
 
 const POLARITIES = [
   { value: 'build', label: 'Build' },
@@ -17,40 +20,6 @@ const MEASURES = [
 ]
 // index = Date.getDay() (0=Sun..6=Sat)
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-const COLORS = [
-  '#34c759',
-  '#0a84ff',
-  '#ff9f0a',
-  '#bf5af2',
-  '#ff375f',
-  '#5ac8fa',
-  '#ffd60a',
-  '#8e8e93',
-]
-
-// Optional emoji glyph for the habit dot; empty falls back to a colored letter.
-const ICONS = [
-  '💧',
-  '🏋️',
-  '📖',
-  '🧘',
-  '🤸',
-  '📓',
-  '💊',
-  '🦷',
-  '🚭',
-  '🍷',
-  '🏃',
-  '🥗',
-  '😴',
-  '🧹',
-  '🎯',
-  '💪',
-  '☀️',
-  '🚶',
-  '🎸',
-  '🧴',
-]
 
 const POLARITY_HINT = {
   build: 'Build — do more of a good thing. A day counts when you hit your goal.',
@@ -162,46 +131,26 @@ export default function HabitForm({ habit, onSave, onClose }) {
 
         <div className="field">
           <label className="label">Icon</label>
-          <div className="icon-row">
-            <button
-              type="button"
-              className={`icon-pick letter ${form.icon ? '' : 'on'}`}
-              style={{ '--c': form.color }}
-              onClick={() => set('icon')('')}
-              aria-label="No icon (use first letter)"
-            >
-              {form.name.trim().slice(0, 1).toUpperCase() || 'A'}
-            </button>
-            {ICONS.map((ic) => (
+          <IconPicker
+            value={form.icon}
+            onChange={set('icon')}
+            leading={
               <button
                 type="button"
-                key={ic}
-                className={`icon-pick ${form.icon === ic ? 'on' : ''}`}
-                onClick={() => set('icon')(ic)}
-                aria-label={`Icon ${ic}`}
-                aria-pressed={form.icon === ic}
+                className={`icon-pick letter ${form.icon ? '' : 'on'}`}
+                style={{ '--c': form.color }}
+                onClick={() => set('icon')('')}
+                aria-label="No icon (use first letter)"
               >
-                {ic}
+                {form.name.trim().slice(0, 1).toUpperCase() || 'A'}
               </button>
-            ))}
-          </div>
+            }
+          />
         </div>
 
         <div className="field">
           <label className="label">Color</label>
-          <div className="color-swatches">
-            {COLORS.map((c) => (
-              <button
-                type="button"
-                key={c}
-                className={`color-swatch ${form.color === c ? 'on' : ''}`}
-                style={{ background: c }}
-                onClick={() => set('color')(c)}
-                aria-label={`Color ${c}`}
-                aria-pressed={form.color === c}
-              />
-            ))}
-          </div>
+          <ColorPicker value={form.color} onChange={set('color')} />
         </div>
 
         <div className="field">

@@ -8,6 +8,7 @@ import { useHousehold, ACTIVE_HOUSEHOLD_KEY } from './hooks/useHousehold'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { useNotificationPrefs } from './hooks/useNotificationPrefs'
 import { useAppPrefs } from './hooks/useAppPrefs'
+import { useNow } from './hooks/useNow'
 import { useEdgeBack } from './hooks/useEdgeBack'
 import { currentMemberId, clearHousehold } from './lib/household'
 import { clearSnapshots } from './lib/offlineCache'
@@ -20,6 +21,7 @@ import Onboarding from './features/auth/Onboarding'
 import Sidebar from './components/shell/Sidebar'
 import MobileNav from './components/shell/MobileNav'
 import ConfirmDialog from './components/ui/ConfirmDialog'
+import { ConfirmProvider } from './components/ui/ConfirmProvider'
 import QuickFind from './components/shell/QuickFind'
 import TodayView from './features/today/TodayView'
 import ActivityView from './features/activity/ActivityView'
@@ -29,6 +31,8 @@ import TasksView from './features/tasks/TasksView'
 import ProjectsView from './features/tasks/ProjectsView'
 import ListsView from './features/lists/ListsView'
 import ListDetail from './features/lists/ListDetail'
+import NotesView from './features/notes/NotesView'
+import NoteDetail from './features/notes/NoteDetail'
 import ProjectDetail from './features/tasks/ProjectDetail'
 import PersonPage from './features/people/PersonPage'
 import OrgsView from './features/people/OrgsView'
@@ -82,6 +86,7 @@ const DETAIL_ROUTES = [
   'group',
   'project',
   'list',
+  'note',
   'habit',
   'habit-insights',
   'activity',
@@ -103,6 +108,8 @@ const KNOWN_ROUTES = [
   'project',
   'lists',
   'list',
+  'notes',
+  'note',
   'people',
   'person',
   'orgs',
@@ -145,11 +152,13 @@ export default function App() {
   const [demo, setDemo] = useState(false)
   return (
     <ErrorBoundary>
-      {demo ? (
-        <Shell session={{ demo: true }} onLogout={() => setDemo(false)} />
-      ) : (
-        <AuthedApp onDemo={() => setDemo(true)} />
-      )}
+      <ConfirmProvider>
+        {demo ? (
+          <Shell session={{ demo: true }} onLogout={() => setDemo(false)} />
+        ) : (
+          <AuthedApp onDemo={() => setDemo(true)} />
+        )}
+      </ConfirmProvider>
     </ErrorBoundary>
   )
 }
@@ -360,29 +369,36 @@ function Shell({ session, onLogout, household }) {
               ? data.lists.find((l) => l.id === route.id)?.name
               : route.name === 'project'
                 ? data.tasks.find((t) => t.id === route.id)?.title
-                : route.name === 'habit'
-                  ? data.habits.find((h) => h.id === route.id)?.name
-                  : {
-                      activity: 'Activity',
-                      tasks: 'Tasks',
-                      projects: 'Projects',
-                      lists: 'Lists',
-                      people: 'People',
-                      orgs: 'Organizations',
-                      groups: 'Groups',
-                      relationships: 'Relationships',
-                      habits: 'Habits',
-                      import: 'Import / Export',
-                      settings: 'Settings',
-                      privacy: 'Privacy Policy',
-                      terms: 'Terms of Use',
-                    }[route.name]
+                : route.name === 'note'
+                  ? data.notes.find((n) => n.id === route.id)?.title || 'Note'
+                  : route.name === 'habit'
+                    ? data.habits.find((h) => h.id === route.id)?.name
+                    : {
+                        activity: 'Activity',
+                        tasks: 'Tasks',
+                        projects: 'Projects',
+                        lists: 'Lists',
+                        notes: 'Notes',
+                        people: 'People',
+                        orgs: 'Organizations',
+                        groups: 'Groups',
+                        relationships: 'Relationships',
+                        habits: 'Habits',
+                        import: 'Import / Export',
+                        settings: 'Settings',
+                        privacy: 'Privacy Policy',
+                        terms: 'Terms of Use',
+                      }[route.name]
     document.title = named ? `${named} — Salernidex` : 'Salernidex'
-  }, [route, data.people, data.orgs, data.groups, data.lists, data.tasks, data.habits])
+  }, [route, data.people, data.orgs, data.groups, data.lists, data.tasks, data.habits, data.notes])
   const openPerson = (id) => go(`person/${id}`)
   const openOrg = (id) => go(`org/${id}`)
   const openGroup = (id) => go(`group/${id}`)
   const openList = (id) => go(`list/${id}`)
+  const openNote = (id) => go(`note/${id}`)
+  // New note: create the row (optimistic, returns its id) and open it straight
+  // into the editor — Apple Notes-style, no intermediate form.
+  const createNote = () => openNote(data.addNote({}))
   const openProject = (id) => go(`project/${id}`)
   // Open a linked task from an entity page: projects get the full ProjectDetail,
   // plain tasks open the editor sheet.
@@ -421,6 +437,7 @@ function Shell({ session, onLogout, household }) {
     else if (entry.type === 'task')
       entry.parentId ? openProject(entry.parentId) : go(`tasks/${entry.id}`)
     else if (entry.type === 'list') openList(entry.id)
+    else if (entry.type === 'note') openNote(entry.id)
     else if (entry.type === 'org') openOrg(entry.id)
     else if (entry.type === 'group') openGroup(entry.id)
     else if (entry.type === 'nav') go(entry.route)
@@ -442,8 +459,12 @@ function Shell({ session, onLogout, household }) {
   // Attention badge: overdue/today items for the signed-in member, mirrored on
   // the Today tab/sidebar item and the app icon (installed PWA, iOS 16.4+).
   const [prefs] = useNotificationPrefs(data.memberId)
+  // Threaded into buildAttention so the badge re-evaluates buckets as the clock
+  // moves (e.g. a task flipping today→overdue at midnight on a long-lived tab),
+  // exactly like the Today view — otherwise the two surfaces silently diverge.
+  const now = useNow()
   const badge = useMemo(
-    () => badgeCount(buildAttention(data, prefs, data.reminderSnoozes, data.memberId)),
+    () => badgeCount(buildAttention(data, prefs, data.reminderSnoozes, data.memberId, now)),
     // Granular deps on purpose: `data` is a fresh object every render, so
     // depending on it would recompute the badge constantly. These are the
     // fields buildAttention actually reads.
@@ -451,11 +472,13 @@ function Shell({ session, onLogout, household }) {
     [
       data.people,
       data.tasks,
+      data.lists,
       data.interactions,
       data.keyDates,
       data.reminderSnoozes,
       prefs,
       data.memberId,
+      now,
     ],
   )
   useEffect(() => {
@@ -488,11 +511,13 @@ function Shell({ session, onLogout, household }) {
             ? 'lists'
             : route.name === 'project'
               ? 'projects'
-              : route.name === 'habit'
-                ? 'habits'
-                : route.name === 'activity'
-                  ? 'today'
-                  : route.name
+              : route.name === 'note'
+                ? 'notes'
+                : route.name === 'habit'
+                  ? 'habits'
+                  : route.name === 'activity'
+                    ? 'today'
+                    : route.name
 
   const adds = {
     go,
@@ -549,6 +574,8 @@ function Shell({ session, onLogout, household }) {
                 onSettings={isMobile ? () => go('settings') : undefined}
                 onSearch={isMobile ? () => setQuickFind(true) : undefined}
                 onOpenHabits={() => go('habits')}
+                onOpenNotes={() => go('notes')}
+                onOpenNote={openNote}
               />
             )}
             {route.name === 'activity' && (
@@ -601,6 +628,7 @@ function Shell({ session, onLogout, household }) {
               <ListsView
                 data={data}
                 onOpenList={openList}
+                onEditList={(l) => setEditingList(l)}
                 onAdd={() => setEditingList('new')}
                 onSearch={isMobile ? () => setQuickFind(true) : undefined}
               />
@@ -609,8 +637,32 @@ function Shell({ session, onLogout, household }) {
               <ListDetail
                 data={data}
                 listId={route.id}
-                onBack={() => go('lists')}
+                // Go back to wherever the list was opened from — the Lists tab,
+                // a project, Today, etc. history.back() pops the entry that
+                // pushed this route, so it can't loop (unlike re-pushing a fixed
+                // hash, which stacks duplicates that the OS back button then
+                // walks through). Deep-linked with no history → fall to Lists.
+                onBack={() => (window.history.length > 1 ? window.history.back() : go('lists'))}
                 onEdit={(l) => setEditingList(l)}
+              />
+            )}
+            {route.name === 'notes' && (
+              <NotesView
+                data={data}
+                onOpenNote={openNote}
+                onAdd={createNote}
+                onSearch={isMobile ? () => setQuickFind(true) : undefined}
+                onBack={() => (window.history.length > 1 ? window.history.back() : go('today'))}
+              />
+            )}
+            {route.name === 'note' && (
+              // Keyed by id so switching notes remounts with fresh state + a
+              // freshly seeded contentEditable (no cursor fights, no stale body).
+              <NoteDetail
+                key={route.id}
+                data={data}
+                noteId={route.id}
+                onBack={() => (window.history.length > 1 ? window.history.back() : go('notes'))}
               />
             )}
             {route.name === 'people' && (
@@ -634,6 +686,7 @@ function Shell({ session, onLogout, household }) {
                 personId={route.id}
                 onOpenPerson={openPerson}
                 onOpenTask={openTask}
+                onOpenNote={openNote}
                 onBack={() => window.history.back()}
                 onEdit={(p) => setEditingPerson(p)}
                 onConnect={(p) => setRelationshipFrom(p)}
@@ -654,6 +707,7 @@ function Shell({ session, onLogout, household }) {
                 orgId={route.id}
                 onOpenPerson={openPerson}
                 onOpenTask={openTask}
+                onOpenNote={openNote}
                 onBack={() => window.history.back()}
                 onEdit={(o) => setEditingOrg(o)}
                 isDemo={isDemo}
@@ -673,6 +727,7 @@ function Shell({ session, onLogout, household }) {
                 groupId={route.id}
                 onOpenPerson={openPerson}
                 onOpenTask={openTask}
+                onOpenNote={openNote}
                 onBack={() => window.history.back()}
                 onEdit={(g) => setEditingGroup(g)}
                 isDemo={isDemo}

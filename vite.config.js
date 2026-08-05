@@ -12,6 +12,10 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.js'],
     environmentMatchGlobs: [
       ['src/**/*.test.jsx', 'jsdom'],
+      // notes.test.js gates its sanitizer/mention cases behind describe.runIf
+      // (hasDOM). They were silently skipped while everything ran on node —
+      // and an HTML sanitizer is precisely the code that wants covering.
+      ['src/lib/notes.test.js', 'jsdom'],
       ['src/**/*.test.js', 'node'],
     ],
   },

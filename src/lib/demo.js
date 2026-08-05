@@ -1168,6 +1168,62 @@ export const demoListItems = [
   },
 ]
 
+// Notebook: a few sample notes. Bodies are sanitized HTML; @-mentions are chip
+// spans (data-type/data-id) mirrored into `mentions` for entity-page backlinks.
+const mentionChip = (type, id, label) =>
+  `<span class="mention" data-type="${type}" data-id="${id}" contenteditable="false">@${label}</span>`
+export const demoNotes = [
+  {
+    id: 'n-italy',
+    title: 'Italy trip — planning',
+    body:
+      `<div>Notes for the Italy trip. Booked through ${mentionChip('organization', 'o-summit', 'Summit Travel Co.')}.</div>` +
+      `<div><br></div>` +
+      `<div>Ask ${mentionChip('person', 'p-elena', 'Elena Vasquez')} for the Florence restaurant list.</div>` +
+      `<ul><li>Confirm train Rome → Florence</li><li>Travel insurance</li><li>Notify bank of travel dates</li></ul>`,
+    tags: ['travel', 'planning'],
+    mentions: [
+      { type: 'organization', id: 'o-summit' },
+      { type: 'person', id: 'p-elena' },
+    ],
+    privacy_level: 'shared',
+    pinned: true,
+    created_by: 'm-1',
+    created_at: daysAgo(4),
+    updated_at: daysAgo(1),
+  },
+  {
+    id: 'n-civic',
+    title: 'Neighborhood meeting',
+    body:
+      `<div>Recap from the ${mentionChip('group', 'g-civic', 'Civic Association')} meeting.</div>` +
+      `<ul class="checklist"><li class="checklist-item" data-checked="true">Share minutes</li><li class="checklist-item" data-checked="false">Follow up with ${mentionChip('person', 'p-david', 'David Okafor')} re: budget</li></ul>`,
+    tags: ['civic'],
+    mentions: [
+      { type: 'group', id: 'g-civic' },
+      { type: 'person', id: 'p-david' },
+    ],
+    privacy_level: 'shared',
+    pinned: false,
+    created_by: 'm-1',
+    created_at: daysAgo(6),
+    updated_at: daysAgo(3),
+  },
+  {
+    id: 'n-gift',
+    title: 'Gift ideas',
+    body: `<div>Birthday ideas for ${mentionChip('person', 'p-rita', 'Rita Hollis')} — she mentioned wanting a good kettle.</div>`,
+    tags: ['gifts'],
+    mentions: [{ type: 'person', id: 'p-rita' }],
+    // Private: created by the partner (m-2), so it must NOT show for "me" (m-1).
+    privacy_level: 'private',
+    pinned: false,
+    created_by: 'm-2',
+    created_at: daysAgo(2),
+    updated_at: daysAgo(2),
+  },
+]
+
 // Completion history — past check-offs of the recurring chores, so "last done"
 // + accountability has something to show.
 export const demoCompletions = [

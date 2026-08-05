@@ -67,3 +67,61 @@
 .list-row.project-list-row .list-emoji {
   font-size: 22px;
 }
+
+/* Start / Target date pickers: two inset fields that adapt to light & dark via
+   the theme tokens (the native calendar popup follows :root color-scheme). */
+.project-dates {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.project-date-field {
+  flex: 1 1 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.project-date-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+/* Fill, radius, focus ring and the tinted picker indicator all come from
+   primitives/forms.css, which styles every native date input. Only the width
+   is this layout's business. */
+.project-date-field input[type='date'] {
+  width: 100%;
+}
+
+/* Notes: a roomy, themed scratchpad that reads as one inset card. */
+.project-notes-card {
+  padding: 6px;
+}
+
+.project-notes-edit {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  padding: 12px 14px;
+  background: transparent;
+  color: var(--text);
+  border: none;
+  border-radius: var(--radius-sm);
+  outline: none;
+  resize: vertical;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.project-notes-edit::placeholder {
+  color: var(--text-3);
+}
+.project-notes-edit:focus {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}

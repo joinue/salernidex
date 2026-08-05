@@ -179,6 +179,7 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
     return (
       <SwipeRow
         actions={[
+          { label: 'Edit', icon: Edit2, onClick: open },
           { label: 'Delete', icon: Trash2, variant: 'danger', onClick: () => onDelete(it.id) },
         ]}
         onClick={open}
@@ -196,6 +197,7 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
   return (
     <SwipeRow
       actions={[
+        { label: 'Edit', icon: Edit2, onClick: open },
         { label: 'Delete', icon: Trash2, variant: 'danger', onClick: () => onDelete(it.id) },
       ]}
       onClick={open}
@@ -245,11 +247,11 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
     deleteList,
     reorderListItems,
   } = data
+  const confirm = useConfirm()
   const list = lists.find((l) => l.id === listId)
   const grocery = list?.kind === 'grocery'
   const [draft, setDraft] = useState('')
   const inputRef = useRef(null)
-  const { confirm, dialog } = useConfirm()
 
   const items = useMemo(() => {
     const mine = listItems.filter((it) => it.list_id === listId)
@@ -310,6 +312,19 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
     toggleListItem(it)
   }
 
+  const removeList = async () => {
+    const ok = await confirm({
+      title: `Delete “${list.name}”?`,
+      message: 'This removes the list and everything on it.',
+      confirmLabel: 'Delete',
+      danger: true,
+    })
+    if (ok) {
+      onBack()
+      deleteList(listId)
+    }
+  }
+
   const row = (it) => (
     <ListItemRow
       key={it.id}
@@ -332,33 +347,16 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
     <div className="detail">
       <NavBar backLabel="Lists" onBack={onBack} title={list.name}>
         <div className="list-detail-head">
-          <span className="list-emoji lg">{list.icon || (grocery ? '🛒' : '📝')}</span>
+          <span
+            className="list-emoji lg"
+            style={list.color ? { background: list.color } : undefined}
+          >
+            {list.icon || (grocery ? '🛒' : '📝')}
+          </span>
           <h1 className="person-name">{list.name}</h1>
           <div className="head-actions">
-            <IconButton
-              icon={Edit2}
-              variant="quiet"
-              onClick={() => onEdit(list)}
-              label="Edit list"
-            />
-            <IconButton
-              icon={Trash2}
-              variant="danger"
-              onClick={async () => {
-                const count = items.open.length + items.done.length
-                const ok = await confirm({
-                  title: `Delete "${list.name}"?`,
-                  message: count
-                    ? `${count} item${count === 1 ? '' : 's'} on it will go too. This can't be undone.`
-                    : "This can't be undone.",
-                  confirmLabel: 'Delete list',
-                })
-                if (!ok) return
-                onBack()
-                deleteList(listId)
-              }}
-              label="Delete list"
-            />
+            <IconButton icon={Edit2} onClick={() => onEdit(list)} label="Edit list" />
+            <IconButton icon={Trash2} variant="danger" onClick={removeList} label="Delete list" />
           </div>
         </div>
       </NavBar>
@@ -441,7 +439,6 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
           </button>
         </div>
       </div>
-      {dialog}
     </div>
   )
 }

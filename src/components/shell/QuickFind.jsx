@@ -13,6 +13,7 @@ import {
   Settings,
   Plus,
   Folder,
+  FileText,
   CornerDownLeft,
   Clock,
 } from 'react-feather'
@@ -44,6 +45,7 @@ const NAV_ICONS = {
 const TYPE_ICONS = {
   task: CheckSquare,
   project: Folder,
+  note: FileText,
   org: Briefcase,
   group: Users,
   action: Plus,

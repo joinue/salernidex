@@ -6,6 +6,11 @@
    ============================================================ */
 
 :root {
+  /* Tell the browser to render native controls (date pickers, scrollbars) in
+     light by default; the dark blocks below flip this so the OS calendar popup
+     and the date field's picker indicator follow the app's theme. */
+  color-scheme: light;
+
   /* Tells the engine which palette to draw native UI with — date/time pickers,
      their calendar popups, scrollbars, autofill. Without it those stay light on
      a black page, which is the one thing tokens alone can't repaint. Set
@@ -88,6 +93,7 @@
 /* Manual dark choice */
 :root[data-theme='dark'] {
   color-scheme: dark;
+  color-scheme: dark;
   --bg: #000000;
   --surface: #1c1c1e;
   --surface-2: #2c2c2e;
@@ -112,6 +118,7 @@
 /* System preference (unless user chose light explicitly) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
+    color-scheme: dark;
     color-scheme: dark;
     --bg: #000000;
     --surface: #1c1c1e;

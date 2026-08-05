@@ -151,7 +151,7 @@
    task, the NL parser previews what it read below. Mirrors the list dock's fast
    capture without owning the bottom of the screen (the FAB lives there). */
 .task-quickadd {
-  margin: 4px 0 14px;
+  margin: 16px 0 14px;
 }
 
 .task-quickadd-row {

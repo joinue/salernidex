@@ -71,7 +71,8 @@ async function run(label, viewport, mobile) {
     btn.click()
   })
   await page.waitForSelector('.sheet')
-  await page.getByText('Remind me in 3 days').click()
+  // The snooze sheet gained a custom day-count, so the presets read "In 3 days".
+  await page.getByText('In 3 days', { exact: true }).click()
   await page.waitForTimeout(350)
   const afterRows = (await page.$$('.list .list-row')).length
   console.log(
