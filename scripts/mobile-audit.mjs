@@ -54,7 +54,13 @@ const audit = () =>
     ]
     // The A–Z scrubber is a drag strip, not 27 buttons — 44px per letter would
     // be 1,188px tall. iOS Contacts sizes its index exactly this way.
-    const EXEMPT = '.alpha-index-letter'
+    //
+    // .qty-input is the text field *inside* the quantity Stepper. Its two
+    // neighbours are the real controls and they tap at 44; extending the field
+    // to match would push its hit area over theirs, which is the adjacency bug
+    // this audit exists to catch. Typing a custom quantity is the rare path.
+    // UIStepper is 29pt for the same reason.
+    const EXEMPT = '.alpha-index-letter, .qty-input'
     for (const el of controls) {
       if (el.matches(EXEMPT)) continue
       const r = el.getBoundingClientRect()
@@ -175,6 +181,57 @@ if (occ.length || small.length) {
   if (occ.length) console.log('  OCCLUDED CONTROL:\n    ' + occ.join('\n    '))
   if (small.length) console.log('  UNDER 44px:\n    ' + small.join('\n    '))
   failures += occ.length + small.length
+}
+
+// ---- expanded states -------------------------------------------------------
+//
+// Everything above only ever sees a screen at rest. The controls that drifted
+// smallest were the ones behind a tap: the list quantity stepper shipped at
+// 30px with no hit extension and no audit ever saw it, because opening an
+// inline editor was never part of the walk. Anything reachable by one tap from
+// a resting screen belongs in the sweep.
+const expanded = [
+  {
+    name: '/list/<id> item editor',
+    go: async () => {
+      await page.goto(`${BASE}/#/lists`)
+      await page.waitForTimeout(500)
+      await page.locator('.list-row').first().click()
+      await page.waitForTimeout(700)
+      await page.locator('.list-row .row-body').first().click()
+      await page.waitForSelector('.list-row.editing', { timeout: 4000 })
+      await page.waitForTimeout(400)
+    },
+  },
+  {
+    name: '/tasks expanded task',
+    go: async () => {
+      await page.goto(`${BASE}/#/tasks`)
+      await page.waitForTimeout(600)
+      await page.locator('.list-row .row-body').first().click()
+      await page.waitForTimeout(600)
+    },
+  },
+]
+
+for (const state of expanded) {
+  try {
+    await state.go()
+  } catch {
+    console.log(`\n${state.name}\n  SKIPPED (could not reach it)`)
+    continue
+  }
+  // Tap targets only. Occlusion is judged at the bottom of the scroll (see
+  // settleAtBottom) because anything overlapping mid-scroll can just be
+  // scrolled clear — and scrolling with an editor open blurs it shut, so the
+  // resting position can't be reached here. Sizes don't depend on scroll.
+  const r = await audit()
+  const s = [...new Set(r.small)]
+  if (s.length) {
+    console.log(`\n${state.name}`)
+    console.log('  UNDER 44px:\n    ' + s.join('\n    '))
+    failures += s.length
+  }
 }
 
 await browser.close()

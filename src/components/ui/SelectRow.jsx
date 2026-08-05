@@ -14,7 +14,16 @@ import Sheet from './Sheet'
 // and pushes a list of options. The list here is a Sheet, so the options are
 // always the topmost surface and nothing can be covered. It also sidesteps the
 // 16px zoom rule, because there's no text input involved at all.
-export default function SelectRow({ label, value, options, onChange, placeholder = 'Any' }) {
+// `onMouseDown` is forwarded so a caller that commits on blur (the list item
+// editor) can keep focus where it is while the options sheet opens.
+export default function SelectRow({
+  label,
+  value,
+  options,
+  onChange,
+  placeholder = 'Any',
+  onMouseDown,
+}) {
   const [open, setOpen] = useState(false)
   const current = options.find((o) => o.value === value)
   const isPlaceholder = !current || !current.value
@@ -25,6 +34,7 @@ export default function SelectRow({ label, value, options, onChange, placeholder
         type="button"
         className="select-row"
         aria-haspopup="dialog"
+        onMouseDown={onMouseDown}
         onClick={() => setOpen(true)}
       >
         <span className="select-row-label">{label}</span>

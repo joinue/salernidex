@@ -1,5 +1,36 @@
 import { describe, it, expect } from 'vitest'
-import { stepQty, hasQty, qtyLabel, parseQty, openCountsByList } from './listItems'
+import { stepQty, hasQty, qtyLabel, parseQty, openCountsByList, mergeQty } from './listItems'
+
+describe('mergeQty', () => {
+  it('treats blank as one', () => {
+    expect(mergeQty('', '')).toBe('2')
+    expect(mergeQty('2', '')).toBe('3')
+    expect(mergeQty('', '3')).toBe('4')
+  })
+
+  it('sums counts', () => {
+    expect(mergeQty('2', '3')).toBe('5')
+  })
+
+  it('keeps a shared unit', () => {
+    expect(mergeQty('2 lbs', '3 lbs')).toBe('5 lbs')
+    expect(mergeQty('2 lbs', '')).toBe('3 lbs')
+    expect(mergeQty('', '2 lbs')).toBe('3 lbs')
+  })
+
+  it('refuses to combine different units', () => {
+    expect(mergeQty('2 lbs', '3 oz')).toBeNull()
+  })
+
+  it('refuses anything it cannot count', () => {
+    expect(mergeQty('a dozen', '')).toBeNull()
+    expect(mergeQty('', 'a dozen')).toBeNull()
+  })
+
+  it('is case-insensitive about the unit', () => {
+    expect(mergeQty('2 LBS', '1 lbs')).toBe('3 lbs')
+  })
+})
 
 describe('openCountsByList', () => {
   const rows = [

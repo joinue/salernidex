@@ -73,6 +73,31 @@ export function parseQty(input) {
   return { qty: n, text: rest.trim() }
 }
 
+// Split a qty into a count and a unit, treating blank as one. Returns null for
+// something that can't be counted ("a dozen") — the caller decides what to do.
+function qtyParts(qty) {
+  const raw = (qty || '').trim()
+  if (!raw) return { n: 1, unit: '' }
+  const m = raw.match(/^(\d+)\s*(.*)$/)
+  if (!m) return null
+  return { n: parseInt(m[1], 10), unit: m[2].trim().toLowerCase() }
+}
+
+// Combine the qty already on a list with one being added again, for when the
+// same item is entered twice. Returns null when they can't be combined — a
+// non-numeric qty, or two different units ("2 lbs" + "3 oz") — and the caller
+// should then keep them as separate rows rather than invent a number.
+export function mergeQty(existing, added) {
+  const a = qtyParts(existing)
+  const b = qtyParts(added)
+  if (!a || !b) return null
+  if (a.unit && b.unit && a.unit !== b.unit) return null
+  const unit = a.unit || b.unit
+  const n = a.n + b.n
+  if (n <= 1 && !unit) return ''
+  return unit ? `${n} ${unit}` : String(n)
+}
+
 // Open (unchecked) item counts per list, for the index's "N items left".
 //
 // Section headings are rows in the same table but they are not items — counting

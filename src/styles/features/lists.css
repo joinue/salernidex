@@ -162,6 +162,10 @@
   border: none;
   outline: none;
   padding: 2px 0;
+  /* These are borderless, so their height came from the line box alone — 27px,
+     under the 34 a full-width control is allowed to shrink to. Wide enough to
+     hit easily, but not by the rule the rest of the app is held to. */
+  min-height: 34px;
 }
 .list-edit-text {
   font-size: 16px;
@@ -227,32 +231,19 @@
   border-radius: 999px;
 }
 
-/* Quantity stepper in the item editor (− N +). Freeform input so "2 lbs" works;
-   the buttons step the leading number. */
-.qty-stepper {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
+/* Quantity in the item editor. The control is the shared Stepper primitive —
+   this used to be a private copy with 30px buttons and no hit extension, the
+   one stepper in the app that missed the 44px rule. Only the freeform input
+   that replaces the primitive's read-only value is styled here, so "2 lbs"
+   still works while the buttons and sizing stay shared. */
+.list-row.editing .stepper {
+  align-self: flex-start;
   margin-top: 8px;
-  padding: 2px;
-  background: var(--fill);
-  border-radius: var(--radius-sm);
 }
-.qty-stepper button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: calc(var(--radius-sm) - 2px);
-  color: var(--text);
-}
-.qty-stepper button:active {
-  background: var(--fill-2);
-}
+
 .qty-input {
   width: 58px;
-  height: 30px;
+  height: 32px;
   background: transparent;
   border: none;
   outline: none;
@@ -260,6 +251,7 @@
   /* 16px or iOS zooms the page on focus. */
   font-size: 16px;
   font-weight: 600;
+  color: var(--text);
 }
 
 /* Quantity badge on a row ("×2", "2 lbs"). */

@@ -21,6 +21,7 @@ import {
 import { completionFields, skipFields } from '../lib/tasks'
 import { categorize } from '../lib/aisles'
 import { buildCatalog, bumpCatalog, catalogKey } from '../lib/catalog'
+import { mergeQty, qtyLabel } from '../lib/listItems'
 import { currentMember, currentMemberId, getHousehold, isSolo } from '../lib/household'
 import { entryMap, currentStreak, isScheduled, isSuccess, isWeekly, toISODate } from '../lib/habits'
 import haptics from '../lib/haptics'
@@ -830,6 +831,34 @@ export function useData(session) {
     // Grocery lists file each item into an aisle on the way in (overridable). A
     // suggestion supplies its remembered aisle; otherwise guess from the text.
     const category = categoryOverride ?? (list?.kind === 'grocery' ? categorize(text) : null)
+
+    // Adding something already open on the list bumps its quantity instead of
+    // laying down a second identical row — you don't want two "milk" lines on
+    // a shopping list, you want two milk. Suggestions already hide duplicates,
+    // so typing the name and pressing Enter was the only way to make one.
+    // mergeQty returns null when the two can't be combined ("2 lbs" + "3 oz"),
+    // and then a separate row is the honest answer.
+    const dupe = listItems.find(
+      (it) =>
+        it.list_id === listId &&
+        !it.checked_at &&
+        !it.is_heading &&
+        catalogKey(it.text) === catalogKey(text),
+    )
+    if (dupe) {
+      const merged = mergeQty(dupe.qty, qty)
+      if (merged !== null) {
+        const before = dupe.qty ?? null
+        updateListItem(dupe.id, { qty: merged || null })
+        if (list) recordCatalog(list, text, category)
+        showToast(`Already on the list — now ${qtyLabel(merged) || '×1'}`, {
+          actionLabel: 'Undo',
+          onAction: () => updateListItem(dupe.id, { qty: before }),
+        })
+        return
+      }
+    }
+
     const rowId = uuid()
     const row = { id: rowId, list_id: listId, text, note, qty, category, assignee }
     setListItems((prev) => [
@@ -925,10 +954,13 @@ export function useData(session) {
   const clearCheckedItems = (listId) => {
     const gone = listItems.filter((it) => it.list_id === listId && it.checked_at)
     if (!gone.length) return
-    setListItems((prev) => prev.filter((it) => !(it.list_id === listId && it.checked_at)))
-    sync(() =>
-      supabase.from('list_items').delete().eq('list_id', listId).not('checked_at', 'is', null),
-    )
+    const goneIds = gone.map((it) => it.id)
+    setListItems((prev) => prev.filter((it) => !goneIds.includes(it.id)))
+    // Delete exactly the rows we captured, not "everything checked on this
+    // list". A housemate checking something off between this snapshot and the
+    // request would otherwise have their item deleted too — and Undo, which
+    // only knows about `gone`, could not bring it back.
+    sync(() => supabase.from('list_items').delete().in('id', goneIds))
     showToast(`Cleared ${gone.length} ${gone.length === 1 ? 'item' : 'items'}`, {
       actionLabel: 'Undo',
       onAction: () => {

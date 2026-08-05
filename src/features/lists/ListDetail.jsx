@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Minus, Plus, Trash2, Edit2 } from 'react-feather'
+import { Check, Plus, Trash2, Edit2 } from 'react-feather'
 import SwipeRow from '../../components/ui/SwipeRow'
 import ReorderableList from '../../components/ui/ReorderableList'
 import Avatar from '../../components/ui/Avatar'
-import { useConfirm } from '../../hooks/useConfirm'
 import { byOrder, moveUpdates } from '../../lib/order'
 import { groupByAisle, AISLES, OTHER } from '../../lib/aisles'
 import { suggestItems } from '../../lib/catalog'
@@ -14,6 +13,11 @@ import NavBar from '../../components/ui/NavBar'
 import SectionLabel from '../../components/ui/SectionLabel'
 import EmptyState from '../../components/ui/EmptyState'
 import IconButton from '../../components/ui/IconButton'
+import SelectRow from '../../components/ui/SelectRow'
+import Stepper from '../../components/ui/Stepper'
+<<<<<<< Updated upstream
+=======
+>>>>>>> Stashed changes
 
 // One row of a list. Tap the text to edit it inline (text, an optional note, a
 // quantity, plus an aisle picker on grocery items and a "who's grabbing it"
@@ -31,6 +35,7 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
   const [category, setCategory] = useState(it.category || OTHER)
   const [assignee, setAssignee] = useState(it.assignee || 'anyone')
   const textRef = useRef(null)
+  const editorRef = useRef(null)
 
   const open = () => {
     setText(it.text)
@@ -42,7 +47,14 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
   }
 
   useEffect(() => {
-    if (editing) textRef.current?.focus()
+    if (!editing) return
+    textRef.current?.focus()
+    // Focusing the text field only guarantees the *top* of the editor is
+    // visible. On a small phone the rest of it opened underneath the add dock
+    // with no way to scroll it back. `nearest` isn't enough either: the dock is
+    // a sticky overlay, so the browser counts the band behind it as visible and
+    // scrolls 11px short. Centring clears it on every size.
+    editorRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [editing])
 
   const commit = () => {
@@ -86,11 +98,17 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
   if (editing) {
     return (
       <div
+        ref={editorRef}
         className="list-row editing"
         // Save when focus leaves the whole editor (tap away / blur), but not
-        // while moving between the fields inside it.
+        // while moving between the fields inside it — and not when it moves
+        // into an overlay this editor opened. The aisle sheet is portaled to
+        // <body>, so `contains` is false for it and committing here would
+        // unmount the editor, and the sheet with it, mid-choice.
         onBlur={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget)) commit()
+          const to = e.relatedTarget
+          if (to && (e.currentTarget.contains(to) || to.closest?.('.sheet-overlay'))) return
+          commit()
         }}
       >
         <div className="row-body">
@@ -113,47 +131,33 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
             />
           )}
           {!heading && (
-            <div className="qty-stepper">
-              <button
-                type="button"
-                onMouseDown={keepFocus}
-                onClick={() => setQty(stepQty(qty, -1))}
-                aria-label="Decrease quantity"
-              >
-                <Minus size={15} />
-              </button>
-              <input
-                className="qty-input"
-                value={qty}
-                onChange={(e) => setQty(e.target.value)}
-                onKeyDown={onKey}
-                placeholder="Qty"
-                aria-label="Quantity"
-              />
-              <button
-                type="button"
-                onMouseDown={keepFocus}
-                onClick={() => setQty(stepQty(qty, 1))}
-                aria-label="Increase quantity"
-              >
-                <Plus size={15} />
-              </button>
-            </div>
+            <Stepper
+              label="quantity"
+              onMouseDown={keepFocus}
+              onStep={(d) => setQty(stepQty(qty, d))}
+              renderValue={() => (
+                <input
+                  className="qty-input"
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                  onKeyDown={onKey}
+                  placeholder="Qty"
+                  aria-label="Quantity"
+                />
+              )}
+            />
           )}
+          {/* Twelve aisles as chips wrapped to five rows on an iPhone SE and
+              pushed the bottom of this editor under the add dock, where it
+              couldn't be scrolled back into view. A drill-in row is one line. */}
           {grocery && !heading && (
-            <div className="chips aisle-chips">
-              {AISLES.map((a) => (
-                <button
-                  key={a}
-                  type="button"
-                  onMouseDown={keepFocus}
-                  className={`chip ${category === a ? 'accent' : ''}`}
-                  onClick={() => setCategory(a)}
-                >
-                  {a}
-                </button>
-              ))}
-            </div>
+            <SelectRow
+              label="Aisle"
+              value={category}
+              onChange={setCategory}
+              onMouseDown={keepFocus}
+              options={AISLES.map((a) => ({ value: a, label: a }))}
+            />
           )}
           {!solo && !heading && (
             <div className="chips assignee-edit-chips">
@@ -252,7 +256,6 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
     deleteList,
     reorderListItems,
   } = data
-  const confirm = useConfirm()
   const list = lists.find((l) => l.id === listId)
   const grocery = list?.kind === 'grocery'
   const [draft, setDraft] = useState('')
@@ -317,17 +320,13 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
     toggleListItem(it)
   }
 
-  const removeList = async () => {
-    const ok = await confirm({
-      title: `Delete “${list.name}”?`,
-      message: 'This removes the list and everything on it.',
-      confirmLabel: 'Delete',
-      danger: true,
-    })
-    if (ok) {
-      onBack()
-      deleteList(listId)
-    }
+  // No confirm dialog: deleteList raises an Undo toast that restores the list
+  // and every item on it, which is the native pattern and strictly better than
+  // a prompt. The index's swipe-to-delete already worked this way, so asking
+  // here and not there was the only inconsistency.
+  const removeList = () => {
+    onBack()
+    deleteList(listId)
   }
 
   const row = (it) => (
