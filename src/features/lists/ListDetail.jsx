@@ -203,13 +203,18 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
       onClick={open}
     >
       <div className="list-row">
+        {/* Every checkbox on the list used to announce itself as "Toggle", so a
+            screen-reader user heard the same word N times with no item and no
+            state. A checkbox role carries the state; the name carries which. */}
         <button
           className={`task-check ${it.checked_at ? 'done' : ''}`}
           onClick={(e) => {
             e.stopPropagation()
             onToggle(it)
           }}
-          aria-label="Toggle"
+          role="checkbox"
+          aria-checked={!!it.checked_at}
+          aria-label={it.text}
         >
           <Check size={15} />
         </button>
@@ -404,12 +409,17 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
             <Plus size={14} /> Add section
           </button>
         )}
+        {/* A listbox's children have to be options — as plain buttons they were
+            announced as an empty list. Kept as <button> for the tap behaviour,
+            relabelled so AT sees the choices. */}
         {suggestions.length > 0 && (
           <div className="list-suggest" role="listbox" aria-label="Suggestions">
             {suggestions.map((s) => (
               <button
                 key={s.norm}
                 type="button"
+                role="option"
+                aria-selected="false"
                 className="list-suggest-item"
                 onClick={() => pickSuggestion(s)}
               >
@@ -426,6 +436,7 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Add an item…"
+            aria-label={`Add an item to ${list.name}`}
             enterKeyHint="done"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {

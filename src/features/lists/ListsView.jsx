@@ -3,6 +3,7 @@ import { ChevronRight, Plus, ShoppingCart, Edit2, Trash2 } from 'react-feather'
 import PageHeader from '../../components/shell/PageHeader'
 import SharedDot from '../../components/ui/SharedDot'
 import { dueLabel, dueState } from '../../lib/tasks'
+import { openCountsByList } from '../../lib/listItems'
 import EmptyState from '../../components/ui/EmptyState'
 import SwipeRow from '../../components/ui/SwipeRow'
 
@@ -12,11 +13,7 @@ import SwipeRow from '../../components/ui/SwipeRow'
 export default function ListsView({ data, onOpenList, onEditList, onAdd, onSearch }) {
   const { lists, listItems, tasks, deleteList } = data
 
-  const counts = useMemo(() => {
-    const open = {}
-    for (const it of listItems) if (!it.checked_at) open[it.list_id] = (open[it.list_id] || 0) + 1
-    return open
-  }, [listItems])
+  const counts = useMemo(() => openCountsByList(listItems), [listItems])
 
   // Project titles, so a project-scoped list can show "for «Kitchen Reno»" —
   // the same list lives here and inside its project (lists.project_id).

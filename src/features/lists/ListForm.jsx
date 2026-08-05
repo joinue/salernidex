@@ -21,7 +21,9 @@ const KIND_OPTIONS = [
 export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'family_shared' }) {
   const [name, setName] = useState(list?.name || '')
   const [kind, setKind] = useState(list?.kind || 'standard')
-  const [icon, setIcon] = useState(list?.icon || '🛒')
+  // Default to the icon that matches the type, not always the cart — a new
+  // standard list ("Packing") was shipping with a grocery trolley on it.
+  const [icon, setIcon] = useState(list?.icon || (list?.kind === 'grocery' ? '🛒' : '📝'))
   const [color, setColor] = useState(list?.color || COLORS[0])
   const [privacy, setPrivacy] = useState(
     list?.privacy_level || (isSolo() ? PRIVATE_LEVEL : defaultPrivacy),
@@ -36,6 +38,13 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
 
   const submit = async (e) => {
     e.preventDefault()
+    // `required` only rejects an empty string, so a name of spaces passes it
+    // and lands as an untitled row.
+    const cleanName = name.trim()
+    if (!cleanName) {
+      setError('Give the list a name.')
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -43,7 +52,7 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
       const remind = !!dueDate && reminderEnabled
       await onSave(
         {
-          name,
+          name: cleanName,
           icon,
           color,
           // kind is fixed at creation — a list's grouping model can't flip later
@@ -88,7 +97,9 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
               value={kind}
               onChange={(v) => {
                 setKind(v)
-                if (v === 'grocery') setIcon('🛒')
+                // Follow the type in both directions, but never overwrite an
+                // icon the user picked themselves.
+                if (icon === '🛒' || icon === '📝') setIcon(v === 'grocery' ? '🛒' : '📝')
               }}
             />
             <p className="muted" style={{ fontSize: 13, margin: '6px 2px 0' }}>

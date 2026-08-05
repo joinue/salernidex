@@ -73,6 +73,20 @@ export function parseQty(input) {
   return { qty: n, text: rest.trim() }
 }
 
+// Open (unchecked) item counts per list, for the index's "N items left".
+//
+// Section headings are rows in the same table but they are not items — counting
+// them made "Add section" bump a standard list from "4 items left" to "5", which
+// is the kind of number a user quietly stops trusting.
+export function openCountsByList(listItems) {
+  const open = {}
+  for (const it of listItems || []) {
+    if (it.checked_at || it.is_heading) continue
+    open[it.list_id] = (open[it.list_id] || 0) + 1
+  }
+  return open
+}
+
 // Whether a qty is worth showing on the row: anything set and not just "1".
 export function hasQty(qty) {
   const raw = (qty || '').trim()

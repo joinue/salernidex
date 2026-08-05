@@ -1,5 +1,33 @@
 import { describe, it, expect } from 'vitest'
-import { stepQty, hasQty, qtyLabel, parseQty } from './listItems'
+import { stepQty, hasQty, qtyLabel, parseQty, openCountsByList } from './listItems'
+
+describe('openCountsByList', () => {
+  const rows = [
+    { list_id: 'a', text: 'milk' },
+    { list_id: 'a', text: 'eggs' },
+    { list_id: 'a', text: 'done', checked_at: '2026-08-01T10:00:00Z' },
+    { list_id: 'a', text: 'Clothes', is_heading: true },
+    { list_id: 'b', text: 'hammer' },
+  ]
+
+  it('counts only unchecked items, per list', () => {
+    expect(openCountsByList(rows)).toEqual({ a: 2, b: 1 })
+  })
+
+  it('does not count section headings as items', () => {
+    const withHeading = [...rows, { list_id: 'b', text: 'Toiletries', is_heading: true }]
+    expect(openCountsByList(withHeading).b).toBe(1)
+  })
+
+  it('omits a list with nothing open rather than reporting zero', () => {
+    expect(openCountsByList([{ list_id: 'c', checked_at: '2026-08-01T10:00:00Z' }])).toEqual({})
+  })
+
+  it('handles no rows', () => {
+    expect(openCountsByList([])).toEqual({})
+    expect(openCountsByList(undefined)).toEqual({})
+  })
+})
 
 describe('stepQty', () => {
   it('treats blank as one: up → 2, down → blank', () => {
