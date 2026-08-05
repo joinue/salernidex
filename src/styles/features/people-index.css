@@ -1,0 +1,157 @@
+/* ---------- People A–Z browse (Apple Contacts style) ---------- */
+
+.people-browse {
+  position: relative;
+}
+
+.people-section {
+  margin-bottom: 16px;
+}
+
+/* Letter header that pins to the top of the scroll area as you browse, so you
+   always know which section you're in. */
+.people-section-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  padding: 4px 4px 6px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--text-2);
+}
+
+/* The vertical scrubber, pinned to the right edge and vertically centered.
+   A touch affordance — shown only on phones (see the 720px breakpoint);
+   desktop relies on the sticky letter heads + search, like Mac Contacts. */
+.alpha-index {
+  /* Strip height: the natural size is ~432px (27 letters), but never taller
+     than the dynamic viewport minus room for the header + tab bar, so A and #
+     can't run off the top/bottom edge on short screens. Each letter is an
+     explicit 1/27 share of this height (--alpha-h), so the strip always fits
+     exactly — no reliance on flex-shrink. */
+  --alpha-h: min(432px, calc(100dvh - 96px));
+  position: fixed;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  height: var(--alpha-h);
+  padding: 0 3px;
+  touch-action: none;
+  user-select: none;
+}
+
+/* Letters are deliberately exempt from the 44px rule (the audit skips them).
+   This is a scrubber, not 27 buttons: you land anywhere on the strip and drag,
+   the same way iOS Contacts works — a 44px-per-letter index would be 1,188px
+   tall. What it does need is a wide enough *strip* to land on, which is what
+   the negative-margin bleed below buys without moving the glyphs. */
+.alpha-index-letter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: calc(var(--alpha-h) / 27);
+  overflow: hidden;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+/* Widen the grabbable strip to ~34px without widening the glyph column, so a
+   thumb reaching for the edge of the screen still catches it. */
+.alpha-index::before {
+  content: '';
+  position: absolute;
+  inset: -8px -6px -8px -12px;
+}
+
+.alpha-index-letter.dim {
+  color: var(--text-3);
+}
+
+/* Tasks page area filter: a thin, horizontally-scrollable pill row that only
+   appears once tasks have areas. Tasks stay due-date sorted; this just narrows. */
+.area-filter {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.area-filter::-webkit-scrollbar {
+  display: none;
+}
+
+.area-pill {
+  flex: none;
+  background: var(--fill);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 5px 13px;
+  border-radius: 999px;
+  white-space: nowrap;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.area-pill.on {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* The area tag shown inline on a task row — quiet, so due/assignee still lead. */
+.chip.area {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Section label with a trailing link (e.g. "Recent activity · See all"). */
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.section-head .section-label {
+  margin-right: 0;
+}
+
+.see-all {
+  background: none;
+  border: none;
+  padding: 4px;
+  margin-right: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.see-all:active {
+  opacity: 0.6;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.muted {
+  color: var(--text-2);
+}

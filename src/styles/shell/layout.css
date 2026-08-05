@@ -1,0 +1,49 @@
+/* ---------- layout ---------- */
+
+.layout {
+  display: flex;
+  height: 100%;
+}
+
+.main {
+  /* Published as variables because sticky children inside this scroller have
+     to cancel them out: the bottom by .list-add-dock, the top by .navbar. */
+  --main-pad-t: 24px;
+  --main-pad-b: 96px;
+  --main-pad-x: 32px;
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--main-pad-t) var(--main-pad-x) var(--main-pad-b);
+  scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.content {
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+/* Today dashboard: single column by default (phone + portrait tablet). On
+   wide screens the four sections flow into two balanced columns so a
+   landscape / wall-mounted iPad fills its width instead of stranding half
+   the screen in an empty gutter. The header + search bar stay full width
+   (they live outside .today-dashboard). */
+@media (min-width: 1000px) {
+  .content:has(.today-dashboard) {
+    max-width: 1080px;
+  }
+  .today-dashboard {
+    columns: 2;
+    column-gap: 28px;
+  }
+  .today-dashboard .today-section {
+    break-inside: avoid;
+    /* The first section in each column already gets its 24px label margin;
+       keep the very first one from double-spacing under the search bar. */
+    display: block;
+  }
+  .today-dashboard .today-section:first-child .section-label {
+    margin-top: 4px;
+  }
+}

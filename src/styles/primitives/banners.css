@@ -1,0 +1,173 @@
+/* ---------- banners + states ---------- */
+
+/* One line, never wrapping, on every route. It's a persistent status marker,
+   so it's sized like one: the old two-line paragraph repeated the same 18 words
+   on 15 screens and cost 49px each time. */
+.demo-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+  background: var(--fill);
+  border-radius: 999px;
+  padding: 4px 12px;
+  margin-bottom: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.demo-banner strong {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--orange);
+}
+
+.error-text {
+  color: var(--danger);
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+
+/* Non-blocking duplicate-detection banner in the person form. */
+.dup-warning {
+  margin: -4px 0 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 149, 0, 0.1);
+  border: 1px solid rgba(255, 149, 0, 0.28);
+}
+
+.dup-warning-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--orange);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dup-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dup-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+}
+
+.dup-row + .dup-row {
+  border-top: 1px solid var(--separator);
+}
+
+.dup-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.dup-row-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.dup-row-meta {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dup-row-view {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Per-row skip/import choice in the CSV import duplicate review. */
+.dup-import-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.dup-import-row + .dup-import-row {
+  border-top: 1px solid var(--separator);
+}
+
+.dup-import-row .row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.dup-import-row .segmented {
+  flex-shrink: 0;
+  width: 150px;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 15px;
+  padding: 48px 24px;
+}
+
+.empty .empty-icon {
+  color: var(--text-3);
+  margin-bottom: 6px;
+}
+
+.empty-inline {
+  color: var(--text-2);
+  font-size: 14px;
+  padding: 16px 14px;
+  background: var(--surface);
+}
+
+.empty p {
+  margin: 0;
+}
+
+/* An empty state that offers the create it's describing. A dead end with no way
+   forward is the most common way an empty screen goes wrong.
+   Stretched, not shrink-to-fit: as a centered flex item it would size to its
+   content's *min-content* width, so a row of nowrap chips would blow the box
+   past the viewport and centre it half off-screen. Stretching pins it to the
+   column width so wide children lay out against the page; text-align keeps a
+   plain button centred as before. */
+.empty-action {
+  align-self: stretch;
+  margin-top: 12px;
+  text-align: center;
+}
+
+/* Full-width commit button, used at the foot of a form sheet. */
+.btn-full {
+  width: 100%;
+  justify-content: center;
+}

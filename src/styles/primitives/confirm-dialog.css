@@ -1,0 +1,118 @@
+/* ---------- confirm dialog (centered alert) ---------- */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 60;
+  animation: fade-in 160ms ease-out;
+}
+
+.confirm-dialog {
+  width: 100%;
+  max-width: 300px;
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 22px 20px 16px;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  animation: pop-in 200ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.confirm-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.confirm-message {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.confirm-btn {
+  flex: 1;
+  height: 44px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  background: var(--fill);
+  color: var(--text);
+  transition:
+    transform 120ms ease,
+    opacity 120ms ease;
+}
+
+.confirm-btn.primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.confirm-btn.danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.confirm-btn:active {
+  transform: scale(0.96);
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.modal-grip {
+  display: none;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.modal-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+}
+
+.modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--text-2);
+  background: var(--fill);
+  border-radius: 50%;
+  transition: transform 120ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.modal-close:hover {
+  color: var(--text);
+}
+
+.modal-close:active {
+  transform: scale(0.88);
+  color: var(--text);
+}

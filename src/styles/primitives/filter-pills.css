@@ -1,0 +1,111 @@
+/* ---------- inline filter pills (scrollable on mobile) ---------- */
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.filter-select {
+  height: 32px;
+  max-width: 200px;
+  padding: 0 28px 0 12px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--fill)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a8a8e' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")
+    no-repeat right 11px center;
+  border: none;
+  border-radius: 999px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+
+.filter-clear {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--accent);
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+.filter-clear:hover {
+  background: var(--accent-soft);
+}
+
+.filter-clear:active {
+  background: var(--accent-soft);
+  opacity: 0.6;
+}
+
+/* compact filter trigger + sheet */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--fill);
+  border-radius: 999px;
+  transition: background 120ms ease;
+}
+
+.filter-btn:active {
+  transform: scale(0.97);
+  opacity: 0.85;
+}
+
+.filter-btn svg {
+  color: var(--text-2);
+}
+
+.filter-btn.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.filter-btn.on svg {
+  color: var(--accent);
+}
+
+.filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.filter-sheet {
+  padding: 4px 4px 8px;
+}
+
+.filter-sheet-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}

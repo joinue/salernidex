@@ -1,0 +1,72 @@
+/* ---------- toasts (transient confirmations + undo) ---------- */
+
+.toasts {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 70;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  max-width: 420px;
+  background: #2c2c2e; /* dark pill in both themes, iOS-style */
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-pop);
+  font-size: 14px;
+  animation: toast-in 240ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
+}
+
+.toast.leaving {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.toast.error {
+  background: var(--danger);
+}
+
+.toast-msg {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast-action {
+  flex-shrink: 0;
+  margin-left: 14px;
+  color: #7db8ff; /* readable accent on the dark pill */
+  font-size: 14px;
+  font-weight: 600;
+  padding: 2px 0;
+}
+
+.toast.error .toast-action {
+  color: #fff;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+}
+
+@media (max-width: 720px) {
+  /* clear the tabbar + FAB */
+  .toasts {
+    bottom: calc(98px + env(safe-area-inset-bottom));
+  }
+}

@@ -1,0 +1,95 @@
+/* ---------- navigation bar (detail screens) ---------- */
+
+/* Sticky frosted strip: Back stays reachable however far the page scrolls. The
+   negative margins let it span the content gutter so the blur reads as chrome
+   rather than as a card; the top offset cancels .main's own padding so it sits
+   flush under the status bar / notch. */
+.navbar {
+  position: sticky;
+  top: calc(-1 * var(--main-pad-t));
+  z-index: var(--z-sticky);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin: calc(-1 * var(--main-pad-t)) calc(-1 * var(--main-pad-x)) 8px;
+  padding: var(--main-pad-t) var(--main-pad-x) 0;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  -webkit-backdrop-filter: var(--header-blur);
+  backdrop-filter: var(--header-blur);
+}
+
+.navbar-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  justify-self: start;
+  min-height: var(--tap-min);
+  margin-left: -6px;
+  font-size: 16px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.navbar-back:active {
+  opacity: 0.5;
+}
+
+/* The compact title only exists once the large one has scrolled behind the bar.
+   Fading + a small rise mirrors the iOS handoff between the two. */
+.navbar-title {
+  justify-self: center;
+  max-width: 60vw;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity var(--dur-2) ease,
+    transform var(--dur-2) var(--ease-ios);
+}
+
+.navbar-title.shown {
+  opacity: 1;
+  transform: none;
+}
+
+.navbar-actions {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  /* 12px minimum so adjacent 44px hit areas can't overlap — see base.css. */
+  gap: 12px;
+}
+
+/* A hairline appears only once something has scrolled under the bar, so a page
+   at rest has no line cutting across it. */
+.navbar::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 0.5px;
+  background: var(--separator);
+  opacity: 0;
+  transition: opacity var(--dur-2) ease;
+}
+
+.navbar:has(.navbar-title.shown)::after {
+  opacity: 1;
+}
+
+.navbar-large {
+  padding-top: 4px;
+}
+
+@media (max-width: 720px) {
+  .navbar {
+    margin-bottom: 6px;
+  }
+}

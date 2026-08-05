@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
-import './styles.css'
+import './styles/index.css'
 
 // Apply saved theme before first paint to avoid a flash
 const savedTheme = localStorage.getItem('salernidex-theme')

@@ -1,0 +1,32 @@
+/* ---------- drag-to-reorder ---------- */
+
+.reorder-row {
+  position: relative;
+}
+
+/* dividers re-homed onto the wrapper's content (the bare :not(:last-child)
+   row rules can't see through the wrapper) */
+.list > .reorder-row:not(:last-child) > .list-row,
+.list > .reorder-row:not(:last-child) > div > .list-row:last-child,
+.list > .reorder-row:not(:last-child) .swipe-content {
+  border-bottom: 0.5px solid var(--separator);
+}
+
+.reorder-row.lifted {
+  z-index: 5;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  cursor: grabbing;
+}
+
+.reorder-row.lifted > .list-row,
+.reorder-row.lifted .swipe-content {
+  border-bottom: none !important;
+}
+
+/* reorder group nested inside an existing .list card (project subtasks) */
+.reorder-plain > .reorder-row:not(:last-child) > .list-row,
+.reorder-plain > .reorder-row:not(:last-child) > div > .list-row:last-child {
+  border-bottom: 0.5px solid var(--separator);
+}

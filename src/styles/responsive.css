@@ -1,0 +1,136 @@
+/* ---------- mobile ---------- */
+
+@media (max-width: 720px) {
+  .main {
+    /* Top inset keeps content clear of the notch/Dynamic Island. env() is 0 in
+       normal Safari-with-toolbar, so this is a no-op there and only kicks in
+       when a real top inset exists (standalone, device emulation).
+       Bottom is derived from the chrome tokens — never a literal, or the last
+       row ends up under the FAB (which is exactly what used to happen). */
+    --main-pad-t: calc(12px + env(safe-area-inset-top));
+    --main-pad-b: var(--content-bottom);
+    --main-pad-x: 14px;
+    padding: var(--main-pad-t) var(--main-pad-x) var(--main-pad-b);
+    touch-action: pan-y; /* vertical scroll native; horizontal stays ours (edge-back) */
+  }
+
+  /* A screen with its own docked composer hides the FAB (List detail), so it
+     only has to clear the tab pill — the dock supplies the reach itself. The
+     extra 12px is the gap the dock then parks in. */
+  .main:has(.list-add-dock) {
+    --main-pad-b: calc(var(--chrome-bottom) + 12px);
+  }
+
+  /* iOS Safari zooms the page when focusing inputs under 16px — never let
+     a text input drop below that on touch screens. */
+  input,
+  textarea {
+    font-size: 16px;
+  }
+
+  .content {
+    max-width: 100%;
+  }
+
+  .large-title,
+  .page-title {
+    font-size: 32px;
+  }
+
+  .demo-banner {
+    margin-bottom: 10px;
+  }
+
+  /* Search sticks under a frosted bar while results scroll */
+  .search-wrap {
+    position: sticky;
+    top: -12px;
+    z-index: 10;
+    background: var(--bg);
+    padding: 10px 0;
+    margin: -10px 0 8px;
+  }
+
+  /* Phones get the A–Z scrubber; pin letter heads just below the sticky search
+     bar and keep rows clear of the scrubber on the right. */
+  .alpha-index {
+    display: flex;
+  }
+
+  .people-browse {
+    padding-right: 18px;
+  }
+
+  .people-section-head {
+    top: 48px;
+  }
+
+  .search-input {
+    height: 40px;
+  }
+
+  /* Filters wrap onto multiple rows so nothing is clipped off-screen */
+  .filter-row {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .filter-select {
+    height: 34px;
+    max-width: 47vw;
+  }
+
+  .filter-clear {
+    height: 34px;
+  }
+
+  /* Editing modal becomes a bottom sheet with a drag handle */
+  .modal-overlay {
+    align-items: flex-end;
+  }
+
+  .modal {
+    width: 100%;
+    max-width: 100vw;
+    height: auto;
+    max-height: 92%;
+    border-radius: 16px 16px 0 0;
+    padding: 8px var(--modal-pad-x) var(--modal-pad-b);
+    animation: sheet-up 320ms cubic-bezier(0.32, 0.72, 0, 1);
+    will-change: transform;
+    /* Clip any wide field (native date input, picker rows) so the sheet can't
+       be panned sideways, and keep touch gestures vertical-only. */
+    overflow-x: hidden;
+    touch-action: pan-y;
+  }
+
+  .modal-top {
+    margin: 0 -20px;
+    padding: 0 20px;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  .modal-top:active {
+    cursor: grabbing;
+  }
+
+  .modal-grip {
+    display: block;
+    margin: 0 0 2px;
+    padding: 4px 0;
+  }
+
+  .modal-grip .sheet-handle {
+    margin: 4px auto 8px;
+  }
+}
+
+/* Touch: surface remove affordances, give :active feedback */
+@media (hover: none) {
+  .list-row:active,
+  .value-row:active {
+    background: var(--fill);
+  }
+}

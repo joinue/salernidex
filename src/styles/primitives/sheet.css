@@ -1,0 +1,99 @@
+/* ---------- bottom sheets ---------- */
+
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  animation: fade-in 200ms ease-out;
+}
+
+.sheet {
+  background: var(--surface);
+  border-radius: 16px 16px 0 0;
+  padding: 6px 12px calc(16px + env(safe-area-inset-bottom));
+  animation: sheet-up 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  overscroll-behavior: contain;
+  /* The sheet isn't a scroll container (it grows with its content), so let our
+     pointer drag own every vertical gesture across the whole body — not just
+     the grip. `pan-y` here would hand vertical pans to the browser, which then
+     bleeds them to the page behind (the sheet is portaled outside `.main`) and
+     fires pointercancel before our drag-to-dismiss can engage. */
+  touch-action: none;
+  will-change: transform;
+}
+
+/* the draggable grab zone (handle + title) at the top of a sheet */
+.sheet-grip {
+  touch-action: none;
+  cursor: grab;
+}
+
+.sheet-handle {
+  width: 36px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--separator-strong);
+  margin: 8px auto 12px;
+}
+
+.sheet-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-2);
+  padding: 4px 12px 8px;
+}
+
+.sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 54px;
+  padding: 0 12px;
+  font-size: 17px;
+  color: var(--text);
+  border-radius: 12px;
+  text-align: left;
+}
+
+.sheet-item:active {
+  background: var(--fill);
+}
+
+.sheet-item svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* Keeps unselected rows aligned with the checkmark on the selected one. */
+.sheet-item-spacer {
+  width: 20px;
+  flex-shrink: 0;
+}
+
+.sheet-item.danger,
+.sheet-item.danger svg {
+  color: var(--danger);
+}
+
+/* Visual break before a destructive item (e.g. Logout). */
+.sheet-divider {
+  height: 1px;
+  background: var(--separator, var(--fill));
+  margin: 6px 12px;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}

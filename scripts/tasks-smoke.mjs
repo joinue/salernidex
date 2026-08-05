@@ -35,8 +35,11 @@ async function run(label, viewport, mobile) {
   await page.waitForTimeout(200)
   await page.screenshot({ path: `${shots}/${label}-tasks-1.png` })
 
-  // Project → full-page ProjectDetail (subtasks + related contacts)
-  await page.getByText('Fix the leaky bathroom faucet').click()
+  // Project → full-page ProjectDetail (subtasks + related contacts). Projects
+  // live on their own page now (they were split out of Tasks), so open it there.
+  await page.goto('http://localhost:5173/#/projects')
+  await page.waitForSelector('.list-row, .project-card')
+  await page.getByText('Fix the leaky bathroom faucet').first().click()
   await page.waitForSelector('.detail .section-label')
   console.log(`[${label}] project URL: ${page.url().includes('/project/') ? 'ok' : page.url()}`)
   const subs = await page.$$eval('.list-row.sub .row-title', (e) =>
@@ -51,8 +54,9 @@ async function run(label, viewport, mobile) {
   await page.waitForTimeout(200)
   await page.screenshot({ path: `${shots}/${label}-tasks-2-project.png` })
 
-  // Back, then a plain task expands inline
-  await page.goBack()
+  // Back to Tasks (goBack would land on Projects now), then a plain task
+  // expands inline.
+  await page.goto('http://localhost:5173/#/tasks')
   await page.waitForSelector('.list-row')
   await page.getByText('Call David about the polisher quote').click()
   await page.waitForSelector('.task-expand')

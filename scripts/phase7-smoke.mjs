@@ -61,7 +61,11 @@ async function run(label, viewport, mobile) {
   await page.locator('.see-all').first().click()
   await page.waitForSelector('.modal-title, .sheet')
   await page.locator('input[placeholder="Wedding anniversary"]').fill('First met')
-  await page.locator('input[type="date"]').fill('2019-05-20')
+  // Key dates reach decades back, so this field is DatePicker's month/day/year
+  // selects rather than a native date input (which buries the year).
+  await page.locator('.date-picker .dp-month').selectOption('5')
+  await page.locator('.date-picker .dp-day').selectOption('20')
+  await page.locator('.date-picker .dp-year').selectOption('2019')
   await page.getByRole('tab', { name: 'One-time' }).click()
   await page.getByRole('button', { name: 'Add date' }).click()
   await page.waitForTimeout(300)

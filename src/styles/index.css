@@ -1,0 +1,59 @@
+/* Salernidex stylesheet index.
+
+   @import order is the cascade, so it is deliberate and mirrors the original
+   single-file order: tokens, then base, then primitives, then features, with
+   the responsive overrides sitting exactly where they did before.
+
+   Adding styles: a shared control goes in primitives/ (and needs a component in
+   components/ui/ to match); a screen's own styling goes in features/. Nothing
+   here should hardcode a color, radius, easing, z-index or chrome offset —
+   those all live in tokens.css. */
+
+@import './tokens.css';
+@import './base.css';
+@import './shell/install-hint.css';
+@import './shell/badges.css';
+@import './primitives/switch.css';
+@import './primitives/tier-chips.css';
+@import './shell/layout.css';
+@import './shell/sidebar.css';
+@import './primitives/page-header.css';
+@import './primitives/typography.css';
+@import './features/people-index.css';
+@import './primitives/search-field.css';
+@import './primitives/segmented.css';
+@import './primitives/filter-pills.css';
+@import './primitives/list.css';
+@import './primitives/avatar.css';
+@import './primitives/chips.css';
+@import './features/habits.css';
+@import './primitives/swipe-row.css';
+@import './primitives/icon-button.css';
+@import './primitives/stepper.css';
+@import './primitives/stat-tile.css';
+@import './features/entity-detail.css';
+@import './features/lists.css';
+@import './features/tasks.css';
+@import './primitives/forms.css';
+@import './primitives/navbar.css';
+@import './primitives/modal.css';
+@import './primitives/confirm-dialog.css';
+@import './primitives/pull-to-refresh.css';
+@import './primitives/banners.css';
+@import './features/auth.css';
+@import './features/legal.css';
+@import './features/relationships.css';
+@import './features/import-export.css';
+@import './shell/tabbar.css';
+@import './primitives/sheet.css';
+@import './responsive.css';
+@import './primitives/assignee-picker.css';
+@import './primitives/reorderable.css';
+@import './features/project-headings.css';
+@import './primitives/disclosure.css';
+@import './primitives/toast.css';
+@import './shell/view-transitions.css';
+@import './features/quick-find.css';
+@import './features/people-map.css';
+@import './features/projects.css';
+@import './features/kitchen-sink.css';

@@ -27,7 +27,10 @@ export const PROJECT_TEMPLATES = [
     dateRange: true,
     notesHint: 'Confirmation #s, addresses, reservations…',
     phases: [
-      { title: 'Before you go', tasks: ['Book travel', 'Book lodging', 'Arrange pet/house sitter'] },
+      {
+        title: 'Before you go',
+        tasks: ['Book travel', 'Book lodging', 'Arrange pet/house sitter'],
+      },
       { title: 'While there', tasks: [] },
     ],
     lists: [{ name: 'Packing', icon: '🧳', kind: 'standard' }],

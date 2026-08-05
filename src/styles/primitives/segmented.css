@@ -1,0 +1,49 @@
+/* ---------- segmented control ---------- */
+
+.segmented {
+  position: relative;
+  display: flex;
+  width: 100%;
+  padding: 2px;
+  background: var(--fill);
+  border-radius: 9px;
+  margin-bottom: 18px;
+}
+
+.segmented-sm {
+  border-radius: 8px;
+}
+
+.segmented-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  height: calc(100% - 4px);
+  background: var(--elevated);
+  border-radius: 7px;
+  box-shadow: var(--shadow-thumb);
+  transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.segment {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  padding: 7px 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 150ms ease;
+}
+
+.segment.active {
+  font-weight: 600;
+}
+
+.segmented-sm .segment {
+  padding: 5px 8px;
+  font-size: 13px;
+}

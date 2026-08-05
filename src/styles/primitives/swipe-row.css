@@ -1,0 +1,103 @@
+/* ---------- swipe rows ---------- */
+
+.swipe-wrap {
+  position: relative;
+  overflow: hidden;
+}
+
+.swipe-content {
+  position: relative;
+  z-index: 1;
+  background: var(--surface);
+  /* No will-change here: permanent layer promotion clips the hairline divider
+     on rows whose fractional height lands badly (see SwipeRow.jsx). The
+     browser still promotes during the swipe transition on its own. */
+  /* let the browser own vertical scroll; we handle horizontal swipe in JS */
+  touch-action: pan-y;
+}
+
+.swipe-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  z-index: 0;
+  /* Hidden until the row actually opens — the translucent hairline divider
+     otherwise lets the accent panel bleed through as a colored line. The
+     delay keeps it visible while the row slides back closed. */
+  visibility: hidden;
+  transition: visibility 0s 320ms;
+}
+
+.swipe-wrap.open .swipe-actions {
+  visibility: visible;
+  transition: visibility 0s 0s;
+}
+
+.swipe-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: 1;
+  min-width: 76px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--accent);
+}
+
+.swipe-action:active {
+  filter: brightness(0.9);
+}
+
+.swipe-action.danger {
+  background: var(--danger);
+}
+
+.swipe-action.neutral {
+  background: var(--text-2);
+}
+
+/* On hover-capable devices, swipe actions surface as a compact icon cluster
+   pinned to the row's right edge instead (rendered by SwipeRow). The
+   surface-colored glow masks whatever sits underneath it. */
+@media (hover: hover) {
+  .row-hover-actions {
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    z-index: 2;
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: 0 0 10px 8px var(--surface);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+  }
+  .swipe-wrap:hover .row-hover-actions,
+  .list-row:hover .row-hover-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+@media (hover: none) {
+  .row-hover-actions {
+    display: none;
+  }
+}
+
+/* Touch-only quick buttons inside rows: redundant with (and covered by) the
+   hover cluster on fine-pointer devices. (.icon-btn.touch-quick out-ranks
+   .icon-btn's display:flex declared later.) */
+@media (hover: hover) {
+  .icon-btn.touch-quick {
+    display: none;
+  }
+}

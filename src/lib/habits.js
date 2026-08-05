@@ -274,9 +274,22 @@ export function windowStats(habit, map, today = new Date(), calendarDays = 30) {
 
 const DOW2 = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
+// Units are stored plural ("sessions", "glasses") because that's how they read
+// most of the time, so a target of 1 needs the singular back: "Goal ≥ 1 session"
+// not "Goal ≥ 1 sessions". Naive, deliberately: it only has to handle the unit
+// words a habit actually carries.
+function unitFor(unit, n) {
+  if (!unit || n !== 1) return unit
+  if (/(ch|sh|s|x|z)es$/.test(unit)) return unit.slice(0, -2)
+  if (/ies$/.test(unit)) return unit.slice(0, -3) + 'y'
+  if (/s$/.test(unit) && !/ss$/.test(unit)) return unit.slice(0, -1)
+  return unit
+}
+
 export function goalLabel(h) {
   if (h.polarity === 'track') return h.unit ? `Tracking ${h.unit}` : 'Tracking'
-  const u = h.unit ? ` ${h.unit}` : ''
+  const n = h.polarity === 'limit' ? (h.target ?? 0) : (h.target ?? 1)
+  const u = h.unit ? ` ${unitFor(h.unit, n)}` : ''
   // An rrule isn't a daily cadence, so drop the "/day"/"each day" wording and let
   // cadenceLabel ("Every 3 days", "Monthly on the 20th") carry the frequency.
   const per = hasRule(h) ? '' : '/day'

@@ -345,3 +345,28 @@ describe('windowStats', () => {
     expect(s).toEqual({ scheduledDays: 3, successDays: 2, total: 6, average: 2 })
   })
 })
+
+describe('goalLabel pluralization', () => {
+  const h = (over) => ({ measure: 'count', polarity: 'goal', ...over })
+
+  it('singularizes a unit when the target is 1', () => {
+    expect(goalLabel(h({ target: 1, unit: 'sessions' }))).toBe('Goal ≥ 1 session/day')
+    expect(goalLabel(h({ target: 1, unit: 'glasses' }))).toBe('Goal ≥ 1 glass/day')
+    expect(goalLabel(h({ target: 1, unit: 'entries' }))).toBe('Goal ≥ 1 entry/day')
+  })
+
+  it('leaves the plural alone for any other target', () => {
+    expect(goalLabel(h({ target: 8, unit: 'glasses' }))).toBe('Goal ≥ 8 glasses/day')
+    expect(goalLabel(h({ target: 0, unit: 'sessions' }))).toBe('Goal ≥ 0 sessions/day')
+  })
+
+  it('applies to limits too', () => {
+    expect(goalLabel(h({ polarity: 'limit', target: 1, unit: 'drinks' }))).toBe(
+      'Limit ≤ 1 drink/day',
+    )
+  })
+
+  it('handles units with no plural form', () => {
+    expect(goalLabel(h({ target: 1, unit: 'min' }))).toBe('Goal ≥ 1 min/day')
+  })
+})

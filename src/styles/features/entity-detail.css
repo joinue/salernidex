@@ -1,0 +1,95 @@
+/* ---------- person / detail page ---------- */
+
+.detail {
+  animation: fade-in 220ms ease-out;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--accent);
+  margin-bottom: 16px;
+  padding: 4px 0;
+  margin-left: -4px;
+}
+
+.back-btn:active {
+  opacity: 0.5;
+}
+
+.profile-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 8px 0 20px;
+}
+
+.profile-head .avatar-tap {
+  margin-bottom: 12px;
+}
+
+.profile-head .avatar {
+  box-shadow: var(--shadow-card);
+}
+
+.person-name {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.person-sub {
+  font-size: 15px;
+  color: var(--text-2);
+  margin-top: 2px;
+}
+
+.profile-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  transition: transform 100ms ease;
+}
+
+.pill-btn:active {
+  transform: scale(0.95);
+}
+
+.pill-btn.danger {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.pill-btn.neutral {
+  color: var(--text);
+  background: var(--fill);
+}
+
+/* Where a screen's destructive action lives: the foot of the page, quiet, with
+   air above it. Not in the action row beside Edit, where a filled red pill
+   reads as routine. */
+.danger-zone {
+  display: flex;
+  justify-content: center;
+  margin: 32px 0 8px;
+  padding-top: 20px;
+  border-top: 0.5px solid var(--separator);
+}

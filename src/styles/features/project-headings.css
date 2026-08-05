@@ -1,0 +1,42 @@
+/* ---------- project headings (Things-style sections inside a project) ---------- */
+
+.heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px 14px 4px;
+  background: var(--surface);
+}
+
+.heading-row .heading-title {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent-soft);
+  padding-bottom: 3px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* the heading's delete control stays out of the way until needed */
+.heading-row .icon-btn {
+  width: 26px;
+  height: 26px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.heading-row:hover .icon-btn,
+.reorder-row.lifted .heading-row .icon-btn {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .heading-row .icon-btn {
+    opacity: 1;
+  }
+}

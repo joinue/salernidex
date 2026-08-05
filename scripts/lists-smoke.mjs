@@ -66,12 +66,13 @@ try {
   await m.waitForSelector('.tabbar')
   const tabs = await m.$$eval('.tab span', (els) => els.map((e) => e.textContent.trim()))
   console.log('mobile tabs:', tabs.join(' · '))
-  // More button on Today header (sits next to the Settings gear)
-  await m.locator('.header-action[aria-label="More"]').click()
+  // Cross-create sheet: the floating ➕ is the one add affordance on mobile
+  // (the header's duplicate ➕ is desktop-only now).
+  await m.locator('.fab').click()
   await m.waitForSelector('.sheet-item')
   const more = await m.$$eval('.sheet-item', (els) => els.map((e) => e.textContent.trim()))
-  console.log('More sheet:', more.join(' | '))
-  await m.screenshot({ path: `${shots}/mobile-more-sheet.png` })
+  console.log('Add sheet:', more.join(' | '))
+  await m.screenshot({ path: `${shots}/mobile-add-sheet.png` })
   await m.close()
 
   // Dark lists

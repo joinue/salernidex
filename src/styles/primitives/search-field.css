@@ -1,0 +1,35 @@
+/* ---------- search field ---------- */
+
+.search-wrap {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.search-wrap svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-2);
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px 0 36px;
+  background: var(--fill);
+  border: none;
+  border-radius: 10px;
+  outline: none;
+  font-size: 16px;
+  transition: box-shadow 150ms ease;
+}
+
+.search-input::placeholder {
+  color: var(--text-2);
+}
+
+.search-input:focus {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}

@@ -1,0 +1,157 @@
+/* ---------- chips (tags) ---------- */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--fill);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.chip.accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.chip.warn {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.chip.good {
+  background: color-mix(in srgb, var(--green) 16%, transparent);
+  color: var(--green);
+}
+
+.chip svg {
+  margin-right: -1px;
+}
+
+/* Group toggle chips in the person form — tap to join/leave a smart group. */
+.group-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.group-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--fill);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: 999px;
+  white-space: nowrap;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.group-chip.on {
+  background: var(--accent);
+  color: #fff;
+}
+
+.group-chip:active {
+  transform: scale(0.96);
+}
+
+/* The member search lives inside a .field, whose `.field input` rule would
+   otherwise win and strip the left padding that clears the search icon. */
+.field .search-input {
+  height: 38px;
+  padding: 0 12px 0 36px;
+}
+
+/* Manual-group member picker: a scrollable, searchable checklist of people. */
+.member-picker {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-sm);
+  -webkit-overflow-scrolling: touch;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 0.5px solid var(--separator);
+  transition: background 120ms ease;
+}
+
+.member-row:last-child {
+  border-bottom: none;
+}
+
+.member-row:hover {
+  background: var(--fill-2);
+}
+
+.member-row.on {
+  background: var(--accent-soft);
+}
+
+.member-name {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.member-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+/* Chip tones. A screen picks a tone, never a colour — that's what keeps
+   "overdue" the same red everywhere it appears. */
+.chip-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.chip-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.chip-success {
+  background: color-mix(in srgb, var(--green) 16%, transparent);
+  color: var(--green);
+}
+
+.chip-warning {
+  background: color-mix(in srgb, var(--orange) 16%, transparent);
+  color: var(--orange);
+}
+
+.chip-removable {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}

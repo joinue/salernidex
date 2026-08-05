@@ -1,0 +1,69 @@
+/* ── Projects ─────────────────────────────────────────────────────────────
+   The index cards (ProjectsView) and ProjectDetail extras. A project reuses
+   the standard list-row; these add the progress bar, the linked-people avatar
+   stack, and the detail-page date/status/list affordances. */
+.project-bar {
+  margin-top: 7px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--fill);
+  overflow: hidden;
+}
+.project-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 240ms ease;
+}
+
+/* Overlapped faces of linked people on a project card. */
+.avatar-stack {
+  display: inline-flex;
+  flex-direction: row-reverse; /* first listed sits on top, on the left */
+  align-items: center;
+}
+.avatar-stack .avatar {
+  margin-left: -8px;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.avatar-stack .avatar:last-child {
+  margin-left: 0;
+}
+
+/* ProjectDetail: the date-range + status control row, and the scoped-lists
+   cards. Kept light — they lean on existing chip/list-row styling. */
+.project-status-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 4px 0 2px;
+}
+/* Inline start/target dates. Not in a .field — they sit in a label beside their
+   caption — so they carry the field treatment themselves. */
+.project-status-row + .due-row input[type='date'] {
+  /* .due-row's task-form rule grows its inputs; here they sit inside a label
+     beside its caption, so growing wraps the pair onto two lines. */
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.project-notes-edit {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 12px;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.45;
+}
+
+.project-notes-edit:focus {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.list-row.project-list-row .list-emoji {
+  font-size: 22px;
+}

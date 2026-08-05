@@ -1,7 +1,7 @@
 // Mobile check: open Add Person, confirm the X closes it.
 import { chromium } from 'playwright'
 
-const browser = await chromium.launch({ channel: 'msedge', headless: true })
+const browser = await chromium.launch({ channel: 'chrome', headless: true })
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
 
 try {

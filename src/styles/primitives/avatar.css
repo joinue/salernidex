@@ -1,0 +1,138 @@
+/* ---------- avatar ---------- */
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  user-select: none;
+  overflow: hidden;
+}
+
+.avatar-img {
+  object-fit: cover;
+  display: block;
+}
+
+/* ---------- avatar upload (entity forms) ---------- */
+
+.avatar-upload {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.avatar-tap {
+  position: relative;
+  border-radius: 50%;
+  flex-shrink: 0;
+  line-height: 0;
+  transition:
+    transform 100ms ease,
+    opacity 120ms ease;
+}
+
+.avatar-tap:active {
+  transform: scale(0.96);
+  opacity: 0.9;
+}
+
+.avatar-tap-badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  border: 2px solid var(--surface, var(--bg));
+}
+
+.avatar-upload-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.avatar-upload-actions .text-btn.danger {
+  color: var(--danger, #e5484d);
+}
+
+/* ---------- crop overlay ---------- */
+
+.crop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.crop-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface, var(--bg));
+  border-radius: 18px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 16px;
+}
+
+.crop-stage {
+  position: relative;
+  width: 100%;
+  height: 320px;
+  background: #000;
+}
+
+.crop-zoom {
+  width: calc(100% - 32px);
+  margin: 0 16px;
+  accent-color: var(--accent);
+}
+
+.crop-actions {
+  display: flex;
+  gap: 10px;
+  padding: 0 16px;
+}
+
+.crop-btn {
+  flex: 1;
+  height: 46px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 15px;
+  background: var(--fill);
+  color: var(--text);
+  transition:
+    transform 100ms ease,
+    opacity 120ms ease;
+}
+
+.crop-btn.primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.crop-btn:active {
+  transform: scale(0.99);
+  opacity: 0.92;
+}
+
+.crop-btn:disabled {
+  opacity: 0.5;
+}

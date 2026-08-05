@@ -14,49 +14,56 @@ import { clearSnapshots } from './lib/offlineCache'
 import { areaNames, taskTags, isProject } from './lib/tasks'
 import { setAppPrefs } from './lib/appPrefs'
 import { buildProjectRows } from './lib/projectTemplates'
-import InstallHint from './components/InstallHint'
-import AuthScreen from './components/AuthScreen'
-import Onboarding from './components/Onboarding'
-import Sidebar from './components/Sidebar'
-import MobileNav from './components/MobileNav'
-import ConfirmDialog from './components/ConfirmDialog'
-import QuickFind from './components/QuickFind'
-import TodayView from './components/TodayView'
-import ActivityView from './components/ActivityView'
-import PullToRefresh from './components/PullToRefresh'
-import SearchView from './components/SearchView'
-import TasksView from './components/TasksView'
-import ProjectsView from './components/ProjectsView'
-import ListsView from './components/ListsView'
-import ListDetail from './components/ListDetail'
-import ProjectDetail from './components/ProjectDetail'
-import PersonPage from './components/PersonPage'
-import OrgsView from './components/OrgsView'
-import OrgPage from './components/OrgPage'
-import GroupsView from './components/GroupsView'
-import GroupPage from './components/GroupPage'
-import HabitsView from './components/HabitsView'
-import HabitDetail from './components/HabitDetail'
-import HabitInsightsView from './components/HabitInsightsView'
-import HabitTemplatePicker from './components/HabitTemplatePicker'
-import RelationshipsView from './components/RelationshipsView'
-import SettingsView from './components/SettingsView'
-import LegalView from './components/LegalView'
-import ErrorBoundary from './components/ErrorBoundary'
-import Toasts from './components/Toasts'
+import InstallHint from './components/shell/InstallHint'
+import AuthScreen from './features/auth/AuthScreen'
+import Onboarding from './features/auth/Onboarding'
+import Sidebar from './components/shell/Sidebar'
+import MobileNav from './components/shell/MobileNav'
+import ConfirmDialog from './components/ui/ConfirmDialog'
+import QuickFind from './components/shell/QuickFind'
+import TodayView from './features/today/TodayView'
+import ActivityView from './features/activity/ActivityView'
+import PullToRefresh from './components/ui/PullToRefresh'
+import SearchView from './features/people/SearchView'
+import TasksView from './features/tasks/TasksView'
+import ProjectsView from './features/tasks/ProjectsView'
+import ListsView from './features/lists/ListsView'
+import ListDetail from './features/lists/ListDetail'
+import ProjectDetail from './features/tasks/ProjectDetail'
+import PersonPage from './features/people/PersonPage'
+import OrgsView from './features/people/OrgsView'
+import OrgPage from './features/people/OrgPage'
+import GroupsView from './features/people/GroupsView'
+import GroupPage from './features/people/GroupPage'
+import HabitsView from './features/habits/HabitsView'
+import HabitDetail from './features/habits/HabitDetail'
+import HabitInsightsView from './features/habits/HabitInsightsView'
+import HabitTemplatePicker from './features/habits/HabitTemplatePicker'
+import RelationshipsView from './features/people/RelationshipsView'
+import SettingsView from './features/settings/SettingsView'
+import LegalView from './features/settings/LegalView'
+import ErrorBoundary from './components/shell/ErrorBoundary'
+import Toasts from './components/shell/Toasts'
 
 // Lazy: Import/Export carries the CSV parser — no reason to ship it on
 // every app open when it's visited once a month.
-const ImportExport = lazy(() => import('./components/ImportExport'))
-import PersonForm from './components/PersonForm'
-import TaskForm from './components/TaskForm'
-import ProjectTemplatePicker from './components/ProjectTemplatePicker'
-import ListForm from './components/ListForm'
-import OrgForm from './components/OrgForm'
-import GroupForm from './components/GroupForm'
-import HabitForm from './components/HabitForm'
-import RelationshipForm from './components/RelationshipForm'
+const ImportExport = lazy(() => import('./features/settings/ImportExport'))
+// Dev-only reference page for the ui/ primitives (#/kitchen-sink).
+// import.meta.env.DEV is a build-time constant, so the whole module — and its
+// route — drop out of a production bundle.
+const KitchenSink = import.meta.env.DEV
+  ? lazy(() => import('./features/kitchen-sink/KitchenSink'))
+  : null
+import PersonForm from './features/people/PersonForm'
+import TaskForm from './features/tasks/TaskForm'
+import ProjectTemplatePicker from './features/tasks/ProjectTemplatePicker'
+import ListForm from './features/lists/ListForm'
+import OrgForm from './features/people/OrgForm'
+import GroupForm from './features/people/GroupForm'
+import HabitForm from './features/habits/HabitForm'
+import RelationshipForm from './features/people/RelationshipForm'
 import { EMPTY_PEOPLE_FILTERS } from './lib/search'
+import EmptyState from './components/ui/EmptyState'
 
 // Hash routing: #/ (today), #/activity, #/people, #/person/<id>, #/tasks,
 // #/project/<id>, #/lists, #/list/<id>, #/orgs, #/org/<id>, #/groups,
@@ -82,6 +89,11 @@ const DETAIL_ROUTES = [
   'privacy',
   'terms',
 ]
+// Screens where a floating ➕ would be noise: either they have their own docked
+// composer (List detail), or "add" means nothing here (Settings, Activity,
+// Import, the legal pages). A quick-capture button that creates something
+// unrelated to what you're looking at isn't a shortcut, it's a trap.
+const NO_FAB_ROUTES = ['list', 'settings', 'activity', 'import', 'privacy', 'terms']
 // Stale bookmarks / typo'd hashes land on Today, not a blank screen.
 const KNOWN_ROUTES = [
   'today',
@@ -105,6 +117,7 @@ const KNOWN_ROUTES = [
   'settings',
   'privacy',
   'terms',
+  ...(import.meta.env.DEV ? ['kitchen-sink'] : []),
 ]
 
 // The "Network" hub: People and the three views that are really groupings of
@@ -350,20 +363,20 @@ function Shell({ session, onLogout, household }) {
                 : route.name === 'habit'
                   ? data.habits.find((h) => h.id === route.id)?.name
                   : {
-                  activity: 'Activity',
-                  tasks: 'Tasks',
-                  projects: 'Projects',
-                  lists: 'Lists',
-                  people: 'People',
-                  orgs: 'Organizations',
-                  groups: 'Groups',
-                  relationships: 'Relationships',
-                  habits: 'Habits',
-                  import: 'Import / Export',
-                  settings: 'Settings',
-                  privacy: 'Privacy Policy',
-                  terms: 'Terms of Use',
-                }[route.name]
+                      activity: 'Activity',
+                      tasks: 'Tasks',
+                      projects: 'Projects',
+                      lists: 'Lists',
+                      people: 'People',
+                      orgs: 'Organizations',
+                      groups: 'Groups',
+                      relationships: 'Relationships',
+                      habits: 'Habits',
+                      import: 'Import / Export',
+                      settings: 'Settings',
+                      privacy: 'Privacy Policy',
+                      terms: 'Terms of Use',
+                    }[route.name]
     document.title = named ? `${named} — Salernidex` : 'Salernidex'
   }, [route, data.people, data.orgs, data.groups, data.lists, data.tasks, data.habits])
   const openPerson = (id) => go(`person/${id}`)
@@ -508,15 +521,19 @@ function Shell({ session, onLogout, household }) {
       <main className="main" ref={mainRef}>
         <PullToRefresh onRefresh={data.refresh}>
           <div className="content">
-            <InstallHint />
+            {/* Both of these are app-level status, not page content, so they are
+                charged once rather than re-paid at the top of all 15 routes.
+                Together they used to eat 155px of a 660px phone screen (300 of
+                667 on an SE, where the copy wrapped to three lines) — enough to
+                push the first task on /tasks below the fold. */}
+            {route.name === 'today' && <InstallHint />}
             {/* self-gates: Install button on Chrome/Edge, Add-to-Home-Screen on iOS */}
             {/* Mirror useData's demo condition exactly so the notice can never
               drift from the data: shown for runtime demo AND build-time demo,
               never for a real signed-in session. */}
             {(demoMode || session?.demo) && (
               <p className="demo-banner">
-                Demo mode — sample data, nothing is saved. Create an account to start your own
-                household.
+                <strong>Demo</strong> Sample data, nothing is saved.
               </p>
             )}
             {data.error && <p className="error-text">{data.error}</p>}
@@ -694,7 +711,7 @@ function Shell({ session, onLogout, household }) {
               />
             )}
             {route.name === 'import' && (
-              <Suspense fallback={<p className="empty dots">Loading</p>}>
+              <Suspense fallback={<EmptyState loading>Loading</EmptyState>}>
                 <ImportExport data={data} />
               </Suspense>
             )}
@@ -711,6 +728,11 @@ function Shell({ session, onLogout, household }) {
                     : undefined
                 }
               />
+            )}
+            {route.name === 'kitchen-sink' && KitchenSink && (
+              <Suspense fallback={<p className="empty dots">Loading</p>}>
+                <KitchenSink />
+              </Suspense>
             )}
             {(route.name === 'privacy' || route.name === 'terms') && (
               <LegalView
@@ -733,7 +755,8 @@ function Shell({ session, onLogout, household }) {
           active={activeNav}
           adds={adds}
           badge={badge}
-          hideFab={route.name === 'list'}
+          scrollRef={mainRef}
+          hideFab={NO_FAB_ROUTES.includes(route.name)}
           forceMenu={DETAIL_ROUTES.includes(route.name) && route.name !== 'list'}
         />
       )}

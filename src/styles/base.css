@@ -1,0 +1,174 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Respect the OS accessibility setting — kill animation, keep function */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--separator-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--separator-strong);
+  border-radius: 999px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* App-like touch: no page bounce-chaining, no text selection on taps,
+     no tap flash, no double-tap zoom on controls. */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Interactive surfaces shouldn't be text-selectable like a document. Inputs
+   and explicit .selectable regions opt back in. */
+.layout,
+.nav-item,
+.list-row,
+.value-row,
+.activity-row,
+.tab,
+.sheet-item,
+.quick-chip,
+.pill-btn,
+.segment {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea,
+.selectable {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* One keyboard focus ring for the whole app. :focus-visible (not :focus) so a
+   pointer tap never paints it, which is why every control can carry it without
+   the touch UI changing at all. Nothing else in the app should define its own —
+   before this, keyboard users had no visible focus anywhere. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Surfaces that are already flush to an edge look wrong with an offset ring. */
+.list-row:focus-visible,
+.sheet-item:focus-visible,
+.tab:focus-visible {
+  outline-offset: -2px;
+}
+
+/* An input that misses a styling class shouldn't fall back to the UA's white
+   box — on a dark canvas that reads as a bug. This is the floor: theme-aware
+   surface and text, no chrome. Size and padding stay a component decision, so
+   nothing here can shift an existing field. :where() keeps the specificity at
+   `input`, so every class rule in the app still wins. Types the browser draws
+   as controls rather than boxes (range, file, checkbox) opt out. */
+input:where(:not([type='range'], [type='file'], [type='checkbox'], [type='radio'])),
+textarea,
+select {
+  background: var(--fill);
+  border: none;
+  border-radius: var(--radius-sm);
+  outline: none;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: var(--text);
+}
+
+::placeholder {
+  color: var(--text-2);
+}
+
+/* ---------- touch targets ----------
+   A control's *painted* size is a design decision; its *tappable* size is not.
+   Apple's floor is 44×44 (--tap-min), and a 26px ⓘ or a 30px stepper misses it
+   badly. This utility grows the hit area with a centered pseudo-element, so the
+   visual stays exactly as designed.
+
+   Applied by class below rather than in JSX: these are all shared controls, and
+   a new one should join this list rather than invent its own extension. Verify
+   with `node scripts/mobile-audit.mjs`, which hit-tests the real box. */
+.tap-target,
+.icon-btn,
+.header-action,
+.info-btn,
+.habit-check,
+.habit-step-btn,
+.text-btn,
+.back-btn,
+.see-all,
+.tier-btn,
+.chip-x,
+.toast-action {
+  position: relative;
+}
+
+.tap-target::after,
+.icon-btn::after,
+.header-action::after,
+.info-btn::after,
+.habit-check::after,
+.habit-step-btn::after,
+.text-btn::after,
+.back-btn::after,
+.see-all::after,
+.tier-btn::after,
+.chip-x::after,
+.toast-action::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, var(--tap-min));
+  height: max(100%, var(--tap-min));
+  transform: translate(-50%, -50%);
+}

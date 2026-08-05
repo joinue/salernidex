@@ -1,0 +1,208 @@
+/* ---------- sidebar (desktop) ---------- */
+
+.sidebar {
+  width: 232px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 12px 20px;
+  background: var(--surface);
+  border-right: 1px solid var(--separator);
+  /* Labels are hidden outright on collapse, so only the rail width animates —
+     nothing reflows mid-transition. */
+  transition: width 160ms ease;
+}
+
+.sidebar .brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  padding: 0 12px 24px;
+}
+
+/* Collapse control: quiet until you go looking for it, like the macOS Finder
+   sidebar button. Sits at the end of the brand row, above the rail when
+   collapsed. */
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  color: var(--text-3);
+  border-radius: var(--radius-sm);
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.sidebar-toggle:hover {
+  background: var(--fill-2);
+  color: var(--text);
+}
+
+.sidebar .brand-mark {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+/* The sidebar Search is a control, not a destination — give it the look of a
+   search field (bordered, rounded, muted placeholder text) so it reads apart
+   from the flat nav buttons below it, echoing the mobile Quick Find input. */
+.nav-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-2);
+  background: var(--fill);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-sm);
+  text-align: left;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.nav-search svg {
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.nav-search-text {
+  flex: 1;
+}
+
+.nav-search:hover {
+  background: var(--fill-2);
+  border-color: var(--text-3);
+}
+
+.nav-item {
+  position: relative; /* anchors the collapsed-rail badge */
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 2px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  text-align: left;
+  transition: background 120ms ease;
+}
+
+.nav-item svg {
+  color: var(--text-2);
+  flex-shrink: 0;
+  transition: color 120ms ease;
+}
+
+.nav-item:hover {
+  background: var(--fill-2);
+}
+
+.nav-item.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.nav-item.active svg {
+  color: var(--accent);
+}
+
+.sidebar .spacer {
+  flex: 1;
+}
+
+.nav-group {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-2);
+  padding: 16px 12px 6px;
+}
+
+/* ---------- collapsed rail ---------- */
+
+/* 64px: a 40px hit target centered in 12px gutters, so the icons sit on the
+   same optical column they do when expanded. */
+.sidebar.collapsed {
+  width: 64px;
+}
+
+/* Every label in the rail — brand word, nav text, theme text — leaves together.
+   The title attribute on each button carries the name instead. */
+.sidebar.collapsed .nav-text,
+.sidebar.collapsed .nav-search-text,
+.sidebar.collapsed .nav-kbd {
+  display: none;
+}
+
+/* Mark on top, toggle beneath it — the only two things wide enough to need
+   their own row once the wordmark is gone. */
+.sidebar.collapsed .brand {
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 0 20px;
+}
+
+.sidebar.collapsed .sidebar-toggle {
+  margin-left: 0;
+}
+
+.sidebar.collapsed .nav-item,
+.sidebar.collapsed .nav-search {
+  justify-content: center;
+  gap: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Quiet counts are volume, not urgency — they don't earn a spot on the rail.
+   The red attention badge does, riding the icon like the mobile tab badge. */
+.sidebar.collapsed .nav-count {
+  display: none;
+}
+
+.sidebar.collapsed .nav-badge {
+  position: absolute;
+  top: 3px;
+  right: 6px;
+  margin-left: 0;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  font-size: 10px;
+  border: 2px solid var(--surface);
+}
+
+/* Group headings become hairlines: the grouping survives, the words don't. */
+.sidebar.collapsed .nav-group {
+  height: 1px;
+  padding: 0;
+  margin: 14px 10px 10px;
+  overflow: hidden;
+  font-size: 0;
+  background: var(--separator);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
+  }
+}

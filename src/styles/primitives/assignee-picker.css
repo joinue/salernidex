@@ -1,0 +1,62 @@
+/* ---------- assignee picker (N members) ---------- */
+.assignee-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.assignee-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px 5px 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--fill);
+  border-radius: 999px;
+  border: 1.5px solid transparent;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.assignee-chip.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.assignee-chip:active {
+  transform: scale(0.96);
+}
+
+.assignee-any {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--text-2);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* inline-editable member name in Settings */
+/* An <input> can't carry a pseudo-element, so its target has to be real height. */
+.member-name-input {
+  flex: 1;
+  min-width: 0;
+  height: var(--tap-min);
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  color: var(--text);
+  padding: 4px 0;
+}
+.member-name-input:focus {
+  border-bottom: 1px solid var(--accent);
+}

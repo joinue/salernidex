@@ -1,0 +1,136 @@
+/* ============================================================
+   SALERNIDEX — iOS-native, premium.
+   Grouped-inset lists on a soft canvas. Avatars for warmth.
+   Large titles, frosted headers, segmented controls, swipe.
+   Space-efficient by default; mobile-first.
+   ============================================================ */
+
+:root {
+  /* Tells the engine which palette to draw native UI with — date/time pickers,
+     their calendar popups, scrollbars, autofill. Without it those stay light on
+     a black page, which is the one thing tokens alone can't repaint. Set
+     alongside every theme switch below. */
+  color-scheme: light;
+
+  /* Canvas + surfaces (iOS grouped background: gray canvas, white cards) */
+  --bg: #f2f2f7;
+  --surface: #ffffff;
+  --surface-2: #ffffff;
+  --elevated: #ffffff;
+
+  /* Text */
+  --text: #1c1c1e;
+  --text-2: #8a8a8e;
+  --text-3: #b9b9be;
+
+  /* Accents (iOS system colors) */
+  --accent: #007aff;
+  --accent-soft: rgba(0, 122, 255, 0.12);
+  --green: #34c759;
+  --orange: #ff9500;
+  --danger: #ff3b30;
+  --danger-soft: rgba(255, 59, 48, 0.12);
+
+  /* Lines + fills */
+  --separator: rgba(60, 60, 67, 0.12);
+  --separator-strong: rgba(60, 60, 67, 0.22);
+  --fill: rgba(118, 118, 128, 0.12);
+  --fill-2: rgba(118, 118, 128, 0.08);
+
+  /* Depth */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.12);
+  --shadow-thumb: 0 3px 8px rgba(0, 0, 0, 0.12), 0 1px 1px rgba(0, 0, 0, 0.04);
+
+  --radius: 14px;
+  --radius-sm: 10px;
+  --header-blur: saturate(180%) blur(20px);
+  --mono: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
+
+  /* Motion. One signature curve (iOS sheet easing) + a small duration scale, so
+     a transition is never hand-typed. */
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --dur-1: 120ms; /* press feedback, hover */
+  --dur-2: 180ms; /* small state changes */
+  --dur-3: 260ms; /* sheets, page-level movement */
+
+  /* Layers. Every z-index in the app comes from here — the numbers encode the
+     stack, so "what sits above what" is answerable without grepping. */
+  --z-sticky: 10; /* sticky search bars, letter heads */
+  --z-dock: 30; /* in-page docked composers */
+  --z-chrome: 40; /* tab bar */
+  --z-fab: 41;
+  --z-popover: 50; /* title menus, info popovers, dropdowns */
+  --z-overlay: 60; /* modals, sheets */
+  --z-toast: 70;
+  --z-map: 2000; /* Leaflet insists on its own scale */
+
+  /* Floating mobile chrome. These are the source of truth for both the chrome
+     itself and the padding content needs to clear it — see --content-bottom.
+     Never hardcode a bottom offset against the tab bar or the FAB. */
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --tabbar-h: 58px;
+  --tabbar-inset: 8px; /* gap between the pill and the screen edge */
+  --fab-size: 54px;
+  --fab-gap: 12px; /* gap between the pill and the FAB */
+  /* Top edge of the tab pill, measured from the viewport bottom. */
+  --chrome-bottom: calc(var(--safe-b) + var(--tabbar-inset) + var(--tabbar-h));
+  --fab-bottom: calc(var(--chrome-bottom) + var(--fab-gap));
+  /* What a scroll container must reserve so its last row clears the FAB. */
+  --content-bottom: calc(var(--fab-bottom) + var(--fab-size) + 20px);
+
+  /* Minimum comfortable touch target (Apple HIG). Used by the .tap-target
+     hit-area extension — visual size stays whatever the design calls for. */
+  --tap-min: 44px;
+}
+
+/* Manual dark choice */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #000000;
+  --surface: #1c1c1e;
+  --surface-2: #2c2c2e;
+  --elevated: #2c2c2e;
+  --text: #ffffff;
+  --text-2: #98989f;
+  --text-3: #5b5b60;
+  --accent: #0a84ff;
+  --accent-soft: rgba(10, 132, 255, 0.22);
+  --green: #30d158;
+  --orange: #ff9f0a;
+  --danger: #ff453a;
+  --danger-soft: rgba(255, 69, 58, 0.22);
+  --separator: rgba(84, 84, 88, 0.5);
+  --separator-strong: rgba(84, 84, 88, 0.75);
+  --fill: rgba(118, 118, 128, 0.24);
+  --fill-2: rgba(118, 118, 128, 0.16);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 10px 40px rgba(0, 0, 0, 0.6);
+}
+
+/* System preference (unless user chose light explicitly) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #000000;
+    --surface: #1c1c1e;
+    --surface-2: #2c2c2e;
+    --elevated: #2c2c2e;
+    --text: #ffffff;
+    --text-2: #98989f;
+    --text-3: #5b5b60;
+    --accent: #0a84ff;
+    --accent-soft: rgba(10, 132, 255, 0.22);
+    --green: #30d158;
+    --orange: #ff9f0a;
+    --danger: #ff453a;
+    --danger-soft: rgba(255, 69, 58, 0.22);
+    --separator: rgba(84, 84, 88, 0.5);
+    --separator-strong: rgba(84, 84, 88, 0.75);
+    --fill: rgba(118, 118, 128, 0.24);
+    --fill-2: rgba(118, 118, 128, 0.16);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-pop: 0 10px 40px rgba(0, 0, 0, 0.6);
+  }
+}

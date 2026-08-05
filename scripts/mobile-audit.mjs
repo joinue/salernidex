@@ -1,0 +1,164 @@
+// Mobile chrome + touch-target audit.
+//
+// Two classes of bug this catches, both of which shipped once and are easy to
+// re-introduce by hand-typing a bottom offset or a button size:
+//   1. Occlusion — the floating tab pill, the FAB or a docked composer sitting
+//      on top of a control the user is meant to tap.
+//   2. Touch targets under the 44px HIG minimum (measured through the
+//      .tap-target hit-area extension, not just the painted box).
+//
+// Run against a dev server: node scripts/mobile-audit.mjs [baseUrl]
+// Exits non-zero if anything is occluded or undersized.
+import { chromium, devices } from 'playwright'
+
+const BASE = process.argv[2] || 'http://localhost:5173'
+const ROUTES = [
+  '',
+  'tasks',
+  'projects',
+  'people',
+  'lists',
+  'habits',
+  'groups',
+  'orgs',
+  'relationships',
+  'settings',
+  'activity',
+]
+// Chrome that floats over content, and is therefore allowed to overlap only
+// non-interactive things.
+const CHROME = ['.tabbar', '.fab', '.list-add-dock']
+
+const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const ctx = await browser.newContext({ ...devices['iPhone 14 Pro'] })
+const page = await ctx.newPage()
+await page.goto(BASE, { waitUntil: 'networkidle' })
+await page.getByRole('button', { name: 'Explore the demo' }).click()
+await page.waitForSelector('.large-title')
+
+const audit = () =>
+  page.evaluate((CHROME) => {
+    const out = { occluded: [], small: [] }
+    const chrome = CHROME.map((sel) => {
+      const el = document.querySelector(sel)
+      if (!el) return null
+      const cs = getComputedStyle(el)
+      if (cs.opacity === '0' || cs.visibility === 'hidden') return null
+      return [sel, el, el.getBoundingClientRect()]
+    }).filter(Boolean)
+
+    const controls = [
+      ...document.querySelectorAll(
+        'button, a[href], input, select, textarea, [role="button"], .list-row[onclick], .list-row',
+      ),
+    ]
+    // The A–Z scrubber is a drag strip, not 27 buttons — 44px per letter would
+    // be 1,188px tall. iOS Contacts sizes its index exactly this way.
+    const EXEMPT = '.alpha-index-letter'
+    for (const el of controls) {
+      if (el.matches(EXEMPT)) continue
+      const r = el.getBoundingClientRect()
+      // Fully in view only: a control half-scrolled under the sticky search bar
+      // isn't undersized, it's just partly off-screen.
+      if (!r.width || !r.height || r.top < 0 || r.bottom > innerHeight) continue
+      const cs = getComputedStyle(el)
+      if (cs.visibility === 'hidden' || cs.display === 'none' || cs.opacity === '0') continue
+      const name = (el.getAttribute('aria-label') || el.textContent || el.tagName)
+        .trim()
+        .slice(0, 34)
+
+      // Effective tap area, measured by hit-testing rather than by reading CSS:
+      // a ::before/::after hit extension only counts if a tap there actually
+      // lands on the control. Sample the corners of a centered 40px box (a
+      // little inside 44 to dodge rounding) and require all four to hit.
+      const cx = r.left + r.width / 2
+      const cy = r.top + r.height / 2
+      // Probe the axis extremes, not the corners: round buttons are the iOS
+      // norm and the corners of a 44px square fall outside a 44px circle, so
+      // corner probes would fail every correctly-sized round control.
+      const probes = [
+        [cx - 20, cy],
+        [cx + 20, cy],
+        [cx, cy - 20],
+        [cx, cy + 20],
+      ].filter(([x, y]) => x > 0 && y > 0 && x < innerWidth && y < innerHeight)
+      const hits = probes.filter(([x, y]) => {
+        const hit = document.elementFromPoint(x, y)
+        return hit && (hit === el || el.contains(hit) || hit.contains(el))
+      })
+      // Wide row-like controls (segmented control, list rows, search fields) are
+      // allowed to be shorter — UISegmentedControl itself is 32pt tall. The rule
+      // is: 44 in both dimensions, unless it's ≥120px wide and ≥34px tall.
+      const wideEnough = r.width >= 120 && r.height >= 34
+      if (probes.length && hits.length < probes.length && !wideEnough) {
+        out.small.push(
+          `${el.className || el.tagName} "${name}" ${Math.round(r.width)}x${Math.round(r.height)}`,
+        )
+      }
+
+      for (const [sel, cel, cr] of chrome) {
+        if (el === cel || cel.contains(el) || el.contains(cel)) continue
+        const ox = Math.min(r.right, cr.right) - Math.max(r.left, cr.left)
+        const oy = Math.min(r.bottom, cr.bottom) - Math.max(r.top, cr.top)
+        // A row is allowed to slide under translucent chrome; a *control* isn't.
+        const isRow = el.classList.contains('list-row')
+        if (ox > 8 && oy > 8 && !isRow) {
+          out.occluded.push(`${sel} covers ${el.className || el.tagName} "${name}"`)
+        }
+      }
+    }
+    return out
+  }, CHROME)
+
+let failures = 0
+// Occlusion is only a *bug* when the user can't scroll the control clear of the
+// chrome — that is, at the very bottom of the page. Anything overlapping
+// mid-scroll is just content passing under translucent chrome, which is fine.
+// So: scroll to the end, then force the FAB visible (it auto-tucks on
+// scroll-down) and check what's left underneath.
+const settleAtBottom = async () => {
+  await page.evaluate(() => {
+    const m = document.querySelector('.main')
+    if (m) m.scrollTop = m.scrollHeight
+  })
+  await page.waitForTimeout(400)
+  await page.evaluate(() => document.querySelector('.fab')?.classList.remove('tucked'))
+  await page.waitForTimeout(300)
+}
+
+for (const r of ROUTES) {
+  await page.goto(`${BASE}/#/${r}`)
+  await page.waitForTimeout(600)
+  await settleAtBottom()
+  const a = await audit()
+  const occ = [...new Set(a.occluded)]
+  const small = [...new Set(a.small)]
+  if (occ.length || small.length) {
+    console.log(`\n/${r || 'today'}`)
+    if (occ.length) console.log('  OCCLUDED CONTROL:\n    ' + occ.join('\n    '))
+    if (small.length) console.log('  UNDER 44px:\n    ' + small.join('\n    '))
+    failures += occ.length + small.length
+  }
+}
+
+// List detail carries its own docked composer instead of the FAB.
+await page.goto(`${BASE}/#/lists`)
+await page.waitForTimeout(500)
+await page.locator('.list-row').first().click()
+await page.waitForTimeout(700)
+await settleAtBottom()
+const a = await audit()
+const occ = [...new Set(a.occluded)]
+const small = [...new Set(a.small)]
+if (occ.length || small.length) {
+  console.log('\n/list/<id>')
+  if (occ.length) console.log('  OCCLUDED CONTROL:\n    ' + occ.join('\n    '))
+  if (small.length) console.log('  UNDER 44px:\n    ' + small.join('\n    '))
+  failures += occ.length + small.length
+}
+
+await browser.close()
+console.log(
+  failures ? `\n${failures} issue(s).` : '\nClean: no occluded controls, no target under 44px.',
+)
+process.exit(failures ? 1 : 0)

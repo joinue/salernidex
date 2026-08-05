@@ -1,0 +1,55 @@
+/* ---------- stepper (− value +) ---------- */
+
+/* Shared by the habits list, habit detail and the list-item quantity editor,
+   which each carried their own copy. The buttons paint at 32px and tap at 44
+   (base.css extends them) — the old habit version was 30px with no extension,
+   the smallest recurring target in the app. */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 2px;
+  background: var(--fill);
+  border-radius: 999px;
+}
+
+.stepper-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--text);
+  transition: background var(--dur-1) ease;
+}
+
+.stepper-btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, var(--tap-min));
+  height: max(100%, var(--tap-min));
+  transform: translate(-50%, -50%);
+}
+
+.stepper-btn:active {
+  background: var(--fill-2);
+}
+
+.stepper-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* tabular-nums so the row doesn't shift width as the count ticks over. */
+.stepper-val {
+  min-width: 26px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,36 @@
+/* ---------- stat tiles ---------- */
+
+/* auto-fit rather than a fixed 3-up: habit detail shows seven tiles, and a
+   hard three columns stranded the seventh alone on its own row. */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: 10px;
+}
+
+.stat-tile {
+  padding: 14px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-unit {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  letter-spacing: 0;
+}
+
+.stat-label {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--text-2);
+}

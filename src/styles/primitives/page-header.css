@@ -1,0 +1,228 @@
+/* ---------- large title header ---------- */
+
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.large-title {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  line-height: 1.1;
+}
+
+/* Title row: the (optionally dropdown) title plus an optional ⓘ info button. */
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* Title-as-dropdown (People hub: switch People / Groups / Orgs / Network) ---- */
+.title-menu-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+/* Small muted info indicator next to a title; opens an explanatory popover. */
+.info-pop-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.info-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background 120ms ease;
+}
+
+.info-btn:hover,
+.info-btn[aria-expanded='true'] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Centered horizontally on the viewport, pinned just below the ⓘ (top is set
+   inline from the button's measured position) so it never clips off an edge. */
+.info-popover {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 51;
+  width: max-content;
+  max-width: min(340px, calc(100vw - 32px));
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 0.5px solid var(--separator);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  transform-origin: top center;
+  animation: info-pop-in 140ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes info-pop-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+.info-popover-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.info-popover-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.title-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.title-menu-chevron {
+  color: var(--text-3);
+  margin-top: 4px; /* optically center against the heavy title */
+  transition: transform 160ms ease;
+}
+
+.title-menu[aria-expanded='true'] .title-menu-chevron {
+  transform: rotate(180deg);
+}
+
+/* Invisible catch-all so a tap anywhere outside closes the menu. */
+.title-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+.title-menu-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 51;
+  min-width: 208px;
+  padding: 6px;
+  background: var(--surface);
+  border: 0.5px solid var(--separator);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  transform-origin: top left;
+  animation: title-menu-in 140ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes title-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+}
+
+.title-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text);
+  text-align: left;
+  transition: background 120ms ease;
+}
+
+.title-menu-item:hover {
+  background: var(--fill-2);
+}
+
+.title-menu-item.active {
+  color: var(--accent);
+}
+
+.title-menu-item.active svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: var(--text-2);
+  margin-top: 3px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.header-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  transition:
+    transform 120ms ease,
+    background 120ms ease;
+}
+
+.header-action:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.header-action:active {
+  transform: scale(0.92);
+}
+
+/* Quieter sibling (e.g. Settings gear next to the primary action) */
+.header-action.neutral {
+  background: var(--fill);
+  color: var(--text-2);
+}
+
+.header-action.neutral:hover {
+  background: var(--fill);
+  color: var(--text);
+}
+
+/* Legacy title (kept for any view not yet migrated) */
+.page-title {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  margin-bottom: 18px;
+}

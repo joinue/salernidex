@@ -37,7 +37,9 @@ afterEach(() => {
 
 describe('projectBucket', () => {
   it('reads a completed_at as done regardless of status', () => {
-    expect(projectBucket({ completed_at: '2026-06-01T00:00:00Z', project_status: 'active' })).toBe('done')
+    expect(projectBucket({ completed_at: '2026-06-01T00:00:00Z', project_status: 'active' })).toBe(
+      'done',
+    )
   })
   it('reads project_status someday', () => {
     expect(projectBucket({ project_status: 'someday' })).toBe('someday')
@@ -57,8 +59,18 @@ describe('projectDate', () => {
 })
 
 describe('byProjects', () => {
-  const a = { title: 'Beta', created_at: '2026-01-01', updated_at: '2026-06-01', end_date: '2026-07-01' }
-  const b = { title: 'alpha', created_at: '2026-05-01', updated_at: '2026-05-01', due_date: '2026-06-10' }
+  const a = {
+    title: 'Beta',
+    created_at: '2026-01-01',
+    updated_at: '2026-06-01',
+    end_date: '2026-07-01',
+  }
+  const b = {
+    title: 'alpha',
+    created_at: '2026-05-01',
+    updated_at: '2026-05-01',
+    due_date: '2026-06-10',
+  }
   it('name sorts case-insensitively', () => {
     expect([a, b].sort(byProjects('name')).map((p) => p.title)).toEqual(['alpha', 'Beta'])
   })
@@ -320,7 +332,10 @@ describe('completionFields', () => {
 describe('completionLog', () => {
   // "now" is Fri 2026-06-12 noon (see beforeEach).
   it('groups check-offs by local day, newest first', () => {
-    const tasks = [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }]
+    const tasks = [
+      { id: 'a', title: 'A' },
+      { id: 'b', title: 'B' },
+    ]
     const completions = [
       { id: 'c1', task_id: 'a', completed_at: '2026-06-12T09:00:00', completed_by: 'm1' },
       { id: 'c2', task_id: 'b', completed_at: '2026-06-11T20:00:00', completed_by: null },

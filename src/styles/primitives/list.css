@@ -1,0 +1,113 @@
+/* ---------- grouped inset list ---------- */
+
+.list {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+/* swipe wrapper sits as a list child but must clip its own actions */
+.list > .swipe-wrap:not(:last-child) .swipe-content {
+  border-bottom: 0.5px solid var(--separator);
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+  transition: background 100ms ease;
+}
+
+.list > .list-row:not(:last-child) {
+  border-bottom: 0.5px solid var(--separator);
+}
+
+.list-row:hover {
+  background: var(--fill-2);
+}
+
+.list-row:active {
+  background: var(--fill);
+}
+
+.row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.row-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Title + shared-dot on one line: the title truncates, the dot never clips. */
+.row-titleline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.row-titleline .row-title {
+  min-width: 0;
+}
+
+/* Subtle "your household can see this" marker (see SharedDot.jsx). Only renders
+   in a 2+ member household on shared items, so it's quiet reassurance. */
+.shared-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.55;
+}
+
+.row-sub {
+  font-size: 13.5px;
+  color: var(--text-2);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+
+.row-chevron {
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.row-time {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.row-time.warn {
+  color: var(--danger);
+}
+
+/* A card holding prose or controls rather than .list-rows, which bring their
+   own padding. <Card padded>. */
+.list-padded {
+  padding: 14px;
+}

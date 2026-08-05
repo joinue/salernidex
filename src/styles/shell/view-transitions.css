@@ -1,0 +1,51 @@
+/* ---------- view transitions (route changes cross-fade + drift) ---------- */
+
+/* Only the content column animates; chrome (sidebar, tabbar) stays put. */
+.main {
+  view-transition-name: main-content;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+/* The floating mobile chrome is position:fixed, so it must NOT be baked into
+   the root snapshot — that snapshot spans the full scroll height and is pinned
+   to the top, which strips a fixed element of its viewport-bottom anchoring and
+   makes the bar flicker/jump (looks like it "loads in" after the content) on
+   every route cross-fade. Giving each its own group keeps it anchored, and the
+   no-op animation means it simply stays put — truly persistent across nav. */
+.tabbar {
+  view-transition-name: tabbar;
+}
+
+.fab {
+  view-transition-name: fab;
+}
+
+::view-transition-group(tabbar),
+::view-transition-group(fab) {
+  animation: none;
+}
+
+::view-transition-old(main-content) {
+  animation: vt-out 140ms ease-in forwards;
+}
+
+::view-transition-new(main-content) {
+  animation: vt-in 200ms ease-out;
+}
+
+@keyframes vt-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes vt-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}

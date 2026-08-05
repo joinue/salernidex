@@ -1,0 +1,80 @@
+/* ---------- legal pages (privacy / terms) ---------- */
+
+/* Standalone (logged-out) wrapper: no sidebar/nav, so center the column and
+   give it breathing room + safe-area padding like the rest of the app. */
+.legal-standalone {
+  overflow-y: auto;
+}
+
+.legal-standalone .content {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: max(24px, env(safe-area-inset-top)) 20px calc(40px + env(safe-area-inset-bottom));
+}
+
+.legal {
+  max-width: 680px;
+}
+
+.legal-doc h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  margin: 4px 0 2px;
+}
+
+.legal-date {
+  color: var(--text-2);
+  font-size: 13px;
+  margin-bottom: 22px;
+}
+
+.legal-doc h2 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  margin: 28px 0 8px;
+}
+
+.legal-doc p,
+.legal-doc li {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.legal-doc p {
+  margin: 0 0 12px;
+}
+
+.legal-doc ul {
+  margin: 0 0 12px;
+  padding-left: 22px;
+}
+
+.legal-doc li {
+  margin-bottom: 7px;
+}
+
+.legal-doc a {
+  color: var(--accent);
+}
+
+/* All-caps statutory blocks (warranty / liability) read a touch quieter. */
+.legal-caps {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.legal-meta {
+  margin-top: 36px;
+  padding-top: 18px;
+  border-top: 1px solid var(--separator);
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.legal-meta a {
+  color: var(--accent);
+}

@@ -49,7 +49,12 @@ export const PHONE_LABELS = ['Mobile', 'Home', 'Work', 'Other']
 // Social profiles. `base` builds an openable URL from a bare handle; when null
 // the stored value is expected to be a full URL (or non-linkable handle).
 export const SOCIAL_PLATFORMS = [
-  { id: 'linkedin', label: 'LinkedIn', base: 'https://www.linkedin.com/in/', placeholder: 'username' },
+  {
+    id: 'linkedin',
+    label: 'LinkedIn',
+    base: 'https://www.linkedin.com/in/',
+    placeholder: 'username',
+  },
   { id: 'instagram', label: 'Instagram', base: 'https://instagram.com/', placeholder: 'username' },
   { id: 'x', label: 'X', base: 'https://x.com/', placeholder: 'username' },
   { id: 'facebook', label: 'Facebook', base: 'https://facebook.com/', placeholder: 'username' },

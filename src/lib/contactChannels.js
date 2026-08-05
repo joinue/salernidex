@@ -7,9 +7,7 @@ import { SOCIAL_BY_ID } from './constants'
 // row can be typed into) and cleaned here before save.
 export function cleanChannels(items) {
   if (!Array.isArray(items)) return []
-  return items
-    .map((it) => ({ ...it, value: (it.value || '').trim() }))
-    .filter((it) => it.value)
+  return items.map((it) => ({ ...it, value: (it.value || '').trim() })).filter((it) => it.value)
 }
 
 // Resolve a social entry to an openable URL, or null if it isn't linkable.

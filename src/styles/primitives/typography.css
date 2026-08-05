@@ -1,0 +1,60 @@
+/* ---------- typography ---------- */
+
+.label {
+  display: block;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+
+/* Rendered as an <h2> by the SectionLabel primitive, so the size/weight are
+   reset here — the app needs the heading outline for screen readers, not the
+   browser's heading looks. */
+.section-label {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-2);
+  margin: 24px 4px 8px;
+}
+
+/* With a trailing action (a count, "See all", "+ Add") on the same baseline. */
+.section-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* A running count tucked to the right of a section label (e.g. project subtask
+   progress). Normal-case so "2/5" reads cleanly against the uppercase label. */
+.section-count {
+  float: right;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Done logbook: day header (lighter than a section label) + the right-aligned
+   time-of-day stamp on each completed row. */
+.log-day {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+  margin: 14px 4px 6px;
+}
+
+.log-time {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.log-more {
+  margin: 10px 4px 0;
+}

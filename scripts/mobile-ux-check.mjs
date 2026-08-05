@@ -3,7 +3,7 @@
 import { chromium } from 'playwright'
 
 const shots = 'scripts/shots'
-const browser = await chromium.launch({ channel: 'msedge', headless: true })
+const browser = await chromium.launch({ channel: 'chrome', headless: true })
 const page = await browser.newPage({
   viewport: { width: 390, height: 844 },
   isMobile: true,
@@ -34,11 +34,12 @@ try {
   await page.screenshot({ path: `${shots}/m3-form-sheet.png` })
   await page.getByLabel('Close').click()
 
-  // More sheet (icon button on the Today header, next to the Settings gear)
-  await page.locator('.header-action[aria-label="More"]').click()
+  // Cross-create sheet from the floating ➕ (Today's header carries Settings
+  // and Search; the "More" sheet it used to have is gone).
+  await page.locator('.fab').click()
   await page.waitForSelector('.sheet')
   await page.waitForTimeout(300)
-  await page.screenshot({ path: `${shots}/m4-more-sheet.png` })
+  await page.screenshot({ path: `${shots}/m4-add-sheet.png` })
   await page.mouse.click(195, 200) // tap overlay to dismiss
   await page.waitForTimeout(200)
 

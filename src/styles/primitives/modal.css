@@ -1,0 +1,73 @@
+/* ---------- modal (right sheet on desktop, bottom sheet on mobile) ---------- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 50;
+  animation: fade-in 200ms ease-out;
+}
+
+.modal {
+  /* Published so the sticky commit button can cancel the padding out — a
+     sticky offset resolves against the scroller's content edge. */
+  --modal-pad-x: 24px;
+  --modal-pad-b: 40px;
+  width: 440px;
+  max-width: 100%;
+  height: 100%;
+  background: var(--bg);
+  padding: 24px var(--modal-pad-x) var(--modal-pad-b);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: slide-in 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* ---------- the commit button stays reachable ----------
+
+   Every form sheet ends with its primary button as the last child of the form.
+   Left in normal flow it scrolls away exactly when the user has done the most
+   work: the New-task sheet is 607px tall with 1,216px of content once "More
+   options" is open, which put "Add task" below the fold, and PersonForm never
+   showed a save at all until you reached the bottom of a long scroll.
+
+   Sticking it to the foot of the sheet means no form has to remember to do
+   this, and none of the eighteen call sites changed. The ::before is the
+   frosted backdrop, bled out to the sheet's edges so content scrolling
+   underneath reads as "behind the button" rather than as a rendering slip. */
+.modal form > .btn-primary:last-child {
+  position: sticky;
+  /* 0 resolves to the scroller's content edge, i.e. --modal-pad-b above the
+     sheet's bottom — so the button keeps its breathing room and never sits on
+     the home indicator. */
+  bottom: 0;
+  z-index: 1;
+  margin-top: 20px;
+  /* The band behind the button. A spread box-shadow rather than a pseudo-
+     element: a ::before with z-index:-1 paints *above* its own element's
+     background (the button is the stacking context), which erased the blue
+     fill. clip-path then trims the halo to exactly the sheet's gutters, so it
+     reads as a footer bar rather than a glow. */
+  box-shadow: 0 0 0 100vmax var(--bg);
+  clip-path: inset(
+    -18px calc(-1 * var(--modal-pad-x)) calc(-1 * var(--modal-pad-b)) calc(-1 * var(--modal-pad-x))
+  );
+}
+
+@media (max-width: 720px) {
+  .modal {
+    --modal-pad-x: 20px;
+    --modal-pad-b: calc(24px + var(--safe-b));
+  }
+}

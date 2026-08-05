@@ -176,7 +176,9 @@ function localDay(iso) {
 // each Done-log row. Reuses timeLabel so it matches due-time formatting.
 export function completionTime(iso) {
   const d = new Date(iso)
-  return timeLabel(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)
+  return timeLabel(
+    `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+  )
 }
 
 // Friendly header for a completion day: Today / Yesterday / weekday within the
@@ -205,7 +207,12 @@ export function completionLog(tasks, completions = [], keep = () => true) {
     const task = byId.get(c.task_id)
     if (!task || task.parent_id || !keep(task)) continue
     logged.add(task.id)
-    events.push({ id: c.id, task, completedAt: c.completed_at, completedBy: c.completed_by || null })
+    events.push({
+      id: c.id,
+      task,
+      completedAt: c.completed_at,
+      completedBy: c.completed_by || null,
+    })
   }
   for (const t of tasks) {
     if (t.parent_id || !t.completed_at || logged.has(t.id) || !keep(t)) continue
