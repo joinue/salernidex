@@ -1,0 +1,10 @@
+# Store LF in git and check out LF on every platform.
+#
+# Without this, Windows checkouts get CRLF (via core.autocrlf) while Prettier
+# writes LF, so `npm run format:check` fails locally on every file even though
+# CI (ubuntu) passes. Pinning eol=lf keeps the gate honest on both.
+* text=auto eol=lf
+
+# Never convert binaries.
+*.png binary
+*.ico binary
