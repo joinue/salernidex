@@ -101,6 +101,22 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Present to assistive tech, absent to the eye. The clip has to leave the
+   element rendered and hit-testable — display:none or visibility:hidden would
+   drop it from the accessibility tree, which is the one thing this must not
+   do. Used where a gesture is the only visual affordance and a screen-reader
+   user needs a real control instead (swipe-row actions). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* One keyboard focus ring for the whole app. :focus-visible (not :focus) so a
    pointer tap never paints it, which is why every control can carry it without
    the touch UI changing at all. Nothing else in the app should define its own —

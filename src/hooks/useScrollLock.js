@@ -12,6 +12,14 @@ import { useEffect } from 'react'
 let locks = 0
 let prevOverflow = ''
 
+// Every overlay in the app (Modal, Sheet, ConfirmDialog, QuickFind, PeopleMap)
+// takes a scroll lock, which makes this counter an accurate "is something
+// covering the page right now" signal. useEdgeBack reads it so an edge swipe
+// inside an open sheet doesn't navigate the page out from behind it.
+export function overlaysOpen() {
+  return locks > 0
+}
+
 export function useScrollLock() {
   useEffect(() => {
     const main = document.querySelector('.main')

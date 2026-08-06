@@ -257,6 +257,7 @@ export default function SearchView({
     return (
       <SwipeRow
         key={person.id}
+        label={person.name}
         actions={actions}
         onClick={() => onOpen(person.id)}
         onLongPress={() => setActionPerson(person)}

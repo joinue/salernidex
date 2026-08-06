@@ -236,7 +236,7 @@ export default function NotesView({
   const row = (n, idx) => {
     const sub = rowSub(n)
     return (
-      <SwipeRow key={n.id} onClick={() => open(n.id)} actions={rowActions(n)}>
+      <SwipeRow key={n.id} label={noteTitle(n)} onClick={() => open(n.id)} actions={rowActions(n)}>
         <div className={`list-row note-row ${marks(n, idx)}`} {...focusProps(n, idx)}>
           <div className="row-body">
             <div className="row-titleline">

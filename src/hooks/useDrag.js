@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { LONG_PRESS_MS, DRAG_SLOP_PX } from '../lib/gestures'
 import haptics from '../lib/haptics'
 
@@ -35,9 +35,27 @@ export function useDrag({
     }
   }
 
+  // A pending long-press must not outlive the element. Rows disappear mid-hold
+  // all the time here (a realtime delete from another household member, a route
+  // change), and a timer that fires afterwards runs its action against a screen
+  // the user already left.
+  useEffect(
+    () => () => {
+      clearLP()
+      state.current = null
+    },
+    [],
+  )
+
   const down = (e) => {
     if (!enabled) return
     if (e.pointerType === 'mouse' && e.button !== 0) return
+    // Second finger mid-gesture: ignore it rather than re-home the drag on the
+    // new contact point, which makes the row visibly jump. Testing isPrimary is
+    // enough — and safer than refusing to start while state is non-null, which
+    // would wedge the row for good if a pointerup ever landed elsewhere.
+    if (!e.isPrimary) return
+    clearLP() // a stale timer from an abandoned press must not outlive it
     state.current = {
       x0: e.clientX,
       y0: e.clientY,
@@ -67,7 +85,7 @@ export function useDrag({
 
   const move = (e) => {
     const s = state.current
-    if (!s) return
+    if (!s || s.pointerId !== e.pointerId) return
     const dx = e.clientX - s.x0
     const dy = e.clientY - s.y0
     if (Math.abs(dx) > DRAG_SLOP_PX || Math.abs(dy) > DRAG_SLOP_PX) {
@@ -104,8 +122,10 @@ export function useDrag({
   }
 
   const up = (e) => {
-    clearLP()
     const s = state.current
+    // A secondary pointer lifting must not end the drag the primary is running.
+    if (s && s.pointerId !== e.pointerId) return
+    clearLP()
     state.current = null
     if (!s) return
     if (s.active) setDragging(false)

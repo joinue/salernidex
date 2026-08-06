@@ -60,9 +60,16 @@ const audit = () =>
     // to match would push its hit area over theirs, which is the adjacency bug
     // this audit exists to catch. Typing a custom quantity is the rare path.
     // UIStepper is 29pt for the same reason.
+    //
+    // .sr-only subtrees are screen-reader-only by construction: clipped to a
+    // pixel, never painted, never tapped by a sighted user. They're the fix
+    // for gesture-only actions (swipe rows), so measuring them as touch
+    // targets would penalise exactly the accessibility work that puts them
+    // there. They can't be caught by the computed-style check below either —
+    // staying out of display:none/visibility:hidden is the entire point.
     const EXEMPT = '.alpha-index-letter, .qty-input'
     for (const el of controls) {
-      if (el.matches(EXEMPT)) continue
+      if (el.matches(EXEMPT) || el.closest('.sr-only')) continue
       const r = el.getBoundingClientRect()
       // Fully in view only: a control half-scrolled under the sticky search bar
       // isn't undersized, it's just partly off-screen.

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useScrollLock } from '../../hooks/useScrollLock'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { useVisualViewport } from '../../hooks/useVisualViewport'
-import { DRAG_SLOP_PX } from '../../lib/gestures'
+import { DRAG_SLOP_PX, DRAG_EXEMPT_SELECTOR, swallowNextClick } from '../../lib/gestures'
 import haptics from '../../lib/haptics'
 
 // Reusable iOS bottom sheet with drag-to-dismiss. You can pull the sheet down
@@ -64,12 +64,24 @@ export default function Sheet({ title, onClose, children }) {
 
   const onPointerDown = (e) => {
     if (closing || (e.pointerType === 'mouse' && e.button !== 0)) return
-    drag.current = { y0: e.clientY, lastY: e.clientY, lastT: e.timeStamp, vy: 0, active: false }
+    if (!e.isPrimary) return
+    // A text field owns its own drags: the sheet body is touch-action:none, so
+    // without this, dragging to place a cursor in the habit note pulls the
+    // sheet down and past 110px throws the note away.
+    if (e.target.closest?.(DRAG_EXEMPT_SELECTOR)) return
+    drag.current = {
+      y0: e.clientY,
+      lastY: e.clientY,
+      lastT: e.timeStamp,
+      vy: 0,
+      active: false,
+      pointerId: e.pointerId,
+    }
   }
 
   const onPointerMove = (e) => {
     const d = drag.current
-    if (!d) return
+    if (!d || d.pointerId !== e.pointerId) return
     const dy = e.clientY - d.y0
     if (!d.active) {
       // Engage only on a downward pull that begins at the top of the sheet's
@@ -95,16 +107,12 @@ export default function Sheet({ title, onClose, children }) {
 
   const onPointerUp = (e) => {
     const d = drag.current
+    if (d && d.pointerId !== e.pointerId) return
     drag.current = null
     if (!d || !d.active) return
     setDragging(false)
     // A pull that lands on a tappable row mustn't also fire its click.
-    const swallow = (ce) => {
-      ce.stopPropagation()
-      ce.preventDefault()
-    }
-    window.addEventListener('click', swallow, { capture: true, once: true })
-    setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 80)
+    swallowNextClick()
     const dy = e.clientY - d.y0
     if (dy > DISMISS_PX || d.vy > DISMISS_VY) dismiss()
     else setY(0)

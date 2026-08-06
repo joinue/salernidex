@@ -7,6 +7,7 @@ import { ALPHABET } from '../../lib/search'
 // finger down the strip to fly through the list.
 export default function AlphaIndex({ present, onJump }) {
   const lastLetter = useRef(null)
+  const scrubbing = useRef(false)
 
   // Resolve the DOM element under a pointer to its data-letter and jump once
   // per letter crossed (so a drag feels continuous, not jittery).
@@ -19,16 +20,38 @@ export default function AlphaIndex({ present, onJump }) {
     }
   }
 
+  // Pointer events, not touch events: the strip is a scrubber for a mouse and a
+  // stylus too, and the old touch-only handlers left those inputs with nothing
+  // but per-letter clicks. Capture keeps the moves coming once the finger
+  // drifts off the 16px-wide strip, which it does constantly.
+  //
+  // (The scroll suppression that used to live here as preventDefault on
+  // onTouchMove never ran — React registers touchmove passively at the root.
+  // `touch-action: none` in people-index.css is what actually holds the page
+  // still, and it does so for every pointer type.)
   return (
     <div
       className="alpha-index"
-      onTouchStart={(e) => {
+      onPointerDown={(e) => {
+        if (!e.isPrimary) return
+        scrubbing.current = true
         lastLetter.current = null
-        jumpAt(e.touches[0].clientX, e.touches[0].clientY)
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId)
+        } catch {
+          /* ignore */
+        }
+        jumpAt(e.clientX, e.clientY)
       }}
-      onTouchMove={(e) => {
-        e.preventDefault()
-        jumpAt(e.touches[0].clientX, e.touches[0].clientY)
+      onPointerMove={(e) => {
+        if (!scrubbing.current) return
+        jumpAt(e.clientX, e.clientY)
+      }}
+      onPointerUp={() => {
+        scrubbing.current = false
+      }}
+      onPointerCancel={() => {
+        scrubbing.current = false
       }}
       aria-hidden="true"
     >

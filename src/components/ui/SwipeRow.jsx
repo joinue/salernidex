@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useDrag } from '../../hooks/useDrag'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
 import haptics from '../../lib/haptics'
 
 // iOS swipe-to-reveal row, built on the shared useDrag pipeline. Swipe left to
@@ -9,13 +10,24 @@ import haptics from '../../lib/haptics'
 //
 // Mouse users never discover sideways-dragging — on fine-pointer devices the
 // same actions surface as a compact icon cluster on hover instead, and drag
-// handling is disabled entirely so rows can't be smeared around by accident.
+// handling is disabled so rows can't be smeared around by accident. A hybrid
+// (touchscreen laptop, iPad with a keyboard) reports BOTH a fine pointer and a
+// coarse one, so it gets the cluster *and* keeps the swipe: capability is
+// additive, and asking `matchMedia` once at module load couldn't see either
+// change anyway.
+//
+// The cluster is also the accessible representation of the actions, on every
+// device. The swipe-revealed buttons can't be it: they're visibility:hidden
+// until the row opens, which takes them out of the tab order and the
+// accessibility tree, so a VoiceOver user — who cannot perform the swipe —
+// had no route to Edit or Delete at all.
 const CLOSE_EVENT = 'swiperow-close-others'
 let nextId = 0
 
-const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches
-
-export default function SwipeRow({ actions = [], onClick, onLongPress, children }) {
+export default function SwipeRow({ actions = [], onClick, onLongPress, label, children }) {
+  const finePointer = useMediaQuery('(hover: hover) and (pointer: fine)')
+  const coarsePointer = useMediaQuery('(any-pointer: coarse)')
+  const swipeEnabled = !finePointer || coarsePointer
   const idRef = useRef(++nextId)
   const [offset, setOffset] = useState(0)
   const offsetRef = useRef(0)
@@ -88,17 +100,20 @@ export default function SwipeRow({ actions = [], onClick, onLongPress, children 
 
   return (
     <div className={`swipe-wrap ${offset ? 'open' : ''}`}>
-      <div className="swipe-actions" style={{ width: openWidth }}>
+      {/* Hidden from assistive tech: these duplicate the always-present cluster
+          below, which is the accessible path. Sighted users tap them directly
+          after swiping, so they need no name of their own. */}
+      <div className="swipe-actions" style={{ width: openWidth }} aria-hidden="true">
         {actions.map((a) => (
           <button
             key={a.label}
             className={`swipe-action ${a.variant || ''}`}
+            tabIndex={-1}
             onClick={(e) => {
               e.stopPropagation()
               snap(false)
               a.onClick()
             }}
-            aria-label={a.label}
           >
             {a.icon && <a.icon size={18} />}
             <span>{a.label}</span>
@@ -114,18 +129,20 @@ export default function SwipeRow({ actions = [], onClick, onLongPress, children 
           transform: offset ? `translateX(${offset}px)` : undefined,
           transition: dragging ? 'none' : 'transform 280ms cubic-bezier(0.32,0.72,0,1)',
         }}
-        {...(finePointer ? {} : handlers)}
+        {...(swipeEnabled ? handlers : {})}
         onClick={handleClick}
       >
         {children}
-        {finePointer && actions.length > 0 && (
-          <div className="row-hover-actions">
+        {actions.length > 0 && (
+          <div className={`row-hover-actions ${finePointer ? '' : 'sr-only'}`}>
             {actions.map((a) => (
               <button
                 key={a.label}
                 className={`icon-btn ${a.variant || ''}`}
                 title={a.label}
-                aria-label={a.label}
+                // Name the row, not just the verb: a screen reader moving down
+                // a list otherwise hears "Delete" forty times with no subject.
+                aria-label={label ? `${a.label} ${label}` : a.label}
                 onClick={(e) => {
                   e.stopPropagation()
                   a.onClick()

@@ -38,6 +38,17 @@
   touch-action: pan-y;
 }
 
+/* Form controls own their own gestures. Sheet.jsx already declines to start a
+   drag-to-dismiss inside one; this hands the gesture back to the browser so
+   caret placement and text selection actually work (the sheet body's
+   touch-action:none would otherwise swallow them and leave the field inert). */
+.sheet input,
+.sheet textarea,
+.sheet select,
+.sheet [contenteditable='true'] {
+  touch-action: auto;
+}
+
 /* the draggable grab zone (handle + title) at the top of a sheet */
 .sheet-grip {
   touch-action: none;

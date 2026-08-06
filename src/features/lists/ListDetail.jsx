@@ -180,6 +180,7 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
   if (heading) {
     return (
       <SwipeRow
+        label={it.text}
         actions={[
           { label: 'Edit', icon: Edit2, onClick: open },
           { label: 'Delete', icon: Trash2, variant: 'danger', onClick: () => onDelete(it.id) },
@@ -198,6 +199,7 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
 
   return (
     <SwipeRow
+      label={it.text}
       actions={[
         { label: 'Edit', icon: Edit2, onClick: open },
         { label: 'Delete', icon: Trash2, variant: 'danger', onClick: () => onDelete(it.id) },

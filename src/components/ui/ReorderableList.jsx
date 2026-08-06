@@ -1,6 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import haptics from '../../lib/haptics'
-import { LONG_PRESS_MS, DRAG_SLOP_PX, REORDER_CANCEL_PX } from '../../lib/gestures'
+import {
+  LONG_PRESS_MS,
+  DRAG_SLOP_PX,
+  REORDER_CANCEL_PX,
+  swallowNextClick,
+} from '../../lib/gestures'
 
 // Drag-to-reorder wrapper for grouped-inset lists.
 //
@@ -19,7 +24,12 @@ export default function ReorderableList({ items, onMove, renderItem, className =
   const wrapRef = useRef(null)
   const rowRefs = useRef(new Map())
   const sess = useRef(null)
+  const cleanupRef = useRef(null)
   const [drag, setDrag] = useState(null) // { id, from, to, dy, h }
+
+  // Tear down an in-flight press if the list unmounts under it (route change,
+  // a filter switch): the pending lift timer would otherwise still fire.
+  useEffect(() => () => cleanupRef.current?.(), [])
 
   const setRowRef = (id) => (el) => {
     if (el) rowRefs.current.set(id, el)
@@ -27,13 +37,22 @@ export default function ReorderableList({ items, onMove, renderItem, className =
   }
 
   const lift = (index, anchorY, pointerId) => {
-    const rects = items.map((it) => {
-      const r = rowRefs.current.get(it.id).getBoundingClientRect()
+    // The lift runs up to LONG_PRESS_MS after the press began, and `items` is
+    // the array from that moment. In a shared household list another member's
+    // edit can land in between, so a row we measured against may already be
+    // gone from the DOM. Bail rather than dereference a missing ref.
+    const els = items.map((it) => rowRefs.current.get(it.id))
+    const rowEl = els[index]
+    if (!rowEl || els.some((el) => !el)) {
+      sess.current = null
+      return
+    }
+    const rects = els.map((el) => {
+      const r = el.getBoundingClientRect()
       return { top: r.top, h: r.height, mid: r.top + r.height / 2 }
     })
     sess.current = { ...sess.current, lifted: true, index, to: index, anchorY, rects }
     haptics.medium()
-    const rowEl = rowRefs.current.get(items[index].id)
     try {
       rowEl.setPointerCapture(pointerId)
     } catch {
@@ -59,6 +78,13 @@ export default function ReorderableList({ items, onMove, renderItem, className =
   const start = (e, index) => {
     if (items.length < 2) return
     if (e.pointerType === 'mouse' && e.button !== 0) return
+    // One press at a time — a second finger landing on another row would
+    // otherwise start a rival session and clobber this one's state.
+    if (!e.isPrimary) return
+    // A previous session that never saw its pointerup (a mouse released outside
+    // the list) still owns listeners on `wrap`. Retire it rather than refusing
+    // to start, which would leave reordering dead until the next remount.
+    cleanupRef.current?.()
     // buttons/inputs own their taps (checkboxes, swipe actions, fields)
     if (e.target.closest('button, input, textarea, select, a')) return
 
@@ -76,11 +102,13 @@ export default function ReorderableList({ items, onMove, renderItem, className =
       wrap.removeEventListener('pointercancel', onUpEv)
       wrap.removeEventListener('touchmove', onTouchMoveEv)
       sess.current = null
+      cleanupRef.current = null
     }
+    cleanupRef.current = cleanup
 
     const onMoveEv = (ev) => {
       const s = sess.current
-      if (!s) return
+      if (!s || ev.pointerId !== pointerId) return
       if (!s.lifted) {
         const dx = ev.clientX - x0
         const dy = ev.clientY - y0
@@ -108,7 +136,8 @@ export default function ReorderableList({ items, onMove, renderItem, className =
       }
     }
 
-    const onUpEv = () => {
+    const onUpEv = (ev) => {
+      if (ev.pointerId !== pointerId) return
       const s = sess.current
       const didDrag = s?.lifted
       const from = s?.index
@@ -117,12 +146,7 @@ export default function ReorderableList({ items, onMove, renderItem, className =
       setDrag(null)
       if (!didDrag) return
       // a drag mustn't end as a click on the row underneath
-      const swallow = (ce) => {
-        ce.stopPropagation()
-        ce.preventDefault()
-      }
-      window.addEventListener('click', swallow, { capture: true, once: true })
-      setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 80)
+      swallowNextClick()
       if (to !== from) {
         haptics.success()
         onMove(from, to)

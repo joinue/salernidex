@@ -19,6 +19,9 @@ export default defineConfig({
       // (hasDOM). They were silently skipped while everything ran on node —
       // and an HTML sanitizer is precisely the code that wants covering.
       ['src/lib/notes.test.js', 'jsdom'],
+      // gestures.js is mostly constants, but swallowNextClick and
+      // DRAG_EXEMPT_SELECTOR are DOM behaviour and are tested as such.
+      ['src/lib/gestures.test.js', 'jsdom'],
       ['src/**/*.test.js', 'node'],
     ],
   },

@@ -81,17 +81,24 @@
     pointer-events: none;
     transition: opacity 120ms ease;
   }
+  /* focus-within, not just hover: these are real tab stops, and revealing them
+     only on hover meant a keyboard user tabbed onto invisible buttons — two
+     per row, for every row in the list. (.note-card already did this; the
+     swipe rows never got the same treatment.) */
   .swipe-wrap:hover .row-hover-actions,
-  .list-row:hover .row-hover-actions {
+  .list-row:hover .row-hover-actions,
+  .swipe-wrap:focus-within .row-hover-actions,
+  .list-row:focus-within .row-hover-actions {
     opacity: 1;
     pointer-events: auto;
   }
 }
-@media (hover: none) {
-  .row-hover-actions {
-    display: none;
-  }
-}
+
+/* On a touch device the cluster would be redundant clutter beside the swipe,
+   so SwipeRow gives it .sr-only instead: not drawn, but still in the
+   accessibility tree and still activatable — because swiping is not a gesture
+   a VoiceOver user can perform, and these buttons are their only route to the
+   row's actions. (See .sr-only in base.css.) */
 
 /* Touch-only quick buttons inside rows: redundant with (and covered by) the
    hover cluster on fine-pointer devices. (.icon-btn.touch-quick out-ranks

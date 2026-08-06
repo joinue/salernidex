@@ -19,6 +19,7 @@ export default function Modal({ title, onClose, children }) {
   useFocusTrap(dialogRef)
   const [y, setY] = useState(0)
   const [closing, setClosing] = useState(false)
+  const backdropDown = useRef(false)
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -56,7 +57,18 @@ export default function Modal({ title, onClose, children }) {
             }
           : undefined
       }
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+      // Close on the backdrop *release*, and only if the press started there
+      // too — a press that turns into a drag (or one that begins inside the
+      // dialog and ends outside it) shouldn't dismiss. Sheet was moved to this
+      // pointer pair for exactly that reason; Modal kept the old mousedown,
+      // which on iOS also double-fired alongside the touch sequence.
+      onPointerDown={(e) => {
+        backdropDown.current = e.target === e.currentTarget
+      }}
+      onPointerUp={(e) => {
+        if (backdropDown.current && e.target === e.currentTarget) onClose()
+        backdropDown.current = false
+      }}
     >
       <div
         ref={dialogRef}
@@ -86,8 +98,10 @@ export default function Modal({ title, onClose, children }) {
             <button
               className="modal-close"
               onClick={onClose}
-              onMouseDown={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
+              // The drag-to-dismiss handlers on .modal-top are pointer-based,
+              // so the guard has to be too — mousedown/touchstart never
+              // intercepted them.
+              onPointerDown={(e) => e.stopPropagation()}
               aria-label="Close"
             >
               <X size={20} />

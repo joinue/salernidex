@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { RefreshCw } from 'react-feather'
 import haptics from '../../lib/haptics'
+import { swallowNextClick } from '../../lib/gestures'
 
 const THRESHOLD = 64 // px pulled before a release triggers refresh
 const MAX = 96
@@ -19,14 +20,31 @@ export default function PullToRefresh({ onRefresh, children }) {
 
   const scroller = () => rootRef.current?.closest('.main')
 
+  // `.main` is touch-action:pan-y, so the browser also treats a downward drag at
+  // the top as a pan it might claim — and once it claims one it fires
+  // pointercancel and our pull dies mid-gesture. Suppressing touchmove while
+  // engaged keeps the gesture ours. It has to be a native non-passive listener:
+  // React registers touchmove passively at the root, where preventDefault is a
+  // silent no-op.
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    const onTouchMove = (e) => {
+      if (drag.current?.engaged) e.preventDefault()
+    }
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    return () => el.removeEventListener('touchmove', onTouchMove)
+  }, [])
+
   const onPointerDown = (e) => {
     if (e.pointerType === 'mouse' || refreshing) return
-    drag.current = { y0: e.clientY, engaged: false, armed: false }
+    if (!e.isPrimary) return
+    drag.current = { y0: e.clientY, engaged: false, armed: false, pointerId: e.pointerId }
   }
 
   const onPointerMove = (e) => {
     const d = drag.current
-    if (!d) return
+    if (!d || d.pointerId !== e.pointerId) return
     const dy = e.clientY - d.y0
     if (!d.engaged) {
       const sc = scroller()
@@ -47,7 +65,7 @@ export default function PullToRefresh({ onRefresh, children }) {
       d.engaged = false
       setDragging(false)
       setPull(0)
-      drag.current = { y0: e.clientY, engaged: false, armed: false }
+      drag.current = { y0: e.clientY, engaged: false, armed: false, pointerId: e.pointerId }
       return
     }
     const damped = Math.min(MAX, dy * 0.5)
@@ -60,11 +78,16 @@ export default function PullToRefresh({ onRefresh, children }) {
     }
   }
 
-  const onPointerUp = async () => {
+  const onPointerUp = async (e) => {
     const d = drag.current
+    if (d && d.pointerId !== e.pointerId) return
     drag.current = null
     if (!d || !d.engaged) return
     setDragging(false)
+    // The pull started on top of something tappable — usually a list row. A
+    // short pull that doesn't reach the threshold ends where it began, so
+    // without this the browser follows it with a click and the row navigates.
+    swallowNextClick()
     if (d.armed) {
       setRefreshing(true)
       setPull(THRESHOLD)

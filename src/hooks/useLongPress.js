@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import haptics from '../lib/haptics'
 import { LONG_PRESS_MS, LONG_PRESS_MOVE_PX } from '../lib/gestures'
 
@@ -21,8 +21,13 @@ export function useLongPress(
     }
   }
 
+  // Drop a pending hold if the element goes away first — otherwise the timer
+  // still fires (buzzing, opening a menu) for a row that no longer exists.
+  useEffect(() => clear, [])
+
   const onPointerDown = (e) => {
     if (e.pointerType === 'mouse') return
+    if (!e.isPrimary) return
     start.current = { x: e.clientX, y: e.clientY }
     fired.current = false
     timer.current = setTimeout(() => {

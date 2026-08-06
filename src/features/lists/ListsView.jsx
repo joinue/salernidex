@@ -45,6 +45,7 @@ export default function ListsView({ data, onOpenList, onEditList, onAdd, onSearc
             return (
               <SwipeRow
                 key={l.id}
+                label={l.name}
                 onClick={() => onOpenList(l.id)}
                 actions={[
                   { label: 'Edit', icon: Edit2, onClick: () => onEditList?.(l) },

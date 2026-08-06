@@ -231,6 +231,7 @@ export default function TodayView({
               {dueTasks.map((item) => (
                 <SwipeRow
                   key={item.key}
+                  label={item.task.title}
                   actions={[later(item)]}
                   onClick={item.project ? () => onOpenProject?.(item.project.id) : undefined}
                 >
@@ -311,7 +312,12 @@ export default function TodayView({
                   (it) => it.list_id === l.id && !it.checked_at,
                 ).length
                 return (
-                  <SwipeRow key={item.key} actions={[later(item)]} onClick={() => onOpenList(l.id)}>
+                  <SwipeRow
+                    key={item.key}
+                    label={l.name}
+                    actions={[later(item)]}
+                    onClick={() => onOpenList(l.id)}
+                  >
                     <div className="list-row">
                       <span
                         className="list-emoji"
@@ -344,6 +350,7 @@ export default function TodayView({
               {checkIns.map((item) => (
                 <SwipeRow
                   key={item.key}
+                  label={item.person.name}
                   actions={[
                     {
                       label: 'Check in',
@@ -396,6 +403,7 @@ export default function TodayView({
                 return (
                   <SwipeRow
                     key={item.key}
+                    label={entry.person.name}
                     actions={[later(item)]}
                     onClick={() => onOpenPerson(entry.person.id)}
                     onLongPress={() => setActionPerson(entry.person)}

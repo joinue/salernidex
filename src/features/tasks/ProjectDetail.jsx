@@ -397,6 +397,7 @@ export default function ProjectDetail({
           return (
             <SwipeRow
               key={l.id}
+              label={l.name}
               onClick={() => onOpenList?.(l.id)}
               actions={[
                 {
