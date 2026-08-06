@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import TaskForm from './TaskForm'
+import { isoDateIn } from '../../lib/tasks'
 
 // TaskForm holds real logic, not just markup: the natural-language token merge,
 // who a new task lands on, and which fields are worth showing before you've
@@ -160,7 +161,11 @@ describe('TaskForm — dates', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Today' }))
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-pressed', 'true')
     await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
-    expect(saved(onSave).due_date).toBe(new Date().toISOString().slice(0, 10))
+    // isoDateIn, not toISOString(): a due date is a *local* day, and
+    // toISOString() reports the UTC one. West of Greenwich the two diverge
+    // every evening, so this assertion passed in the morning and failed after
+    // ~18:00 local.
+    expect(saved(onSave).due_date).toBe(isoDateIn(0))
   })
 
   it('only offers a time of day once there is a date to hang it on', async () => {
