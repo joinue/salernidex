@@ -32,10 +32,26 @@
   border-radius: 999px;
 }
 
+/* The app is a fixed-height shell: .main scrolls, the document never does. That
+   makes the root height the box every piece of fixed chrome is measured against,
+   and on iOS a percentage is the wrong box. `height: 100%` resolves against the
+   initial containing block — the *large* viewport, sized as though the URL bar
+   were collapsed — so with Safari's toolbar showing the shell laid out 60-90px
+   taller than the screen, and `.tabbar`/`.fab`, positioned from that bottom,
+   sat behind the toolbar. Nor does it settle on scroll: because .main is the
+   scroller and the document itself never moves, Safari never collapses the bar.
+   `dvh` is the dynamic viewport — what is actually visible right now — which is
+   the same box JoinUE's shell uses (`min-height: 100dvh`), and the reason its
+   nav lands correctly. Same rule sheet.css already follows for its 88dvh cap.
+
+   The 100% line stays as the fallback for anything without dvh (Safari < 15.4).
+   dvh tracks browser chrome but NOT the keyboard — that stays useKeyboardOpen's
+   job. */
 html,
 body,
 #root {
   height: 100%;
+  height: 100dvh;
 }
 
 body {
