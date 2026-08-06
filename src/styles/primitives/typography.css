@@ -21,6 +21,15 @@
   margin: 24px 4px 8px;
 }
 
+/* A section label that collapses its section (Tasks › Done, Today › Recent
+   activity). Used either as the label itself or nested inside one. */
+.section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+}
+
 /* With a trailing action (a count, "See all", "+ Add") on the same baseline. */
 .section-label-row {
   display: flex;

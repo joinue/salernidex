@@ -279,13 +279,6 @@
   color: var(--text-2);
 }
 
-.section-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: none;
-}
-
 /* recurrence picker */
 .rec-select {
   height: 44px;

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Gift,
   Calendar,
@@ -53,6 +53,9 @@ function greeting() {
   if (h < 18) return 'Good afternoon'
   return 'Good evening'
 }
+
+// Whether the Recent activity section is open, remembered for the session.
+const RECENT_KEY = 'today.showRecent'
 
 const longDate = () =>
   new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
@@ -163,6 +166,26 @@ export default function TodayView({
   // list activity). The full log lives behind "See all".
   const feed = useMemo(() => buildActivityFeed(data), [data])
   const recent = useMemo(() => feed.slice(0, 6), [feed])
+  // On a phone the feed is history, not something to act on, and it pushes the
+  // habits and pinned notes below it off the screen — so it starts collapsed,
+  // the way Done does on Tasks. Wide screens have the room, so it starts open.
+  // Either way the choice sticks for the session (home is remounted constantly).
+  const [showRecent, setShowRecent] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(RECENT_KEY)
+      if (saved !== null) return saved === '1'
+    } catch {
+      // private mode / quota — fall through to the default
+    }
+    return !window.matchMedia('(max-width: 720px)').matches
+  })
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(RECENT_KEY, showRecent ? '1' : '0')
+    } catch {
+      // non-essential, fine to skip
+    }
+  }, [showRecent])
 
   // Pinned notes as quick reference on the dashboard (a few, tap to open).
   const pinnedNotes = (data.notes || []).filter((n) => n.pinned).slice(0, 4)
@@ -434,25 +457,39 @@ export default function TodayView({
         {recent.length > 0 && (
           <section className="today-section">
             <div className="section-head">
-              <SectionLabel>Recent activity</SectionLabel>
+              <SectionLabel>
+                <button
+                  className="section-toggle"
+                  aria-expanded={showRecent}
+                  onClick={() => setShowRecent((v) => !v)}
+                >
+                  Recent activity{' '}
+                  <ChevronRight
+                    size={13}
+                    style={{ transform: showRecent ? 'rotate(90deg)' : 'none' }}
+                  />
+                </button>
+              </SectionLabel>
               {feed.length > recent.length && (
                 <button className="see-all" onClick={onOpenActivity}>
                   See all
                 </button>
               )}
             </div>
-            <div className="list">
-              {recent.map((e) => (
-                <ActivityRow
-                  key={e.key}
-                  entry={e}
-                  onOpenPerson={onOpenPerson}
-                  onOpenList={onOpenList}
-                  onOpenTasks={onOpenTasks}
-                  onPersonLongPress={setActionPerson}
-                />
-              ))}
-            </div>
+            {showRecent && (
+              <div className="list">
+                {recent.map((e) => (
+                  <ActivityRow
+                    key={e.key}
+                    entry={e}
+                    onOpenPerson={onOpenPerson}
+                    onOpenList={onOpenList}
+                    onOpenTasks={onOpenTasks}
+                    onPersonLongPress={setActionPerson}
+                  />
+                ))}
+              </div>
+            )}
           </section>
         )}
       </div>
