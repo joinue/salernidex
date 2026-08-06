@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, MoreHorizontal, Trash2, Star } from 'react-feather'
+import { MoreHorizontal, Trash2, Star } from 'react-feather'
+import NavBar from '../../components/ui/NavBar'
 import RichTextEditor from '../../components/ui/RichTextEditor'
 import TagInput from '../../components/ui/TagInput'
 import PrivacyField from '../../components/ui/PrivacyField'
 import ActionSheet from '../../components/ui/ActionSheet'
 import { useConfirm } from '../../hooks/useConfirm'
-import { extractMentions, mentionCandidates, isNoteEmpty } from '../../lib/notes'
+import { extractMentions, mentionCandidates, isNoteEmpty, noteTitle } from '../../lib/notes'
 import { isEditableTarget } from '../../lib/keys'
 import { memberName, isSolo } from '../../lib/household'
 import { relativeTime } from '../../lib/contact'
@@ -15,9 +16,18 @@ import { relativeTime } from '../../lib/contact'
 // every save so entity-page backlinks stay in sync. Keyed by note id upstream
 // so switching notes remounts with fresh state + a freshly seeded editor.
 //
+// The chrome is `NavBar`, like every other detail screen: Back and the pin / ⋯
+// cluster stay frosted at the top of the scrollport, and the big title sits
+// under them and collapses into the bar's centre once you scroll past it. This
+// page used to hand-roll a `← Notes` link in normal flow, which meant that the
+// moment you tapped into the body and iOS scrolled the caret up, every piece of
+// chrome — back button, title, "Edited …" — left the screen and the only thing
+// still pinned was the formatting toolbar.
+//
 // `embedded` is the two-pane case: the index is already on screen beside this,
-// so the "← Notes" button would point at something you can see. Esc goes back
-// too, but only when it isn't embedded and you aren't mid-sentence.
+// so there is no Back to offer and no scroll to survive — the title shares a
+// plain row with the actions instead. Esc goes back too, but only when it isn't
+// embedded and you aren't mid-sentence.
 export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedded = false }) {
   const { notes, updateNote, deleteNote, discardNote, togglePinNote } = data
   const confirm = useConfirm()
@@ -140,11 +150,7 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
   if (!note) {
     return (
       <div className="detail">
-        {!embedded && (
-          <button className="back-btn" onClick={onBack}>
-            <ArrowLeft size={18} /> Notes
-          </button>
-        )}
+        {!embedded && <NavBar backLabel="Notes" onBack={onBack} title="Not found" />}
         <p className="empty">Note not found.</p>
       </div>
     )
@@ -164,9 +170,9 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
     }
   }
 
-  // Rendered in one of two slots: on its own line under the back button, or —
-  // when there is no back button because the index is right there — sharing the
-  // top row with the pin/⋯ cluster, which would otherwise float alone above it.
+  // Rendered in one of two slots: as the NavBar's large title, or — when there
+  // is no back button because the index is right there — sharing the top row
+  // with the pin/⋯ cluster, which would otherwise float alone above it.
   const titleInput = (
     <input
       ref={titleRef}
@@ -178,31 +184,43 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
     />
   )
 
+  // Pin + overflow. The same pair either way: NavBar's trailing slot when it is
+  // there, the embedded row's own cluster when it isn't.
+  const actions = (
+    <>
+      <button
+        className={`icon-btn ${note.pinned ? 'accent' : ''}`}
+        onClick={() => togglePinNote(note.id)}
+        aria-label={note.pinned ? 'Unpin' : 'Pin'}
+        title={note.pinned ? 'Unpin' : 'Pin'}
+      >
+        <Star size={18} fill={note.pinned ? 'currentColor' : 'none'} />
+      </button>
+      <button className="icon-btn" onClick={() => setSheet(true)} aria-label="More">
+        <MoreHorizontal size={18} />
+      </button>
+    </>
+  )
+
   return (
     <div className={`detail note-detail ${embedded ? 'embedded' : ''}`}>
-      <div className="note-detail-bar">
-        {!embedded && (
-          <button className="back-btn" onClick={onBack}>
-            <ArrowLeft size={18} /> Notes
-          </button>
-        )}
-        {embedded && titleInput}
-        <div className="head-actions">
-          <button
-            className={`icon-btn ${note.pinned ? 'accent' : ''}`}
-            onClick={() => togglePinNote(note.id)}
-            aria-label={note.pinned ? 'Unpin' : 'Pin'}
-            title={note.pinned ? 'Unpin' : 'Pin'}
-          >
-            <Star size={18} fill={note.pinned ? 'currentColor' : 'none'} />
-          </button>
-          <button className="icon-btn" onClick={() => setSheet(true)} aria-label="More">
-            <MoreHorizontal size={18} />
-          </button>
+      {embedded ? (
+        <div className="note-detail-bar">
+          {titleInput}
+          <div className="head-actions">{actions}</div>
         </div>
-      </div>
-
-      {!embedded && titleInput}
+      ) : (
+        // The collapsed bar title tracks what you type, falling back to the
+        // index's own derived title (first body line) for an untitled note.
+        <NavBar
+          backLabel="Notes"
+          onBack={onBack}
+          title={title.trim() || noteTitle(note)}
+          actions={actions}
+        >
+          {titleInput}
+        </NavBar>
+      )}
 
       {note.updated_at && (
         <div className="note-edited">

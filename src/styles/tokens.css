@@ -94,6 +94,12 @@
   /* What a scroll container must reserve so its last row clears the FAB. */
   --content-bottom: calc(var(--fab-bottom) + var(--fab-size) + 20px);
 
+  /* Top chrome. The height of the sticky bar `NavBar` paints, measured from the
+     scrollport's top edge (the bar's own top padding cancels .main's, so this
+     is the part you actually see). Anything that wants to stick *below* the bar
+     rather than under it derives its offset from this — see .note-toolbar. */
+  --navbar-h: 44px;
+
   /* Minimum comfortable touch target (Apple HIG). Used by the .tap-target
      hit-area extension — visual size stays whatever the design calls for. */
   --tap-min: 44px;

@@ -92,7 +92,8 @@
   outline-offset: -2px;
 }
 
-/* Detail / editor page */
+/* Detail / editor page. The full-page shape gets its chrome from NavBar; this
+   row is the embedded (two-pane) case only, where there's no Back to show. */
 .note-detail-bar {
   display: flex;
   align-items: center;
@@ -116,8 +117,13 @@
 .note-editor {
   position: relative;
 }
-/* Toolbar: a quiet row of icon buttons. Sticks just under the title so it
-   stays in reach above the mobile keyboard. */
+/* Toolbar: a quiet row of icon buttons, pinned so it stays in reach however far
+   into a long note you've typed. It has to stick *below* NavBar rather than
+   under it, and --navbar-h is already the right offset with no correction: both
+   resolve against the scroller's content edge, and the bar starts one
+   --main-pad-t above that edge and is exactly that much taller than the bar you
+   see. So its bottom edge lands at --navbar-h, which is where this begins.
+   Embedded in the two-pane rail there is no bar above it — plain top: 0. */
 .note-toolbar {
   position: sticky;
   top: 0;
@@ -135,6 +141,9 @@
 }
 .note-toolbar::-webkit-scrollbar {
   display: none;
+}
+.note-detail:not(.embedded) .note-toolbar {
+  top: var(--navbar-h);
 }
 .note-tool {
   flex: 0 0 auto;
@@ -550,11 +559,14 @@
   }
 
   /* The rail scrolls on its own so the list never leaves while you read, and
-     the sticky toolbar inside it sticks to the rail rather than the page. */
+     the sticky toolbar inside it sticks to the rail rather than the page.
+     dvh, not vh: a big phone in landscape is past 900px (iPhone Pro Max is
+     932pt), and there vh measures the *expanded* viewport, so the rail would
+     overshoot by the height of Safari's toolbar. */
   .notes-rail {
     position: sticky;
     top: 8px;
-    max-height: calc(100vh - 96px);
+    max-height: calc(100dvh - 96px);
     overflow-y: auto;
     overscroll-behavior: contain;
     padding-right: 6px;
@@ -636,18 +648,20 @@
   /* Tags and visibility move up under the title, where they are always in
      reach. At the bottom they sat below the editor's tall keyboard tail — a
      screen and a half of scrolling past the end of a three-line note.
-     Child combinators throughout: when the title moves into .note-detail-bar
-     (embedded), it becomes a flex item of *that* row, and a stray order: 1
-     would sort it behind the pin/⋯ cluster. Order only ever applies to the
-     column's own children. */
+     Child combinators throughout: the title is never a direct child here — it
+     sits inside .note-detail-bar (embedded) or .navbar-large (full page) — and
+     a stray order: 1 on it would sort it behind the pin/⋯ cluster of whichever
+     row it belongs to. Order only ever applies to the column's own children,
+     which is why both of the header's shapes are listed. */
   .note-detail {
     display: flex;
     flex-direction: column;
   }
-  .note-detail > .note-detail-bar {
+  .note-detail > .note-detail-bar,
+  .note-detail > .navbar {
     order: 0;
   }
-  .note-detail > .note-title-input {
+  .note-detail > .navbar-large {
     order: 1;
   }
   .note-detail > .note-edited {
