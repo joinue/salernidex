@@ -9,3 +9,20 @@ import { cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 
 afterEach(cleanup)
+
+// jsdom ships no matchMedia, and some modules read it at import time (SwipeRow
+// decides once whether it's on a fine pointer), which is too early for a
+// beforeEach to help. Default everything to "no match"; a suite that cares
+// about a particular query still reassigns window.matchMedia itself.
+if (typeof window !== 'undefined' && !window.matchMedia) {
+  window.matchMedia = (query) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener() {},
+    removeEventListener() {},
+    addListener() {},
+    removeListener() {},
+    dispatchEvent: () => false,
+  })
+}

@@ -1,20 +1,33 @@
-// Recurrence engine (RRULE-lite) — calendar-anchored, not interval-from-done.
+// Recurrence engine (RRULE-lite).
 //
 // Rule shapes (weekday: 0=Sun … 6=Sat):
 //   daily:                { freq:'daily',   interval, anchor }
 //   weekly:               { freq:'weekly',  interval, weekdays:[1,3], anchor }
-//   monthly by date:      { freq:'monthly', interval, monthday:20, anchor }
+//   monthly by date:      { freq:'monthly', interval, monthdays:[1,15], anchor }
 //   monthly by weekday:   { freq:'monthly', interval, setpos:1, weekday:1, anchor }  // setpos -1 = last
 //   yearly:               { freq:'yearly',  interval, month:5, monthday:12, anchor }
 //
 // Optional on any shape:
 //   until:   'YYYY-MM-DD' — last allowed date (inclusive); past it the series is
 //            over and nextOccurrence returns null (the task then closes).
+//   count:   N — end after N occurrences. Counted from the anchor, and (as in
+//            RFC 5545) an EXDATE'd occurrence still spends its slot.
 //   exdates: ['YYYY-MM-DD', …] — single occurrences to skip ("skip this one").
+//   mode:    'after_completion' — see below. Absent = calendar-anchored.
 //
-// `anchor` (ISO date) fixes the phase so "every 2 weeks"/"every 3 months" are
-// deterministic. `nextOccurrence` returns the next ISO date matching the rule,
-// strictly after (or on, if inclusive) the given date.
+// TWO CLOCKS. By default a rule is **calendar-anchored**: "the 1st and 15th"
+// means those dates whether or not you kept up, and `anchor` fixes the phase so
+// "every 2 weeks" is deterministic. `nextOccurrence` walks that grid.
+//
+// `mode: 'after_completion'` is the other clock, and chores need it: "water the
+// plants every 5 days" means five days after you last *did* it. On a calendar
+// grid, finishing three days late hands you the next one in two — which is how
+// a maintenance chore turns into nagging. These rules have no grid, so
+// nextOccurrence returns null for them by design; `advanceAfterCompletion`
+// measures the interval from the day it was checked off instead.
+//
+// `monthday` (scalar) is the legacy spelling of `monthdays` and is still read
+// everywhere, so rules stored before multi-day support keep working untouched.
 
 const DAY = 86400000
 const WEEKDAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -53,6 +66,25 @@ function weekStart(d) {
   return addDays(d, -d.getDay()) // back up to Sunday
 }
 
+// Calendar-correct month arithmetic: clamp the day to the target month's length
+// so "the 31st + 1 month" lands on the 28th/30th rather than spilling into the
+// month after (which is what `new Date(y, m + 1, 31)` would do).
+function addMonths(d, n) {
+  const t = new Date(d.getFullYear(), d.getMonth() + n, 1)
+  const day = Math.min(d.getDate(), daysInMonth(t.getFullYear(), t.getMonth()))
+  return new Date(t.getFullYear(), t.getMonth(), day)
+}
+
+// The days-of-month a monthly rule lands on, tolerating the legacy scalar.
+function monthDaysOf(rule) {
+  if (rule.monthdays?.length) return rule.monthdays
+  return rule.monthday ? [rule.monthday] : []
+}
+
+export function isAfterCompletion(rule) {
+  return rule?.mode === 'after_completion'
+}
+
 // The day-of-month for the nth weekday of a month (or null if it doesn't exist,
 // e.g. a 5th Monday). setpos -1 = last.
 function nthWeekdayDate(year, month, setpos, weekday) {
@@ -86,8 +118,11 @@ function matches(rule, d, anchor) {
         const day = nthWeekdayDate(d.getFullYear(), d.getMonth(), rule.setpos, rule.weekday)
         return day != null && d.getDate() === day
       }
-      const target = Math.min(rule.monthday, daysInMonth(d.getFullYear(), d.getMonth()))
-      return d.getDate() === target
+      // Each requested day clamps into short months independently, so
+      // "the 15th and the 31st" lands twice in March and twice in February
+      // (the 15th and the 28th) rather than dropping the 31st entirely.
+      const dim = daysInMonth(d.getFullYear(), d.getMonth())
+      return monthDaysOf(rule).some((md) => d.getDate() === Math.min(md, dim))
     }
     case 'yearly': {
       const years = d.getFullYear() - anchor.getFullYear()
@@ -100,13 +135,73 @@ function matches(rule, d, anchor) {
   }
 }
 
+// The last date a COUNT-bounded series can reach: the date of its Nth
+// occurrence counted from the anchor. Following RFC 5545, occurrences are
+// counted before EXDATEs are applied — a skipped one still spends its slot, so
+// "10 times" can't be stretched indefinitely by skipping.
+function countLimit(rule) {
+  if (!rule.count || rule.count < 1 || !rule.anchor) return null
+  const anchor = parse(rule.anchor)
+  const cap = Math.min(370 * ((rule.interval || 1) + 1) * rule.count, 200000)
+  let d = anchor
+  let seen = 0
+  for (let i = 0; i < cap; i++) {
+    if (matches(rule, d, anchor) && ++seen >= rule.count) return d
+    d = addDays(d, 1)
+  }
+  return null
+}
+
+// Next due date for an "after it's done" rule: the interval measured from the
+// day it was actually completed. Being a week late pushes the next one a week
+// out instead of handing you one in two days. Returns null once `until` has
+// passed. See the two-clocks note at the top of this file.
+export function advanceAfterCompletion(rule, fromIso) {
+  if (!rule?.freq) return null
+  const n = Math.max(1, rule.interval || 1)
+  const d = parse(fromIso)
+  let next
+  switch (rule.freq) {
+    case 'daily':
+      next = addDays(d, n)
+      break
+    case 'weekly':
+      next = addDays(d, n * 7)
+      break
+    case 'monthly':
+      next = addMonths(d, n)
+      break
+    case 'yearly':
+      next = addMonths(d, n * 12)
+      break
+    default:
+      return null
+  }
+  const until = rule.until ? parse(rule.until) : null
+  if (until && next > until) return null
+  return toISO(next)
+}
+
+// The date a rule should first land on, for a task that has no due date yet.
+// A calendar rule takes its next grid date; an after-completion rule starts
+// today — its clock only begins once you check it off.
+export function firstOccurrence(rule, todayIso) {
+  if (!rule?.freq) return null
+  if (isAfterCompletion(rule)) return todayIso
+  return nextOccurrence(rule, todayIso, { inclusive: true })
+}
+
 // Next ISO date matching `rule` after `from` (inclusive optional). Returns null
-// if nothing found within a sane horizon.
+// if nothing found within a sane horizon, or for an after-completion rule —
+// those have no calendar grid to walk (use advanceAfterCompletion).
 export function nextOccurrence(rule, from, { inclusive = false } = {}) {
-  if (!rule || !rule.freq) return null
+  if (!rule || !rule.freq || isAfterCompletion(rule)) return null
   const fromD = parse(from)
   const anchor = rule.anchor ? parse(rule.anchor) : fromD
-  const until = rule.until ? parse(rule.until) : null
+  const countEnd = countLimit(rule)
+  const untilRule = rule.until ? parse(rule.until) : null
+  // Whichever bound bites first ends the series.
+  const until = countEnd && (!untilRule || countEnd < untilRule) ? countEnd : untilRule
   const exdates = rule.exdates?.length ? new Set(rule.exdates) : null
   let d = inclusive ? fromD : addDays(fromD, 1)
   // Scan day-by-day for a match. The horizon scales with the interval but is
@@ -143,8 +238,30 @@ function ordinal(n) {
 // the series has an end date.
 export function describeRecurrence(rule) {
   if (!rule || !rule.freq) return 'One-off'
-  const base = describeFreq(rule)
-  return rule.until ? `${base}, until ${untilLabel(rule.until)}` : base
+  const base = isAfterCompletion(rule) ? describeAfterCompletion(rule) : describeFreq(rule)
+  const bound = rule.count
+    ? `, ${rule.count} times`
+    : rule.until
+      ? `, until ${untilLabel(rule.until)}`
+      : ''
+  return base + bound
+}
+
+// "Every 5 days after it's done" — the phrasing has to name the clock, because
+// this rule and its calendar twin read identically otherwise and behave very
+// differently the moment you run late.
+const AFTER_UNIT = { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' }
+function describeAfterCompletion(rule) {
+  const n = Math.max(1, rule.interval || 1)
+  const unit = AFTER_UNIT[rule.freq] || 'day'
+  return `Every ${n > 1 ? `${n} ` : ''}${unit}${n > 1 ? 's' : ''} after it’s done`
+}
+
+// "the 1st and 15th" / "the 1st, 10th and 20th"
+function joinDays(days) {
+  const parts = days.map(ordinal)
+  if (parts.length === 1) return parts[0]
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
 }
 
 function untilLabel(iso) {
@@ -161,12 +278,13 @@ function describeFreq(rule) {
     case 'daily':
       return rule.interval > 1 ? `Every ${rule.interval} days` : 'Every day'
     case 'weekly': {
-      const days = (rule.weekdays || [])
-        .slice()
-        .sort()
-        .map((w) => WEEKDAYS_SHORT[w])
+      const nums = (rule.weekdays || []).slice().sort((a, b) => a - b)
+      const days = nums.map((w) => WEEKDAYS_SHORT[w])
       if (!days.length) return 'Weekly'
       if (days.length === 7) return 'Every day'
+      // Mon–Fri is common enough to earn its own name; spelling out five
+      // weekday abbreviations reads like a list of exceptions.
+      if (!(rule.interval > 1) && nums.join(',') === '1,2,3,4,5') return 'Every weekday'
       if (rule.interval > 1) return `Every ${rule.interval} weeks on ${days.join(', ')}`
       if (days.length === 1) return `Every ${days[0]}`
       return `Weekly on ${days.join(', ')}`
@@ -175,10 +293,12 @@ function describeFreq(rule) {
       if (rule.setpos) {
         return `${SETPOS_LABEL[rule.setpos]} ${WEEKDAYS_SHORT[rule.weekday]}${every ? ` every ${every}months` : ' each month'}`
       }
-      return `${every ? `Every ${every}months` : 'Monthly'} on the ${ordinal(rule.monthday)}`
+      const days = monthDaysOf(rule)
+      if (!days.length) return every ? `Every ${every}months` : 'Monthly'
+      return `${every ? `Every ${every}months` : 'Monthly'} on the ${joinDays(days)}`
     }
     case 'yearly':
-      return `Every ${every}year on ${MONTHS[rule.month]} ${rule.monthday}`
+      return `Every ${every}year${rule.interval > 1 ? 's' : ''} on ${MONTHS[rule.month]} ${rule.monthday}`
     default:
       return 'Repeats'
   }

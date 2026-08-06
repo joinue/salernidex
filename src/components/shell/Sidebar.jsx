@@ -18,6 +18,7 @@ import {
   ChevronsRight,
 } from 'react-feather'
 import ThemeToggle from '../ui/ThemeToggle'
+import { isEditableTarget } from '../../lib/keys'
 
 const isMac = /Mac/.test(navigator.platform)
 const COLLAPSE_KEY = 'salernidex-sidebar-collapsed'
@@ -50,6 +51,9 @@ export default function Sidebar({ active, go, onSearch, onLogout, badge = 0, cou
 
   useEffect(() => {
     const onKey = (e) => {
+      // Never inside a text field: ⌘B there means bold, which the note editor
+      // gets from contentEditable and we would otherwise preventDefault away.
+      if (isEditableTarget(e.target)) return
       if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'b') {
         e.preventDefault()
         setCollapsed((v) => !v)

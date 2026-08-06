@@ -2,14 +2,23 @@
 // Every word in the query must match somewhere; results are ranked so
 // name matches surface first (instant context under time pressure).
 import { TIERS, TIER_RANK } from './constants'
+import { affiliationsFor } from './orgs'
 
-// `orgsById` (Map id → org row) resolves the person's organization name for
-// matching, since people now reference orgs by id rather than carrying the name.
-function fieldText(person, orgsById) {
+// `orgsById` (Map id → org row) and `affiliations` resolve the orgs a person is
+// linked to, since people reference orgs through link rows rather than carrying
+// a name. EVERY org they're attached to is searchable, including the biography
+// ones we deliberately keep out from under their name — hiding a fact from a
+// list row is a display decision, not a reason to make it unfindable. Titles
+// come from the links too, plus any standalone people.role.
+function fieldText(person, orgsById, affiliations) {
+  const links = affiliationsFor(person.id, affiliations)
   return {
     name: (person.name || '').toLowerCase(),
-    organization: (orgsById?.get(person.organization_id)?.name || '').toLowerCase(),
-    role: (person.role || '').toLowerCase(),
+    organization: links
+      .map((a) => orgsById?.get(a.organization_id)?.name || '')
+      .join(' ')
+      .toLowerCase(),
+    role: [person.role, ...links.map((a) => a.role)].filter(Boolean).join(' ').toLowerCase(),
     email: (person.email || '').toLowerCase(),
     notes: (person.notes || '').toLowerCase(),
     tags: (person.tags || []).join(' ').toLowerCase(),
@@ -18,13 +27,13 @@ function fieldText(person, orgsById) {
 
 const WEIGHTS = { name: 100, organization: 40, role: 30, tags: 30, email: 20, notes: 10 }
 
-export function searchPeople(people, query, orgsById) {
+export function searchPeople(people, query, orgsById, affiliations = []) {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)
   if (!words.length) return people
 
   const scored = []
   for (const person of people) {
-    const fields = fieldText(person, orgsById)
+    const fields = fieldText(person, orgsById, affiliations)
     let total = 0
     let allMatched = true
     for (const word of words) {
@@ -45,6 +54,50 @@ export function searchPeople(people, query, orgsById) {
     if (allMatched) scored.push({ person, total })
   }
   return scored.sort((a, b) => b.total - a.total).map((s) => s.person)
+}
+
+const ORG_WEIGHTS = { name: 100, type: 40, tags: 30, contact: 20, description: 10 }
+
+// Organizations matched by the same rules as people, so the People page can put
+// them alongside the person results. Searching "plumber" should surface
+// Riverbend Plumbing itself, not only the people filed under it — for a vendor
+// the org IS the contact (0032).
+export function searchOrgs(orgs, query) {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  if (!words.length) return []
+
+  const scored = []
+  for (const org of orgs) {
+    const fields = {
+      name: (org.name || '').toLowerCase(),
+      type: (org.type || '').toLowerCase(),
+      tags: (org.tags || []).join(' ').toLowerCase(),
+      contact: [org.phone, org.email, org.website, org.address]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase(),
+      description: (org.description || '').toLowerCase(),
+    }
+    let total = 0
+    let allMatched = true
+    for (const word of words) {
+      let best = 0
+      for (const [key, text] of Object.entries(fields)) {
+        const idx = text.indexOf(word)
+        if (idx === -1) continue
+        let score = ORG_WEIGHTS[key]
+        if (idx === 0 || text[idx - 1] === ' ') score *= 2 // word-start bonus
+        best = Math.max(best, score)
+      }
+      if (!best) {
+        allMatched = false
+        break
+      }
+      total += best
+    }
+    if (allMatched) scored.push({ org, total })
+  }
+  return scored.sort((a, b) => b.total - a.total).map((s) => s.org)
 }
 
 // Sort options for the People list. `lastByPerson` maps person id → their most

@@ -6,8 +6,6 @@ describe('vcard round-trip', () => {
     const person = {
       id: 'abc-123',
       name: 'Maria de la Cruz',
-      organization_id: 'o1',
-      role: 'Lab Director',
       email: 'maria@pace.example',
       phone: '+1 520-555-0142',
       birthday: '1985-03-09',
@@ -16,7 +14,12 @@ describe('vcard round-trip', () => {
       notes: 'Met at the materials conference.',
     }
     const orgsById = new Map([['o1', { id: 'o1', name: 'PACE Technologies' }]])
-    const [rec] = parseVcf(personToVcard(person, orgsById))
+    // ORG/TITLE come from the person's lead affiliation now (0033), not from
+    // columns on the person.
+    const affiliations = [
+      { id: 'a1', person_id: 'abc-123', organization_id: 'o1', role: 'Lab Director' },
+    ]
+    const [rec] = parseVcf(personToVcard(person, orgsById, affiliations))
     expect(rec.name).toBe('Maria de la Cruz')
     expect(rec.organization).toBe('PACE Technologies') // export resolves id→name, import reads it back as a string
     expect(rec.role).toBe('Lab Director')
@@ -44,11 +47,11 @@ describe('vcard round-trip', () => {
       {
         id: 'x',
         name: 'Smith, John',
-        organization_id: 'o9',
         tags: ['a, with comma', 'plain'],
         notes: 'line1\nline2',
       },
       new Map([['o9', { id: 'o9', name: 'Acme; Inc' }]]),
+      [{ id: 'a9', person_id: 'x', organization_id: 'o9' }],
     )
     const [rec] = parseVcf(vcf)
     expect(rec.name).toBe('Smith, John')

@@ -1,4 +1,4 @@
-import { nextOccurrence } from './recurrence'
+import { nextOccurrence, advanceAfterCompletion, isAfterCompletion } from './recurrence'
 
 // Date + bucketing helpers for tasks. All dates are 'YYYY-MM-DD' strings,
 // compared in local time so "today" means the user's today.
@@ -337,8 +337,22 @@ export function linkedTasksFor(entityType, entityId, tasks, taskLinks) {
 // task closes like a one-off.
 export function completionFields(task, done) {
   if (done && task.recurrence) {
-    const next = nextOccurrence(task.recurrence, isoDateIn(0))
-    if (next) return { due_date: next, completed_at: null }
+    const rule = task.recurrence
+    if (isAfterCompletion(rule)) {
+      // The clock starts now, not on a grid. `count` can't be derived from a
+      // calendar here, so the rule carries its own tally — same precedent as
+      // exdates, which the rule already accumulates.
+      const tally = (rule.done_count || 0) + 1
+      const spent = rule.count && tally >= rule.count
+      const next = spent ? null : advanceAfterCompletion(rule, isoDateIn(0))
+      if (next) {
+        const recurrence = rule.count ? { ...rule, done_count: tally } : rule
+        return { due_date: next, recurrence, completed_at: null }
+      }
+    } else {
+      const next = nextOccurrence(rule, isoDateIn(0))
+      if (next) return { due_date: next, completed_at: null }
+    }
   }
   return { completed_at: done ? new Date().toISOString() : null }
 }
@@ -349,6 +363,15 @@ export function completionFields(task, done) {
 // nothing remains, the task closes. Returns null for non-recurring/undated tasks.
 export function skipFields(task) {
   if (!task.recurrence || !task.due_date) return null
+  // An after-completion rule has no grid to exclude a date from, so skipping
+  // just restarts its clock from today: "not this time — ask me again in N".
+  // The tally is untouched, because a skip isn't a completion.
+  if (isAfterCompletion(task.recurrence)) {
+    const next = advanceAfterCompletion(task.recurrence, isoDateIn(0))
+    return next
+      ? { due_date: next, completed_at: null }
+      : { completed_at: new Date().toISOString() }
+  }
   const exdates = [...new Set([...(task.recurrence.exdates || []), task.due_date])]
   const recurrence = { ...task.recurrence, exdates }
   const next = nextOccurrence(recurrence, task.due_date)

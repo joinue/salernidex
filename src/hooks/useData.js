@@ -4,6 +4,7 @@ import {
   demoMode,
   demoPeople,
   demoOrgs,
+  demoAffiliations,
   demoRelationships,
   demoGroups,
   demoInteractions,
@@ -83,6 +84,9 @@ export function useData(session) {
   const isDemo = demoMode || session?.demo
   const [people, setPeople] = useState(isDemo ? demoPeople : [])
   const [orgs, setOrgs] = useState(isDemo ? demoOrgs : [])
+  // person ↔ organization links (0033). Many-to-many, and each row owns the
+  // person's role at that org.
+  const [affiliations, setAffiliations] = useState(isDemo ? demoAffiliations : [])
   const [relationships, setRelationships] = useState(isDemo ? demoRelationships : [])
   const [interactions, setInteractions] = useState(isDemo ? demoInteractions : [])
   const [groups, setGroups] = useState(isDemo ? demoGroups : [])
@@ -147,7 +151,7 @@ export function useData(session) {
     // would see their households' data commingled. (reminder_snoozes is
     // member-scoped, not household-scoped, so it filters on member_id instead.)
     if (isDemo || !householdId) return
-    const [p, o, r, i, g, t, c, tl, l, li, f, kd, sn, h, he, lc, nt] = await Promise.all([
+    const [p, o, r, i, g, t, c, tl, l, li, f, kd, sn, h, he, lc, nt, af] = await Promise.all([
       supabase.from('people').select('*').eq('household_id', householdId).order('name'),
       supabase.from('organizations').select('*').eq('household_id', householdId).order('name'),
       supabase.from('relationships').select('*').eq('household_id', householdId),
@@ -188,6 +192,10 @@ export function useData(session) {
         .select('*')
         .eq('household_id', householdId)
         .order('updated_at', { ascending: false }),
+      // Person↔org links. Kept OUT of firstError like the rest of the
+      // late-arriving tables — if migration 0033 hasn't run, contacts should
+      // simply show no organization rather than the whole app going blank.
+      supabase.from('affiliations').select('*').eq('household_id', householdId),
     ])
     const firstError =
       p.error ||
@@ -226,6 +234,7 @@ export function useData(session) {
       if (!he.error) setHabitEntries(he.data || [])
       if (!lc.error) setListCatalog(lc.data || [])
       if (!nt.error) setNotes(nt.data || [])
+      if (!af.error) setAffiliations(af.data || [])
       // Server truth is in: from here the offline snapshot must not clobber it,
       // and we persist this pull as the new last-known-good for the next cold
       // launch. Best-effort — saveSnapshot swallows its own failures.
@@ -248,6 +257,7 @@ export function useData(session) {
         habitEntries: he.error ? [] : he.data || [],
         listCatalog: lc.error ? [] : lc.data || [],
         notes: nt.error ? [] : nt.data || [],
+        affiliations: af.error ? [] : af.data || [],
       })
     }
     setLoading(false)
@@ -290,6 +300,7 @@ export function useData(session) {
       if (cancelled || !snap || serverLoaded.current) return
       setPeople(snap.people || [])
       setOrgs(snap.orgs || [])
+      setAffiliations(snap.affiliations || [])
       setRelationships(snap.relationships || [])
       setInteractions(snap.interactions || [])
       setGroups(snap.groups || [])
@@ -424,6 +435,9 @@ export function useData(session) {
         ? supabase.from('people').update(fields).eq('id', id)
         : supabase.from('people').insert(stamp({ ...fields, id: rowId })),
     )
+    // Returned so a caller that just created someone can attach rows keyed to
+    // them (PersonForm saves the person, then their affiliations).
+    return rowId
   }
 
   // Soft delete = archive (reversible), so it gets an Undo toast.
@@ -458,6 +472,7 @@ export function useData(session) {
     }
     if (isDemo) {
       setPeople((prev) => prev.filter((p) => p.id !== id))
+      setAffiliations((prev) => prev.filter((a) => a.person_id !== id))
       setRelationships((prev) => prev.filter((r) => r.person_a_id !== id && r.person_b_id !== id))
       setInteractions((prev) => prev.filter((i) => i.person_id !== id))
       setTaskLinks((prev) =>
@@ -489,8 +504,12 @@ export function useData(session) {
     )
   }
 
+  // The org row goes; the people at it don't. affiliations.organization_id
+  // cascades on the DB side, so their links to THIS org disappear with it —
+  // mirrored locally here (and it's the whole story in demo).
   const deleteOrg = (id) => {
     setOrgs((prev) => prev.filter((o) => o.id !== id))
+    setAffiliations((prev) => prev.filter((a) => a.organization_id !== id))
     sync(() => supabase.from('organizations').delete().eq('id', id))
   }
 
@@ -512,6 +531,57 @@ export function useData(session) {
     setOrgs((prev) => [...prev, row])
     sync(() => supabase.from('organizations').insert(stamp({ name: trimmed, id: row.id })))
     return row
+  }
+
+  // Replace the whole set of a person's org links in one call — PersonForm
+  // edits them as a list, so a diff here beats making the form issue its own
+  // add/update/delete calls.
+  //
+  // `rows` is [{ organization_id, role, is_primary, show_in_summary,
+  // started_on, ended_on }]. Matching is by organization_id (the table's unique
+  // key with person_id), so an existing link keeps its id and created_at rather
+  // than being deleted and re-inserted.
+  const setPersonAffiliations = (personId, rows = []) => {
+    const existing = affiliations.filter((a) => a.person_id === personId)
+    const byOrg = new Map(existing.map((a) => [a.organization_id, a]))
+    const seen = new Set()
+    const next = []
+    for (const r of rows) {
+      // Skip blanks (an empty picker row) and any repeat of an org already
+      // listed — the unique constraint would reject the second one.
+      if (!r.organization_id || seen.has(r.organization_id)) continue
+      seen.add(r.organization_id)
+      const prev = byOrg.get(r.organization_id)
+      next.push({
+        id: prev?.id || uuid(),
+        person_id: personId,
+        organization_id: r.organization_id,
+        role: r.role?.trim() || null,
+        is_primary: false, // settled below — exactly one wins
+        show_in_summary: r.show_in_summary ?? null,
+        started_on: r.started_on || null,
+        ended_on: r.ended_on || null,
+        created_by: prev?.created_by ?? userId,
+        created_at: prev?.created_at || now(),
+        updated_at: now(),
+      })
+    }
+    // Exactly one primary, always: honor the flag the form sent, otherwise
+    // promote the first. Without this a person could end up with none (nothing
+    // to lead the summary line) or several (a coin flip between them).
+    if (next.length) {
+      const chosen = rows.findIndex((r) => r.is_primary && seen.has(r.organization_id))
+      const lead =
+        chosen >= 0 ? next.find((a) => a.organization_id === rows[chosen].organization_id) : next[0]
+      if (lead) lead.is_primary = true
+    }
+    const removed = existing.filter((a) => !seen.has(a.organization_id)).map((a) => a.id)
+
+    setAffiliations((prev) => [...prev.filter((a) => a.person_id !== personId), ...next])
+    sync(async () => {
+      if (removed.length) must(await supabase.from('affiliations').delete().in('id', removed))
+      if (next.length) must(await supabase.from('affiliations').upsert(next.map(stamp)))
+    })
   }
 
   const addRelationship = (fields) => {
@@ -1284,9 +1354,11 @@ export function useData(session) {
   // Bulk import stays awaited (not optimistic): ImportExport shows progress
   // and reports row-level errors inline.
   const importPeople = async (rows) => {
-    // Imported records (CSV/vCard) carry an `organization` *name*. Resolve each
-    // to a single organizations row — creating any missing one once per name so
-    // the same company in 50 rows yields one org — then store organization_id.
+    // Imported records (CSV/vCard) carry an `organization` *name* and a `role`
+    // string. Resolve each name to a single organizations row — creating any
+    // missing one once per name so the same company in 50 rows yields one org —
+    // then link the person to it with an affiliation (0033) that carries the
+    // role, since a title only means something attached to an org.
     const orgByName = new Map(orgs.map((o) => [(o.name || '').trim().toLowerCase(), o]))
     const newOrgs = []
     const resolveOrg = (name) => {
@@ -1311,11 +1383,33 @@ export function useData(session) {
     // PersonForm — solo households force private; a row that already carries a
     // privacy_level (e.g. a JSON re-import) keeps its own.
     const defaultPersonPrivacy = isSolo() ? PRIVATE_LEVEL : getAppPrefs(memberId).personPrivacy
-    const peopleRows = rows.map(({ organization, ...rest }) => ({
-      privacy_level: defaultPersonPrivacy,
-      ...rest,
-      organization_id: rest.organization_id ?? resolveOrg(organization),
-    }))
+    // Person ids are minted here rather than left to the DB default, because
+    // the affiliation rows need something to point at.
+    const newAffiliations = []
+    const peopleRows = rows.map(({ organization, organization_id, ...rest }) => {
+      const id = rest.id || uuid()
+      const orgId = organization_id ?? resolveOrg(organization)
+      const row = { privacy_level: defaultPersonPrivacy, ...rest, id }
+      if (orgId) {
+        newAffiliations.push({
+          id: uuid(),
+          person_id: id,
+          organization_id: orgId,
+          role: (row.role || '').trim() || null,
+          is_primary: true,
+          show_in_summary: null,
+          started_on: null,
+          ended_on: null,
+          created_by: userId,
+          created_at: now(),
+          updated_at: now(),
+        })
+        // The title moved onto the link; leaving a copy on the person would be
+        // the two-homes-for-one-fact problem 0033 exists to remove.
+        row.role = null
+      }
+      return row
+    })
 
     if (isDemo) {
       if (newOrgs.length) setOrgs((prev) => [...prev, ...newOrgs])
@@ -1327,9 +1421,9 @@ export function useData(session) {
           created_at: now(),
           updated_at: now(),
           ...r,
-          id: uuid(),
         })),
       ])
+      if (newAffiliations.length) setAffiliations((prev) => [...prev, ...newAffiliations])
       return
     }
     if (newOrgs.length) {
@@ -1340,6 +1434,12 @@ export function useData(session) {
     }
     const { error } = await supabase.from('people').insert(peopleRows.map(stamp))
     if (error) throw error
+    if (newAffiliations.length) {
+      const { error: affErr } = await supabase
+        .from('affiliations')
+        .insert(newAffiliations.map(stamp))
+      if (affErr) throw affErr
+    }
     await refresh()
   }
 
@@ -1351,6 +1451,7 @@ export function useData(session) {
       families: backup.families,
       organizations: backup.organizations,
       people: backup.people,
+      affiliations: backup.affiliations,
       relationships: backup.relationships,
       interactions: backup.interactions,
       key_dates: backup.key_dates,
@@ -1412,6 +1513,31 @@ export function useData(session) {
       )
       if (created.length) tables.organizations = [...incomingOrgs, ...created]
     }
+    // Backups v<=9 attached the org as people.organization_id, with the title in
+    // people.role. Turn each into the affiliation row it became in 0033, and
+    // strip both fields off the person so the restore can't reintroduce the
+    // dropped column. Skipped when the backup already carries affiliations.
+    if (Array.isArray(tables.people) && !Array.isArray(tables.affiliations)) {
+      const migrated = []
+      tables.people = tables.people.map(({ organization_id, ...rest }) => {
+        if (!organization_id) return rest
+        migrated.push({
+          id: uuid(),
+          person_id: rest.id,
+          organization_id,
+          role: (rest.role || '').trim() || null,
+          is_primary: true,
+          show_in_summary: null,
+          started_on: null,
+          ended_on: null,
+          created_by: rest.created_by ?? userId,
+          created_at: rest.created_at || now(),
+          updated_at: now(),
+        })
+        return { ...rest, role: null }
+      })
+      if (migrated.length) tables.affiliations = migrated
+    }
     if (isDemo) {
       const merge = (prev, incoming) => {
         if (!Array.isArray(incoming)) return prev
@@ -1422,6 +1548,7 @@ export function useData(session) {
       if (tables.families) setFamilies((prev) => merge(prev, tables.families))
       if (tables.organizations) setOrgs((prev) => merge(prev, tables.organizations))
       if (tables.people) setPeople((prev) => merge(prev, tables.people))
+      if (tables.affiliations) setAffiliations((prev) => merge(prev, tables.affiliations))
       if (tables.key_dates) setKeyDates((prev) => merge(prev, tables.key_dates))
       if (tables.relationships) setRelationships((prev) => merge(prev, tables.relationships))
       if (tables.interactions) setInteractions((prev) => merge(prev, tables.interactions))
@@ -1464,6 +1591,7 @@ export function useData(session) {
       'families',
       'organizations',
       'people',
+      'affiliations',
       'relationships',
       'interactions',
       'key_dates',
@@ -1524,6 +1652,9 @@ export function useData(session) {
   return {
     people: visiblePeople,
     orgs: visibleOrgs,
+    // Not privacy-filtered itself: a link is only reachable through a person or
+    // an org, and both of those arrays are already filtered for the viewer.
+    affiliations,
     relationships,
     interactions,
     groups,
@@ -1561,6 +1692,7 @@ export function useData(session) {
     saveOrg,
     findOrCreateOrg,
     deleteOrg,
+    setPersonAffiliations,
     addRelationship,
     deleteRelationship,
     addInteraction,

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { nextOccurrence, describeRecurrence } from './recurrence'
+import {
+  nextOccurrence,
+  describeRecurrence,
+  advanceAfterCompletion,
+  firstOccurrence,
+  isAfterCompletion,
+} from './recurrence'
 
 // Reference weekdays used below (verified): 2026-06-12 Fri, 2026-06-15 Mon,
 // 2026-01-31 Sat, 2026-02-28 Sat, 2026-03-01 Sun, 2026-11-30 Mon.
@@ -163,6 +169,78 @@ describe('nextOccurrence — safety', () => {
   })
 })
 
+describe('monthly — multiple days of the month', () => {
+  const rule = { freq: 'monthly', interval: 1, monthdays: [1, 15], anchor: '2026-06-01' }
+  it('lands on each requested day', () => {
+    expect(nextOccurrence(rule, '2026-06-01')).toBe('2026-06-15')
+    expect(nextOccurrence(rule, '2026-06-15')).toBe('2026-07-01')
+  })
+  it('clamps each day into a short month independently', () => {
+    const r = { freq: 'monthly', interval: 1, monthdays: [15, 31], anchor: '2026-01-15' }
+    expect(nextOccurrence(r, '2026-02-15')).toBe('2026-02-28') // the 31st clamps
+    expect(nextOccurrence(r, '2026-02-28')).toBe('2026-03-15') // and the 15th still lands
+  })
+  it('still reads the legacy scalar monthday', () => {
+    const legacy = { freq: 'monthly', interval: 1, monthday: 20, anchor: '2026-06-01' }
+    expect(nextOccurrence(legacy, '2026-06-01')).toBe('2026-06-20')
+  })
+})
+
+describe('count — ending after N occurrences', () => {
+  const rule = { freq: 'daily', interval: 1, anchor: '2026-06-01', count: 3 }
+  it('stops once the Nth occurrence has passed', () => {
+    expect(nextOccurrence(rule, '2026-06-01')).toBe('2026-06-02')
+    expect(nextOccurrence(rule, '2026-06-02')).toBe('2026-06-03')
+    expect(nextOccurrence(rule, '2026-06-03')).toBe(null) // 1st, 2nd, 3rd — done
+  })
+  it('a skipped occurrence still spends its slot (RFC 5545)', () => {
+    const skipped = { ...rule, exdates: ['2026-06-02'] }
+    expect(nextOccurrence(skipped, '2026-06-01')).toBe('2026-06-03')
+    expect(nextOccurrence(skipped, '2026-06-03')).toBe(null)
+  })
+  it('whichever of count/until bites first wins', () => {
+    const both = { ...rule, count: 10, until: '2026-06-02' }
+    expect(nextOccurrence(both, '2026-06-02')).toBe(null)
+  })
+})
+
+describe('after-completion rules — the other clock', () => {
+  const rule = { freq: 'daily', interval: 5, mode: 'after_completion', anchor: '2026-06-01' }
+  it('is flagged as after-completion', () => {
+    expect(isAfterCompletion(rule)).toBe(true)
+    expect(isAfterCompletion({ freq: 'daily' })).toBe(false)
+  })
+  it('has no calendar grid, so nextOccurrence declines it', () => {
+    expect(nextOccurrence(rule, '2026-06-01')).toBe(null)
+  })
+  it('measures the interval from the day it was done, however late that is', () => {
+    expect(advanceAfterCompletion(rule, '2026-06-01')).toBe('2026-06-06')
+    // Ten days late: the next one moves with you rather than arriving instantly.
+    expect(advanceAfterCompletion(rule, '2026-06-11')).toBe('2026-06-16')
+  })
+  it('counts weeks, months and years in their own units', () => {
+    const wk = { freq: 'weekly', interval: 2, mode: 'after_completion' }
+    expect(advanceAfterCompletion(wk, '2026-06-01')).toBe('2026-06-15')
+    const mo = { freq: 'monthly', interval: 3, mode: 'after_completion' }
+    expect(advanceAfterCompletion(mo, '2026-06-01')).toBe('2026-09-01')
+    const yr = { freq: 'yearly', interval: 1, mode: 'after_completion' }
+    expect(advanceAfterCompletion(yr, '2026-06-01')).toBe('2027-06-01')
+  })
+  it('clamps a month roll-forward onto a short month', () => {
+    const mo = { freq: 'monthly', interval: 1, mode: 'after_completion' }
+    expect(advanceAfterCompletion(mo, '2026-01-31')).toBe('2026-02-28')
+  })
+  it('ends when the roll-forward would pass `until`', () => {
+    expect(advanceAfterCompletion({ ...rule, until: '2026-06-04' }, '2026-06-01')).toBe(null)
+  })
+  it('starts today rather than waiting for a grid date', () => {
+    expect(firstOccurrence(rule, '2026-06-01')).toBe('2026-06-01')
+    // A calendar rule still takes its next matching date.
+    const cal = { freq: 'weekly', interval: 1, weekdays: [1], anchor: '2026-06-01' }
+    expect(firstOccurrence(cal, '2026-06-12')).toBe('2026-06-15')
+  })
+})
+
 describe('describeRecurrence', () => {
   it('labels common rules', () => {
     expect(describeRecurrence(null)).toBe('One-off')
@@ -175,9 +253,47 @@ describe('describeRecurrence', () => {
       'Monthly on the 20th',
     )
   })
+  it('pluralizes a multi-year interval', () => {
+    expect(describeRecurrence({ freq: 'yearly', interval: 1, month: 4, monthday: 12 })).toBe(
+      'Every year on May 12',
+    )
+    expect(describeRecurrence({ freq: 'yearly', interval: 2, month: 4, monthday: 12 })).toBe(
+      'Every 2 years on May 12',
+    )
+  })
   it('appends an end date when until is set', () => {
     expect(
       describeRecurrence({ freq: 'weekly', interval: 1, weekdays: [1], until: '2026-08-31' }),
     ).toBe('Every Mon, until Aug 31, 2026')
+  })
+  it('names Mon–Fri as "Every weekday"', () => {
+    expect(describeRecurrence({ freq: 'weekly', interval: 1, weekdays: [1, 2, 3, 4, 5] })).toBe(
+      'Every weekday',
+    )
+    // Not a weekday set, and not every week — spell it out.
+    expect(describeRecurrence({ freq: 'weekly', interval: 2, weekdays: [1, 2, 3, 4, 5] })).toBe(
+      'Every 2 weeks on Mon, Tue, Wed, Thu, Fri',
+    )
+  })
+  it('lists multiple days of the month', () => {
+    expect(describeRecurrence({ freq: 'monthly', interval: 1, monthdays: [1, 15] })).toBe(
+      'Monthly on the 1st and 15th',
+    )
+    expect(describeRecurrence({ freq: 'monthly', interval: 1, monthdays: [1, 10, 20] })).toBe(
+      'Monthly on the 1st, 10th and 20th',
+    )
+  })
+  it('names the clock an after-completion rule runs on', () => {
+    expect(describeRecurrence({ freq: 'daily', interval: 5, mode: 'after_completion' })).toBe(
+      'Every 5 days after it’s done',
+    )
+    expect(describeRecurrence({ freq: 'monthly', interval: 1, mode: 'after_completion' })).toBe(
+      'Every month after it’s done',
+    )
+  })
+  it('reports a count bound instead of an end date', () => {
+    expect(describeRecurrence({ freq: 'daily', interval: 1, count: 10 })).toBe(
+      'Every day, 10 times',
+    )
   })
 })

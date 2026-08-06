@@ -4,11 +4,30 @@
    Notebook (Apple Notes-style)
    ============================================================ */
 
+/* Search, sort, layout, and the tag chips travel together. */
+.notes-toolbar {
+  padding: 6px 0 8px;
+  margin-bottom: 6px;
+}
+
+/* Above phone width they stick to the top of whatever scrolls them — the rail
+   in two-pane mode, the page otherwise — so filtering a long notebook no longer
+   means scrolling back to the top first. Phones keep it in flow on purpose:
+   .main's scrollport starts *above* the notch there (its top inset is padding),
+   so a bar pinned to top: 0 would park under the Dynamic Island. */
+@media (min-width: 721px) {
+  .notes-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    background: var(--bg);
+  }
+}
+
 /* Index search */
 .note-search {
   width: 100%;
   height: 38px;
-  margin: 4px 0 14px;
   padding: 0 14px;
   border: none;
   border-radius: var(--radius-sm);
@@ -41,6 +60,36 @@
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 6px;
+}
+
+/* Wide rows park the timestamp at the end of the title line (it's short and
+   always the same shape) so the sub-line is pure preview. */
+.note-row-time {
+  flex: none;
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The open note, and the keyboard cursor. Both have to out-rank .list-row:hover,
+   hence the doubled selectors. */
+.note-row.active,
+.note-row.active:hover {
+  background: var(--accent-soft);
+}
+.note-row.cursor {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* Arrowing through the index moves real focus, so the browser draws its own
+   ring on top of the cursor one. Match them exactly and the two read as a
+   single ring rather than a double border. */
+.note-row:focus-visible,
+.note-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 /* Detail / editor page */
@@ -291,16 +340,52 @@
   font-size: 12.5px;
 }
 
-/* Index controls: sort segmented + tag chip row */
+/* Index controls: sort segmented + the list/gallery toggle */
 .notes-controls {
-  margin: 2px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
 }
+.notes-controls .segmented {
+  flex: 1;
+  min-width: 0;
+}
+.notes-viewtoggle {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--fill);
+}
+.notes-viewtoggle button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.notes-viewtoggle button.active {
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
+}
+
+/* Tag chips. A sideways scroll strip is the right call under a thumb; with a
+   mouse it is nearly unusable, so wide screens wrap them instead (capped, or a
+   heavily tagged notebook would push the list off the bottom of the rail). */
 .notes-tag-row {
   flex-wrap: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
   padding-bottom: 4px;
-  margin-bottom: 8px;
+  margin: 10px 0 0;
 }
 .notes-tag-row::-webkit-scrollbar {
   display: none;
@@ -329,6 +414,272 @@
 .trash-actions {
   display: flex;
   gap: 4px;
+}
+
+/* ============================================================
+   Gallery — cards instead of rows, for scanning rather than reading.
+   Works at any width (two columns on a phone, five on a desktop) and is
+   always full width: it earns its keep by using the whole window.
+   ============================================================ */
+.note-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.note-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 168px;
+  padding: 12px 13px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  text-align: left;
+  cursor: pointer;
+  transition: background 100ms ease;
+}
+.note-card:hover {
+  background: var(--fill-2);
+}
+.note-card.active,
+.note-card.cursor {
+  box-shadow:
+    var(--shadow-card),
+    inset 0 0 0 2px var(--accent);
+}
+.note-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.note-card-pin {
+  flex: none;
+  color: var(--accent);
+}
+.note-card-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.note-card-body {
+  flex: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.note-card-body.empty {
+  color: var(--text-3);
+  font-style: italic;
+}
+.note-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.note-card-time {
+  flex: none;
+}
+.note-card-tags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+.note-card-tags .chip {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+.note-card-more {
+  flex: none;
+}
+
+/* Pin / delete on a card. A row gets these from SwipeRow; a card has to carry
+   its own — revealed on hover with a mouse, permanent under a thumb. */
+.note-card-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 2px;
+}
+@media (hover: hover) {
+  .note-card-actions {
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+  .note-card:hover .note-card-actions,
+  .note-card:focus-within .note-card-actions {
+    opacity: 1;
+  }
+}
+@media (hover: none) {
+  /* Always-on buttons need their own lane, or they sit on top of the title. */
+  .note-card-head {
+    padding-right: 56px;
+  }
+}
+
+/* ============================================================
+   Two-pane notebook (>= 900px) — the index as a rail beside the open note.
+   Below this width the two are separate screens and nothing here applies.
+   ============================================================ */
+@media (min-width: 900px) {
+  .notes-split {
+    display: grid;
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+    gap: 28px;
+    align-items: start;
+  }
+
+  /* The rail scrolls on its own so the list never leaves while you read, and
+     the sticky toolbar inside it sticks to the rail rather than the page. */
+  .notes-rail {
+    position: sticky;
+    top: 8px;
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 6px;
+  }
+  .notes-rail .list {
+    margin-bottom: 12px;
+  }
+
+  .notes-pane {
+    min-width: 0;
+  }
+  /* However wide the window gets, the text keeps a readable measure. */
+  .notes-pane .note-detail {
+    max-width: 720px;
+  }
+
+  .notes-pane-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 320px;
+    padding: 40px 20px;
+    border: 1px dashed var(--separator);
+    border-radius: var(--radius);
+    color: var(--text-3);
+  }
+  .notes-pane-empty p {
+    margin: 0;
+  }
+
+  /* Embedded in the pane the note has no back button, so the title moves up
+     into the top row and the pin/⋯ cluster sits at the end of it. Left on its
+     own line, that cluster floated in space above the title with nothing to
+     anchor it to. */
+  .note-detail.embedded .note-detail-bar {
+    align-items: center;
+    gap: 10px;
+  }
+  .note-detail.embedded .note-detail-bar .note-title-input {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+  }
+  .note-detail.embedded .head-actions {
+    flex: none;
+  }
+
+  /* The rail is narrow, so rows spend their second line on the preview instead
+     of truncating it: title (+ time), then two lines of body text. */
+  .notes-page .note-row-sub {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: unset;
+  }
+
+  /* Full width, the index is the gallery — and a search box and a three-way
+     sort stretched across 1100px look broken. The sticky bar still spans the
+     column (it has to cover what scrolls under it); only its controls are
+     capped. The direct child selector picks out exactly this case: in two-pane
+     mode the index is nested inside .notes-rail, which is narrow already. */
+  .notes-page > .notes-index .note-search,
+  .notes-page > .notes-index .notes-controls {
+    max-width: 520px;
+  }
+
+  /* Room to wrap the tag chips instead of hiding them in a scroll strip. */
+  .notes-tag-row {
+    flex-wrap: wrap;
+    max-height: 82px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  /* Tags and visibility move up under the title, where they are always in
+     reach. At the bottom they sat below the editor's tall keyboard tail — a
+     screen and a half of scrolling past the end of a three-line note.
+     Child combinators throughout: when the title moves into .note-detail-bar
+     (embedded), it becomes a flex item of *that* row, and a stray order: 1
+     would sort it behind the pin/⋯ cluster. Order only ever applies to the
+     column's own children. */
+  .note-detail {
+    display: flex;
+    flex-direction: column;
+  }
+  .note-detail > .note-detail-bar {
+    order: 0;
+  }
+  .note-detail > .note-title-input {
+    order: 1;
+  }
+  .note-detail > .note-edited {
+    order: 2;
+  }
+  .note-detail > .note-meta {
+    order: 3;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 20px;
+    margin-top: 2px;
+    padding: 0 0 12px;
+    border-top: none;
+    border-bottom: 0.5px solid var(--separator);
+  }
+  .note-meta > * {
+    flex: 1 1 240px;
+    min-width: 0;
+  }
+  .note-detail > .note-editor {
+    order: 4;
+  }
+}
+
+/* With a mouse there is no keyboard to clear, so the editor's tall tail is just
+   dead scroll. Keyed off the pointer, not the width: an iPad in landscape is
+   wide enough for two panes and still needs the runway. */
+@media (pointer: fine) {
+  .note-editable {
+    min-height: 40vh;
+    padding-bottom: 12vh;
+  }
 }
 
 /* Snooze sheet: the custom "− N days +" stepper row */

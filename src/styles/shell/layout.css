@@ -29,6 +29,18 @@
    landscape / wall-mounted iPad fills its width instead of stranding half
    the screen in an empty gutter. The header + search bar stay full width
    (they live outside .today-dashboard). */
+/* The notebook opts out of the 680px column the same way, in both of the shapes
+   that need the room: the two-pane split (index rail + a full-measure note) and
+   the card gallery, which is only worth having if it can lay out more than the
+   three columns 680px allows. An open note on its own keeps the narrow column —
+   that cap is what makes it readable. Starts at 900px, where the split does. */
+@media (min-width: 900px) {
+  .content:has(.notes-split),
+  .content:has(.note-gallery) {
+    max-width: 1240px;
+  }
+}
+
 @media (min-width: 1000px) {
   .content:has(.today-dashboard) {
     max-width: 1080px;

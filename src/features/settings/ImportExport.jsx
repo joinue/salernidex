@@ -8,6 +8,7 @@ import { memberNames, setMemberNames } from '../../lib/household'
 import { getAllPrefs, setAllPrefs } from '../../lib/notifyPrefs'
 import { getAllAppPrefs, setAllAppPrefs } from '../../lib/appPrefs'
 import { downloadVcf, parseVcf } from '../../lib/vcard'
+import { leadAffiliation } from '../../lib/orgs'
 import { findDuplicates } from '../../lib/duplicates'
 import SectionLabel from '../../components/ui/SectionLabel'
 
@@ -25,7 +26,13 @@ import SectionLabel from '../../components/ui/SectionLabel'
 //     backups simply restore without them.
 // v9: privacy level 'marc_only' renamed to 'private' (migration 0023). Older
 //     backups restore fine — useData.restoreBackup maps the old label across.
-const BACKUP_VERSION = 9
+// v10: people ↔ organizations is many-to-many via `affiliations` (migration
+//     0033), which also carries the role. people.organization_id is gone and
+//     people.role is now only the standalone descriptor. Restoring a v<=9
+//     backup turns each organization_id into a primary affiliation (see
+//     useData.restoreBackup). Also adds org contact fields (0032), which ride
+//     along inside the organizations rows.
+const BACKUP_VERSION = 10
 
 const SCHEMA_FIELDS = [
   '',
@@ -114,6 +121,7 @@ export default function ImportExport({ data }) {
     relationships,
     interactions,
     groups,
+    affiliations,
     completions,
     taskLinks,
     families,
@@ -138,9 +146,13 @@ export default function ImportExport({ data }) {
   const [review, setReview] = useState(null) // { records: [{rec, matches, action}] }
 
   const active = people.filter((p) => !p.deleted_at)
-  // Resolve organization_id → name for the string-based exports (CSV/vCard).
+  // CSV and vCard are one-org-per-person formats, so the string exports carry
+  // the lead affiliation — the same one shown under the person's name. The full
+  // set survives in the JSON backup's `affiliations`.
   const orgsById = new Map(orgs.map((o) => [o.id, o]))
-  const orgName = (p) => orgsById.get(p.organization_id)?.name || ''
+  const leadFor = (p) => leadAffiliation(p.id, affiliations, orgsById)
+  const orgName = (p) => orgsById.get(leadFor(p)?.organization_id)?.name || ''
+  const roleName = (p) => leadFor(p)?.role || p.role || ''
 
   // ---- Full backup (everything, round-trippable) ----
   const exportBackup = () => {
@@ -150,6 +162,7 @@ export default function ImportExport({ data }) {
       exported_at: new Date().toISOString(),
       people: allPeople, // includes soft-deleted + private, so restore is lossless
       organizations: allOrgs,
+      affiliations,
       relationships,
       interactions,
       families,
@@ -251,7 +264,7 @@ export default function ImportExport({ data }) {
       active.map((p) => ({
         name: csvSafe(p.name),
         organization: csvSafe(orgName(p)),
-        role: csvSafe(p.role || ''),
+        role: csvSafe(roleName(p)),
         email: csvSafe(p.email || ''),
         phone: csvSafe(p.phone || ''),
         additional_emails: csvSafe(packChannels(p.emails, 'label')),
@@ -441,7 +454,7 @@ export default function ImportExport({ data }) {
       <div className="list">
         <button
           className="list-row"
-          onClick={() => downloadVcf('salernidex-contacts', active, orgsById)}
+          onClick={() => downloadVcf('salernidex-contacts', active, orgsById, affiliations)}
         >
           <span className="activity-icon">
             <Download size={16} />

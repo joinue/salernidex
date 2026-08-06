@@ -5,6 +5,7 @@
 import { formatAddress } from './address'
 import { socialUrl, labelToVcardType } from './contactChannels'
 import { SOCIAL_BY_ID } from './constants'
+import { leadAffiliation } from './orgs'
 
 // Escape per RFC 2426: backslash, newlines, commas, semicolons.
 function esc(value) {
@@ -27,10 +28,12 @@ function fold(line) {
   return out.join('\r\n')
 }
 
-// `orgsById` (Map id → org row) resolves the person's organization name, since
-// people reference orgs by id now. vCard ORG is a string by spec, so we write
-// the resolved name; omitted when there's no org or no map.
-export function personToVcard(person, orgsById) {
+// `orgsById` (Map id → org row) plus `affiliations` resolve the person's org,
+// since people reference orgs through link rows now. vCard ORG/TITLE are single
+// values by spec, so we write the lead affiliation's org and role — the same one
+// personSummary would show — and omit them when there's no current link. A
+// standalone people.role still writes TITLE on its own.
+export function personToVcard(person, orgsById, affiliations = []) {
   const lines = ['BEGIN:VCARD', 'VERSION:3.0']
 
   lines.push(`FN:${esc(person.name)}`)
@@ -40,9 +43,11 @@ export function personToVcard(person, orgsById) {
   const family = parts.length > 1 ? parts.pop() : ''
   lines.push(`N:${esc(family)};${esc(parts.join(' '))};;;`)
 
-  const orgName = orgsById?.get(person.organization_id)?.name
+  const lead = leadAffiliation(person.id, affiliations, orgsById)
+  const orgName = lead && orgsById?.get(lead.organization_id)?.name
+  const title = lead?.role || person.role
   if (orgName) lines.push(`ORG:${esc(orgName)}`)
-  if (person.role) lines.push(`TITLE:${esc(person.role)}`)
+  if (title) lines.push(`TITLE:${esc(title)}`)
   if (person.email) lines.push(`EMAIL;TYPE=INTERNET:${esc(person.email)}`)
   for (const em of person.emails || []) {
     if (em?.value) lines.push(`EMAIL;TYPE=${labelToVcardType(em.label)}:${esc(em.value)}`)
@@ -66,12 +71,14 @@ export function personToVcard(person, orgsById) {
   return lines.map(fold).join('\r\n')
 }
 
-export function peopleToVcf(people, orgsById) {
-  return people.map((p) => personToVcard(p, orgsById)).join('\r\n') + '\r\n'
+export function peopleToVcf(people, orgsById, affiliations = []) {
+  return people.map((p) => personToVcard(p, orgsById, affiliations)).join('\r\n') + '\r\n'
 }
 
-export function downloadVcf(filename, people, orgsById) {
-  const blob = new Blob([peopleToVcf(people, orgsById)], { type: 'text/vcard;charset=utf-8' })
+export function downloadVcf(filename, people, orgsById, affiliations = []) {
+  const blob = new Blob([peopleToVcf(people, orgsById, affiliations)], {
+    type: 'text/vcard;charset=utf-8',
+  })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

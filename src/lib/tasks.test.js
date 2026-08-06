@@ -24,6 +24,7 @@ import {
   isDeferred,
   startLabel,
   taskTags,
+  areaNames,
 } from './tasks'
 
 // Pin "now" to noon on Fri 2026-06-12 so all relative-date logic is deterministic.
@@ -239,6 +240,20 @@ describe('taskTags', () => {
   })
 })
 
+describe('areaNames', () => {
+  it('returns the distinct areas in use, alphabetical, trimmed', () => {
+    const tasks = [
+      { area: 'Work' },
+      { area: ' Work ' }, // same area, sloppy entry — must not fragment
+      { area: 'home' },
+      { area: '   ' }, // whitespace-only reads as no area
+      { area: null },
+      {},
+    ]
+    expect(areaNames(tasks)).toEqual(['home', 'Work'])
+  })
+})
+
 describe('completions helpers', () => {
   const comps = [
     { id: 'c1', task_id: 't1', completed_at: '2026-06-01T00:00:00Z' },
@@ -326,6 +341,38 @@ describe('completionFields', () => {
     )
     expect(f.due_date).toBeUndefined()
     expect(f.completed_at).not.toBeNull()
+  })
+
+  // "now" is frozen at 2026-06-12 by the suite's fake timers.
+  it('an after-completion task counts from today, not from a calendar grid', () => {
+    const f = completionFields(
+      { id: 't', recurrence: { freq: 'daily', interval: 5, mode: 'after_completion' } },
+      true,
+    )
+    expect(f).toEqual({
+      due_date: '2026-06-17',
+      recurrence: { freq: 'daily', interval: 5, mode: 'after_completion' },
+      completed_at: null,
+    })
+  })
+  it('an after-completion task with a count tallies its completions', () => {
+    const rule = { freq: 'daily', interval: 1, mode: 'after_completion', count: 2 }
+    const first = completionFields({ id: 't', recurrence: rule }, true)
+    expect(first.due_date).toBe('2026-06-13')
+    expect(first.recurrence.done_count).toBe(1)
+    // Second check-off spends the last slot, so the task closes for good.
+    const second = completionFields({ id: 't', recurrence: first.recurrence }, true)
+    expect(second.due_date).toBeUndefined()
+    expect(second.completed_at).not.toBeNull()
+  })
+})
+
+describe('skipFields', () => {
+  it('an after-completion skip restarts the clock without spending a count', () => {
+    const rule = { freq: 'daily', interval: 4, mode: 'after_completion', count: 3, done_count: 1 }
+    const f = skipFields({ id: 't', due_date: '2026-06-12', recurrence: rule })
+    expect(f).toEqual({ due_date: '2026-06-16', completed_at: null })
+    expect(f.recurrence).toBeUndefined() // tally untouched — a skip isn't a completion
   })
 })
 

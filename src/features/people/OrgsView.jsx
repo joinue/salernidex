@@ -2,9 +2,10 @@ import { Briefcase, ChevronRight, Plus } from 'react-feather'
 import Avatar from '../../components/ui/Avatar'
 import PageHeader from '../../components/shell/PageHeader'
 import EmptyState from '../../components/ui/EmptyState'
+import { orgMembers } from '../../lib/orgs'
 
 export default function OrgsView({ data, onOpen, onAdd, hub }) {
-  const { orgs, people, loading } = data
+  const { orgs, people, affiliations, loading } = data
 
   if (loading) return <EmptyState loading>Loading</EmptyState>
 
@@ -31,12 +32,14 @@ export default function OrgsView({ data, onOpen, onAdd, hub }) {
       ) : (
         <div className="list">
           {orgs.map((org) => {
-            const members = people.filter((p) => !p.deleted_at && p.organization_id === org.id)
+            const members = orgMembers(org.id, people, affiliations)
             const sub = [
               org.type,
               members.length
                 ? `${members.length} ${members.length === 1 ? 'person' : 'people'}`
-                : null,
+                : // An org with nobody attached isn't empty any more — a vendor
+                  // you only ever phone is a complete record (0032).
+                  org.phone || org.website || null,
             ]
               .filter(Boolean)
               .join(' · ')

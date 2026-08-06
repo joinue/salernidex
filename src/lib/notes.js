@@ -195,12 +195,17 @@ export function noteSnippet(note, max = 100) {
   return snippet.length > max ? snippet.slice(0, max).trimEnd() + '…' : snippet
 }
 
-// Notes that @-mention a given entity — drives the "Mentioned in" backlink
-// section on contact / organization / group pages. Pass the already
-// privacy-filtered `data.notes`.
+// Notes that @-mention a given entity — drives the "Mentioned in notes" backlink
+// section on entity pages. Pass the already privacy-filtered `data.notes`.
+// `type` takes an array when one page answers to several mention types: a
+// project page matches both 'project' and 'task', because a task mentioned
+// before it was promoted still carries the type it had when it was chosen.
 export function notesMentioning(notes, type, id) {
   if (!Array.isArray(notes) || !id) return []
-  return notes.filter((n) => (n.mentions || []).some((m) => m && m.type === type && m.id === id))
+  const types = Array.isArray(type) ? type : [type]
+  return notes.filter((n) =>
+    (n.mentions || []).some((m) => m && types.includes(m.type) && m.id === id),
+  )
 }
 
 // Is this note effectively empty? Drives auto-discard when a freshly created

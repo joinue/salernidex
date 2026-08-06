@@ -14,6 +14,7 @@ import PageHeader from '../../components/shell/PageHeader'
 import Segmented from '../../components/ui/Segmented'
 import SharedDot from '../../components/ui/SharedDot'
 import SectionLabel from '../../components/ui/SectionLabel'
+import PressableRow from '../../components/ui/PressableRow'
 import EmptyState from '../../components/ui/EmptyState'
 
 const SORT_OPTIONS = [
@@ -86,7 +87,7 @@ export default function ProjectsView({ data, onOpenProject, onAdd, onSearch, hub
       (next ? `Next: ${next.title}` : progress ? `${progress.total} tasks` : 'No tasks yet')
 
     return (
-      <div className="list-row" key={p.id} onClick={() => onOpenProject(p.id)}>
+      <PressableRow key={p.id} onClick={() => onOpenProject(p.id)} label={`Open ${p.title}`}>
         <Avatar name={p.title} size={42} kind="group" icon={Folder} />
         <div className="row-body">
           <div className="row-titleline">
@@ -115,7 +116,7 @@ export default function ProjectsView({ data, onOpenProject, onAdd, onSearch, hub
           )}
           <ChevronRight size={18} className="row-chevron" />
         </div>
-      </div>
+      </PressableRow>
     )
   }
 

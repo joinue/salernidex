@@ -21,6 +21,7 @@ import { relativeTime } from '../../lib/contact'
 import { assigneeLabel, normalizeAssignee } from '../../lib/household'
 import { describeRecurrence } from '../../lib/recurrence'
 import { byOrder, moveUpdates } from '../../lib/order'
+import { personSummary } from '../../lib/orgs'
 import haptics from '../../lib/haptics'
 import Avatar from '../../components/ui/Avatar'
 import TaskRow from './TaskRow'
@@ -33,6 +34,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import IconButton from '../../components/ui/IconButton'
 import Sheet from '../../components/ui/Sheet'
 import SwipeRow from '../../components/ui/SwipeRow'
+import NoteBacklinks from '../../components/ui/NoteBacklinks'
 
 // Full-page view for a project (a task flagged is_project and/or with
 // subtasks). Adds two things a plain task doesn't get: linked people/orgs
@@ -51,13 +53,16 @@ export default function ProjectDetail({
   onOpenOrg,
   onOpenGroup,
   onOpenList,
+  onOpenNote,
 }) {
   const {
     tasks,
+    notes = [],
     completions,
     taskLinks,
     people,
     orgs,
+    affiliations = [],
     groups = [],
     lists = [],
     addTask,
@@ -471,7 +476,7 @@ export default function ProjectDetail({
               [
                 link.role,
                 isPerson
-                  ? entity.role || orgsById.get(entity.organization_id)?.name
+                  ? personSummary(entity, affiliations, orgsById)
                   : isGroup
                     ? null
                     : entity.type,
@@ -510,6 +515,8 @@ export default function ProjectDetail({
           })
         )}
       </div>
+
+      <NoteBacklinks notes={notes} type={['project', 'task']} id={taskId} onOpenNote={onOpenNote} />
 
       {history.length > 0 && (
         <>

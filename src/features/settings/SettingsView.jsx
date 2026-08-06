@@ -29,6 +29,7 @@ import {
   setHouseholdName,
   regenerateJoinCode,
   leaveHousehold,
+  isSolo,
 } from '../../lib/household'
 import NavBar from '../../components/ui/NavBar'
 import SectionLabel from '../../components/ui/SectionLabel'
@@ -762,6 +763,24 @@ export default function SettingsView({ go, household, isDemo = false, onLogout, 
       <p className="muted" style={{ fontSize: 13, margin: '0 4px 10px' }}>
         What shows in Today's sections and the badge. Yours alone — other members set their own.
       </p>
+      {/* Only worth asking once there's someone else to filter out. */}
+      {!isSolo() && (
+        <div className="field">
+          <label className="label">Today shows</label>
+          <Segmented
+            options={[
+              { value: 'mine', label: 'My tasks' },
+              { value: 'all', label: 'Everyone’s' },
+            ]}
+            value={appPrefs.todayScope}
+            onChange={(v) => updateAppPrefs({ todayScope: v })}
+          />
+          <p className="field-hint">
+            “My tasks” still includes anything left open to Anyone. This also sets what the badge
+            counts and what you get reminded about.
+          </p>
+        </div>
+      )}
       <div className="list">
         <Toggle
           label="Tasks"

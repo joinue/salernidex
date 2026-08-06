@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { normalizeAssignee, assigneeLabel, assigneeOptions, members } from './household'
+import {
+  normalizeAssignee,
+  assigneeLabel,
+  assigneeOptions,
+  defaultAssignee,
+  members,
+} from './household'
 
 // household.js reads localStorage; stub it (node env has none) and seed a
 // two-member household so the legacy assignee mapping is exercised.
@@ -58,5 +64,38 @@ describe('assigneeLabel / options', () => {
       { value: 'm-2', label: 'Rita', avatar_url: null },
     ])
     expect(members()).toHaveLength(2)
+  })
+})
+
+describe('defaultAssignee — who a new task starts out belonging to', () => {
+  it('is the signed-in member once the household has more than one', () => {
+    expect(defaultAssignee()).toBe('m-1')
+  })
+  it('follows "I\'m this" rather than the first member', () => {
+    localStorage.setItem(
+      'salernidex-household',
+      JSON.stringify({
+        name: 'Test',
+        join_code: 'ABC-DEF',
+        current_member_id: 'm-2',
+        members: [
+          { id: 'm-1', name: 'Marc' },
+          { id: 'm-2', name: 'Rita' },
+        ],
+      }),
+    )
+    expect(defaultAssignee()).toBe('m-2')
+  })
+  it('stays "anyone" in a solo household — no one to distinguish from', () => {
+    localStorage.setItem(
+      'salernidex-household',
+      JSON.stringify({
+        name: 'Test',
+        join_code: 'ABC-DEF',
+        current_member_id: 'm-1',
+        members: [{ id: 'm-1', name: 'Marc' }],
+      }),
+    )
+    expect(defaultAssignee()).toBe('anyone')
   })
 })

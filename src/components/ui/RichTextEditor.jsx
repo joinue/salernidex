@@ -67,6 +67,7 @@ const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace
 export default function RichTextEditor({
   initialHtml = '',
   onChange,
+  onOpenMention,
   candidates = [],
   placeholder = 'Start writing…',
 }) {
@@ -142,8 +143,15 @@ export default function RichTextEditor({
       .catch((err) => showToast(err.message || 'Could not add image', { variant: 'error' }))
   }
 
-  // Click handling: toggle a checkbox in its gutter, or open a tapped link.
+  // Click handling: toggle a checkbox in its gutter, follow a mention chip, or
+  // open a tapped link.
   const onEditorClick = (e) => {
+    const chip = e.target.closest?.('span.mention')
+    if (chip && ref.current?.contains(chip) && onOpenMention) {
+      e.preventDefault()
+      onOpenMention({ type: chip.getAttribute('data-type'), id: chip.getAttribute('data-id') })
+      return
+    }
     const li = e.target.closest?.('li.checklist-item')
     if (li && ref.current?.contains(li)) {
       const rect = li.getBoundingClientRect()

@@ -4,31 +4,12 @@ import Modal from '../../components/ui/Modal'
 import TagInput from '../../components/ui/TagInput'
 import AvatarUpload from '../../components/ui/AvatarUpload'
 import PrivacyField from '../../components/ui/PrivacyField'
+import AddressFields from '../../components/ui/AddressFields'
 import { focusOnDesktop } from '../../lib/constants'
-import { orgNameTaken } from '../../lib/orgs'
+import { orgNameTaken, ORG_TYPES, isCounterparty } from '../../lib/orgs'
 import { friendlyError } from '../../lib/errors'
 import { isSolo } from '../../lib/household'
 import { PRIVATE_LEVEL } from '../../lib/privacy'
-
-const ORG_TYPES = [
-  'Company',
-  'Government',
-  'Nonprofit',
-  'Community',
-  'School / Education',
-  'Healthcare',
-  'Financial',
-  'Insurance',
-  'Utility',
-  'Service Provider',
-  'Contractor',
-  'Retail / Store',
-  'Restaurant',
-  'Religious',
-  'Club / Association',
-  'Sports / Recreation',
-  'Other',
-]
 
 export default function OrgForm({
   org,
@@ -43,6 +24,10 @@ export default function OrgForm({
     avatar_url: org?.avatar_url || null,
     type: org?.type || '',
     description: org?.description || '',
+    phone: org?.phone || '',
+    email: org?.email || '',
+    website: org?.website || '',
+    address: org?.address || '',
     tags: org?.tags || [],
     privacy_level: org?.privacy_level || (isSolo() ? PRIVATE_LEVEL : defaultPrivacy),
   })
@@ -100,10 +85,55 @@ export default function OrgForm({
               </option>
             ))}
           </select>
+          {/* The type isn't only a label: it decides whether this org reads
+              under the name of everyone linked to it. Say so here rather than
+              letting the effect look arbitrary later. */}
+          <p className="field-hint">
+            {isCounterparty(form)
+              ? 'Shown under the name of people linked here — this is how you know them.'
+              : 'Kept on their profile and in search, but not shown under their name.'}
+          </p>
         </div>
         <div className="field">
           <label className="label">Description</label>
           <textarea value={form.description} onChange={set('description')} />
+        </div>
+        {/* An org you deal with needs its own way in — the shop's main line,
+            not whichever person you happened to save. */}
+        <div className="field">
+          <label className="label">Phone</label>
+          <input type="tel" value={form.phone} onChange={set('phone')} />
+        </div>
+        <div className="field">
+          <label className="label">Email</label>
+          <input
+            type="email"
+            value={form.email}
+            onChange={set('email')}
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+        </div>
+        <div className="field">
+          <label className="label">Website</label>
+          <input
+            type="url"
+            inputMode="url"
+            placeholder="example.com"
+            value={form.website}
+            onChange={set('website')}
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+        </div>
+        <div className="field">
+          <label className="label">Address</label>
+          <AddressFields
+            value={form.address}
+            onChange={(address) => setForm({ ...form, address })}
+          />
         </div>
         <div className="field">
           <label className="label">Tags</label>

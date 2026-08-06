@@ -26,14 +26,22 @@ import { describeRecurrence } from '../../lib/recurrence'
 import { parseTaskInput, quickTaskFields } from '../../lib/taskParse'
 import { PRIVATE_LEVEL } from '../../lib/privacy'
 import { relativeTime } from '../../lib/contact'
-import { members, assigneeLabel, normalizeAssignee, isSolo } from '../../lib/household'
+import {
+  members,
+  assigneeLabel,
+  normalizeAssignee,
+  defaultAssignee,
+  isSolo,
+} from '../../lib/household'
 import { byOrder, moveUpdates } from '../../lib/order'
 import haptics from '../../lib/haptics'
+import { useConfirm } from '../../hooks/useConfirm'
 import PageHeader from '../../components/shell/PageHeader'
 import Segmented from '../../components/ui/Segmented'
 import TaskRow from './TaskRow'
 import SharedDot from '../../components/ui/SharedDot'
 import ReorderableList from '../../components/ui/ReorderableList'
+import PressableRow from '../../components/ui/PressableRow'
 import AddToCalendar from '../../components/ui/AddToCalendar'
 import { Check } from 'react-feather'
 import SectionLabel from '../../components/ui/SectionLabel'
@@ -55,7 +63,6 @@ export default function TasksView({
   expandId,
   onAdd,
   onEdit,
-  onOpenProject,
   onSearch,
   hub,
   defaultFilter = 'all',
@@ -93,6 +100,7 @@ export default function TasksView({
   const [areaFilter, setAreaFilter] = useState(() => readSession().areaFilter ?? 'all')
   // Same idea for one tag (cross-cutting label). Independent of the area filter.
   const [tagFilter, setTagFilter] = useState(() => readSession().tagFilter ?? 'all')
+  const confirm = useConfirm()
   const [expanded, setExpanded] = useState(expandId || null)
   const [showDone, setShowDone] = useState(() => readSession().showDone ?? defaultShowCompleted)
   const [showAllDone, setShowAllDone] = useState(false)
@@ -211,6 +219,24 @@ export default function TasksView({
     completeTask(t, !t.completed_at)
   }
 
+  // Deleting a task takes its subtasks with it (deleteTask cascades). The undo
+  // toast covers a mis-tap on a single task, but silently removing eight
+  // children is not something to find out about from a toast — so anything with
+  // subtasks states the consequence first.
+  const removeTask = async (task) => {
+    const kids = subtasks(task.id).length
+    if (kids > 0) {
+      const ok = await confirm({
+        title: `Delete “${task.title}”?`,
+        message: `Its ${kids} subtask${kids === 1 ? '' : 's'} go too. You can undo this from the toast.`,
+        confirmLabel: 'Delete',
+        danger: true,
+      })
+      if (!ok) return
+    }
+    deleteTask(task.id)
+  }
+
   const addSub = (parent) => {
     const title = draftSub.trim()
     if (!title) return
@@ -226,9 +252,12 @@ export default function TasksView({
   const addQuick = () => {
     if (!quickDraft.trim()) return
     const fields = quickTaskFields(quickDraft, { today: isoDateIn(0), members: members() })
-    // When viewing one member's list, an unattributed quick task joins that list;
-    // an explicit "for <name>" in the text still wins.
-    if (fields.assignee === 'anyone' && filter !== 'all') fields.assignee = filter
+    // Who it lands on, in order of how explicit the signal is: a "for <name>" in
+    // the typed text wins; then the member whose list you're looking at; then
+    // you (household.defaultAssignee — the same rule TaskForm uses).
+    if (fields.assignee === 'anyone') {
+      fields.assignee = filter !== 'all' ? filter : defaultAssignee()
+    }
     // Inherit the active content filters so a quick task stays in the view you
     // added it to — otherwise matches() hides it the moment it's created.
     if (activeArea !== 'all') fields.area = activeArea
@@ -247,21 +276,16 @@ export default function TasksView({
       ? { done: subs.filter((s) => s.completed_at).length, total: subs.length }
       : null
 
-    // Projects get the full-page detail view; plain tasks expand inline.
-    if (isProject(task)) {
-      return (
-        <div className="list-row" key={task.id} onClick={() => onOpenProject(task.id)}>
-          <TaskRow task={task} onToggle={toggle} progress={progress} />
-          <ChevronRight size={18} className="row-chevron" />
-        </div>
-      )
-    }
-
+    // topOpen already excludes projects — they live in ProjectsView — so every
+    // row rendered here expands inline.
     const isOpen = expanded === task.id
     const history = completionsFor(task.id, completions)
     return (
       <div key={task.id}>
-        <div className="list-row" onClick={() => setExpanded(isOpen ? null : task.id)}>
+        <PressableRow
+          onClick={() => setExpanded(isOpen ? null : task.id)}
+          label={`${task.title}, ${isOpen ? 'collapse' : 'expand'} details`}
+        >
           <TaskRow task={task} onToggle={toggle} progress={progress} />
           <ChevronRight
             size={18}
@@ -271,7 +295,7 @@ export default function TasksView({
               transition: 'transform 200ms ease',
             }}
           />
-        </div>
+        </PressableRow>
         {isOpen && (
           <div className="task-expand">
             {task.notes && (
@@ -336,7 +360,7 @@ export default function TasksView({
                   Skip this one
                 </button>
               )}
-              <button className="text-btn danger" onClick={() => deleteTask(task.id)}>
+              <button className="text-btn danger" onClick={() => removeTask(task)}>
                 Delete
               </button>
             </div>
@@ -354,7 +378,7 @@ export default function TasksView({
     const { task } = event
     const oneOff = !task.recurrence
     return (
-      <div className="list-row" key={event.id} onClick={() => onEdit(task)}>
+      <PressableRow key={event.id} onClick={() => onEdit(task)} label={`Edit ${task.title}`}>
         <button
           className="task-check done"
           onClick={(e) => {
@@ -382,7 +406,7 @@ export default function TasksView({
             <span className="log-time">{completionTime(event.completedAt)}</span>
           </div>
         </div>
-      </div>
+      </PressableRow>
     )
   }
 

@@ -1,6 +1,7 @@
 import { isProject, dueLabel } from './tasks'
 import { groupMembers } from './groups'
 import { noteTitle, htmlToText } from './notes'
+import { affiliationsFor, personSummary } from './orgs'
 
 // Quick Find: one ranked index across every entity — people, tasks, lists,
 // orgs, groups — plus pages and create actions. Same scoring idea as
@@ -75,20 +76,25 @@ export function buildIndex(data) {
       ],
     })
 
-  const orgNameById = new Map((data.orgs || []).map((o) => [o.id, o.name]))
+  const orgsById = new Map((data.orgs || []).map((o) => [o.id, o]))
+  const affiliations = data.affiliations || []
   for (const p of data.people) {
     if (p.deleted_at) continue
-    const orgName = orgNameById.get(p.organization_id) || ''
+    // Searchable across every org they're linked to; displayed with the one
+    // line personSummary picks (see lib/orgs.js).
+    const links = affiliationsFor(p.id, affiliations)
+    const orgNames = links.map((a) => orgsById.get(a.organization_id)?.name || '').join(' ')
+    const roles = [p.role, ...links.map((a) => a.role)].filter(Boolean).join(' ')
     add({
       type: 'person',
       id: p.id,
       title: p.name || 'Unnamed',
       avatar_url: p.avatar_url || null,
-      sub: [p.role, orgName].filter(Boolean).join(' · ') || 'Person',
+      sub: personSummary(p, affiliations, orgsById) || 'Person',
       fields: [
         [p.name, 100],
-        [orgName, 40],
-        [p.role, 30],
+        [orgNames, 40],
+        [roles, 30],
         [(p.tags || []).join(' '), 30],
         [p.email, 20],
         [p.notes, 10],
@@ -159,6 +165,9 @@ export function buildIndex(data) {
         [o.name, 70],
         [o.type, 20],
         [(o.tags || []).join(' '), 20],
+        // Contact details are searchable too (0032) — looking up a vendor by
+        // the number you have for them is a real way to find it.
+        [[o.phone, o.email, o.website, o.address].filter(Boolean).join(' '), 20],
         [o.description, 10],
       ],
     })

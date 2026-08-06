@@ -112,3 +112,32 @@ export function followUp(person, lastIso) {
   if (overdueBy >= 0) return { state: 'overdue', overdueBy, cadence }
   return { state: 'ok', dueIn: -overdueBy, cadence }
 }
+
+const days = (n) => `${n} day${n === 1 ? '' : 's'}`
+
+// How a follow-up state reads on screen, and the tone that carries it. Lives
+// here rather than in a component because the person page, the people list and
+// the reminder feed all have to say the same thing about the same state — the
+// cadence was previously stated as a setting ("every 30 days") and the user was
+// left to do the subtraction against "last contact · 5w ago" themselves.
+//
+// `urgent` is the "this needs you" flag: a screen that only has room for a
+// warning (a list row) shows it when urgent, a screen with room (the profile)
+// shows the label whatever the state.
+export function followUpLabel(status) {
+  if (!status) return null
+  if (status.state === 'never')
+    return { text: 'No touchpoint logged yet', tone: 'danger', urgent: true }
+  if (status.state === 'overdue')
+    return {
+      text:
+        status.overdueBy === 0 ? 'Due to reach out today' : `Overdue by ${days(status.overdueBy)}`,
+      tone: 'danger',
+      urgent: true,
+    }
+  return {
+    text: status.dueIn === 1 ? 'Reach out tomorrow' : `Due in ${days(status.dueIn)}`,
+    tone: 'neutral',
+    urgent: false,
+  }
+}

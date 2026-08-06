@@ -19,6 +19,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3'
+import { habitDueToday } from './habitSchedule.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -91,6 +92,13 @@ function dueTasksToday(tasks: any[], memberId: string, today: string, time: stri
       .filter((t) => !t.parent_id && !t.completed_at && t.due_date && t.due_date <= today)
       // deferred tasks (start_date in the future) stay parked until their day
       .filter((t) => !t.start_date || t.start_date <= today)
+      // Yours, or open to anyone. This matches assignedToMe() in
+      // src/lib/reminders.js, which the Today view and the badges now use too.
+      //
+      // Deliberately NOT wired to the client's `todayScope` preference: setting
+      // Today to "Everyone's" widens a dashboard you chose to look at, whereas
+      // a push is an interruption. Waking someone at 8am for a task that isn't
+      // theirs is a different bargain, so pushes stay personal either way.
       .filter((t) => !t.assignee || t.assignee === 'anyone' || t.assignee === memberId)
       .map((t) => {
         const timed = t.due_date === today && t.due_time
@@ -232,100 +240,12 @@ function dateReminders(people: any[], keyDates: any[], today: string, leadDays: 
   return out
 }
 
-// ---- habit reminders (server port of the schedule logic in lib/habits.js) ---
+// ---- habit reminders --------------------------------------------------
 // Per-habit nudge at its reminder_time (±7 min of a 15-min cron tick; the
 // notification_log claim guarantees once per day). Only fires when the habit is
-// due today and not already satisfied — a gentle "time to log this".
-const dowOf = (iso: string) => new Date(`${iso}T12:00:00Z`).getUTCDay() // 0=Sun..6=Sat
-
-// Server port of lib/recurrence.js occursOn: does `rule` land on this ISO date?
-// Anchored phase for "every N" intervals; honors until/exdates. UTC-noon dates
-// avoid any DST/zone day-shift (matches the rest of this file's date math).
-function ruleOccursOn(rule: any, iso: string): boolean {
-  if (!rule || !rule.freq) return false
-  if (rule.until && iso > rule.until) return false
-  if (rule.exdates?.includes(iso)) return false
-  const DAY = 86400000
-  const d = new Date(`${iso}T12:00:00Z`)
-  const a = new Date(`${rule.anchor || iso}T12:00:00Z`)
-  const interval = rule.interval || 1
-  const dim = (y: number, m: number) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
-  switch (rule.freq) {
-    case 'daily': {
-      const diff = Math.round((d.getTime() - a.getTime()) / DAY)
-      return diff >= 0 && diff % interval === 0
-    }
-    case 'weekly': {
-      if (!rule.weekdays?.includes(d.getUTCDay())) return false
-      const wsNum = (x: Date) => Math.floor(x.getTime() / DAY) - x.getUTCDay()
-      const weeks = Math.round((wsNum(d) - wsNum(a)) / 7)
-      return weeks >= 0 && weeks % interval === 0
-    }
-    case 'monthly': {
-      const months =
-        (d.getUTCFullYear() - a.getUTCFullYear()) * 12 + (d.getUTCMonth() - a.getUTCMonth())
-      if (months < 0 || months % interval !== 0) return false
-      if (rule.setpos) {
-        const y = d.getUTCFullYear()
-        const m = d.getUTCMonth()
-        let day: number
-        if (rule.setpos === -1) {
-          const last = dim(y, m)
-          const lastDow = new Date(Date.UTC(y, m, last)).getUTCDay()
-          day = last - ((lastDow - rule.weekday + 7) % 7)
-        } else {
-          const firstDow = new Date(Date.UTC(y, m, 1)).getUTCDay()
-          day = 1 + ((rule.weekday - firstDow + 7) % 7) + (rule.setpos - 1) * 7
-          if (day > dim(y, m)) return false
-        }
-        return d.getUTCDate() === day
-      }
-      return d.getUTCDate() === Math.min(rule.monthday, dim(d.getUTCFullYear(), d.getUTCMonth()))
-    }
-    case 'yearly': {
-      const years = d.getUTCFullYear() - a.getUTCFullYear()
-      if (years < 0 || years % interval !== 0) return false
-      return (
-        d.getUTCMonth() === rule.month &&
-        d.getUTCDate() === Math.min(rule.monthday, dim(d.getUTCFullYear(), rule.month))
-      )
-    }
-  }
-  return false
-}
-
-function habitDueToday(h: any, entries: any[], today: string): boolean {
-  const todayEntry = entries.find((e) => e.habit_id === h.id && e.date === today)
-  if (todayEntry?.skipped) return false // rest day
-
-  if (h.rrule) {
-    // rrule overrides the weekday/weekly modes; only nudge on a matching day.
-    if (!ruleOccursOn(h.rrule, today)) return false
-    if (h.polarity === 'build') return Number(todayEntry?.value ?? 0) < (h.target ?? 1)
-    return true
-  }
-
-  if (h.weekly_target) {
-    // Monday-start week; already hit the weekly target → nothing to nudge.
-    const d = new Date(`${today}T12:00:00Z`)
-    const monday = new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86400000)
-    const mondayIso = monday.toISOString().slice(0, 10)
-    let count = 0
-    for (const e of entries) {
-      if (e.habit_id !== h.id || e.skipped) continue
-      if (e.date < mondayIso || e.date > today) continue
-      if (Number(e.value) >= (h.target ?? 1)) count++
-    }
-    return count < h.weekly_target
-  }
-
-  // weekday mode: must be an active day
-  const days: number[] = h.active_days ?? []
-  if (days.length && !days.includes(dowOf(today))) return false
-  // build: skip if today's goal already met (limit/track always worth a log nudge)
-  if (h.polarity === 'build') return Number(todayEntry?.value ?? 0) < (h.target ?? 1)
-  return true
-}
+// due today and not already satisfied — a gentle "time to log this". The
+// schedule rules themselves live in habitSchedule.ts, which is a tested port of
+// src/lib/habits.js; this half is just the notification shape and time window.
 
 function habitReminders(
   habits: any[],

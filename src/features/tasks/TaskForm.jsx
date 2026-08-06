@@ -7,18 +7,20 @@ import {
   User,
   X,
   RotateCcw,
+  Folder,
 } from 'react-feather'
 import Modal from '../../components/ui/Modal'
+import Field from '../../components/ui/Field'
 import Segmented from '../../components/ui/Segmented'
 import RecurrencePicker from '../../components/ui/RecurrencePicker'
 import AssigneePicker from '../../components/ui/AssigneePicker'
 import PrivacyField from '../../components/ui/PrivacyField'
 import TagInput from '../../components/ui/TagInput'
 import { focusOnDesktop } from '../../lib/constants'
-import { normalizeAssignee, members, isSolo } from '../../lib/household'
+import { normalizeAssignee, defaultAssignee, members, isSolo } from '../../lib/household'
 import { PRIVATE_LEVEL } from '../../lib/privacy'
 import { isoDateIn, PRIORITY_OPTIONS } from '../../lib/tasks'
-import { nextOccurrence } from '../../lib/recurrence'
+import { firstOccurrence } from '../../lib/recurrence'
 import { parseTaskInput, titleFrom } from '../../lib/taskParse'
 
 const TOKEN_ICON = { due: Calendar, time: Clock, repeat: RepeatIcon, who: User }
@@ -27,9 +29,11 @@ const TOKEN_ICON = { due: Calendar, time: Clock, repeat: RepeatIcon, who: User }
 // detail view (subtasks + linked contacts); subtasks themselves are added from
 // there, so this form stays focused on one item's fields.
 //
-// Progressive disclosure: most tasks are a title and maybe a date, so that's
-// all the form shows. Who/Repeat/Visibility/Notes live behind "More options",
-// auto-expanded when editing a task that already uses any of them.
+// Field order is the order you answer in: WHAT, then WHEN, then WHO. Everything
+// else (priority, area, tags, defer, repeat, visibility, notes) is one task in
+// twenty, so it waits behind "More options" — auto-expanded when editing a task
+// that already uses any of it. Task-vs-project is a rare, structural choice, so
+// it sits at the foot of the sheet rather than in front of the title.
 export default function TaskForm({
   task,
   onSave,
@@ -42,7 +46,9 @@ export default function TaskForm({
   const [form, setForm] = useState({
     title: task?.title || '',
     is_project: task?.is_project || false,
-    assignee: normalizeAssignee(task?.assignee),
+    // A new task is yours (see household.defaultAssignee); an edit keeps whoever
+    // it already belongs to.
+    assignee: task ? normalizeAssignee(task.assignee) : defaultAssignee(),
     area: task?.area || '',
     tags: task?.tags || [],
     due_date: task?.due_date || '',
@@ -55,11 +61,11 @@ export default function TaskForm({
   })
   const [more, setMore] = useState(
     !!task &&
-      (normalizeAssignee(task.assignee) !== 'anyone' ||
-        !!task.area ||
+      (!!task.area ||
         task.tags?.length > 0 ||
         !!task.start_date ||
         !!task.recurrence ||
+        (task.priority ?? 0) > 0 ||
         (!isSolo() && task.privacy_level && task.privacy_level !== 'shared') ||
         !!task.notes),
   )
@@ -67,8 +73,17 @@ export default function TaskForm({
   const [error, setError] = useState(null)
   // Token types the user dismissed from the smart-add preview ({ repeat: true }).
   const [ignored, setIgnored] = useState({})
+  // Whether the Who picker has been touched. Until it is, a "for <name>" typed
+  // into the title still gets to steer the assignee — with the default now
+  // being you rather than "Anyone", the old "is it still Anyone?" test would
+  // have read every new task as an explicit pick and silently eaten the token.
+  const [assigneeTouched, setAssigneeTouched] = useState(false)
 
-  const set = (key) => (e) => setForm({ ...form, [key]: e.target.value })
+  const set = (key) => (e) => {
+    const value = e.target.value
+    setForm((f) => ({ ...f, [key]: value }))
+  }
+  const patch = (fields) => setForm((f) => ({ ...f, ...fields }))
 
   // Natural-language read of the title — only for NEW tasks. On an edit we leave
   // the title alone, so an existing "Call mom Monday" isn't re-parsed and gutted.
@@ -81,6 +96,11 @@ export default function TaskForm({
   const previewTitle = parsed ? titleFrom(form.title, activeTokens) : form.title
   const uses = (type) => parsed && activeTokens.some((t) => t.type === type)
 
+  // Who the task actually lands on: an explicit pick wins, otherwise a live
+  // "for <name>" in the title, otherwise the default. The picker renders this
+  // same value, so typing "for Rita" visibly moves the selection.
+  const assignee = assigneeTouched ? form.assignee : uses('who') ? parsed.assignee : form.assignee
+
   const submit = async (e) => {
     e.preventDefault()
     setBusy(true)
@@ -89,16 +109,12 @@ export default function TaskForm({
       // Parsed values fill blanks; anything set by hand — or dismissed — wins.
       const title = parsed ? previewTitle : form.title
       const recurrence = form.recurrence || (uses('repeat') ? parsed.recurrence : null)
-      const manualAssignee = normalizeAssignee(form.assignee) !== 'anyone'
-      const assignee = manualAssignee
-        ? form.assignee
-        : uses('who')
-          ? parsed.assignee
-          : form.assignee
       // A recurring task with no explicit start gets its first due date from
-      // the rule, so it lands on the calendar immediately.
+      // the rule, so it lands on the calendar immediately. firstOccurrence
+      // handles both clocks — an after-completion rule starts today, since it
+      // has no grid to look ahead on.
       let due = form.due_date || (uses('due') ? parsed.due_date : null)
-      if (recurrence && !due) due = nextOccurrence(recurrence, isoDateIn(0), { inclusive: true })
+      if (recurrence && !due) due = firstOccurrence(recurrence, isoDateIn(0))
       // A time of day only means something with a date; a typed "at 3pm" with no
       // date pins to today (matching Apple, which won't hold a time without one).
       const due_time = form.due_time || (uses('time') ? parsed.due_time : null)
@@ -142,216 +158,244 @@ export default function TaskForm({
     >
       <form onSubmit={submit}>
         {error && <p className="error-text">{error}</p>}
-        <div className="field">
-          <label className="label">Type</label>
-          <Segmented
-            options={[
-              { value: 'task', label: 'Task' },
-              { value: 'project', label: 'Project' },
-            ]}
-            value={form.is_project ? 'project' : 'task'}
-            onChange={(v) => {
-              // Starting a NEW project hands off to the template picker so the
-              // experience matches "New project" everywhere else — a bare project
-              // is never created from here. Editing keeps the inline toggle so a
-              // task can still be promoted (or a project demoted) in place.
-              if (v === 'project' && !task && onMakeProject) {
-                onMakeProject(form.title.trim())
-                return
-              }
-              setForm({ ...form, is_project: v === 'project' })
-            }}
-            size="sm"
-          />
-          {!task && (
-            <p className="muted" style={{ fontSize: 13, margin: '6px 2px 0' }}>
-              A project holds phased subtasks, its own lists, and the people involved.
-            </p>
+
+        <Field label={form.is_project ? 'Project' : 'Task'}>
+          {(id) => (
+            <>
+              <input
+                id={id}
+                value={form.title}
+                onChange={set('title')}
+                required
+                autoFocus={focusOnDesktop()}
+                enterKeyHint="done"
+                placeholder={
+                  form.is_project ? 'What are we tackling?' : 'Try "trash out every Monday"'
+                }
+              />
+              {parsed && parsed.tokens.length > 0 && (
+                <div className="nl-preview" aria-live="polite">
+                  <span className="nl-preview-title">{previewTitle || form.title}</span>
+                  <span className="nl-chips">
+                    {parsed.tokens.map((t) => {
+                      const Icon = TOKEN_ICON[t.type]
+                      const off = !!ignored[t.type]
+                      return (
+                        <button
+                          type="button"
+                          key={t.type}
+                          className={`nl-chip nl-${t.type} ${off ? 'off' : ''}`}
+                          onClick={() => setIgnored((g) => ({ ...g, [t.type]: !g[t.type] }))}
+                          title={off ? 'Ignored — tap to apply' : 'Applied — tap to ignore'}
+                        >
+                          {Icon && <Icon size={11} />} {t.label}
+                          {off ? (
+                            <RotateCcw size={11} className="nl-chip-x" />
+                          ) : (
+                            <X size={12} className="nl-chip-x" />
+                          )}
+                        </button>
+                      )
+                    })}
+                  </span>
+                </div>
+              )}
+            </>
           )}
-        </div>
-        <div className="field">
-          <label className="label">{form.is_project ? 'Project' : 'Task'}</label>
-          <input
-            value={form.title}
-            onChange={set('title')}
-            required
-            autoFocus={focusOnDesktop()}
-            placeholder={form.is_project ? 'What are we tackling?' : 'Try "trash out every Monday"'}
-          />
-          {parsed && parsed.tokens.length > 0 && (
-            <div className="nl-preview" aria-live="polite">
-              <span className="nl-preview-title">{previewTitle || form.title}</span>
-              <span className="nl-chips">
-                {parsed.tokens.map((t) => {
-                  const Icon = TOKEN_ICON[t.type]
-                  const off = !!ignored[t.type]
+        </Field>
+
+        {/* Due leads with the three dates that cover most tasks — one tap, no
+            picker — and keeps the native inputs underneath for everything else. */}
+        <Field label="Due">
+          {(id) => (
+            <>
+              <div className="chips due-chips">
+                {[
+                  { label: 'Today', days: 0 },
+                  { label: 'Tomorrow', days: 1 },
+                  { label: 'Next week', days: 7 },
+                ].map(({ label, days }) => {
+                  const value = isoDateIn(days)
+                  const on = form.due_date === value
                   return (
                     <button
                       type="button"
-                      key={t.type}
-                      className={`nl-chip nl-${t.type} ${off ? 'off' : ''}`}
-                      onClick={() => setIgnored((g) => ({ ...g, [t.type]: !g[t.type] }))}
-                      title={off ? 'Ignored — tap to apply' : 'Applied — tap to ignore'}
+                      key={label}
+                      className={`chip accent tap-target ${on ? 'on' : ''}`}
+                      aria-pressed={on}
+                      onClick={() => patch({ due_date: value })}
                     >
-                      {Icon && <Icon size={11} />} {t.label}
-                      {off ? (
-                        <RotateCcw size={11} className="nl-chip-x" />
-                      ) : (
-                        <X size={12} className="nl-chip-x" />
-                      )}
+                      {label}
                     </button>
                   )
                 })}
-              </span>
-            </div>
+                {form.due_date && (
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={() => patch({ due_date: '', due_time: '' })}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="due-row">
+                <input id={id} type="date" value={form.due_date} onChange={set('due_date')} />
+                {form.due_date && (
+                  <input
+                    type="time"
+                    value={form.due_time}
+                    onChange={set('due_time')}
+                    aria-label="Time of day (optional)"
+                  />
+                )}
+              </div>
+            </>
           )}
-        </div>
-        <div className="field">
-          <label className="label">Due</label>
-          <div className="due-row">
-            <input type="date" value={form.due_date} onChange={set('due_date')} />
-            {form.due_date && (
-              <input
-                type="time"
-                value={form.due_time}
-                onChange={set('due_time')}
-                aria-label="Time of day (optional)"
-              />
-            )}
-          </div>
-          <div className="chips" style={{ marginTop: 8 }}>
-            <button
-              type="button"
-              className="chip accent"
-              onClick={() => setForm({ ...form, due_date: isoDateIn(0) })}
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              className="chip accent"
-              onClick={() => setForm({ ...form, due_date: isoDateIn(1) })}
-            >
-              Tomorrow
-            </button>
-            <button
-              type="button"
-              className="chip accent"
-              onClick={() => setForm({ ...form, due_date: isoDateIn(7) })}
-            >
-              Next week
-            </button>
-            {form.due_date && (
-              <button
-                type="button"
-                className="chip"
-                onClick={() => setForm({ ...form, due_date: '', due_time: '' })}
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
+        </Field>
 
-        <div className="field">
-          <label className="label">Priority</label>
-          <Segmented
-            options={PRIORITY_OPTIONS}
-            value={form.priority}
-            onChange={(v) => setForm({ ...form, priority: v })}
-            size="sm"
-          />
-        </div>
+        {/* Who is up front now that a new task defaults to you — handing it to
+            the household has to be as cheap as keeping it. */}
+        {!isSolo() && (
+          <Field label="Who">
+            <AssigneePicker
+              value={assignee}
+              onChange={(v) => {
+                setAssigneeTouched(true)
+                patch({ assignee: v })
+              }}
+            />
+          </Field>
+        )}
 
         {!more ? (
           <button type="button" className="form-more-btn" onClick={() => setMore(true)}>
             <ChevronRight size={15} />
             More options
-            <span className="form-more-hint">
-              {isSolo()
-                ? 'area · tags · starts · repeat · notes'
-                : 'who · area · tags · starts · repeat · …'}
-            </span>
+            <span className="form-more-hint">priority · area · tags · starts · repeat · …</span>
           </button>
         ) : (
           <>
-            {!isSolo() && (
-              <div className="field">
-                <label className="label">Who</label>
-                <AssigneePicker
-                  value={form.assignee}
-                  onChange={(v) => setForm({ ...form, assignee: v })}
-                />
-              </div>
-            )}
-            <div className="field">
-              <label className="label">
-                Area <span className="muted">(optional)</span>
-              </label>
-              <input
-                value={form.area}
-                onChange={set('area')}
-                list="task-areas"
-                placeholder="e.g. Work, Personal, Home"
-                autoComplete="off"
+            <Field label="Priority">
+              <Segmented
+                options={PRIORITY_OPTIONS}
+                value={form.priority}
+                onChange={(v) => patch({ priority: v })}
+                size="sm"
               />
-              <datalist id="task-areas">
-                {areas.map((a) => (
-                  <option key={a} value={a} />
-                ))}
-              </datalist>
-            </div>
-            <div className="field">
-              <label className="label">
-                Tags <span className="muted">(optional)</span>
-              </label>
+            </Field>
+            <Field label="Area" hint="One category per task — Work, Home, Personal.">
+              {(id) => (
+                <>
+                  <input
+                    id={id}
+                    value={form.area}
+                    onChange={set('area')}
+                    list="task-areas"
+                    placeholder="e.g. Work, Personal, Home"
+                    autoComplete="off"
+                  />
+                  <datalist id="task-areas">
+                    {areas.map((a) => (
+                      <option key={a} value={a} />
+                    ))}
+                  </datalist>
+                </>
+              )}
+            </Field>
+            <Field
+              label={
+                <>
+                  Tags <span className="muted">(optional)</span>
+                </>
+              }
+            >
               <TagInput
                 tags={form.tags}
-                onChange={(tags) => setForm({ ...form, tags })}
+                onChange={(tags) => patch({ tags })}
                 suggestions={tagSuggestions}
               />
-            </div>
-            <div className="field">
-              <label className="label">
-                Starts <span className="muted">(defer until)</span>
-              </label>
-              <input
-                type="date"
-                value={form.start_date}
-                max={form.due_date || undefined}
-                onChange={set('start_date')}
-              />
-              {form.start_date && (
-                <div className="chips" style={{ marginTop: 8 }}>
-                  <button
-                    type="button"
-                    className="chip"
-                    onClick={() => setForm({ ...form, start_date: '' })}
-                  >
-                    Clear
-                  </button>
-                </div>
+            </Field>
+            <Field
+              label={
+                <>
+                  Starts <span className="muted">(defer until)</span>
+                </>
+              }
+            >
+              {(id) => (
+                <>
+                  <input
+                    id={id}
+                    type="date"
+                    value={form.start_date}
+                    max={form.due_date || undefined}
+                    onChange={set('start_date')}
+                  />
+                  {form.start_date && (
+                    <div className="chips" style={{ marginTop: 8 }}>
+                      <button
+                        type="button"
+                        className="chip"
+                        onClick={() => patch({ start_date: '' })}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
-            </div>
-            <div className="field">
-              <label className="label">Repeat</label>
+            </Field>
+            <Field label="Repeat">
               <RecurrencePicker
                 value={form.recurrence}
                 dueDate={form.due_date}
-                onChange={(recurrence) => setForm({ ...form, recurrence })}
+                onChange={(recurrence) => patch({ recurrence })}
               />
-            </div>
+            </Field>
             <PrivacyField
               value={form.privacy_level}
-              onChange={(v) => setForm({ ...form, privacy_level: v })}
+              onChange={(v) => patch({ privacy_level: v })}
             />
-            <div className="field">
-              <label className="label">
-                Notes <span className="muted">(optional)</span>
-              </label>
-              <textarea value={form.notes} onChange={set('notes')} />
-            </div>
+            <Field
+              label={
+                <>
+                  Notes <span className="muted">(optional)</span>
+                </>
+              }
+            >
+              {(id) => <textarea id={id} value={form.notes} onChange={set('notes')} />}
+            </Field>
           </>
+        )}
+
+        {/* Task ↔ project. A structural choice you make once, so it sits at the
+            foot rather than in front of the title. Starting a NEW project hands
+            off to the template picker so the experience matches "New project"
+            everywhere else; editing keeps the inline toggle so a task can still
+            be promoted (or a project demoted) in place. */}
+        {task ? (
+          <Field label="Type">
+            <Segmented
+              options={[
+                { value: 'task', label: 'Task' },
+                { value: 'project', label: 'Project' },
+              ]}
+              value={form.is_project ? 'project' : 'task'}
+              onChange={(v) => patch({ is_project: v === 'project' })}
+              size="sm"
+            />
+          </Field>
+        ) : (
+          onMakeProject && (
+            <button
+              type="button"
+              className="text-btn quiet form-footer-btn"
+              onClick={() => onMakeProject(form.title.trim())}
+            >
+              <Folder size={14} /> Make this a project instead
+            </button>
+          )
         )}
 
         <button className="btn-primary" disabled={busy}>

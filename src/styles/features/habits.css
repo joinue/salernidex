@@ -735,6 +735,20 @@
   flex-shrink: 0;
 }
 
+/* One chip in the strip is allowed to give way when the row runs out of room —
+   the free-text one, since a tag can be any length. It shrinks and ellipsises
+   rather than letting the strip's `overflow: hidden` cut through a glyph
+   ("Northwind custo"). Fixed-width chips (tier, the "+N" counter) keep theirs.
+   `display: block` because text-overflow doesn't reach the text inside a flex
+   container, and a text-only chip needs none of .chip's inline-flex. */
+.row-chips .chip-truncate {
+  display: block;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* editable pill (in tag input) */
 .pills {
   display: flex;

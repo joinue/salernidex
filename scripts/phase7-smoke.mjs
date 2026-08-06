@@ -38,8 +38,10 @@ async function run(label, viewport, mobile) {
   await page.waitForSelector('.person-name')
   const tierChip = await page.$eval('.chip.tier-inner', (e) => e.textContent).catch(() => null)
   console.log(`[${label}] Nina tier chip: ${tierChip}`)
-  const sections = await page.$$eval('.section-label, .section-head .section-label', (els) =>
-    els.map((e) => e.textContent.trim()),
+  // A SectionLabel with a trailing action wraps its text in a <span>, so read
+  // that when it's there — otherwise the label reads back as "Key datesAdd".
+  const sections = await page.$$eval('.section-label', (els) =>
+    els.map((e) => (e.querySelector('span') || e).textContent.trim()),
   )
   console.log(`[${label}] Nina sections: ${sections.join(' | ')}`)
   const familyRow = await page.getByText('Theo Park').count()
@@ -54,11 +56,8 @@ async function run(label, viewport, mobile) {
   console.log(`[${label}] Theo's family shows Nina: ${ninaBack > 0}`)
 
   // 4. Add a key date from the UI
-  await page
-    .getByText('Add', { exact: false })
-    .filter({ has: page.locator(':scope') })
-    .first()
-  await page.locator('.see-all').first().click()
+  // "Key dates" is the first section carrying an Add action.
+  await page.getByRole('button', { name: 'Add', exact: true }).first().click()
   await page.waitForSelector('.modal-title, .sheet')
   await page.locator('input[placeholder="Wedding anniversary"]').fill('First met')
   // Key dates reach decades back, so this field is DatePicker's month/day/year
@@ -77,7 +76,11 @@ async function run(label, viewport, mobile) {
   await page.waitForSelector('.search-input')
   await page.getByRole('button', { name: /Filter/ }).click()
   await page.waitForSelector('.filter-sheet')
-  await page.locator('.filter-sheet select').nth(3).selectOption('inner') // Tier select
+  // The filters are SelectRows, not native <select>s — a picker wheel would
+  // cover the lower half of the sheet it belongs to. Each row drills into its
+  // own option sheet.
+  await page.getByRole('button', { name: /^Tier/ }).click()
+  await page.getByRole('button', { name: 'Inner circle' }).click()
   await page.getByRole('button', { name: /Show \d+/ }).click()
   await page.waitForTimeout(250)
   const filtered = await page.$$eval('.list .row-title', (els) => els.map((e) => e.textContent))

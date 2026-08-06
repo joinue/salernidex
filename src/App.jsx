@@ -10,7 +10,7 @@ import { useNotificationPrefs } from './hooks/useNotificationPrefs'
 import { useAppPrefs } from './hooks/useAppPrefs'
 import { useNow } from './hooks/useNow'
 import { useEdgeBack } from './hooks/useEdgeBack'
-import { currentMemberId, clearHousehold } from './lib/household'
+import { currentMemberId, clearHousehold, normalizeAssignee } from './lib/household'
 import { clearSnapshots } from './lib/offlineCache'
 import { areaNames, taskTags, isProject } from './lib/tasks'
 import { setAppPrefs } from './lib/appPrefs'
@@ -32,7 +32,6 @@ import ProjectsView from './features/tasks/ProjectsView'
 import ListsView from './features/lists/ListsView'
 import ListDetail from './features/lists/ListDetail'
 import NotesView from './features/notes/NotesView'
-import NoteDetail from './features/notes/NoteDetail'
 import ProjectDetail from './features/tasks/ProjectDetail'
 import PersonPage from './features/people/PersonPage'
 import OrgsView from './features/people/OrgsView'
@@ -67,6 +66,7 @@ import GroupForm from './features/people/GroupForm'
 import HabitForm from './features/habits/HabitForm'
 import RelationshipForm from './features/people/RelationshipForm'
 import { EMPTY_PEOPLE_FILTERS } from './lib/search'
+import { isEditableTarget } from './lib/keys'
 import EmptyState from './components/ui/EmptyState'
 
 // Hash routing: #/ (today), #/activity, #/people, #/person/<id>, #/tasks,
@@ -397,28 +397,48 @@ function Shell({ session, onLogout, household }) {
   const openList = (id) => go(`list/${id}`)
   const openNote = (id) => go(`note/${id}`)
   // New note: create the row (optimistic, returns its id) and open it straight
-  // into the editor — Apple Notes-style, no intermediate form.
-  const createNote = () => openNote(data.addNote({}))
+  // into the editor — Apple Notes-style, no intermediate form. `fields` lets the
+  // notebook seed it (with the tag you're filtered to, so the note you just made
+  // doesn't fall straight out of the list you're looking at).
+  const createNote = (fields) => openNote(data.addNote(fields || {}))
   const openProject = (id) => go(`project/${id}`)
   // Open a linked task from an entity page: projects get the full ProjectDetail,
   // plain tasks open the editor sheet.
   const openTask = (t) => (isProject(t) ? openProject(t.id) : setEditingTask(t))
+  // Follow an @-mention chip tapped inside a note body. Tasks resolve through
+  // openTask so a task that has since become a project still lands on its page.
+  // A mention of something deleted (or private to someone else) just falls
+  // through to that page's own "not found" state.
+  const openMention = ({ type, id }) => {
+    if (type === 'person') return openPerson(id)
+    if (type === 'organization') return openOrg(id)
+    if (type === 'group') return openGroup(id)
+    if (type === 'list') return openList(id)
+    if (type === 'project' || type === 'task') {
+      const t = data.tasks.find((x) => x.id === id)
+      if (t) openTask(t)
+    }
+  }
   const requestLogout = () => setConfirmLogout(true)
 
-  // ⌘K / Ctrl+K toggles Quick Find; "/" opens it too (outside text fields);
-  // ⌘N still jumps straight to a new person.
+  // ⌘K / Ctrl+K toggles Quick Find; "/" opens it too; ⌘N jumps straight to a
+  // new person. The last two never fire from inside a text field — ⌘N used to
+  // yank you out of a half-written note and into the contact form.
   useEffect(() => {
-    const isEditable = (el) =>
-      el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable)
     const onKey = (e) => {
+      // ⌘K stays global on purpose: it has to close Quick Find from inside Quick
+      // Find's own search box. Everything below it must not fire while typing.
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
         setQuickFind((v) => !v)
-      } else if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+        return
+      }
+      if (isEditableTarget(e.target)) return
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault()
         setQuickFind(false)
         setEditingPerson('new')
-      } else if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey && !isEditable(e.target)) {
+      } else if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault()
         setQuickFind(true)
       }
@@ -464,7 +484,15 @@ function Shell({ session, onLogout, household }) {
   // exactly like the Today view — otherwise the two surfaces silently diverge.
   const now = useNow()
   const badge = useMemo(
-    () => badgeCount(buildAttention(data, prefs, data.reminderSnoozes, data.memberId, now)),
+    () =>
+      badgeCount(
+        buildAttention(data, prefs, data.reminderSnoozes, data.memberId, now, {
+          // Must match TodayView's options exactly, or the count on the tab
+          // disagrees with the list it's counting.
+          taskScope: appPrefs.todayScope,
+          normalizeAssignee,
+        }),
+      ),
     // Granular deps on purpose: `data` is a fresh object every render, so
     // depending on it would recompute the badge constantly. These are the
     // fields buildAttention actually reads.
@@ -478,6 +506,7 @@ function Shell({ session, onLogout, household }) {
       data.reminderSnoozes,
       prefs,
       data.memberId,
+      appPrefs.todayScope,
       now,
     ],
   )
@@ -565,6 +594,7 @@ function Shell({ session, onLogout, household }) {
             {route.name === 'today' && (
               <TodayView
                 data={data}
+                taskScope={appPrefs.todayScope}
                 household={household}
                 onOpenPerson={openPerson}
                 onOpenList={openList}
@@ -593,7 +623,6 @@ function Shell({ session, onLogout, household }) {
                 expandId={route.id}
                 onAdd={() => setEditingTask('new')}
                 onEdit={(t) => setEditingTask(t)}
-                onOpenProject={openProject}
                 onSearch={isMobile ? () => setQuickFind(true) : undefined}
                 hub={workNav('tasks')}
                 defaultFilter={appPrefs.taskFilter}
@@ -622,6 +651,7 @@ function Shell({ session, onLogout, household }) {
                 onOpenOrg={openOrg}
                 onOpenGroup={openGroup}
                 onOpenList={openList}
+                onOpenNote={openNote}
               />
             )}
             {route.name === 'lists' && (
@@ -644,25 +674,30 @@ function Shell({ session, onLogout, household }) {
                 // walks through). Deep-linked with no history → fall to Lists.
                 onBack={() => (window.history.length > 1 ? window.history.back() : go('lists'))}
                 onEdit={(l) => setEditingList(l)}
+                onOpenNote={openNote}
               />
             )}
-            {route.name === 'notes' && (
+            {/* One component owns both notes routes: on a wide screen the index
+                and the open note sit side by side, so /notes and /note/<id> are
+                the same screen with a different selection. NotesView renders
+                NoteDetail itself (keyed by id) and falls back to the phone's
+                push-navigation when there isn't room for two panes. Keeping it
+                mounted across both routes also preserves the search box, sort,
+                and tag filter when you open a note and come back. */}
+            {(route.name === 'notes' || route.name === 'note') && (
               <NotesView
                 data={data}
+                noteId={route.name === 'note' ? route.id : null}
                 onOpenNote={openNote}
                 onAdd={createNote}
+                onOpenMention={openMention}
+                sort={appPrefs.notesSort}
+                onSort={(v) => setAppPrefs(meId, { notesSort: v })}
                 onSearch={isMobile ? () => setQuickFind(true) : undefined}
+                onCloseNote={() =>
+                  window.history.length > 1 ? window.history.back() : go('notes')
+                }
                 onBack={() => (window.history.length > 1 ? window.history.back() : go('today'))}
-              />
-            )}
-            {route.name === 'note' && (
-              // Keyed by id so switching notes remounts with fresh state + a
-              // freshly seeded contentEditable (no cursor fights, no stale body).
-              <NoteDetail
-                key={route.id}
-                data={data}
-                noteId={route.id}
-                onBack={() => (window.history.length > 1 ? window.history.back() : go('notes'))}
               />
             )}
             {route.name === 'people' && (
@@ -674,6 +709,7 @@ function Shell({ session, onLogout, household }) {
                 filters={peopleFilters}
                 setFilters={setPeopleFilters}
                 onOpen={openPerson}
+                onOpenOrg={openOrg}
                 onEdit={(p) => setEditingPerson(p)}
                 onAdd={() => setEditingPerson('new')}
                 memberId={meId}
@@ -685,6 +721,7 @@ function Shell({ session, onLogout, household }) {
                 data={data}
                 personId={route.id}
                 onOpenPerson={openPerson}
+                onOpenOrg={openOrg}
                 onOpenTask={openTask}
                 onOpenNote={openNote}
                 onBack={() => window.history.back()}
@@ -708,6 +745,9 @@ function Shell({ session, onLogout, household }) {
                 onOpenPerson={openPerson}
                 onOpenTask={openTask}
                 onOpenNote={openNote}
+                // Seeds the add-person form with this org, so an empty
+                // organization offers the thing that fills it.
+                onAddPerson={(o) => setEditingPerson({ organization_id: o.id })}
                 onBack={() => window.history.back()}
                 onEdit={(o) => setEditingOrg(o)}
                 isDemo={isDemo}
@@ -832,13 +872,17 @@ function Shell({ session, onLogout, household }) {
 
       {editingPerson && (
         <PersonForm
+          // 'new' or a seed object (no id) both mean "add"; only a real row
+          // with an id is an edit. See PersonForm's isNew.
           person={editingPerson === 'new' ? null : editingPerson}
           orgs={data.orgs}
+          affiliations={data.affiliations}
           people={data.people}
           families={data.families}
           groups={data.groups}
           existingTags={allTags}
           onSave={data.savePerson}
+          onSaveAffiliations={data.setPersonAffiliations}
           onCreateFamily={data.saveFamily}
           onCreateOrg={data.findOrCreateOrg}
           onClose={() => setEditingPerson(null)}

@@ -4,7 +4,7 @@ import Segmented from '../../components/ui/Segmented'
 import DatePicker from '../../components/ui/DatePicker'
 import { byDue } from '../../lib/tasks'
 import { focusOnDesktop } from '../../lib/constants'
-import { isSolo, currentMemberId } from '../../lib/household'
+import { isSolo, currentMemberId, defaultAssignee } from '../../lib/household'
 import { getAppPrefs } from '../../lib/appPrefs'
 import { PRIVATE_LEVEL } from '../../lib/privacy'
 
@@ -49,10 +49,13 @@ export default function LinkTaskForm({
       if (!t) return setError('Give the task a name.')
       setBusy(true)
       try {
-        // No privacy field on this quick form, so apply the user's "new task"
-        // default (solo households force private) — same rule as TaskForm.
+        // No privacy or assignee field on this quick form, so apply the user's
+        // "new task" defaults (solo households force private, and a new task is
+        // yours) — the same rules TaskForm follows.
         const privacy_level = isSolo() ? PRIVATE_LEVEL : getAppPrefs(currentMemberId()).taskPrivacy
-        link(addTask({ title: t, due_date: due || null, privacy_level }))
+        link(
+          addTask({ title: t, due_date: due || null, privacy_level, assignee: defaultAssignee() }),
+        )
         onClose()
       } catch (err) {
         setError(err.message)

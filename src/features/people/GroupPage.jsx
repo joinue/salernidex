@@ -2,12 +2,16 @@ import { useMemo, useState } from 'react'
 import { Edit2, Trash2, Download, Plus, Users, ChevronRight } from 'react-feather'
 import { groupMembers, describeGroup } from '../../lib/groups'
 import { isProject, projectProgress, linkedTasksFor } from '../../lib/tasks'
+import { personSummary } from '../../lib/orgs'
 import { downloadVcf } from '../../lib/vcard'
 import haptics from '../../lib/haptics'
 import Avatar from '../../components/ui/Avatar'
 import AvatarUpload from '../../components/ui/AvatarUpload'
+import Button from '../../components/ui/Button'
+import Chip from '../../components/ui/Chip'
+import PressableRow from '../../components/ui/PressableRow'
 import TaskRow from '../tasks/TaskRow'
-import { notesMentioning, noteTitle, noteSnippet } from '../../lib/notes'
+import NoteBacklinks from '../../components/ui/NoteBacklinks'
 import LinkTaskForm from './LinkTaskForm'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import NavBar from '../../components/ui/NavBar'
@@ -31,6 +35,7 @@ export default function GroupPage({
     groups,
     people,
     orgs,
+    affiliations,
     tasks,
     taskLinks,
     notes,
@@ -42,7 +47,7 @@ export default function GroupPage({
   } = data
   const group = groups.find((g) => g.id === groupId)
   const orgsById = useMemo(() => new Map(orgs.map((o) => [o.id, o])), [orgs])
-  const orgName = (p) => orgsById.get(p?.organization_id)?.name
+  const summary = (p) => personSummary(p, affiliations, orgsById)
   const [linkingTask, setLinkingTask] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -51,12 +56,37 @@ export default function GroupPage({
     () => linkedTasksFor('group', groupId, tasks, taskLinks),
     [taskLinks, tasks, groupId],
   )
-  const mentionedNotes = useMemo(() => notesMentioning(notes, 'group', groupId), [notes, groupId])
 
   const toggleTask = (t) => {
     if (!t.completed_at) haptics.success()
     completeTask(t, !t.completed_at)
   }
+
+  // What "edit" means depends on the flavour, and the empty state has to offer
+  // the same thing the action row does — otherwise an empty group is a page
+  // telling you no one matches with no way to do anything about it.
+  const editLabel = group?.kind === 'manual' ? 'Edit members' : 'Edit rules'
+
+  // A smart group's rule was compressed into one prose line ("work AND client ·
+  // not: former"), which is the thing you most need to read before pressing
+  // "Edit rules". As chips each clause is scannable, and the tone says whether
+  // it lets people in or keeps them out.
+  const ruleChips =
+    group && group.kind !== 'manual'
+      ? [
+          ...(group.all_tags || []).map((t) => ({ key: `all-${t}`, tone: 'accent', text: t })),
+          ...(group.any_tags || []).map((t) => ({
+            key: `any-${t}`,
+            tone: 'neutral',
+            text: `any: ${t}`,
+          })),
+          ...(group.none_tags || []).map((t) => ({
+            key: `not-${t}`,
+            tone: 'danger',
+            text: `not: ${t}`,
+          })),
+        ]
+      : []
 
   if (data.loading) return <EmptyState loading>Loading</EmptyState>
   if (!group) {
@@ -85,25 +115,34 @@ export default function GroupPage({
           />
           <h1 className="person-name">{group.name}</h1>
           <p className="person-sub">
-            {members.length} {members.length === 1 ? 'person' : 'people'} · {describeGroup(group)}
+            {members.length} {members.length === 1 ? 'person' : 'people'} ·{' '}
+            {ruleChips.length ? 'Smart group' : describeGroup(group)}
           </p>
+          {ruleChips.length > 0 && (
+            <div className="chips profile-chips">
+              {ruleChips.map((c) => (
+                <Chip key={c.key} tone={c.tone}>
+                  {c.text}
+                </Chip>
+              ))}
+            </div>
+          )}
 
           <div className="profile-actions">
-            <button className="pill-btn" onClick={() => onEdit(group)}>
-              <Edit2 size={15} /> {group.kind === 'manual' ? 'Edit members' : 'Edit rules'}
-            </button>
+            <Button variant="pill" icon={Edit2} onClick={() => onEdit(group)}>
+              {editLabel}
+            </Button>
             {members.length > 0 && (
-              <button
-                className="pill-btn neutral"
-                onClick={() => downloadVcf(group.name, members, orgsById)}
+              <Button
+                variant="pill"
+                icon={Download}
+                className="neutral"
+                onClick={() => downloadVcf(group.name, members, orgsById, affiliations)}
                 title="Download a .vcf of everyone in this group"
               >
-                <Download size={15} /> Export contacts
-              </button>
+                Export contacts
+              </Button>
             )}
-            <button className="pill-btn danger" onClick={() => setConfirmDelete(true)}>
-              <Trash2 size={15} /> Delete
-            </button>
           </div>
         </div>
       </NavBar>
@@ -111,62 +150,57 @@ export default function GroupPage({
       <SectionLabel>Members</SectionLabel>
       <div className="list">
         {members.length === 0 ? (
-          <EmptyState inline>
+          <EmptyState
+            inline
+            action={
+              <Button variant="text" icon={Edit2} onClick={() => onEdit(group)}>
+                {editLabel}
+              </Button>
+            }
+          >
             {group.kind === 'manual' ? 'No one added yet.' : 'No one matches these rules yet.'}
           </EmptyState>
         ) : (
           members.map((m) => (
-            <div className="list-row" key={m.id} onClick={() => onOpenPerson(m.id)}>
+            <PressableRow key={m.id} onClick={() => onOpenPerson(m.id)}>
               <Avatar name={m.name} src={m.avatar_url} size={38} />
               <div className="row-body">
                 <div className="row-title">{m.name}</div>
-                {(m.role || orgName(m)) && (
-                  <div className="row-sub">{[m.role, orgName(m)].filter(Boolean).join(' · ')}</div>
-                )}
+                {summary(m) && <div className="row-sub">{summary(m)}</div>}
               </div>
               <ChevronRight size={18} className="row-chevron" />
-            </div>
+            </PressableRow>
           ))
         )}
       </div>
 
-      <div className="section-head">
-        <SectionLabel>Tasks &amp; projects</SectionLabel>
-        <button className="see-all" onClick={() => setLinkingTask(true)}>
-          <Plus size={14} style={{ verticalAlign: '-2px' }} /> Add
-        </button>
-      </div>
-      <div className="list">
-        {linkedTasks.length === 0 ? (
-          <EmptyState inline>
-            No tasks linked yet — a shared project, an errand for the group.
-          </EmptyState>
-        ) : (
-          linkedTasks.map((t) => (
-            <div className="list-row" key={t.id} role="button" onClick={() => onOpenTask(t)}>
+      <SectionLabel
+        action={
+          <Button variant="text" icon={Plus} onClick={() => setLinkingTask(true)}>
+            Add
+          </Button>
+        }
+      >
+        Tasks &amp; projects
+      </SectionLabel>
+      {linkedTasks.length > 0 && (
+        <div className="list">
+          {linkedTasks.map((t) => (
+            <PressableRow key={t.id} onClick={() => onOpenTask(t)}>
               <TaskRow task={t} onToggle={toggleTask} progress={projectProgress(t.id, tasks)} />
               {isProject(t) && <ChevronRight size={18} className="row-chevron" />}
-            </div>
-          ))
-        )}
-      </div>
-
-      {mentionedNotes.length > 0 && onOpenNote && (
-        <>
-          <div className="section-label">Mentioned in notes</div>
-          <div className="list">
-            {mentionedNotes.map((n) => (
-              <div className="list-row" key={n.id} role="button" onClick={() => onOpenNote(n.id)}>
-                <div className="row-body">
-                  <div className="row-title">{noteTitle(n)}</div>
-                  {noteSnippet(n) && <div className="row-sub">{noteSnippet(n, 60)}</div>}
-                </div>
-                <ChevronRight size={18} className="row-chevron" />
-              </div>
-            ))}
-          </div>
-        </>
+            </PressableRow>
+          ))}
+        </div>
       )}
+
+      <NoteBacklinks notes={notes} type="group" id={groupId} onOpenNote={onOpenNote} />
+
+      <div className="danger-zone">
+        <Button variant="text" tone="danger" icon={Trash2} onClick={() => setConfirmDelete(true)}>
+          Delete group
+        </Button>
+      </div>
 
       {linkingTask && (
         <LinkTaskForm

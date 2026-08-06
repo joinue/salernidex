@@ -8,6 +8,7 @@ import {
   currentStreak,
   bestStreak,
   windowStats,
+  weekCount,
   weekProgress,
   calendarMatrix,
   bestDayOfWeek,
@@ -181,6 +182,44 @@ describe('currentStreak', () => {
   })
 })
 
+describe('long streaks', () => {
+  const today = new Date(2026, 0, 5)
+  const created = new Date(2024, 0, 5) // ~2 years back
+  const h = {
+    id: 'h',
+    polarity: 'build',
+    target: 1,
+    track_streak: true,
+    active_days: [],
+    created_at: toISODate(created),
+  }
+
+  it('is not truncated by a fixed scan window', () => {
+    // 500 straight days — longer than the year the walk used to scan, so this
+    // used to report 366.
+    const m = map('h', Array(500).fill(1), today)
+    expect(currentStreak(h, m, today)).toBe(500)
+    expect(bestStreak(h, m, today)).toBe(500)
+  })
+
+  it('weekly streaks past two years survive too', () => {
+    // 110 weeks — past the 104-week cap the weekly walk used to stop at.
+    const weekly = { ...h, weekly_target: 1, created_at: toISODate(new Date(2023, 0, 5)) }
+    const values = Array(770)
+      .fill(0)
+      .map((_, i) => (i % 7 === 0 ? 1 : 0)) // one success every Monday
+    expect(currentStreak(weekly, map('h', values, today), today)).toBe(110)
+  })
+
+  it('but never runs past the habit’s own lifetime', () => {
+    const weekly = { ...h, weekly_target: 1 } // created_at is 2 years back
+    const values = Array(770)
+      .fill(0)
+      .map((_, i) => (i % 7 === 0 ? 1 : 0))
+    expect(currentStreak(weekly, map('h', values, today), today)).toBe(105)
+  })
+})
+
 describe('bestStreak', () => {
   it('finds the longest past run, independent of the current one', () => {
     const today = new Date(2026, 0, 10)
@@ -208,6 +247,40 @@ describe('skip / rest days', () => {
   it('skipped days drop out of the 30-day scheduled count', () => {
     const m = mapEx('h', [{ v: 1 }, { v: 0, skip: true }, { v: 1 }], today)
     expect(windowStats(h, m, today, 3).scheduledDays).toBe(2)
+  })
+})
+
+describe('weekCount', () => {
+  const sunday = new Date(2026, 0, 11) // Sun; the detail page counts Sun-start weeks
+  const monday = new Date(2026, 0, 5)
+
+  it('ignores off-days, so every surface counts the same week the same way', () => {
+    // A Mon/Wed/Fri habit logged on Tuesday: not a scheduled day, not a success.
+    const h = {
+      id: 'h',
+      polarity: 'build',
+      target: 1,
+      active_days: [1, 3, 5],
+      created_at: '2025-01-01',
+    }
+    const m = map('h', [0, 0, 0, 0, 0, 1, 1], sunday) // Tue (offset 5) + Mon (6)
+    expect(weekCount(h, m, monday, sunday)).toBe(1) // Mon counts, Tue doesn't
+  })
+
+  it('a limit habit’s unlogged days are clean days, here as everywhere else', () => {
+    // The by-week chart used to count only *logged* clean days for limits,
+    // disagreeing with the heatmap and the all-time % on the same screen.
+    const h = { id: 'h', polarity: 'limit', target: 0, active_days: [], created_at: '2025-01-01' }
+    const m = map('h', [0, 0, 0, 0, 0, 0, 0], sunday) // nothing logged all week
+    expect(weekCount(h, m, monday, sunday)).toBe(7)
+    expect(windowStats(h, m, sunday, 7).successDays).toBe(7)
+  })
+
+  it('does not count days past today', () => {
+    const h = { id: 'h', polarity: 'build', target: 1, active_days: [], created_at: '2025-01-01' }
+    const wed = new Date(2026, 0, 7)
+    const m = map('h', [1, 1, 1], wed) // Mon/Tue/Wed
+    expect(weekCount(h, m, monday, wed)).toBe(3)
   })
 })
 
@@ -328,6 +401,24 @@ describe('bestDayOfWeek / trend / totals', () => {
     // last 14 days all done, the 14 before all missed
     const vals = Array.from({ length: 28 }, (_, i) => (i < 14 ? 1 : 0))
     expect(trend(h, map('h', vals, today), today, 14).dir).toBe('up')
+  })
+
+  it('trend keeps one shape across every branch', () => {
+    const vals = Array.from({ length: 28 }, (_, i) => (i < 14 ? 1 : 0))
+    const shape = (t) => {
+      // recent/prior are always the compared metric; the raw windows sit beside
+      // them — so a caller never has to know which branch produced the result.
+      expect(typeof t.recent).toBe('number')
+      expect(typeof t.prior).toBe('number')
+      expect(typeof t.young).toBe('boolean')
+      expect(t.recentStats).toHaveProperty('scheduledDays')
+      expect(t.priorStats).toHaveProperty('scheduledDays')
+    }
+    shape(trend(h, map('h', vals, today), today, 14)) // build
+    shape(trend({ ...h, polarity: 'track' }, map('h', vals, today), today, 14)) // track
+    const young = trend({ ...h, created_at: '2026-01-29' }, map('h', vals, today), today, 14)
+    expect(young.young).toBe(true) // too little prior history
+    shape(young)
   })
 
   it('totals counts successes since creation', () => {

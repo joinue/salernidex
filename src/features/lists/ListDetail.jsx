@@ -15,9 +15,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import IconButton from '../../components/ui/IconButton'
 import SelectRow from '../../components/ui/SelectRow'
 import Stepper from '../../components/ui/Stepper'
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
+import NoteBacklinks from '../../components/ui/NoteBacklinks'
 
 // One row of a list. Tap the text to edit it inline (text, an optional note, a
 // quantity, plus an aisle picker on grocery items and a "who's grabbing it"
@@ -242,10 +240,11 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
 // A single list. Grocery lists group open items by aisle (the shop order);
 // standard lists keep a hand-orderable list with optional inline section
 // headings. Checked items sink to a shared "Got it" section, struck.
-export default function ListDetail({ data, listId, onBack, onEdit }) {
+export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote }) {
   const {
     lists,
     listItems,
+    notes = [],
     listCatalog,
     addListItem,
     addListHeading,
@@ -397,6 +396,8 @@ export default function ListDetail({ data, listId, onBack, onEdit }) {
             {doneSection}
           </>
         )}
+
+        <NoteBacklinks notes={notes} type="list" id={listId} onOpenNote={onOpenNote} />
       </div>
 
       {/* Add dock sits at the bottom, within thumb reach while shopping. On

@@ -28,10 +28,21 @@ export const DEFAULT_APP_PREFS = {
   // Tasks page default view.
   taskFilter: 'all', // 'all' (Everyone) | <member id>
   showCompleted: false, // start with the Done section expanded
+  // Whose tasks reach Today — and, with it, the tab count, the app-icon badge
+  // and the push reminders. 'mine' shows what's assigned to you plus anything
+  // left open to Anyone; 'all' is the old whole-household behaviour.
+  todayScope: 'mine', // 'mine' | 'all'
   // People page default sort: 'name' | 'recent' | 'tier' (lib/search.js).
   peopleSort: LEGACY_PEOPLE_SORT,
   // Projects index sort: 'recent' | 'name' | 'due' (lib/tasks.byProjects).
   projectsSort: 'recent',
+  // Notebook sort: 'edited' | 'created' | 'title' (lib/notes.sortNotes). Only
+  // the ordering lives here. The notebook's other two controls deliberately
+  // don't: list-vs-gallery is a per-device call about screen space (localStorage,
+  // like the sidebar's collapsed state), and the tag filter isn't persisted at
+  // all — a filter that survives a relaunch hides notes without saying so, which
+  // reads as data loss. Sort only ever reorders.
+  notesSort: 'edited',
 }
 
 const listeners = new Set()

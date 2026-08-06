@@ -3,15 +3,18 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  // Two test surfaces, both colocated with their source and both run by
+  // Three test surfaces, all colocated with their source and all run by
   // `npm test`:
   //   *.test.js  — pure logic (recurrence, parsing, ordering, privacy …), node
   //   *.test.jsx — primitives with real behaviour, jsdom + Testing Library
+  //   *.test.ts  — the pure halves of the Deno Edge Functions, which are ports
+  //                of src/lib code and need to stay honest to it, node
   test: {
-    include: ['src/**/*.test.{js,jsx}'],
+    include: ['src/**/*.test.{js,jsx}', 'supabase/functions/**/*.test.ts'],
     setupFiles: ['./src/test/setup.js'],
     environmentMatchGlobs: [
       ['src/**/*.test.jsx', 'jsdom'],
+      ['supabase/**/*.test.ts', 'node'],
       // notes.test.js gates its sanitizer/mention cases behind describe.runIf
       // (hasDOM). They were silently skipped while everything ran on node —
       // and an HTML sanitizer is precisely the code that wants covering.

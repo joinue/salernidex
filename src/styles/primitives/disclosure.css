@@ -22,3 +22,14 @@
   font-weight: 400;
   color: var(--text-3);
 }
+
+/* A quiet escape hatch at the foot of a form, above the sticky commit button
+   ("Make this a project instead"). Structural, rarely taken, and deliberately
+   the last thing you read rather than the first — so it never competes with
+   the field you actually came to fill in. */
+.form-footer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}

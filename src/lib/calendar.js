@@ -75,10 +75,20 @@ function spanFor(task) {
 // prefix). Returns null for one-offs / unknown shapes.
 export function recurrenceToRrule(rule) {
   if (!rule || !rule.freq) return null
+  // An "after it's done" rule has no fixed grid — its next date depends on when
+  // you check it off — so there is no honest RRULE for it. Export the task as a
+  // single dated event rather than inventing a schedule the calendar would then
+  // hold you to.
+  if (rule.mode === 'after_completion') return null
   const interval = rule.interval && rule.interval > 1 ? `;INTERVAL=${rule.interval}` : ''
-  // UNTIL bounds the exported series so a synced calendar ends it too. As a DATE
-  // value (matching our all-day/floating DTSTART), it's the compact YYYYMMDD form.
-  const until = rule.until ? `;UNTIL=${compact(rule.until)}` : ''
+  // UNTIL and COUNT bound the exported series so a synced calendar ends it too.
+  // They're mutually exclusive per RFC 5545; COUNT is the more precise of the
+  // two when both somehow exist, so it wins.
+  const until = rule.count
+    ? `;COUNT=${rule.count}`
+    : rule.until
+      ? `;UNTIL=${compact(rule.until)}`
+      : ''
   let core
   switch (rule.freq) {
     case 'daily':
@@ -89,12 +99,15 @@ export function recurrenceToRrule(rule) {
       core = `FREQ=WEEKLY${interval}${days.length ? `;BYDAY=${days.join(',')}` : ''}`
       break
     }
-    case 'monthly':
+    case 'monthly': {
+      // BYMONTHDAY takes a list, so "the 1st and 15th" exports as-is.
+      const mdays = rule.monthdays?.length ? rule.monthdays : [rule.monthday].filter(Boolean)
       core = rule.setpos
         ? // setpos -1 = last; RRULE writes the ordinal straight onto the day token.
           `FREQ=MONTHLY${interval};BYDAY=${rule.setpos}${WEEKDAYS_RR[rule.weekday]}`
-        : `FREQ=MONTHLY${interval};BYMONTHDAY=${rule.monthday}`
+        : `FREQ=MONTHLY${interval};BYMONTHDAY=${mdays.join(',')}`
       break
+    }
     case 'yearly':
       // rule.month is 0-indexed; BYMONTH is 1-indexed.
       core = `FREQ=YEARLY${interval};BYMONTH=${rule.month + 1};BYMONTHDAY=${rule.monthday}`

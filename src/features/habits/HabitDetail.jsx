@@ -7,9 +7,11 @@ import {
   isSkipped,
   noteOn,
   isWeekly,
+  startOf,
   currentStreak,
   bestStreak,
   windowStats,
+  weekCount,
   weekProgress,
   calendarMatrix,
   bestDayOfWeek,
@@ -21,6 +23,7 @@ import {
   toISODate,
 } from '../../lib/habits'
 import HabitQuickLog from './HabitQuickLog'
+import { HabitDot } from './HabitRow'
 import Sheet from '../../components/ui/Sheet'
 import { memberName } from '../../lib/household'
 import NavBar from '../../components/ui/NavBar'
@@ -35,30 +38,50 @@ const RANGES = [
   { value: 53, label: '1y' },
 ]
 
+// What each heatmap square means, spoken. The cells are empty buttons — colour
+// is the only visual channel — so without this a screen reader gets a grid of
+// hundreds of unnamed buttons.
+const CELL_STATUS = {
+  hit: 'done',
+  miss: 'missed',
+  today: 'not logged yet',
+  skip: 'rest day',
+  off: 'off-day',
+  logged: 'logged',
+  empty: 'not logged',
+  future: 'upcoming',
+  none: 'before this habit started',
+}
+
 function Heatmap({ habit, map, today, weeks, onPick }) {
   const { columns, monthLabels } = useMemo(
     () => calendarMatrix(habit, map, today, weeks),
     [habit, map, today, weeks],
   )
+  const todayISO = toISODate(today)
   return (
     <div className="heatmap">
-      <div className="heatmap-months">
+      <div className="heatmap-months" aria-hidden="true">
         {monthLabels.map((m, i) => (
           <span key={i} className="heatmap-month">
             {m}
           </span>
         ))}
       </div>
-      <div className="heatmap-grid">
+      <div className="heatmap-grid" role="group" aria-label={`${habit.name} history`}>
         {columns.map((col, ci) => (
           <div className="heatmap-col" key={ci}>
             {col.map((cell) => {
               const note = noteOn(habit, cell.iso, map)
+              const label = `${formatDay(cell.iso, todayISO)} — ${
+                CELL_STATUS[cell.status] ?? cell.status
+              }${note ? `. Note: ${note}` : ''}`
               return (
                 <button
                   key={cell.iso}
                   className={`habit-cell ${cell.status} ${note ? 'has-note' : ''}`}
-                  title={`${formatDay(cell.iso, toISODate(today))}${note ? ` — ${note}` : ''}`}
+                  title={label}
+                  aria-label={label}
                   disabled={cell.status === 'future' || cell.status === 'none'}
                   onClick={() => onPick(cell.iso)}
                 />
@@ -106,8 +129,10 @@ function MiniChart({ habit, map, today }) {
     )
   }
   // build/limit: success-days per week over the last 12 weeks, clipped to the
-  // weeks the habit has actually existed (no phantom empty bars before creation)
-  const startISO = habit.created_at ? String(habit.created_at).slice(0, 10) : null
+  // weeks the habit has actually existed (no phantom empty bars before creation).
+  // weekCount is the same primitive the streak and the heatmap run on, so a bar
+  // can never disagree with the green squares above it.
+  const startISO = startOf(habit)
   const weeks = []
   const cursor = new Date(today.getFullYear(), today.getMonth(), today.getDate())
   cursor.setDate(cursor.getDate() - cursor.getDay()) // this Sunday
@@ -117,23 +142,7 @@ function MiniChart({ habit, map, today }) {
     const end = new Date(start)
     end.setDate(start.getDate() + 6)
     if (startISO && toISODate(end) < startISO) continue // week ended before the habit began
-    let count = 0
-    for (let r = 0; r < 7; r++) {
-      const d = new Date(start)
-      d.setDate(start.getDate() + r)
-      const iso = toISODate(d)
-      if (iso > toISODate(today)) break
-      if (!isSkipped(habit, iso, map)) {
-        const ok =
-          habit.polarity === 'limit'
-            ? valueOn(habit, iso, map) <= (habit.target ?? 0)
-            : valueOn(habit, iso, map) >= (habit.target ?? 1)
-        // for limit, only count days actually logged so empty days aren't "wins"
-        const logged = map.has(`${habit.id}|${iso}`)
-        if (ok && (habit.polarity !== 'limit' || logged)) count++
-      }
-    }
-    weeks.push(count)
+    weeks.push(weekCount(habit, map, start, today))
   }
   const max = Math.max(...weeks, 1)
   const bw = w / weeks.length
@@ -192,7 +201,7 @@ export default function HabitDetail({ data, habitId, onBack, onEdit }) {
   const remove = async () => {
     const ok = await confirm({
       title: `Delete “${habit.name}”?`,
-      message: 'This erases the habit and its entire history. This can’t be undone.',
+      message: 'This erases the habit and its entire history.',
       confirmLabel: 'Delete',
       danger: true,
     })
@@ -241,12 +250,7 @@ export default function HabitDetail({ data, habitId, onBack, onEdit }) {
     <div className="habit-detail-page">
       <NavBar backLabel="Habits" onBack={onBack} title={habit.name}>
         <header className="habit-detail-head">
-          <span
-            className={`habit-dot lg ${habit.icon ? 'emoji' : ''}`}
-            style={{ background: habit.color || 'var(--accent)' }}
-          >
-            {habit.icon || habit.name.slice(0, 1).toUpperCase()}
-          </span>
+          <HabitDot habit={habit} size="lg" />
           <div className="habit-detail-headtext">
             <h1 className="habit-detail-name">{habit.name}</h1>
             <p className="row-sub">

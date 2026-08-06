@@ -11,21 +11,26 @@ import {
   UserPlus,
   Check,
   ArrowDown,
+  Briefcase,
   Map as MapIcon,
 } from 'react-feather'
 import {
   searchPeople,
+  searchOrgs,
   sortPeople,
   groupPeopleByLetter,
   PEOPLE_SORTS,
   EMPTY_PEOPLE_FILTERS,
 } from '../../lib/search'
+import { personSummary, orgMembers } from '../../lib/orgs'
 import AlphaIndex from '../../components/ui/AlphaIndex'
 import { groupMembers } from '../../lib/groups'
-import { PRIVACY_LABELS, TIERS } from '../../lib/constants'
-import { lastInteraction, relativeTime } from '../../lib/contact'
+import { PRIVACY_LABELS, TIERS, TIER_LABELS } from '../../lib/constants'
+import { followUp, followUpLabel, lastInteraction, relativeTime } from '../../lib/contact'
 import { personActions } from '../../lib/personActions'
 import Avatar from '../../components/ui/Avatar'
+import Button from '../../components/ui/Button'
+import Chip from '../../components/ui/Chip'
 import PageHeader from '../../components/shell/PageHeader'
 import SharedDot from '../../components/ui/SharedDot'
 import Sheet from '../../components/ui/Sheet'
@@ -37,6 +42,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import PeopleMap from './PeopleMap'
 import { useAppPrefs } from '../../hooks/useAppPrefs'
 import EmptyState from '../../components/ui/EmptyState'
+import SectionLabel from '../../components/ui/SectionLabel'
 
 export default function SearchView({
   data,
@@ -46,6 +52,7 @@ export default function SearchView({
   filters,
   setFilters,
   onOpen,
+  onOpenOrg,
   onEdit,
   onAdd,
   memberId,
@@ -84,6 +91,7 @@ export default function SearchView({
     interactions,
     groups,
     orgs,
+    affiliations,
     loading,
     savePerson,
     deletePerson,
@@ -108,14 +116,15 @@ export default function SearchView({
   // Orgs actually in use by a (non-archived) person — the org filter only offers
   // values that can match. Stored/compared by id; shown by name.
   const allOrgs = useMemo(() => {
+    const active = new Set(people.filter((p) => !p.deleted_at).map((p) => p.id))
     const used = new Set(
-      people.filter((p) => !p.deleted_at && p.organization_id).map((p) => p.organization_id),
+      affiliations.filter((a) => active.has(a.person_id)).map((a) => a.organization_id),
     )
     return [...used]
       .map((id) => orgsById.get(id))
       .filter(Boolean)
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [people, orgsById])
+  }, [people, affiliations, orgsById])
 
   // Most recent interaction timestamp per person, for the activity-based sorts.
   const lastByPerson = useMemo(() => {
@@ -129,7 +138,14 @@ export default function SearchView({
 
   const results = useMemo(() => {
     let pool = people.filter((p) => (showDeleted ? p.deleted_at : !p.deleted_at))
-    if (orgFilter) pool = pool.filter((p) => p.organization_id === orgFilter)
+    if (orgFilter) {
+      // Anyone linked to this org, past or present — filtering to it is a
+      // deliberate "show me this org's people", not a summary line.
+      const ids = new Set(
+        affiliations.filter((a) => a.organization_id === orgFilter).map((a) => a.person_id),
+      )
+      pool = pool.filter((p) => ids.has(p.id))
+    }
     if (tagFilter) pool = pool.filter((p) => (p.tags || []).includes(tagFilter))
     if (groupFilter) {
       const g = groups.find((x) => x.id === groupFilter)
@@ -141,12 +157,13 @@ export default function SearchView({
     if (tierFilter) pool = pool.filter((p) => p.tier === tierFilter)
     if (privacyFilter) pool = pool.filter((p) => p.privacy_level === privacyFilter)
     return sortPeople(
-      searchPeople(pool, query, orgsById),
+      searchPeople(pool, query, orgsById, affiliations),
       searching ? 'relevance' : sort,
       lastByPerson,
     )
   }, [
     people,
+    affiliations,
     groups,
     orgsById,
     query,
@@ -170,6 +187,16 @@ export default function SearchView({
     showDeleted,
   ].filter(Boolean).length
 
+  // Matching organizations, shown as peers of the person results rather than
+  // only as a line under someone's name — for a contractor or a doctor's office
+  // the org is the contact you're looking for. Only while searching, and only
+  // with no filters on: those narrow the *people*, so mixing in orgs that
+  // ignore them would be misleading.
+  const orgResults = useMemo(
+    () => (searching && !activeCount ? searchOrgs(orgs, query) : []),
+    [orgs, query, searching, activeCount],
+  )
+
   const clearAll = () => setFilters(EMPTY_PEOPLE_FILTERS)
 
   // Apple-Contacts browse mode: only when sorting A–Z and not searching, slice
@@ -191,10 +218,17 @@ export default function SearchView({
   }
 
   const renderPerson = (person) => {
-    const sub = [person.role, orgsById.get(person.organization_id)?.name]
-      .filter(Boolean)
-      .join(' · ')
+    const sub = personSummary(person, affiliations, orgsById)
     const last = lastInteraction(person.id, interactions)
+    // The row already showed "3w ago"; what it didn't show was whether that's
+    // fine or late. `.row-time.warn` existed for exactly this and nothing used
+    // it — a cadence the user set was only ever enforced in the reminder feed.
+    const due = followUpLabel(followUp(person, last?.occurred_at))
+    // Tier is filterable and shown on the profile, so it belongs on the row it
+    // sorts. It takes the first chip slot; tags give one up to make room.
+    const tags = person.tags || []
+    const shownTags = tags.slice(0, person.tier ? 1 : 2)
+    const extraTags = tags.length - shownTags.length
     const mine = !person.created_by || person.created_by === userId
     const actions = showDeleted
       ? [
@@ -235,19 +269,34 @@ export default function SearchView({
               <SharedDot item={person} />
             </div>
             {sub && <div className="row-sub">{sub}</div>}
-            {(person.tags || []).length > 0 && (
+            {(person.tier || tags.length > 0) && (
               <div className="row-chips">
-                {person.tags.slice(0, 2).map((t) => (
-                  <span className="chip" key={t}>
+                {person.tier && (
+                  <Chip className={`tier-${person.tier}`}>{TIER_LABELS[person.tier]}</Chip>
+                )}
+                {shownTags.map((t) => (
+                  <Chip className="chip-truncate" key={t} title={t}>
                     {t}
-                  </span>
+                  </Chip>
                 ))}
-                {person.tags.length > 2 && <span className="chip">+{person.tags.length - 2}</span>}
+                {extraTags > 0 && (
+                  <Chip title={tags.slice(shownTags.length).join(' · ')}>+{extraTags}</Chip>
+                )}
               </div>
             )}
           </div>
           <div className="row-meta">
-            {last && <span className="row-time">{relativeTime(last.occurred_at)}</span>}
+            {last ? (
+              <span className={`row-time ${due?.urgent ? 'warn' : ''}`} title={due?.text}>
+                {relativeTime(last.occurred_at)}
+              </span>
+            ) : (
+              due && (
+                <span className="row-time warn" title={due.text}>
+                  Never
+                </span>
+              )
+            )}
             <ChevronRight size={18} className="row-chevron" />
           </div>
         </div>
@@ -310,12 +359,58 @@ export default function SearchView({
         )}
       </div>
 
+      {orgResults.length > 0 && (
+        <>
+          <SectionLabel>Organizations</SectionLabel>
+          <div className="list">
+            {orgResults.map((org) => {
+              const n = orgMembers(org.id, people, affiliations).length
+              const sub = [org.type, n ? `${n} ${n === 1 ? 'person' : 'people'}` : org.phone]
+                .filter(Boolean)
+                .join(' · ')
+              return (
+                <div className="list-row" key={org.id} onClick={() => onOpenOrg?.(org.id)}>
+                  <Avatar
+                    name={org.name}
+                    src={org.avatar_url}
+                    kind="org"
+                    icon={Briefcase}
+                    size={42}
+                  />
+                  <div className="row-body">
+                    <div className="row-title">{org.name}</div>
+                    {sub && <div className="row-sub">{sub}</div>}
+                  </div>
+                  <ChevronRight size={18} className="row-chevron" />
+                </div>
+              )
+            })}
+          </div>
+          {results.length > 0 && <SectionLabel>People</SectionLabel>}
+        </>
+      )}
+
       {loading ? (
         <EmptyState loading>Loading</EmptyState>
-      ) : results.length === 0 ? (
-        <EmptyState icon={Users}>
-          {query || activeCount ? 'No matches.' : 'Search by name, org, or tag.'}
-        </EmptyState>
+      ) : results.length === 0 && orgResults.length === 0 ? (
+        // No query and no filters means the address book itself is empty — a
+        // different problem from "no matches", and the one that used to leave a
+        // first-run user staring at "Search by name, org, or tag" with nothing
+        // to search and no way forward.
+        query || activeCount ? (
+          <EmptyState icon={Users}>No matches.</EmptyState>
+        ) : (
+          <EmptyState
+            icon={Users}
+            action={
+              <Button variant="text" icon={UserPlus} onClick={onAdd}>
+                Add someone
+              </Button>
+            }
+          >
+            No one here yet. Start with the people you want to keep up with.
+          </EmptyState>
+        )
       ) : browsing ? (
         <div className="people-browse">
           <div>
@@ -466,6 +561,7 @@ export default function SearchView({
         <PeopleMap
           people={mappable}
           orgsById={orgsById}
+          affiliations={affiliations}
           onOpen={onOpen}
           onSave={savePerson}
           onClose={() => setMapOpen(false)}

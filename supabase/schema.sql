@@ -43,8 +43,7 @@ create table public.families (
 create table public.people (
   id            uuid primary key default gen_random_uuid(),
   name          text not null,
-  organization  text,
-  role          text,
+  role          text,                          -- standalone descriptor ("Babysitter") for contacts with NO affiliation; a title at an org lives on affiliations.role (0033)
   email         text,                          -- primary email; drives search + duplicate detection
   phone         text,                          -- primary phone; drives search + duplicate detection
   emails        jsonb not null default '[]',    -- additional labeled emails: [{label, value}] (see 0012)
@@ -57,7 +56,6 @@ create table public.people (
   geocoded_address text,                       -- the `address` string these coords were resolved from; re-geocode when it differs
   tags          text[] not null default '{}',
   tier          text check (tier in ('family', 'inner', 'close', 'network', 'acquaintance')),  -- relationship tier; null = unsorted. Order (closest→loosest) drives TIER_RANK in lib/constants.js
-  organization_id uuid,                         -- employer; FK to organizations added below (that table is defined after this one). null = none
   family_id     uuid references public.families(id) on delete set null,
   privacy_level privacy_level not null default 'shared',
   notes         text,
@@ -90,8 +88,14 @@ create table public.key_dates (
 create table public.organizations (
   id            uuid primary key default gen_random_uuid(),
   name          text not null unique,
-  type          text,                       -- Company, Government, Nonprofit, Community
+  type          text,                       -- see ORG_TYPES in lib/orgs.js; also classifies the org as counterparty vs biography
   description   text,
+  -- Contact details (0032). An org is a contactable record in its own right —
+  -- a contractor or doctor's office needs no person attached to be complete.
+  phone         text,
+  email         text,
+  website       text,
+  address       text,
   key_contacts  text[] not null default '{}',
   tags          text[] not null default '{}',
   privacy_level privacy_level not null default 'shared',
@@ -101,12 +105,9 @@ create table public.organizations (
   updated_at    timestamptz not null default now()
 );
 
--- people.organization_id → organizations(id). Declared here (not inline on the
--- people table) because organizations is defined after people. on delete set
--- null: deleting an org un-sets it on its people rather than deleting them.
-alter table public.people
-  add constraint people_organization_id_fkey
-  foreign key (organization_id) references public.organizations(id) on delete set null;
+-- people ↔ organizations is many-to-many via public.affiliations (0033), which
+-- is defined further down with the other post-multitenancy tables (it carries
+-- household_id from birth). It replaced the old people.organization_id FK.
 
 -- ------------------------------------------------------------
 -- relationships
@@ -990,3 +991,44 @@ create policy "household members" on public.notes for all to authenticated
   using (public.is_member(household_id)) with check (public.is_member(household_id));
 
 alter publication supabase_realtime add table public.notes;
+
+-- ------------------------------------------------------------
+-- affiliations (person ↔ organization, many-to-many; see 0033)
+-- ------------------------------------------------------------
+-- Replaces the old people.organization_id single FK: a person can sit on a
+-- board, contract for two firms, or have a job history. `role` is their title
+-- AT THIS ORG (people.role now only covers contacts with no affiliation at
+-- all). `show_in_summary` null = infer from organizations.type (lib/orgs.js
+-- isCounterparty — a Contractor is how you know them and belongs under their
+-- name; a Company is biography and doesn't); true/false overrides per row.
+create table public.affiliations (
+  id              uuid primary key default gen_random_uuid(),
+  household_id    uuid not null references public.households(id) on delete cascade,
+  person_id       uuid not null references public.people(id) on delete cascade,
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  role            text,
+  is_primary      boolean not null default false,  -- the one that represents them where only one fits
+  show_in_summary boolean,                         -- null = infer from the org's type
+  started_on      date,
+  ended_on        date,                            -- non-null = former; kept as history
+  created_by      uuid default auth.uid(),
+  updated_by      uuid,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  constraint affiliations_unique unique (person_id, organization_id),
+  constraint affiliations_dates_chk check (ended_on is null or started_on is null or ended_on >= started_on)
+);
+create index affiliations_household_idx on public.affiliations (household_id);
+create index affiliations_person_idx on public.affiliations (person_id);
+create index affiliations_org_idx on public.affiliations (organization_id);
+
+create trigger affiliations_touch before update on public.affiliations
+  for each row execute function public.touch_updated_at();
+create trigger affiliations_audit after insert or update or delete on public.affiliations
+  for each row execute function public.write_audit();
+
+alter table public.affiliations enable row level security;
+create policy "household members" on public.affiliations for all to authenticated
+  using (public.is_member(household_id)) with check (public.is_member(household_id));
+
+alter publication supabase_realtime add table public.affiliations;

@@ -18,6 +18,7 @@ import {
   Download,
   ChevronRight,
   Globe,
+  Briefcase,
 } from 'react-feather'
 import { downloadVcf } from '../../lib/vcard'
 import { socialUrl } from '../../lib/contactChannels'
@@ -30,13 +31,22 @@ import {
   SOCIAL_BY_ID,
   formatDate,
 } from '../../lib/constants'
-import { lastInteraction, relativeTime } from '../../lib/contact'
+import { followUp, followUpLabel, lastInteraction, relativeTime } from '../../lib/contact'
+import {
+  personSummary,
+  currentAffiliations,
+  affiliationsFor,
+  affiliationDetail,
+} from '../../lib/orgs'
 import { isProject, projectProgress, linkedTasksFor } from '../../lib/tasks'
-import { notesMentioning, noteTitle, noteSnippet } from '../../lib/notes'
+import NoteBacklinks from '../../components/ui/NoteBacklinks'
 import { memberName } from '../../lib/household'
 import haptics from '../../lib/haptics'
 import Avatar from '../../components/ui/Avatar'
 import AvatarUpload from '../../components/ui/AvatarUpload'
+import Button from '../../components/ui/Button'
+import Chip from '../../components/ui/Chip'
+import PressableRow from '../../components/ui/PressableRow'
 import TaskRow from '../tasks/TaskRow'
 import InteractionForm from './InteractionForm'
 import KeyDateForm from './KeyDateForm'
@@ -52,6 +62,7 @@ export default function PersonPage({
   data,
   personId,
   onOpenPerson,
+  onOpenOrg,
   onOpenTask,
   onOpenNote,
   onBack,
@@ -62,6 +73,7 @@ export default function PersonPage({
   const {
     people,
     orgs,
+    affiliations,
     relationships,
     interactions,
     families,
@@ -86,7 +98,7 @@ export default function PersonPage({
   const person = people.find((p) => p.id === personId)
   const byId = useMemo(() => new Map(people.map((p) => [p.id, p])), [people])
   const orgsById = useMemo(() => new Map(orgs.map((o) => [o.id, o])), [orgs])
-  const orgName = (p) => orgsById.get(p?.organization_id)?.name
+  const summary = (p) => personSummary(p, affiliations, orgsById)
   const [logType, setLogType] = useState(null) // null | type id → opens InteractionForm
   const [addingDate, setAddingDate] = useState(false)
   const [linkingTask, setLinkingTask] = useState(false)
@@ -124,12 +136,6 @@ export default function PersonPage({
     () => linkedTasksFor('person', personId, tasks, taskLinks),
     [taskLinks, tasks, personId],
   )
-  // Notes that @-mention this contact — the reverse of the note's inline chip.
-  const mentionedNotes = useMemo(
-    () => notesMentioning(notes, 'person', personId),
-    [notes, personId],
-  )
-
   const toggleTask = (t) => {
     if (!t.completed_at) haptics.success()
     completeTask(t, !t.completed_at)
@@ -152,7 +158,15 @@ export default function PersonPage({
     })
     .filter((c) => c.other && !c.other.deleted_at)
 
+  // An archived person is a record, not a working contact: the page keeps every
+  // fact readable but stops offering the edits (log a touchpoint, add a date,
+  // link a task, change the photo) that only made sense while they were active.
+  const archived = !!person.deleted_at
   const last = lastInteraction(person.id, interactions)
+  // The cadence the user set, stated as a live status rather than as a setting
+  // buried in Details — "Overdue by 12 days", not "every 30 days" plus mental
+  // arithmetic against "last contact · 5w ago".
+  const due = followUpLabel(followUp(person, last?.occurred_at))
   const hasContact = Boolean(
     person.email ||
     person.phone ||
@@ -166,6 +180,13 @@ export default function PersonPage({
   const familyMembers = family
     ? people.filter((p) => p.family_id === family.id && p.id !== person.id && !p.deleted_at)
     : []
+  // Current links first (primary at the top), then the ended ones as history.
+  const personAffiliations = [
+    ...currentAffiliations(person.id, affiliations, orgsById),
+    ...affiliationsFor(person.id, affiliations).filter((a) => a.ended_on),
+  ]
+    .map((link) => ({ link, org: orgsById.get(link.organization_id) }))
+    .filter((row) => row.org)
   const personDates = keyDates
     .filter((kd) => kd.person_id === person.id)
     .sort((a, b) => (a.date < b.date ? -1 : 1))
@@ -178,78 +199,71 @@ export default function PersonPage({
     <div className="detail">
       <NavBar backLabel="People" onBack={onBack} title={person.name}>
         <div className="profile-head">
-          <AvatarUpload
-            variant="menu"
-            size={88}
-            value={person.avatar_url}
-            onChange={(v) => savePerson({ avatar_url: v }, person.id)}
-            name={person.name}
-            entity="people"
-            demo={isDemo}
-          />
-          <h1 className="person-name">
-            {person.name}
-            {person.deleted_at && (
-              <span className="muted" style={{ fontSize: 15, fontWeight: 400 }}>
-                {' '}
-                · archived
-              </span>
-            )}
-          </h1>
-          {(person.role || orgName(person)) && (
-            <p className="person-sub">
-              {[person.role, orgName(person)].filter(Boolean).join(' · ')}
-            </p>
+          {archived ? (
+            <Avatar name={person.name} src={person.avatar_url} size={88} />
+          ) : (
+            <AvatarUpload
+              variant="menu"
+              size={88}
+              value={person.avatar_url}
+              onChange={(v) => savePerson({ avatar_url: v }, person.id)}
+              name={person.name}
+              entity="people"
+              demo={isDemo}
+            />
           )}
+          <h1 className="person-name">{person.name}</h1>
+          {summary(person) && <p className="person-sub">{summary(person)}</p>}
 
-          <div className="chips" style={{ justifyContent: 'center', marginTop: 10 }}>
+          <div className="chips profile-chips">
+            {archived && <Chip>Archived</Chip>}
             {person.tier && (
-              <span className={`chip tier-${person.tier}`}>{TIER_LABELS[person.tier]}</span>
+              <Chip className={`tier-${person.tier}`}>{TIER_LABELS[person.tier]}</Chip>
             )}
-            {last && <span className="chip">Last contact · {relativeTime(last.occurred_at)}</span>}
+            {due && <Chip tone={due.tone}>{due.text}</Chip>}
+            {last && <Chip>Last contact · {relativeTime(last.occurred_at)}</Chip>}
             {(person.tags || []).map((t) => (
-              <span className="chip accent" key={t}>
+              <Chip tone="accent" key={t}>
                 {t}
-              </span>
+              </Chip>
             ))}
           </div>
 
+          {/* Safe actions only. Archive and Delete forever live in the danger
+              zone at the foot of the page — beside Edit they read as routine,
+              and five pills wrapped onto three lines pushed the first real
+              content below the fold. */}
           <div className="profile-actions">
-            <button className="pill-btn" onClick={() => onEdit(person)}>
-              <Edit2 size={15} /> Edit
-            </button>
-            <button className="pill-btn neutral" onClick={() => onConnect(person)}>
-              <UserPlus size={15} /> Connect
-            </button>
-            <button
-              className="pill-btn neutral"
-              onClick={() => downloadVcf(person.name, [person], orgsById)}
+            {archived && (
+              <Button variant="pill" icon={RotateCcw} onClick={() => restorePerson(person.id)}>
+                Restore
+              </Button>
+            )}
+            <Button variant="pill" icon={Edit2} onClick={() => onEdit(person)}>
+              Edit
+            </Button>
+            {!archived && (
+              <Button
+                variant="pill"
+                icon={UserPlus}
+                className="neutral"
+                onClick={() => onConnect(person)}
+              >
+                Connect
+              </Button>
+            )}
+            <Button
+              variant="pill"
+              icon={Download}
+              className="neutral"
+              onClick={() => downloadVcf(person.name, [person], orgsById, affiliations)}
               title="Download a .vcf for your phone's address book"
             >
-              <Download size={15} /> Save contact
-            </button>
-            {person.deleted_at ? (
-              <>
-                <button className="pill-btn" onClick={() => restorePerson(person.id)}>
-                  <RotateCcw size={15} /> Restore
-                </button>
-                {mine && (
-                  <button className="pill-btn danger" onClick={() => setConfirmPurge(true)}>
-                    <Trash2 size={15} /> Delete forever
-                  </button>
-                )}
-              </>
-            ) : (
-              <button
-                className="text-btn danger person-archive"
-                onClick={() => deletePerson(person.id)}
-              >
-                <Archive size={14} /> Archive
-              </button>
-            )}
+              Save contact
+            </Button>
           </div>
-          {person.deleted_at && !mine && (
-            <p className="muted" style={{ fontSize: 13, marginTop: 8, textAlign: 'center' }}>
+          {archived && !mine && (
+            <p className="profile-note">
               Added by {ownerName || 'another member'} — only they can delete it permanently.
             </p>
           )}
@@ -257,19 +271,23 @@ export default function PersonPage({
       </NavBar>
 
       {/* Quick-log: tap a type to log a touchpoint */}
-      <SectionLabel>Log a touchpoint</SectionLabel>
-      <div className="quick-row">
-        {INTERACTION_TYPES.map((t) => (
-          <button key={t.id} className="quick-chip" onClick={() => setLogType(t.id)}>
-            <t.icon size={16} /> {t.verb}
-          </button>
-        ))}
-      </div>
+      {!archived && (
+        <>
+          <SectionLabel>Log a touchpoint</SectionLabel>
+          <div className="quick-row">
+            {INTERACTION_TYPES.map((t) => (
+              <button key={t.id} className="quick-chip" onClick={() => setLogType(t.id)}>
+                <t.icon size={16} /> {t.verb}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {hasContact && (
         <>
           <SectionLabel>Contact</SectionLabel>
-          <div className="list contact-list">
+          <div className="list value-stack">
             {person.email && (
               <a className="value-row" href={`mailto:${person.email.trim()}`}>
                 <Mail size={18} />
@@ -355,35 +373,83 @@ export default function PersonPage({
         </>
       )}
 
-      {/* Key dates — anniversaries and the like, beyond birthday */}
-      <div className="section-head">
-        <SectionLabel>Key dates</SectionLabel>
-        <button className="see-all" onClick={() => setAddingDate(true)}>
-          <Plus size={14} style={{ verticalAlign: '-2px' }} /> Add
-        </button>
-      </div>
-      <div className="list">
-        {personDates.length === 0 ? (
-          <EmptyState inline>No key dates yet — anniversaries, memorials, big days.</EmptyState>
-        ) : (
-          personDates.map((kd) => (
-            <div className="value-row" key={kd.id}>
-              <Calendar size={18} />
-              <span className="v-label">{kd.label}</span>
-              <span className="v-value">
-                {formatDate(kd.date)}
-                <span className="muted"> · {kd.annual ? 'every year' : 'one-time'}</span>
-              </span>
-              <IconButton
-                icon={X}
-                variant="danger"
-                label={`Delete ${kd.label}`}
-                onClick={() => removeKeyDate(kd)}
-              />
+      {/* Every org they're attached to, current and former. The header line
+          shows at most one of these (and often none — see personSummary); this
+          is where the rest of the picture lives, including the employer we
+          deliberately keep out from under their name. */}
+      {personAffiliations.length > 0 && (
+        <>
+          <SectionLabel>Organizations</SectionLabel>
+          <div className="list">
+            {personAffiliations.map(({ link, org }) => (
+              <PressableRow key={link.id} onClick={() => onOpenOrg?.(org.id)}>
+                <Avatar
+                  name={org.name}
+                  src={org.avatar_url}
+                  kind="org"
+                  icon={Briefcase}
+                  size={38}
+                />
+                <div className="row-body">
+                  <div className="row-title">{org.name}</div>
+                  {affiliationDetail(link) && (
+                    <div className="row-sub">{affiliationDetail(link)}</div>
+                  )}
+                </div>
+                <ChevronRight size={18} className="row-chevron" />
+              </PressableRow>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Key dates — anniversaries and the like, beyond birthday.
+          The card only renders when there's something in it: an always-present
+          "nothing yet" card in each of three sections put ~400px of empty state
+          between a new contact's header and anything real. The label keeps its
+          "+ Add", so the way in survives. */}
+      {(personDates.length > 0 || !archived) && (
+        <>
+          <SectionLabel
+            action={
+              !archived && (
+                <Button variant="text" icon={Plus} onClick={() => setAddingDate(true)}>
+                  Add
+                </Button>
+              )
+            }
+          >
+            Key dates
+          </SectionLabel>
+          {personDates.length > 0 && (
+            <div className="list value-stack">
+              {personDates.map((kd) => (
+                <div className="value-row" key={kd.id}>
+                  <Calendar size={18} />
+                  {/* Stacked label-over-value, like Contact: side by side, a
+                      long label ("Wedding anniversary") wouldn't shrink and
+                      shoved the date off the row at 375px. */}
+                  <span className="v-col">
+                    <span className="v-label">{kd.label}</span>
+                    <span className="v-value">
+                      {formatDate(kd.date)}
+                      <span className="muted"> · {kd.annual ? 'every year' : 'one-time'}</span>
+                    </span>
+                  </span>
+                  {!archived && (
+                    <IconButton
+                      icon={X}
+                      variant="danger"
+                      label={`Delete ${kd.label}`}
+                      onClick={() => removeKeyDate(kd)}
+                    />
+                  )}
+                </div>
+              ))}
             </div>
-          ))
-        )}
-      </div>
+          )}
+        </>
+      )}
 
       {family && familyMembers.length > 0 && (
         <>
@@ -393,120 +459,112 @@ export default function PersonPage({
           </SectionLabel>
           <div className="list">
             {familyMembers.map((m) => (
-              <div className="list-row" key={m.id} onClick={() => onOpenPerson(m.id)}>
+              <PressableRow key={m.id} onClick={() => onOpenPerson(m.id)}>
                 <Avatar name={m.name} src={m.avatar_url} size={38} />
                 <div className="row-body">
                   <div className="row-title">{m.name}</div>
-                  {(m.role || orgName(m)) && (
-                    <div className="row-sub">
-                      {[m.role, orgName(m)].filter(Boolean).join(' · ')}
-                    </div>
-                  )}
+                  {summary(m) && <div className="row-sub">{summary(m)}</div>}
                 </div>
-              </div>
+                <ChevronRight size={18} className="row-chevron" />
+              </PressableRow>
             ))}
           </div>
         </>
       )}
 
       {/* Linked tasks & projects — the reverse of ProjectDetail's related people */}
-      <div className="section-head">
-        <SectionLabel>Tasks &amp; projects</SectionLabel>
-        <button className="see-all" onClick={() => setLinkingTask(true)}>
-          <Plus size={14} style={{ verticalAlign: '-2px' }} /> Add
-        </button>
-      </div>
-      <div className="list">
-        {linkedTasks.length === 0 ? (
-          <EmptyState inline>
-            No tasks linked yet — a “follow up”, a gift to buy, a shared project.
-          </EmptyState>
-        ) : (
-          linkedTasks.map((t) => (
-            <div className="list-row" key={t.id} role="button" onClick={() => onOpenTask(t)}>
-              <TaskRow task={t} onToggle={toggleTask} progress={projectProgress(t.id, tasks)} />
-              {isProject(t) && <ChevronRight size={18} className="row-chevron" />}
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Notes that mention this contact — the backlink to the notebook */}
-      {mentionedNotes.length > 0 && onOpenNote && (
+      {(linkedTasks.length > 0 || !archived) && (
         <>
-          <div className="section-label">Mentioned in notes</div>
-          <div className="list">
-            {mentionedNotes.map((n) => (
-              <div className="list-row" key={n.id} role="button" onClick={() => onOpenNote(n.id)}>
-                <div className="row-body">
-                  <div className="row-title">{noteTitle(n)}</div>
-                  {noteSnippet(n) && <div className="row-sub">{noteSnippet(n, 60)}</div>}
-                </div>
-                <ChevronRight size={18} className="row-chevron" />
-              </div>
-            ))}
-          </div>
+          <SectionLabel
+            action={
+              !archived && (
+                <Button variant="text" icon={Plus} onClick={() => setLinkingTask(true)}>
+                  Add
+                </Button>
+              )
+            }
+          >
+            Tasks &amp; projects
+          </SectionLabel>
+          {linkedTasks.length > 0 && (
+            <div className="list">
+              {linkedTasks.map((t) => (
+                <PressableRow key={t.id} onClick={() => onOpenTask(t)}>
+                  <TaskRow task={t} onToggle={toggleTask} progress={projectProgress(t.id, tasks)} />
+                  {isProject(t) && <ChevronRight size={18} className="row-chevron" />}
+                </PressableRow>
+              ))}
+            </div>
+          )}
         </>
       )}
 
-      {/* Activity timeline */}
-      <SectionLabel>Activity</SectionLabel>
-      <div className="list">
-        {timeline.length === 0 ? (
-          <EmptyState inline>No touchpoints logged yet.</EmptyState>
-        ) : (
-          timeline.map((it) => {
-            const meta = INTERACTION_BY_ID[it.type] || INTERACTION_BY_ID.note
-            const Icon = meta.icon
-            return (
-              <div className="activity-row" key={it.id}>
-                <span className="activity-icon">
-                  <Icon size={16} />
-                </span>
-                <div className="row-body">
-                  <div className="activity-head">
-                    <span className="activity-label">{meta.label}</span>
-                    <span className="activity-time">{relativeTime(it.occurred_at)}</span>
+      <NoteBacklinks notes={notes} type="person" id={personId} onOpenNote={onOpenNote} />
+
+      {/* Activity timeline. No empty state: the quick-log row at the top of the
+          page is the invitation to start one, so an empty "no touchpoints yet"
+          card underneath it just says the same thing twice. */}
+      {timeline.length > 0 && (
+        <>
+          <SectionLabel>Activity</SectionLabel>
+          <div className="list">
+            {timeline.map((it) => {
+              const meta = INTERACTION_BY_ID[it.type] || INTERACTION_BY_ID.note
+              const Icon = meta.icon
+              return (
+                <div className="activity-row" key={it.id}>
+                  <span className="activity-icon">
+                    <Icon size={16} />
+                  </span>
+                  <div className="row-body">
+                    <div className="activity-head">
+                      <span className="activity-label">{meta.label}</span>
+                      <span className="activity-time">{relativeTime(it.occurred_at)}</span>
+                    </div>
+                    {it.note && <div className="activity-note">{it.note}</div>}
                   </div>
-                  {it.note && <div className="activity-note">{it.note}</div>}
+                  {!archived && (
+                    <IconButton
+                      icon={X}
+                      variant="danger"
+                      label="Delete entry"
+                      onClick={() => deleteInteraction(it.id)}
+                    />
+                  )}
                 </div>
-                <IconButton
-                  icon={X}
-                  variant="danger"
-                  label="Delete entry"
-                  onClick={() => deleteInteraction(it.id)}
-                />
-              </div>
-            )
-          })
-        )}
-      </div>
+              )
+            })}
+          </div>
+        </>
+      )}
 
       {connections.length > 0 && (
         <>
           <SectionLabel>Also knows</SectionLabel>
           <div className="list">
             {connections.map(({ rel, other }) => (
-              <div className="list-row" key={rel.id} onClick={() => onOpenPerson(other.id)}>
+              <PressableRow key={rel.id} onClick={() => onOpenPerson(other.id)}>
                 <Avatar name={other.name} src={other.avatar_url} size={38} />
                 <div className="row-body">
                   <div className="row-title">{other.name}</div>
                   <div className="row-sub">
                     {rel.relationship_type.replace(/_/g, ' ')}
-                    {orgName(other) ? ` · ${orgName(other)}` : ''}
+                    {summary(other) ? ` · ${summary(other)}` : ''}
                     {rel.notes ? ` — ${rel.notes}` : ''}
                   </div>
                 </div>
-                <IconButton
-                  icon={X}
-                  variant="danger"
-                  label="Remove connection"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    removeConnection(rel, other)
-                  }}
-                />
-              </div>
+                {!archived && (
+                  <IconButton
+                    icon={X}
+                    variant="danger"
+                    label={`Remove connection to ${other.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeConnection(rel, other)
+                    }}
+                  />
+                )}
+              </PressableRow>
             ))}
           </div>
         </>
@@ -538,6 +596,33 @@ export default function PersonPage({
           </span>
         </div>
       </div>
+
+      {/* Destructive actions live at the foot of the page and read quietly —
+          the same treatment ProjectDetail got. Archive is reversible and backed
+          by an undo toast, so it commits directly; Delete forever confirms. */}
+      {(!archived || mine) && (
+        <div className="danger-zone">
+          {archived ? (
+            <Button
+              variant="text"
+              tone="danger"
+              icon={Trash2}
+              onClick={() => setConfirmPurge(true)}
+            >
+              Delete forever
+            </Button>
+          ) : (
+            <Button
+              variant="text"
+              tone="danger"
+              icon={Archive}
+              onClick={() => deletePerson(person.id)}
+            >
+              Archive
+            </Button>
+          )}
+        </div>
+      )}
 
       {logType && (
         <InteractionForm

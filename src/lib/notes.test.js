@@ -30,6 +30,14 @@ describe('notesMentioning', () => {
     expect(notesMentioning(notes, 'person', 'p1').map((n) => n.id)).toEqual(['a', 'b'])
     expect(notesMentioning(notes, 'organization', 'o1').map((n) => n.id)).toEqual(['b'])
   })
+  it('accepts several types at once (a project page also answers to "task")', () => {
+    const mixed = [
+      { id: 'a', mentions: [{ type: 'task', id: 't1' }] },
+      { id: 'b', mentions: [{ type: 'project', id: 't1' }] },
+      { id: 'c', mentions: [{ type: 'list', id: 't1' }] },
+    ]
+    expect(notesMentioning(mixed, ['project', 'task'], 't1').map((n) => n.id)).toEqual(['a', 'b'])
+  })
   it('returns empty when nothing matches or inputs are bad', () => {
     expect(notesMentioning(notes, 'group', 'g1')).toEqual([])
     expect(notesMentioning(null, 'person', 'p1')).toEqual([])

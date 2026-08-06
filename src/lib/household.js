@@ -167,6 +167,19 @@ export function assigneeLabel(value) {
   return members().find((m) => m.id === v)?.name || 'Anyone'
 }
 
+// Who a NEW task starts out belonging to. Once there's more than one member,
+// that's you: a task you just typed is yours until you hand it over, and
+// "Anyone" made every new task nobody's in particular — the state a shared list
+// quietly rots into. The form still shows Who up front so opening it back up to
+// the household is one tap.
+//
+// A solo household has no one to distinguish, so it stays 'anyone' — otherwise
+// every row would carry a pointless "Me" chip and the assignee UI (hidden by
+// isSolo) would have nothing to explain it.
+export function defaultAssignee() {
+  return isSolo() ? 'anyone' : currentMemberId() || 'anyone'
+}
+
 // ---- backward-compat shims (used by ImportExport's settings payload) ----
 export function memberNames() {
   const ms = members()

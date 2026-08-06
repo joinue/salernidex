@@ -14,6 +14,7 @@ import {
 import { relativeTime } from '../../lib/contact'
 import { dueLabel } from '../../lib/tasks'
 import { buildAttention } from '../../lib/reminders'
+import { normalizeAssignee } from '../../lib/household'
 import { buildActivityFeed } from '../../lib/activity'
 import { personActions } from '../../lib/personActions'
 import { noteTitle, noteSnippet } from '../../lib/notes'
@@ -28,6 +29,7 @@ import {
 } from '../../lib/habits'
 import { byOrder } from '../../lib/order'
 import HabitQuickLog from '../habits/HabitQuickLog'
+import { HabitDot } from '../habits/HabitRow'
 import { useNotificationPrefs } from '../../hooks/useNotificationPrefs'
 import { useNow } from '../../hooks/useNow'
 import haptics from '../../lib/haptics'
@@ -78,6 +80,7 @@ const DAY = 86400000
 
 export default function TodayView({
   data,
+  taskScope = 'mine',
   onOpenPerson,
   onOpenList,
   onOpenTasks,
@@ -124,7 +127,12 @@ export default function TodayView({
   const [laterItem, setLaterItem] = useState(null) // attention item picking a snooze
 
   const attention = useMemo(
-    () => buildAttention(data, prefs, data.reminderSnoozes, memberId, now),
+    () =>
+      buildAttention(data, prefs, data.reminderSnoozes, memberId, now, {
+        taskScope,
+        // Legacy 'me'/'partner'/'either' assignees only resolve through here.
+        normalizeAssignee,
+      }),
     // Granular deps on purpose: `data` is a fresh object every render; these are
     // the fields buildAttention actually reads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -137,6 +145,7 @@ export default function TodayView({
       data.reminderSnoozes,
       prefs,
       memberId,
+      taskScope,
       now,
     ],
   )
@@ -244,12 +253,7 @@ export default function TodayView({
             <div className="list">
               {todayHabits.map((h) => (
                 <div className="list-row today-habit" key={h.id} onClick={() => onOpenHabits?.()}>
-                  <span
-                    className={`habit-dot ${h.icon ? 'emoji' : ''}`}
-                    style={{ background: h.color || 'var(--accent)' }}
-                  >
-                    {h.icon || h.name.slice(0, 1).toUpperCase()}
-                  </span>
+                  <HabitDot habit={h} />
                   <div className="row-body">
                     <div className="row-title">{h.name}</div>
                     {isWeekly(h) && (

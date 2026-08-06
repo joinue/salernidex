@@ -5,6 +5,7 @@ import {
   relativeTime,
   upcomingBirthday,
   followUp,
+  followUpLabel,
   upcomingDates,
 } from './contact'
 
@@ -69,6 +70,32 @@ describe('followUp', () => {
   it('overdue vs ok', () => {
     expect(followUp({ keep_in_touch_days: 7 }, '2026-06-01')).toMatchObject({ state: 'overdue' })
     expect(followUp({ keep_in_touch_days: 30 }, '2026-06-10')).toMatchObject({ state: 'ok' })
+  })
+})
+
+describe('followUpLabel', () => {
+  const label = (person, last) => followUpLabel(followUp(person, last))
+  it('null when there is no cadence to be due against', () => {
+    expect(followUpLabel(null)).toBeNull()
+  })
+  it('flags a cadence with nothing logged', () => {
+    expect(label({ keep_in_touch_days: 30 }, null)).toMatchObject({
+      text: 'No touchpoint logged yet',
+      urgent: true,
+    })
+  })
+  it('counts the overdue days, and says "today" at exactly the cadence', () => {
+    expect(label({ keep_in_touch_days: 7 }, '2026-06-01T09:00:00').text).toBe('Overdue by 4 days')
+    expect(label({ keep_in_touch_days: 7 }, '2026-06-05T09:00:00').text).toBe(
+      'Due to reach out today',
+    )
+  })
+  it('counts down inside the window, and is not urgent there', () => {
+    expect(label({ keep_in_touch_days: 30 }, '2026-06-10T09:00:00')).toMatchObject({
+      text: 'Due in 28 days',
+      urgent: false,
+    })
+    expect(label({ keep_in_touch_days: 3 }, '2026-06-10T09:00:00').text).toBe('Reach out tomorrow')
   })
 })
 

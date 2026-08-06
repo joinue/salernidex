@@ -20,12 +20,32 @@ import { taskBucket, byDue, dueState } from './tasks'
 import { followUp, lastInteraction, upcomingDates } from './contact'
 import { DEFAULT_PREFS } from './notifyPrefs'
 
+// Is this task mine to worry about today? A task assigned to someone else in
+// the household is theirs — surfacing it here (and in the tab badge, the app
+// icon badge and the push notification) is how a shared dashboard becomes
+// everyone's noise. Unassigned ("anyone") work still belongs to everybody, so
+// it stays. `taskScope: 'all'` opts back into seeing the whole household.
+//
+// `normalize` is injected rather than imported: stored assignees can still be
+// the legacy labels ('me' / 'partner' / 'either') that predate member ids, and
+// only lib/household knows how to map those — but this module is pure and is
+// also ported server-side in the reminders Edge Function, which has no such
+// list. Callers in the app pass household.normalizeAssignee; the default is a
+// pass-through, which is correct for uuid-only data. Getting this wrong is not
+// subtle: an unmapped 'me' matches nothing and Today comes up empty.
+function assignedToMe(task, memberId, scope, normalize) {
+  if (scope === 'all' || !memberId) return true
+  const a = normalize(task.assignee)
+  return !a || a === 'anyone' || a === normalize(memberId)
+}
+
 export function buildAttention(
   data,
   prefs = DEFAULT_PREFS,
   snoozes = [],
   memberId = null,
   now = Date.now(),
+  { taskScope = 'mine', normalizeAssignee = (v) => v } = {},
 ) {
   const { people = [], tasks = [], interactions = [], keyDates = [], lists = [] } = data
   const active = people.filter((p) => !p.deleted_at)
@@ -52,6 +72,11 @@ export function buildAttention(
       if (t.is_project) continue
       const parent = t.parent_id ? byId.get(t.parent_id) : null
       if (t.parent_id && !(parent && parent.is_project && t.due_date)) continue
+      // A project's step inherits the project's owner when it has none of its
+      // own — otherwise every subtask of someone else's project would still
+      // read as unassigned and land on your dashboard.
+      if (!assignedToMe(t.assignee ? t : parent || t, memberId, taskScope, normalizeAssignee))
+        continue
       const bucket = taskBucket(t)
       if (bucket !== 'overdue' && bucket !== 'today') continue
       const project = parent && parent.is_project ? parent : null

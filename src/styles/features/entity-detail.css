@@ -48,6 +48,20 @@
   margin-top: 2px;
 }
 
+/* Status and labels under the name: archived, tier, follow-up, tags. */
+.profile-chips {
+  justify-content: center;
+  margin-top: 10px;
+}
+
+/* The ownership footnote under the action row ("only they can delete it"). */
+.profile-note {
+  font-size: 13px;
+  color: var(--text-2);
+  text-align: center;
+  margin-top: 8px;
+}
+
 .profile-actions {
   display: flex;
   justify-content: center;

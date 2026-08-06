@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'react-feather'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { useVisualViewport } from '../../hooks/useVisualViewport'
 import { useScrollLock } from '../../hooks/useScrollLock'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { useDrag } from '../../hooks/useDrag'
 import haptics from '../../lib/haptics'
 
@@ -14,6 +15,8 @@ export default function Modal({ title, onClose, children }) {
   const isMobile = useMediaQuery('(max-width: 720px)')
   const viewport = useVisualViewport()
   useScrollLock()
+  const dialogRef = useRef(null)
+  useFocusTrap(dialogRef)
   const [y, setY] = useState(0)
   const [closing, setClosing] = useState(false)
 
@@ -56,8 +59,10 @@ export default function Modal({ title, onClose, children }) {
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
+        ref={dialogRef}
         className="modal"
         role="dialog"
+        aria-modal="true"
         aria-label={title}
         style={
           isMobile

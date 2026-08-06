@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { X, MapPin, Navigation, Phone, ArrowRight } from 'react-feather'
 import { useScrollLock } from '../../hooks/useScrollLock'
 import { geocode } from '../../lib/geocode'
+import { personSummary } from '../../lib/orgs'
 import Avatar from '../../components/ui/Avatar'
 
 // Full-screen map of everyone who has an address. We use a dedicated overlay
@@ -29,7 +30,14 @@ function darkTheme() {
   return window.matchMedia('(prefers-color-scheme: dark)').matches
 }
 
-export default function PeopleMap({ people, orgsById, onClose, onOpen, onSave }) {
+export default function PeopleMap({
+  people,
+  orgsById,
+  affiliations = [],
+  onClose,
+  onOpen,
+  onSave,
+}) {
   const mapEl = useRef(null)
   const mapRef = useRef(null)
   const markers = useRef(new Map()) // person id -> { marker, latlng }
@@ -155,7 +163,7 @@ export default function PeopleMap({ people, orgsById, onClose, onOpen, onSave })
     }
   }, [selected, pins])
 
-  const sub = (p) => [p.role, orgsById?.get(p.organization_id)?.name].filter(Boolean).join(' · ')
+  const sub = (p) => personSummary(p, affiliations, orgsById)
 
   return createPortal(
     <div className="map-overlay" role="dialog" aria-label="People map">

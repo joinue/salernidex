@@ -80,21 +80,40 @@ export function noteOn(habit, isoDate, map) {
 // Slice the date off an ISO string rather than re-parsing (a bare 'yyyy-mm-dd'
 // through Date() would shift a day in negative timezones). Bounds streaks so
 // they can't predate the habit.
-const startOf = (habit) => (habit.created_at ? String(habit.created_at).slice(0, 10) : null)
+export const startOf = (habit) => (habit.created_at ? String(habit.created_at).slice(0, 10) : null)
 
-// How many calendar days back the daily-streak walk scans. A day-per-step walk
-// counts occurrences, so sparse rules (monthly/yearly) need a wider window to
-// surface long streaks; daily/weekly stay at a year.
-function dayStreakHorizon(habit) {
-  const f = habit.rrule?.freq
-  if (f === 'yearly') return 366 * 25
-  if (f === 'monthly') return 366 * 12
-  return 366
+// Local midnight of `date` — the start of every backwards day-walk in here.
+const dayOf = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate())
+
+// 'yyyy-mm-dd' → local Date (parsed from parts; see startOf).
+const parseISO = (iso) => {
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(y, m - 1, d)
 }
+
+// Backstop for a row with no created_at (shouldn't happen — the column is NOT
+// NULL — but a hand-imported row shouldn't spin forever either).
+const MAX_SCAN_DAYS = 366 * 25
+
+// How many calendar days back a streak or lifetime walk scans: exactly the
+// habit's lifespan. The walks already break at created_at, so this only bounds
+// the worst case — but deriving it from the habit means a fixed window can
+// never truncate a real streak (a 400-day run used to report 366), and a young
+// habit scans days-since-creation instead of a blind year.
+function dayScanDays(habit, today) {
+  const startISO = startOf(habit)
+  if (!startISO) return MAX_SCAN_DAYS
+  const days = Math.round((dayOf(today) - parseISO(startISO)) / 86400000) + 1
+  return Math.min(Math.max(days, 1), MAX_SCAN_DAYS)
+}
+
+// Same, in weeks, for the weekly-mode walks. Rounded up with a week of slack so
+// the scan always covers the partial week the habit was created in.
+const weekScanWeeks = (habit, today) => Math.ceil(dayScanDays(habit, today) / 7) + 1
 
 // Monday-start week containing `date`.
 function weekStartOf(date) {
-  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const d = dayOf(date)
   const dow = (d.getDay() + 6) % 7 // Mon=0 .. Sun=6
   d.setDate(d.getDate() - dow)
   return d
@@ -109,8 +128,8 @@ export function currentStreak(habit, map, today = new Date()) {
   const todayISO = toISODate(today)
   const startISO = startOf(habit)
   let streak = 0
-  const horizon = dayStreakHorizon(habit)
-  const d = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const horizon = dayScanDays(habit, today)
+  const d = dayOf(today)
   for (let i = 0; i < horizon; i++) {
     if (startISO && toISODate(d) < startISO) break
     if (isScheduled(habit, d)) {
@@ -136,8 +155,8 @@ export function bestStreak(habit, map, today = new Date()) {
   const todayISO = toISODate(today)
   let best = 0
   let run = 0
-  const horizon = dayStreakHorizon(habit)
-  const d = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const horizon = dayScanDays(habit, today)
+  const d = dayOf(today)
   for (let i = 0; i < horizon; i++) {
     if (startISO && toISODate(d) < startISO) break
     if (isScheduled(habit, d)) {
@@ -158,18 +177,21 @@ export function bestStreak(habit, map, today = new Date()) {
 
 // ---- weekly mode -------------------------------------------------------
 
-// Success-days within the week starting `weekStart`, capped at `today` (no
-// future), bounded by created_at, rest days transparent.
+// Success-days within the 7 days starting `weekStart`, capped at `today` (no
+// future), bounded by created_at, off-days and rest days transparent. Takes an
+// arbitrary week start so it serves both the Monday-start weekly streak and the
+// Sunday-start bars on the detail page.
 export function weekCount(habit, map, weekStart, today) {
   const startISO = startOf(habit)
   const todayISO = toISODate(today)
   let count = 0
-  const d = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate())
+  const d = dayOf(weekStart)
   for (let i = 0; i < 7; i++) {
     const iso = toISODate(d)
     if (iso > todayISO) break
     if (
       (!startISO || iso >= startISO) &&
+      isScheduled(habit, d) &&
       !isSkipped(habit, iso, map) &&
       isSuccess(habit, valueOn(habit, iso, map))
     ) {
@@ -193,7 +215,7 @@ function isRestWeek(habit, map, weekStart, today) {
   const startISO = startOf(habit)
   const todayISO = toISODate(today)
   let any = false
-  const d = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate())
+  const d = dayOf(weekStart)
   for (let i = 0; i < 7; i++) {
     const iso = toISODate(d)
     if (iso > todayISO) break
@@ -211,7 +233,8 @@ function currentWeeklyStreak(habit, map, today) {
   const thisWeekISO = toISODate(weekStartOf(today))
   let streak = 0
   let ws = weekStartOf(today)
-  for (let w = 0; w < 104; w++) {
+  const horizon = weekScanWeeks(habit, today)
+  for (let w = 0; w < horizon; w++) {
     const weekEnd = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() + 6)
     if (startISO && toISODate(weekEnd) < startISO) break
     if (isRestWeek(habit, map, ws, today)) {
@@ -232,7 +255,8 @@ function bestWeeklyStreak(habit, map, today) {
   let best = 0
   let run = 0
   let ws = weekStartOf(today)
-  for (let w = 0; w < 104; w++) {
+  const horizon = weekScanWeeks(habit, today)
+  for (let w = 0; w < horizon; w++) {
     const weekEnd = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() + 6)
     if (startISO && toISODate(weekEnd) < startISO) break
     if (isRestWeek(habit, map, ws, today)) {
@@ -255,7 +279,7 @@ export function windowStats(habit, map, today = new Date(), calendarDays = 30) {
   let scheduledDays = 0
   let successDays = 0
   let total = 0
-  const d = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const d = dayOf(today)
   for (let i = 0; i < calendarDays; i++) {
     const iso = toISODate(d)
     if (startISO && iso < startISO) break // don't count days before the habit existed
@@ -341,7 +365,7 @@ function cellStatus(habit, map, date, iso, todayISO, startISO) {
 export function calendarMatrix(habit, map, today = new Date(), weeks = 13) {
   const startISO = startOf(habit)
   const todayISO = toISODate(today)
-  const lastSunday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const lastSunday = dayOf(today)
   lastSunday.setDate(lastSunday.getDate() - lastSunday.getDay())
   const firstSunday = new Date(lastSunday)
   firstSunday.setDate(lastSunday.getDate() - (weeks - 1) * 7)
@@ -376,7 +400,7 @@ export function bestDayOfWeek(habit, map, today = new Date(), days = 90) {
   const startISO = startOf(habit)
   const sched = [0, 0, 0, 0, 0, 0, 0]
   const succ = [0, 0, 0, 0, 0, 0, 0]
-  const d = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const d = dayOf(today)
   for (let i = 0; i < days; i++) {
     const iso = toISODate(d)
     if (startISO && iso < startISO) break
@@ -397,32 +421,38 @@ export function bestDayOfWeek(habit, map, today = new Date(), days = 90) {
 }
 
 // Direction over time: the recent `half`-day window vs the one before it.
-// For build/limit compares success rate; for track compares average value.
+// For build/limit compares success rate (0..1); for track compares average
+// value. Always returns the same shape — `recent`/`prior` are the compared
+// metric, `recentStats`/`priorStats` the raw windows behind it — so a caller
+// can render the numbers without knowing which branch produced them.
 export function trend(habit, map, today = new Date(), half = 28) {
   const prevEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() - half)
-  const recent = windowStats(habit, map, today, half)
-  const prior = windowStats(habit, map, prevEnd, half)
+  const recentStats = windowStats(habit, map, today, half)
+  const priorStats = windowStats(habit, map, prevEnd, half)
+  const isTrack = habit.polarity === 'track'
+  const rate = (s) => (s.scheduledDays ? s.successDays / s.scheduledDays : 0)
+  const recent = isTrack ? recentStats.average : rate(recentStats)
+  const prior = isTrack ? priorStats.average : rate(priorStats)
+  const out = { recent, prior, recentStats, priorStats }
   // Too little prior history to compare (a young habit) → call it flat rather
   // than inventing an "improving" trend out of empty pre-creation days.
-  if (prior.scheduledDays < 5) return { dir: 'flat', recent, prior, young: true }
-  if (habit.polarity === 'track') {
-    const diff = recent.average - prior.average
-    return { dir: Math.abs(diff) < 0.01 ? 'flat' : diff > 0 ? 'up' : 'down', recent, prior }
-  }
-  const r = recent.scheduledDays ? recent.successDays / recent.scheduledDays : 0
-  const p = prior.scheduledDays ? prior.successDays / prior.scheduledDays : 0
-  const diff = r - p
-  return { dir: Math.abs(diff) < 0.05 ? 'flat' : diff > 0 ? 'up' : 'down', recent: r, prior: p }
+  if (priorStats.scheduledDays < 5) return { ...out, dir: 'flat', young: true }
+  const diff = recent - prior
+  const epsilon = isTrack ? 0.01 : 0.05
+  return { ...out, dir: Math.abs(diff) < epsilon ? 'flat' : diff > 0 ? 'up' : 'down', young: false }
 }
 
-// Lifetime tallies since the habit was created (capped at `days`).
-export function totals(habit, map, today = new Date(), days = 3650) {
+// Lifetime tallies since the habit was created. `days` is an optional extra cap
+// for callers that only want a recent slice; by default the scan is the habit's
+// own lifespan, so "all-time" really is.
+export function totals(habit, map, today = new Date(), days = Infinity) {
   const startISO = startOf(habit)
   let successes = 0
   let skips = 0
   let scheduled = 0
-  const d = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  for (let i = 0; i < days; i++) {
+  const horizon = Math.min(days, dayScanDays(habit, today))
+  const d = dayOf(today)
+  for (let i = 0; i < horizon; i++) {
     const iso = toISODate(d)
     if (startISO && iso < startISO) break
     if (isSkipped(habit, iso, map)) {

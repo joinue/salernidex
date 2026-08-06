@@ -99,6 +99,32 @@
   color: var(--text-2);
 }
 
+/* The one-tap dates that lead the form's Due field. These are the primary
+   affordance on a phone — the native date input below is the fallback — so
+   unlike a read-only meta chip they're sized as real controls (36px painted,
+   44px hit area via .tap-target) and carry a selected state. */
+.due-chips {
+  margin-bottom: 8px;
+}
+
+.due-chips .chip {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 14px;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.due-chips .chip:active {
+  transform: scale(0.96);
+}
+
+.due-chips .chip.accent.on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
 /* Due date + optional time-of-day, side by side in the task form. */
 .due-row {
   display: flex;
@@ -313,6 +339,58 @@
   color: var(--text);
 }
 
+/* Quiet guidance inside the repeat picker — which clock a rule runs on, and
+   what a day past the end of a short month does. */
+.rec-hint {
+  margin: 8px 2px 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+
+/* Plain-English read-back of the built rule. Two clocks and three end modes
+   are more than the controls can narrate on their own. */
+.rec-summary {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  background: var(--fill);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Days of the month, 7 across so the columns read like weeks. Cells paint
+   compact and take their 44px target from .tap-target. */
+.monthday-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.monthday-cell {
+  height: 36px;
+  border-radius: 8px;
+  background: var(--fill);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.monthday-cell.on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.monthday-cell:active {
+  transform: scale(0.94);
+}
+
 .weekday-row {
   display: flex;
   gap: 6px;
@@ -477,17 +555,21 @@ select.rec-select + .segmented {
   flex-shrink: 0;
 }
 
-/* Contact section: iOS-style stacked rows (label over value), tappable links */
+/* iOS-style stacked value rows (small label over the value), used by Contact
+   and Key dates. The side-by-side default above puts the label and the value on
+   one line with the label at flex-shrink: 0 — fine for a short fixed label
+   ("Privacy"), wrong for user-typed ones ("Wedding anniversary"), which then
+   refuse to shrink and shove the value off a 375px row. */
 a.value-row {
   text-decoration: none;
   color: inherit;
 }
 
-.contact-list .value-row {
+.value-stack .value-row {
   align-items: center;
 }
 
-.contact-list .v-col {
+.value-stack .v-col {
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -495,17 +577,17 @@ a.value-row {
   min-width: 0;
 }
 
-.contact-list .v-label {
+.value-stack .v-label {
   font-size: 12px;
   line-height: 1.3;
 }
 
-.contact-list .v-value {
+.value-stack .v-value {
   text-align: left;
   flex: none;
 }
 
-.contact-list a.value-row .v-value {
+.value-stack a.value-row .v-value {
   color: var(--accent);
 }
 

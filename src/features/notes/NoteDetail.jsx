@@ -6,6 +6,7 @@ import PrivacyField from '../../components/ui/PrivacyField'
 import ActionSheet from '../../components/ui/ActionSheet'
 import { useConfirm } from '../../hooks/useConfirm'
 import { extractMentions, mentionCandidates, isNoteEmpty } from '../../lib/notes'
+import { isEditableTarget } from '../../lib/keys'
 import { memberName, isSolo } from '../../lib/household'
 import { relativeTime } from '../../lib/contact'
 
@@ -13,7 +14,11 @@ import { relativeTime } from '../../lib/contact'
 // The body is rich text (RichTextEditor); mentions are recomputed from it on
 // every save so entity-page backlinks stay in sync. Keyed by note id upstream
 // so switching notes remounts with fresh state + a freshly seeded editor.
-export default function NoteDetail({ data, noteId, onBack }) {
+//
+// `embedded` is the two-pane case: the index is already on screen beside this,
+// so the "← Notes" button would point at something you can see. Esc goes back
+// too, but only when it isn't embedded and you aren't mid-sentence.
+export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedded = false }) {
   const { notes, updateNote, deleteNote, discardNote, togglePinNote } = data
   const confirm = useConfirm()
   const note = notes.find((n) => n.id === noteId)
@@ -34,6 +39,14 @@ export default function NoteDetail({ data, noteId, onBack }) {
   // exit (so the "New note" created on tap doesn't linger if left untouched).
   // An existing note with content is never auto-deleted.
   const wasEmptyOnOpen = useRef(isNoteEmpty(note))
+  const titleRef = useRef(null)
+
+  // An empty note is one you just made, so put the caret in it. In two panes
+  // especially, "New note" otherwise looks like it did nothing: the pane swaps
+  // to a blank note with no sign of where to start typing.
+  useEffect(() => {
+    if (wasEmptyOnOpen.current) titleRef.current?.focus()
+  }, [])
 
   // Every entity a note can @-mention (people/orgs/groups/projects/lists/tasks).
   // Granular deps on purpose: `data` is a fresh object each render, so depending
@@ -100,6 +113,19 @@ export default function NoteDetail({ data, noteId, onBack }) {
     }
   }, [])
 
+  // Esc closes the note — the keyboard counterpart of the back button, so it is
+  // only wired up when that button is there. Guarded against text fields: the
+  // editor's own Escape dismisses the @-mention picker, and it should keep it.
+  useEffect(() => {
+    if (embedded) return
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || isEditableTarget(e.target)) return
+      onBack()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [embedded, onBack])
+
   // Title / tags / privacy persist on the same debounce; the body fires it too.
   // The first invocation is just the mount, not a real edit — skip it.
   useEffect(() => {
@@ -114,9 +140,11 @@ export default function NoteDetail({ data, noteId, onBack }) {
   if (!note) {
     return (
       <div className="detail">
-        <button className="back-btn" onClick={onBack}>
-          <ArrowLeft size={18} /> Notes
-        </button>
+        {!embedded && (
+          <button className="back-btn" onClick={onBack}>
+            <ArrowLeft size={18} /> Notes
+          </button>
+        )}
         <p className="empty">Note not found.</p>
       </div>
     )
@@ -136,12 +164,29 @@ export default function NoteDetail({ data, noteId, onBack }) {
     }
   }
 
+  // Rendered in one of two slots: on its own line under the back button, or —
+  // when there is no back button because the index is right there — sharing the
+  // top row with the pin/⋯ cluster, which would otherwise float alone above it.
+  const titleInput = (
+    <input
+      ref={titleRef}
+      className="note-title-input"
+      value={title}
+      onChange={(e) => setTitle(e.target.value)}
+      placeholder="Title"
+      aria-label="Note title"
+    />
+  )
+
   return (
-    <div className="detail note-detail">
+    <div className={`detail note-detail ${embedded ? 'embedded' : ''}`}>
       <div className="note-detail-bar">
-        <button className="back-btn" onClick={onBack}>
-          <ArrowLeft size={18} /> Notes
-        </button>
+        {!embedded && (
+          <button className="back-btn" onClick={onBack}>
+            <ArrowLeft size={18} /> Notes
+          </button>
+        )}
+        {embedded && titleInput}
         <div className="head-actions">
           <button
             className={`icon-btn ${note.pinned ? 'accent' : ''}`}
@@ -157,13 +202,7 @@ export default function NoteDetail({ data, noteId, onBack }) {
         </div>
       </div>
 
-      <input
-        className="note-title-input"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="Title"
-        aria-label="Note title"
-      />
+      {!embedded && titleInput}
 
       {note.updated_at && (
         <div className="note-edited">
@@ -177,6 +216,8 @@ export default function NoteDetail({ data, noteId, onBack }) {
         key={note.id}
         initialHtml={note.body}
         candidates={candidates}
+        // Tapping a chip leaves the note; unmount flushes any pending save.
+        onOpenMention={onOpenMention}
         onChange={(html) => {
           bodyRef.current = html
           scheduleSave()

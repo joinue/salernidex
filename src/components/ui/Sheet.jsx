@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useScrollLock } from '../../hooks/useScrollLock'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { useVisualViewport } from '../../hooks/useVisualViewport'
 import { DRAG_SLOP_PX } from '../../lib/gestures'
 import haptics from '../../lib/haptics'
@@ -28,6 +29,7 @@ export default function Sheet({ title, onClose, children }) {
   // resize/orientation change since that shifts what fits.
   const [scrollable, setScrollable] = useState(false)
   useScrollLock()
+  useFocusTrap(sheetRef)
   // iOS doesn't shrink the layout viewport for the keyboard, so a bottom-anchored
   // sheet ends up behind it — the backfill note editor and the member picker both
   // sit in one. Clamping the overlay to the visual viewport rests the sheet on
@@ -133,6 +135,7 @@ export default function Sheet({ title, onClose, children }) {
         ref={sheetRef}
         className={`sheet ${scrollable ? 'scrollable' : ''}`}
         role="dialog"
+        aria-modal="true"
         aria-label={title}
         style={{
           transform: `translateY(${y}px)`,
