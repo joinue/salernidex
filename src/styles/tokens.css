@@ -81,11 +81,15 @@
      Never hardcode a bottom offset against the tab bar or the FAB. */
   --safe-b: env(safe-area-inset-bottom, 0px);
   --tabbar-h: 58px;
-  --tabbar-inset: 8px; /* gap between the pill and the screen edge */
+  /* Gap between the pill and the screen edge. The home-indicator inset IS the
+     gap when a device has one — stacking a margin on top of it (which this used
+     to do) leaves the pill floating visibly high. 16px is the fallback for the
+     no-inset case: Safari with its toolbar showing, Android, desktop. */
+  --tabbar-inset: max(16px, var(--safe-b));
   --fab-size: 54px;
   --fab-gap: 12px; /* gap between the pill and the FAB */
   /* Top edge of the tab pill, measured from the viewport bottom. */
-  --chrome-bottom: calc(var(--safe-b) + var(--tabbar-inset) + var(--tabbar-h));
+  --chrome-bottom: calc(var(--tabbar-inset) + var(--tabbar-h));
   --fab-bottom: calc(var(--chrome-bottom) + var(--fab-gap));
   /* What a scroll container must reserve so its last row clears the FAB. */
   --content-bottom: calc(var(--fab-bottom) + var(--fab-size) + 20px);

@@ -15,6 +15,7 @@ import {
 import Sheet from '../ui/Sheet'
 import { useLongPress } from '../../hooks/useLongPress'
 import { useHideOnScroll } from '../../hooks/useHideOnScroll'
+import { useKeyboardOpen } from '../../hooks/useKeyboardOpen'
 
 // Bottom bar: Today · People · Habits · Tasks · Lists, with a floating ➕ above
 // the pill. The FAB is page-aware — a tap creates the obvious thing for the
@@ -41,9 +42,15 @@ export default function MobileNav({
     onAddRelationship,
   } = adds
   const [sheet, setSheet] = useState(false)
+  // Both pieces of chrome stand down while the keyboard is up: it covers the
+  // bottom of the screen anyway, and on iOS a fixed element left behind it
+  // drifts across the page as Safari pans (see useKeyboardOpen). Standing down
+  // also hands the freed height to whatever composer you're typing into — the
+  // same thing iOS does natively.
+  const keyboardOpen = useKeyboardOpen()
   // Tuck the FAB while scrolling down — it's fixed, so otherwise it sits on top
   // of whatever row happens to be under it. Never while the add sheet is open.
-  const tucked = useHideOnScroll(scrollRef, !hideFab && !sheet)
+  const tucked = useHideOnScroll(scrollRef, !hideFab && !sheet) || keyboardOpen
   const close = () => setSheet(false)
   const pick = (fn) => () => {
     close()
@@ -106,7 +113,14 @@ export default function MobileNav({
         </button>
       )}
 
-      <nav className="tabbar" aria-label="Main">
+      <nav
+        className={`tabbar ${keyboardOpen ? 'tucked' : ''}`}
+        aria-label="Main"
+        // Hidden chrome must leave the a11y tree and the focus order too, or an
+        // iPad hardware keyboard tabs into five invisible destinations. `inert`
+        // does both; React 18 needs it as an empty string rather than a bool.
+        inert={keyboardOpen ? '' : undefined}
+      >
         <Tab id="today" icon={Home} text="Today" count={badge} />
         <Tab id="people" icon={PeopleIcon} text="People" />
         <Tab id="habits" icon={Activity} text="Habits" />

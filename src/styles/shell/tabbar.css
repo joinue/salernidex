@@ -5,7 +5,7 @@
    safe area as a dark strip below the icons. */
 .tabbar {
   position: fixed;
-  bottom: calc(var(--safe-b) + var(--tabbar-inset));
+  bottom: var(--tabbar-inset);
   left: 16px;
   right: 16px;
   z-index: var(--z-chrome);
@@ -19,6 +19,18 @@
   border: 0.5px solid var(--separator);
   border-radius: 26px;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+  transition:
+    transform var(--dur-3) var(--ease-ios),
+    opacity var(--dur-2) ease;
+}
+
+/* Stood down while the software keyboard is up. Slides off the bottom edge
+   rather than fading in place, so it reads as "put away" — the same move the
+   FAB makes. The inset is added back so the pill clears its own gap. */
+.tabbar.tucked {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(calc(100% + var(--tabbar-inset)));
 }
 
 .tab {
