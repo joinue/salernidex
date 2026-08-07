@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X, Share, Download } from 'react-feather'
 import IconButton from '../ui/IconButton'
+import { isIos, isStandalone } from '../../lib/platform'
 
 // Install affordance. Two paths:
 //   1. Chrome/Edge (desktop + Android) fire `beforeinstallprompt`; we captured
@@ -9,10 +10,6 @@ import IconButton from '../ui/IconButton'
 //      "Add to Home Screen" gesture instead.
 // Dismissable; gone once installed or running standalone.
 const KEY = 'salernidex-install-hint-dismissed'
-
-const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent)
-const isStandalone = () =>
-  window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
 
 export default function InstallHint() {
   const [hidden, setHidden] = useState(() => localStorage.getItem(KEY) === '1')

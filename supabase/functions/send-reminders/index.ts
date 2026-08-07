@@ -20,6 +20,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3'
 import { habitDueToday } from './habitSchedule.ts'
+import { isAuthorized } from './auth.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -345,15 +346,16 @@ async function claimSend(
 
 Deno.serve(async (req) => {
   // Caller auth: a shared CRON_SECRET we control (set as a function secret and
-  // sent by the pg_cron job / curl), OR the injected service-role key. The
-  // CRON_SECRET path is what works under Supabase's new API-key system, where
-  // the dashboard service_role value no longer matches SUPABASE_SERVICE_ROLE_KEY.
-  const auth = req.headers.get('Authorization') ?? ''
-  const cronSecret = Deno.env.get('CRON_SECRET')
-  const ok =
-    (cronSecret && auth.includes(cronSecret)) ||
-    auth.includes(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
-  if (!ok) {
+  // sent by the pg_cron job / curl), OR the injected service-role key. Exact
+  // Bearer-token match, constant time — see auth.ts for why, and auth.test.ts
+  // for the rejections it's required to make.
+  if (
+    !isAuthorized(
+      req.headers.get('Authorization'),
+      Deno.env.get('CRON_SECRET'),
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+    )
+  ) {
     return new Response('Forbidden', { status: 403 })
   }
 

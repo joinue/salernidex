@@ -1,10 +1,19 @@
 import { useEffect } from 'react'
 import { EDGE_BACK_SLOP_PX } from '../lib/gestures'
+import { isStandalone } from '../lib/platform'
 import { overlaysOpen } from './useScrollLock'
 
 // iOS-style edge-swipe back: drag right from the left screen edge on a
 // detail page to go back, with the content tracking your finger. Installed
 // PWAs don't get Safari's native gesture, so we provide it.
+//
+// Standalone only, and that qualifier is load-bearing rather than tidy-minded.
+// In a browser tab Safari's own edge-swipe is still armed, so both gestures fire
+// on the same finger: Safari slides the whole page while we translate .content
+// inside it. The two motions compound, and a detail page ends up visibly
+// sliding sideways under a drag that the tab pages — which never arm this hook —
+// absorb without moving at all. Held still by touch-action: pan-y on .main; a
+// transform isn't scrolling, so that CSS has no say over ours.
 //
 // Listeners live on window, not the content element — the gesture starts at
 // the literal screen edge, which page gutters/margins may not cover. That
@@ -13,7 +22,7 @@ import { overlaysOpen } from './useScrollLock'
 // field near the left edge navigates the page out from behind the overlay.
 export function useEdgeBack(ref, enabled, onBack) {
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled || !isStandalone()) return
 
     let startX = 0
     let startY = 0

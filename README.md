@@ -78,7 +78,9 @@ node scripts/tasks-smoke.mjs    # Playwright smoke suites (Chrome channel):
 
 Build `npm run build`, output `dist/`. Without env vars the deployment runs
 demo mode. To go live: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
-`VITE_VAPID_PUBLIC_KEY` (and `VITE_VAPID_PRIVATE_KEY` for the reminder
-function), with the push runbook in
+`VITE_VAPID_PUBLIC_KEY`. The VAPID **private** half never gets a `VITE_`
+prefix and never goes in the deploy env — anything `VITE_*` is compiled into
+the browser bundle. It belongs only in the Edge Function's secrets
+(`supabase secrets set VAPID_PRIVATE_KEY=…`), with the push runbook in
 [docs/phase6-reminders.md](docs/phase6-reminders.md). Migrations live in
 `supabase/migrations/`; edge functions in `supabase/functions/`.

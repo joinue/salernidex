@@ -4,6 +4,7 @@
 // server that sends to the subscription; that arrives at Supabase go-live.
 import { supabase } from './supabase'
 import { demoMode } from './demo'
+import { isIos, isStandalone } from './platform'
 
 // Dev keypair's public half, for exercising the subscribe flow locally.
 // The private half was discarded on purpose — at go-live, generate a fresh
@@ -27,11 +28,13 @@ if (import.meta.env.PROD && !vapidConfigured) {
 }
 export const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || DEV_VAPID_PUBLIC
 
-const DEVICE_KEY = 'salernidex-push-device' // demo-mode stand-in for push_subscriptions
-
-const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent)
-const isStandalone = () =>
-  window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+// "This device has push turned on." Written on every successful enable (and in
+// demo mode it doubles as the stand-in for the push_subscriptions row, which is
+// why it stores the whole row). It used to be written ONLY in demo mode, so on a
+// real account the Settings toggle read "off" after every reload — and since the
+// off-switch is what clears a stale subscription, there was no way back from a
+// bad one through the UI.
+const DEVICE_KEY = 'salernidex-push-device'
 
 // 'ok' | 'ios-install-first' | 'unsupported'
 export function pushSupport() {
@@ -64,23 +67,55 @@ function urlBase64ToUint8Array(base64) {
   return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)))
 }
 
+// Is this subscription bound to `key`? A PushSubscription is cryptographically
+// tied to the applicationServerKey that created it: once the app's VAPID key
+// changes, every send to an old subscription is rejected (Apple returns
+// VapidPkHashMismatch, Chrome a 403) — forever, and silently, because the
+// browser keeps handing the dead subscription back. Returns false when the
+// browser won't tell us, so an unverifiable subscription is replaced rather
+// than trusted.
+function boundTo(sub, key) {
+  const current = sub.options?.applicationServerKey
+  if (!current) return false
+  const bytes = new Uint8Array(current)
+  return bytes.length === key.length && bytes.every((b, i) => b === key[i])
+}
+
 // Ask permission and create the subscription. Returns
 // { permission, subscribed } — permission can be granted while subscription
 // creation fails (e.g. headless browsers); local notifications still work
 // then, and the device can re-subscribe later.
+//
+// Reuses an existing subscription only when it was created with the VAPID key
+// we're currently shipping. Otherwise it's dropped and remade: a key rotation
+// (or a deploy built against a different key) would otherwise brick push on
+// every already-subscribed device, with the UI still cheerfully reporting
+// "Ready" — the failure mode is total and invisible, so it self-heals here.
 export async function enablePush(memberId) {
   const reg = await ensureRegistration()
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') return { permission, subscribed: false }
 
+  const appKey = urlBase64ToUint8Array(vapidPublicKey)
   let sub = null
   try {
-    sub =
-      (await reg.pushManager.getSubscription()) ||
-      (await reg.pushManager.subscribe({
+    const existing = await reg.pushManager.getSubscription()
+    if (existing && boundTo(existing, appKey)) {
+      sub = existing
+    } else {
+      if (existing) {
+        // Drop the server row first: after unsubscribe() the endpoint is gone
+        // and we'd have no way to identify the row to clean up.
+        if (!demoMode) {
+          await supabase.from('push_subscriptions').delete().eq('endpoint', existing.endpoint)
+        }
+        await existing.unsubscribe().catch(() => {})
+      }
+      sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-      }))
+        applicationServerKey: appKey,
+      })
+    }
   } catch {
     sub = null
   }
@@ -94,11 +129,11 @@ export async function enablePush(memberId) {
       auth: json.keys?.auth || '',
       user_agent: navigator.userAgent,
     }
-    if (demoMode) {
-      localStorage.setItem(DEVICE_KEY, JSON.stringify(row))
-    } else {
+    if (!demoMode) {
       await supabase.from('push_subscriptions').upsert(row, { onConflict: 'endpoint' })
     }
+    // Both modes: this is what makes the Settings toggle survive a reload.
+    localStorage.setItem(DEVICE_KEY, JSON.stringify(row))
   }
   return { permission, subscribed: Boolean(sub) }
 }
