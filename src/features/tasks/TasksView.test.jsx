@@ -46,6 +46,7 @@ const setup = (tasks, { confirmAnswer = true, ...over } = {}) => {
     completions: [],
     memberId: 'm-1',
     addTask: vi.fn(),
+    updateTask: vi.fn(),
     deleteTask,
     completeTask: vi.fn(),
     skipTaskOccurrence: vi.fn(),
@@ -91,6 +92,28 @@ describe('TasksView — bucketing', () => {
     expect(sectionTitles()).toEqual(['upcoming'])
   })
 
+  it('files a "by" deadline under Anytime, above Upcoming', () => {
+    setup([
+      task({ id: 'a', title: 'Pinned thing', due_date: isoDateIn(3) }),
+      task({ id: 'b', title: 'Deadline thing', due_date: isoDateIn(3), due_kind: 'by' }),
+    ])
+    expect(sectionTitles()).toEqual(['anytime', 'upcoming'])
+  })
+
+  it('orders Anytime by least slack first', () => {
+    setup([
+      task({ id: 'a', title: 'Loose', due_date: isoDateIn(12), due_kind: 'by' }),
+      task({ id: 'b', title: 'Tight', due_date: isoDateIn(2), due_kind: 'by' }),
+    ])
+    const titles = [...document.querySelectorAll('.row-title')].map((e) => e.textContent)
+    expect(titles).toEqual(['Tight', 'Loose'])
+  })
+
+  it('shows the room left rather than the date, so it reads as slack', () => {
+    setup([task({ id: 'a', title: 'Gutters', due_date: isoDateIn(4), due_kind: 'by' })])
+    expect(screen.getByText('4d left')).toBeInTheDocument()
+  })
+
   it('leads Today with clock-anchored work, before the untimed list', () => {
     setup([
       task({ id: 'a', title: 'Untimed', due_date: isoDateIn(0) }),
@@ -103,6 +126,93 @@ describe('TasksView — bucketing', () => {
   it('keeps projects out — they have their own index', () => {
     setup([task({ id: 'p', title: 'Italy trip', is_project: true, due_date: isoDateIn(0) })])
     expect(screen.queryByText('Italy trip')).not.toBeInTheDocument()
+  })
+})
+
+describe('TasksView — retrofitting an existing task', () => {
+  const expand = async (title) =>
+    userEvent.click(screen.getByRole('button', { name: new RegExp(`${title}, expand details`) }))
+
+  it('offers a one-tap move for a dated task sitting in Upcoming', async () => {
+    const { data } = setup([task({ id: 'a', title: 'Gutters', due_date: isoDateIn(9) })])
+    await expand('Gutters')
+    await userEvent.click(screen.getByRole('button', { name: 'Move to Anytime' }))
+    expect(data.updateTask).toHaveBeenCalledWith('a', { due_kind: 'by' })
+  })
+
+  it('offers the way back out from Anytime', async () => {
+    const { data } = setup([
+      task({ id: 'a', title: 'Gutters', due_date: isoDateIn(9), due_kind: 'by' }),
+    ])
+    await expand('Gutters')
+    await userEvent.click(screen.getByRole('button', { name: 'Move to Upcoming' }))
+    expect(data.updateTask).toHaveBeenCalledWith('a', { due_kind: 'on' })
+  })
+
+  // Due today, deferred, and undated: the on/by choice has no visible effect on
+  // any of them, so the shortcut would be lying about what it does.
+  it.each([
+    ['already due', { due_date: isoDateIn(0) }],
+    ['still deferred', { due_date: isoDateIn(9), start_date: isoDateIn(4) }],
+    ['undated', { due_date: null }],
+  ])('stays hidden when the task is %s', async (_label, over) => {
+    setup([task({ id: 'a', title: 'Gutters', ...over })])
+    await expand('Gutters')
+    expect(screen.queryByRole('button', { name: /^Move to/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('TasksView — the recurring rota folds away', () => {
+  const chore = (id, title, days) =>
+    task({
+      id,
+      title,
+      due_date: isoDateIn(days),
+      recurrence: { freq: 'weekly', interval: 1, weekdays: [1] },
+    })
+  const rota = [
+    task({ id: 'a', title: 'Book the vet', due_date: isoDateIn(4) }),
+    chore('r1', 'Bins out', 2),
+    chore('r2', 'Water bill', 3),
+    chore('r3', 'Smoke alarms', 5),
+  ]
+
+  it('keeps the one-offs visible and hides the chores behind a count', () => {
+    setup(rota)
+    expect(screen.getByText('Book the vet')).toBeInTheDocument()
+    expect(screen.queryByText('Bins out')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Recurring · 3/ })).toBeInTheDocument()
+  })
+
+  it('reveals them on tap', async () => {
+    setup(rota)
+    await userEvent.click(screen.getByRole('button', { name: /Recurring · 3/ }))
+    expect(screen.getByText('Bins out')).toBeInTheDocument()
+    expect(screen.getByText('Smoke alarms')).toBeInTheDocument()
+  })
+
+  it('leaves a short rota alone — hiding two rows behind a header saves nothing', () => {
+    setup([
+      task({ id: 'a', title: 'Book the vet', due_date: isoDateIn(4) }),
+      chore('r1', 'Bins out', 2),
+      chore('r2', 'Water bill', 3),
+    ])
+    expect(screen.queryByRole('button', { name: /Recurring/ })).not.toBeInTheDocument()
+    expect(screen.getByText('Bins out')).toBeInTheDocument()
+  })
+
+  it('reads chronologically while unfolded, rather than one-offs-first', () => {
+    setup([
+      task({ id: 'a', title: 'Book the vet', due_date: isoDateIn(4) }),
+      chore('r1', 'Bins out', 2),
+    ])
+    const titles = [...document.querySelectorAll('.row-title')].map((e) => e.textContent)
+    expect(titles).toEqual(['Bins out', 'Book the vet'])
+  })
+
+  it('does not offer the fold when nothing in Upcoming repeats', () => {
+    setup([task({ id: 'a', title: 'Book the vet', due_date: isoDateIn(4) })])
+    expect(screen.queryByRole('button', { name: /Recurring/ })).not.toBeInTheDocument()
   })
 })
 

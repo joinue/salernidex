@@ -175,3 +175,59 @@ describe('TaskForm — dates', () => {
     expect(screen.getByLabelText('Time of day (optional)')).toBeInTheDocument()
   })
 })
+
+describe('TaskForm — on this day vs anytime before', () => {
+  const onBy = () => screen.queryByRole('tab', { name: 'Anytime before' })
+
+  it('stays hidden until there is a date to qualify', async () => {
+    setup()
+    expect(onBy()).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Tomorrow' }))
+    expect(onBy()).toBeInTheDocument()
+  })
+
+  it('saves a date as "on this day" unless told otherwise', async () => {
+    const { onSave } = setup()
+    await userEvent.type(titleBox(), 'water the plants')
+    await userEvent.click(screen.getByRole('button', { name: 'Tomorrow' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+    expect(saved(onSave).due_kind).toBe('on')
+  })
+
+  it('saves the deadline when the segment is picked', async () => {
+    const { onSave } = setup()
+    await userEvent.type(titleBox(), 'water the plants')
+    await userEvent.click(screen.getByRole('button', { name: 'Next week' }))
+    await userEvent.click(onBy())
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+    expect(saved(onSave)).toMatchObject({ due_kind: 'by', due_date: isoDateIn(7) })
+  })
+
+  it('a typed "by <date>" pre-selects the deadline without a date being picked', async () => {
+    const { onSave } = setup()
+    await userEvent.type(titleBox(), 'clear the gutters by friday')
+    expect(onBy()).toHaveAttribute('aria-selected', 'true')
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+    expect(saved(onSave)).toMatchObject({ title: 'clear the gutters', due_kind: 'by' })
+  })
+
+  it('an explicit pick still beats what was typed', async () => {
+    const { onSave } = setup()
+    await userEvent.type(titleBox(), 'clear the gutters by friday')
+    await userEvent.click(screen.getByRole('tab', { name: 'On this day' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+    expect(saved(onSave).due_kind).toBe('on')
+  })
+
+  it('keeps a deadline when editing an existing one', () => {
+    setup({ task: { id: 't', title: 'Gutters', due_date: isoDateIn(9), due_kind: 'by' } })
+    expect(onBy()).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('never stores a deadline with no date to be a deadline against', async () => {
+    const { onSave } = setup()
+    await userEvent.type(titleBox(), 'water the plants')
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+    expect(saved(onSave)).toMatchObject({ due_date: null, due_kind: 'on' })
+  })
+})

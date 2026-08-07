@@ -34,6 +34,13 @@ export function timeLabel(timeStr) {
   return m ? `${h12}:${String(m).padStart(2, '0')} ${ampm}` : `${h12} ${ampm}`
 }
 
+// Calendar-date label for when a relative one ("in 5d") stops being useful:
+// 'Jun 20'. Null-safe so callers can pass a possibly-missing date.
+export function shortDate(dateStr) {
+  if (!dateStr) return null
+  return parseLocal(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
 // The due chip's text: relative date, with the time appended when the task is
 // timed ("Today, 3 PM" / "2d overdue, 8 AM"). timeStr is ignored without a date.
 export function dueLabel(dateStr, timeStr = null) {
@@ -48,7 +55,7 @@ export function dueLabel(dateStr, timeStr = null) {
           ? 'Tomorrow'
           : d < 7
             ? `in ${d}d`
-            : parseLocal(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+            : shortDate(dateStr)
   const time = timeLabel(timeStr)
   return time ? `${date}, ${time}` : date
 }
@@ -76,15 +83,69 @@ export function startLabel(task) {
   return isDeferred(task) ? `Starts ${dueLabel(task.start_date)}` : null
 }
 
+// A "by" task carries a DEADLINE rather than a day to work on: it's actionable
+// now and the date is only the last acceptable moment (see migration 0034).
+// Without a due date there's nothing to be flexible about, so it reads as 'on'.
+export function isDeadline(task) {
+  return task.due_kind === 'by' && !!task.due_date
+}
+
+// How many days of slack a deadline still has. Negative once it's blown.
+export function slackDays(task) {
+  return isDeadline(task) ? daysUntilDue(task.due_date) : null
+}
+
+// Chip text for a deadline task. Reads as remaining room ("4d left"), not as a
+// date to show up on — that's the whole difference from dueLabel.
+//
+// It switches to a plain date at the same one-week mark dueLabel does, so the
+// two chip styles stay in step; past a week out, what you plan around is the
+// date, not a countdown. That boundary is also reminders.ANYTIME_DAYS, which
+// makes the format meaningful in itself: a countdown is exactly a deadline near
+// enough to have reached Today.
+export function deadlineLabel(dateStr, timeStr = null) {
+  const d = daysUntilDue(dateStr)
+  if (d === null) return null
+  const date =
+    d < 0
+      ? `${-d}d overdue`
+      : d === 0
+        ? 'Due today'
+        : d <= 7
+          ? `${d}d left`
+          : `by ${shortDate(dateStr)}`
+  const time = timeLabel(timeStr)
+  return time ? `${date}, ${time}` : date
+}
+
 // Section bucket for an open top-level task. A deferred task waits under Upcoming
 // regardless of its due date — you asked not to see it yet.
+//
+// 'anytime' is the deadline bucket: work you can pick up today whose date is
+// only a ceiling. It sits between Today and Upcoming because that's its real
+// urgency — above the date-pinned work you *can't* start yet, below what's
+// actually due. Note the precedence: deferred still wins, since a task that
+// hasn't started isn't actionable no matter how its deadline reads. Once the
+// deadline lands (or passes) it's a plain due task again — 'by' buys you slack
+// before the date, not after it.
 export function taskBucket(task) {
   if (isDeferred(task)) return 'upcoming'
   const s = dueState(task.due_date)
   if (s === 'overdue') return 'overdue'
   if (s === 'today') return 'today'
   if (s === 'none') return 'someday'
+  if (isDeadline(task)) return 'anytime'
   return 'upcoming'
+}
+
+// Is the on/by choice worth offering as a one-tap flip on this task? Only where
+// it visibly moves the task between Upcoming and Anytime. For anything already
+// due, still deferred, or undated, flipping changes nothing you can see — and a
+// shortcut labelled "Move to Anytime" that doesn't move anything is worse than
+// no shortcut. Those tasks can still be changed in the form.
+export function canFlipDueKind(task) {
+  const bucket = taskBucket(task)
+  return bucket === 'anytime' || (bucket === 'upcoming' && !isDeferred(task) && !!task.due_date)
 }
 
 // Priority levels (match Apple Reminders): 0 none · 1 low · 2 medium · 3 high.

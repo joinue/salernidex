@@ -152,7 +152,11 @@ export default function TodayView({
       now,
     ],
   )
-  const dueTasks = attention.filter((i) => i.kind === 'task')
+  // To-do is what's due now. Deadlines that haven't landed yet ride in their own
+  // section below it — close enough to plan around (reminders.ANYTIME_DAYS), but
+  // mixing them into To-do would blur the line between "due" and "due soon".
+  const dueTasks = attention.filter((i) => i.kind === 'task' && i.urgency !== 'anytime')
+  const anytimeTasks = attention.filter((i) => i.kind === 'task' && i.urgency === 'anytime')
   const dueLists = attention.filter((i) => i.kind === 'list')
   const checkIns = attention.filter((i) => i.kind === 'nudge')
   const dates = attention.filter((i) => i.kind === 'date')
@@ -252,6 +256,36 @@ export default function TodayView({
             <SectionLabel>To-do</SectionLabel>
             <div className="list">
               {dueTasks.map((item) => (
+                <SwipeRow
+                  key={item.key}
+                  label={item.task.title}
+                  actions={[later(item)]}
+                  onClick={item.project ? () => onOpenProject?.(item.project.id) : undefined}
+                >
+                  <div className="list-row">
+                    <TaskRow
+                      task={item.task}
+                      onToggle={toggleTask}
+                      breadcrumb={item.project?.title || null}
+                    />
+                  </div>
+                </SwipeRow>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Work you could pick up today whose deadline is inside the week. Not
+            due — just running out of room, and better slotted into a free
+            evening than discovered on the morning it's due. Named for the Tasks
+            section it comes from, so it's one word to learn rather than two;
+            each row's own chip ("5d left") says how much room is actually left,
+            which a heading like "this week" would only approximate. */}
+        {anytimeTasks.length > 0 && (
+          <section className="today-section">
+            <SectionLabel>Anytime</SectionLabel>
+            <div className="list">
+              {anytimeTasks.map((item) => (
                 <SwipeRow
                   key={item.key}
                   label={item.task.title}
@@ -392,7 +426,7 @@ export default function TodayView({
                   onLongPress={() => setActionPerson(item.person)}
                 >
                   <div className="list-row">
-                    <Avatar name={item.person.name} size={42} />
+                    <Avatar name={item.person.name} src={item.person.avatar_url} size={42} />
                     <div className="row-body">
                       <div className="row-title">{item.person.name}</div>
                       <div className="row-sub">{checkInSub(item)}</div>
@@ -432,7 +466,7 @@ export default function TodayView({
                     onLongPress={() => setActionPerson(entry.person)}
                   >
                     <div className="list-row">
-                      <Avatar name={entry.person.name} size={42} />
+                      <Avatar name={entry.person.name} src={entry.person.avatar_url} size={42} />
                       <div className="row-body">
                         <div className="row-title">{entry.person.name}</div>
                         <div className="row-sub">

@@ -133,6 +133,56 @@ describe('titleFrom — dismissing a parsed token', () => {
   })
 })
 
+describe('"on" vs "by" — a day to act on, or a deadline', () => {
+  it('reads "by <date>" as a deadline and eats the preposition', () => {
+    const r = p('clear the gutters by june 20')
+    expect(r.due_kind).toBe('by')
+    expect(r.due_date.slice(5)).toBe('06-20')
+    expect(r.title).toBe('clear the gutters')
+  })
+
+  it('leaves a bare or "on" date pinned to its day', () => {
+    expect(p('dentist june 20').due_kind).toBe('on')
+    expect(p('dentist on june 20').due_kind).toBe('on')
+    expect(p('call mom friday').due_kind).toBe('on')
+    expect(p('water the plants').due_kind).toBe('on')
+  })
+
+  it('accepts the other ways people say it', () => {
+    const before = p('clear gutters before june 20')
+    expect(before.due_kind).toBe('by')
+    expect(before.title).toBe('clear gutters')
+    const nlt = p('file taxes no later than june 20')
+    expect(nlt.due_kind).toBe('by')
+    expect(nlt.title).toBe('file taxes')
+    expect(p('reply before friday').title).toBe('reply')
+    expect(p('pay rent before the 1st').due_kind).toBe('by')
+  })
+
+  it('works for every date shape, including the one that swallows "by" itself', () => {
+    expect(p('pay rent by the 1st').due_kind).toBe('by')
+    expect(p('file taxes by tomorrow').due_kind).toBe('by')
+    expect(p('ship it by next week').due_kind).toBe('by')
+    expect(p('reply by 6/20').due_kind).toBe('by')
+  })
+
+  it('strips a mid-sentence "by" along with the date', () => {
+    // The preposition rides in the token's text, so titleFrom takes both —
+    // otherwise the title keeps a dangling "by".
+    expect(p('email bob by friday about taxes').title).toBe('email bob about taxes')
+  })
+
+  it('puts "by <date>" back when the due chip is dismissed', () => {
+    const r = p('clear the gutters by june 20')
+    expect(titleFrom('clear the gutters by june 20', [])).toBe('clear the gutters by june 20')
+    expect(r.tokens.find((t) => t.type === 'due').label).toBe('by Jun 20')
+  })
+
+  it('labels a fixed date without the prefix', () => {
+    expect(p('dentist june 20').tokens.find((t) => t.type === 'due').label).toBe('Jun 20')
+  })
+})
+
 describe('time of day', () => {
   it('parses "at 3pm" into a 24h due_time and a time token', () => {
     const r = p('call dentist at 3pm')
@@ -172,12 +222,24 @@ describe('quickTaskFields (inline quick-add payload)', () => {
     expect(f.recurrence).toBeNull()
   })
 
+  it('carries the deadline flag through to the payload', () => {
+    expect(q('clear the gutters by june 20').due_kind).toBe('by')
+    expect(q('dentist june 20').due_kind).toBe('on')
+  })
+
+  it('a date derived from a rule or a bare time is a day to act ON, never a deadline', () => {
+    // No date was typed, so there is no "by" to honor — the rule picked the day.
+    expect(q('trash out every monday').due_kind).toBe('on')
+    expect(q('standup at 9am').due_kind).toBe('on')
+  })
+
   it('defaults assignee to "anyone" and dates to null for a bare title', () => {
     const f = q('water the plants')
     expect(f).toMatchObject({
       title: 'water the plants',
       assignee: 'anyone',
       due_date: null,
+      due_kind: 'on',
       due_time: null,
       recurrence: null,
     })

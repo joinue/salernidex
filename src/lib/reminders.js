@@ -4,21 +4,30 @@
 //
 // Returns [{ kind, key, urgency, ...payload }]:
 //   kind 'task'  — top-level open task due today or overdue        (payload: task)
+//                  …or a 'by' deadline landing inside ANYTIME_DAYS (payload: task)
 //   kind 'nudge' — someone you meant to stay close to, drifting    (payload: person, state, lastIso)
 //                  (internal name; the UI says "check in" — never "nudge"/"follow up")
 //   kind 'date'  — birthday or key date inside the lead window     (payload: entry from upcomingDates)
 //   kind 'list'  — a list with a due_date that's due today/overdue  (payload: list)
-//   urgency: 'overdue' | 'today' | 'upcoming' | 'soft'
+//   urgency: 'overdue' | 'today' | 'anytime' | 'upcoming' | 'soft'
 //     'soft' is the ambient tier (relationship check-ins): shown in Today, but
 //     kept out of the red count badge so it can't perpetually inflate it.
+//     'anytime' is the same deal for deadlines that haven't arrived yet — a
+//     heads-up while you still have room to plan, not something due now.
 //   key: stable id, doubles as reminder_snoozes.target_key
 //
 // Per-member snoozes hide items: until=null means dismissed for good,
 // otherwise hidden through that timestamp. FYI items (partner activity) are
 // push-only (6b) — in-app, the Recent activity section already covers them.
-import { taskBucket, byDue, dueState } from './tasks'
+import { taskBucket, byDue, dueState, slackDays } from './tasks'
 import { followUp, lastInteraction, upcomingDates } from './contact'
 import { DEFAULT_PREFS } from './notifyPrefs'
+
+// How far ahead a deadline ('by') task reaches onto Today. A week is the span
+// you can actually plan across — far enough to slot the task into a free
+// evening, near enough that it isn't just noise. Beyond it the task waits in
+// the Tasks page's Anytime section.
+export const ANYTIME_DAYS = 7
 
 // Is this task mine to worry about today? A task assigned to someone else in
 // the household is theirs — surfacing it here (and in the tab badge, the app
@@ -78,7 +87,11 @@ export function buildAttention(
       if (!assignedToMe(t.assignee ? t : parent || t, memberId, taskScope, normalizeAssignee))
         continue
       const bucket = taskBucket(t)
-      if (bucket !== 'overdue' && bucket !== 'today') continue
+      // A deadline earns a spot once it's close enough to plan around. Without
+      // this it would stay invisible until the morning it was due — the one day
+      // it is no longer flexible, which is precisely backwards.
+      if (bucket === 'anytime' && slackDays(t) > ANYTIME_DAYS) continue
+      if (bucket !== 'overdue' && bucket !== 'today' && bucket !== 'anytime') continue
       const project = parent && parent.is_project ? parent : null
       items.push({ kind: 'task', key: `task:${t.id}`, urgency: bucket, task: t, project })
     }

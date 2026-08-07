@@ -22,6 +22,9 @@ import {
   skipFields,
   linkedTasksFor,
   isDeferred,
+  isDeadline,
+  slackDays,
+  deadlineLabel,
   startLabel,
   taskTags,
   areaNames,
@@ -209,6 +212,59 @@ describe('taskBucket', () => {
     expect(taskBucket({ due_date: '2026-06-10', start_date: '2026-06-20' })).toBe('upcoming')
     // a start date in the past no longer defers — falls back to due-date bucketing
     expect(taskBucket({ due_date: '2026-06-12', start_date: '2026-06-01' })).toBe('today')
+  })
+})
+
+describe('deadlines (due_kind "by")', () => {
+  const by = (over) => ({ due_kind: 'by', ...over })
+
+  it('isDeadline needs both the flag and a date', () => {
+    expect(isDeadline(by({ due_date: '2026-06-20' }))).toBe(true)
+    expect(isDeadline(by({ due_date: null }))).toBe(false)
+    expect(isDeadline({ due_date: '2026-06-20' })).toBe(false) // default 'on'
+    expect(isDeadline({ due_date: '2026-06-20', due_kind: 'on' })).toBe(false)
+  })
+
+  it('files a future deadline under Anytime instead of Upcoming', () => {
+    expect(taskBucket(by({ due_date: '2026-06-20' }))).toBe('anytime')
+    expect(taskBucket({ due_date: '2026-06-20' })).toBe('upcoming')
+  })
+
+  it('stops being flexible once the date arrives — then it is just due', () => {
+    expect(taskBucket(by({ due_date: '2026-06-12' }))).toBe('today')
+    expect(taskBucket(by({ due_date: '2026-06-11' }))).toBe('overdue')
+  })
+
+  it('a deferred deadline still waits — it has not started yet', () => {
+    expect(taskBucket(by({ due_date: '2026-06-20', start_date: '2026-06-18' }))).toBe('upcoming')
+  })
+
+  it('a deadline with no date is Someday, same as any undated task', () => {
+    expect(taskBucket(by({ due_date: null }))).toBe('someday')
+  })
+
+  it('slackDays counts the room left, and only for deadlines', () => {
+    expect(slackDays(by({ due_date: '2026-06-19' }))).toBe(7)
+    expect(slackDays(by({ due_date: '2026-06-10' }))).toBe(-2)
+    expect(slackDays({ due_date: '2026-06-19' })).toBeNull()
+  })
+
+  it('deadlineLabel reads as remaining room, not as a day to show up', () => {
+    expect(deadlineLabel('2026-06-16')).toBe('4d left')
+    expect(deadlineLabel('2026-06-13')).toBe('1d left')
+    expect(deadlineLabel('2026-06-12')).toBe('Due today')
+    expect(deadlineLabel('2026-06-10')).toBe('2d overdue')
+    expect(deadlineLabel(null)).toBeNull()
+  })
+
+  it('switches to a date past a week out, where dueLabel switches too', () => {
+    expect(deadlineLabel('2026-06-19')).toBe('7d left') // last day of the window
+    expect(deadlineLabel('2026-06-20')).toBe('by Jun 20')
+    expect(deadlineLabel('2026-07-04')).toBe('by Jul 4')
+  })
+
+  it('appends a time of day when one is set, like dueLabel', () => {
+    expect(deadlineLabel('2026-06-16', '15:00')).toBe('4d left, 3 PM')
   })
 })
 

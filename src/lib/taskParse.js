@@ -73,6 +73,11 @@ const WD =
 const MON =
   'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?'
 
+// Prepositions that mark a date as a DEADLINE ("by Friday") rather than the day
+// to act on ("on Friday"). Longest phrase first so the alternation can't settle
+// for a shorter partial match. See the 'on' vs 'by' block in parseTaskInput.
+const DEADLINE_PREP = 'no later than|before|by'
+
 const pad = (n) => String(n).padStart(2, '0')
 const toISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 const fromISO = (s) => {
@@ -89,6 +94,7 @@ const clampInterval = (n) => Math.min(999, Math.max(1, n || 1))
 const FILLER = new Set([
   'on',
   'by',
+  'before',
   'at',
   'for',
   'every',
@@ -131,6 +137,7 @@ export function parseTaskInput(text, { today, members = [] } = {}) {
   const out = {
     title: original,
     due_date: null,
+    due_kind: 'on', // 'by' when the date was introduced as a deadline (see below)
     due_time: null,
     recurrence: null,
     assignee: null,
@@ -301,7 +308,11 @@ export function parseTaskInput(text, { today, members = [] } = {}) {
     const n = /a|an/i.test(m[1]) ? 1 : +m[1]
     if (/month/i.test(m[2])) set(clampDay(base.getFullYear(), base.getMonth() + n, base.getDate()))
     else set(addDays(base, n * (/week/i.test(m[2]) ? 7 : 1)))
-  } else if ((m = take(/\b(?:on|by)?\s*the\s+(\d{1,2})(?:st|nd|rd|th)\b/i))) {
+  } else if (
+    (m = take(
+      new RegExp(`\\b(?:on|${DEADLINE_PREP})?\\s*the\\s+(\\d{1,2})(?:st|nd|rd|th)\\b`, 'i'),
+    ))
+  ) {
     const day = +m[1]
     let d = clampDay(base.getFullYear(), base.getMonth(), day)
     if (d < base) d = clampDay(base.getFullYear(), base.getMonth() + 1, day)
@@ -334,6 +345,31 @@ export function parseTaskInput(text, { today, members = [] } = {}) {
     }
   } else if ((m = take(new RegExp(`\\b(${WD})\\b`, 'i')))) {
     set(comingWeekday(base, WEEKDAYS[m[1].toLowerCase()]))
+  }
+
+  // ---- 'on' vs 'by': which preposition introduced the date ----
+  // "gutters BY aug 20" is a deadline you're free to beat; "dentist ON aug 20"
+  // (or a bare "aug 20") pins the task to the day. The word was already being
+  // typed and thrown away as filler — this is just reading it. Both were
+  // interchangeable before, so a missing preposition keeps the old meaning.
+  //
+  // The preposition is folded into the token's text so titleFrom() eats the
+  // whole phrase — otherwise a mid-sentence "by" survives into the title
+  // ("email bob by about taxes") — and so dismissing the chip puts it back.
+  let dueKind = 'on'
+  if (due) {
+    if (new RegExp(`^(?:${DEADLINE_PREP})\\b`, 'i').test(dueText)) {
+      dueKind = 'by' // the matcher already swallowed it ("by the 1st")
+    } else {
+      const padded = ` ${original} `
+      const at = padded.toLowerCase().indexOf(dueText.toLowerCase())
+      const lead =
+        at > 0 ? new RegExp(`\\b(${DEADLINE_PREP})\\s+$`, 'i').exec(padded.slice(0, at)) : null
+      if (lead) {
+        dueKind = 'by'
+        dueText = `${lead[1]} ${dueText}`
+      }
+    }
   }
 
   // ---- time of day: "at 3pm", "at 3:30pm", "at 15:00" ----
@@ -383,7 +419,15 @@ export function parseTaskInput(text, { today, members = [] } = {}) {
   }
   if (due) {
     out.due_date = due
-    out.tokens.push({ type: 'due', label: formatDue(due, todayISO), text: dueText })
+    out.due_kind = dueKind
+    // The chip says "by Friday" for a deadline, plain "Friday" for a fixed day —
+    // so the distinction the parser just made is visible before you save.
+    const label = formatDue(due, todayISO)
+    out.tokens.push({
+      type: 'due',
+      label: dueKind === 'by' ? `by ${label}` : label,
+      text: dueText,
+    })
   }
   if (dueTime) {
     out.due_time = dueTime
@@ -429,6 +473,9 @@ export function quickTaskFields(text, { today, members = [] } = {}) {
     recurrence: parsed.recurrence,
     assignee: parsed.assignee || 'anyone',
     due_date: due,
+    // Only an explicitly parsed date can be a deadline — a date derived from a
+    // recurrence rule or from a bare time of day is a day to act ON.
+    due_kind: due && due === parsed.due_date ? parsed.due_kind : 'on',
     due_time: due ? parsed.due_time : null,
   }
 }

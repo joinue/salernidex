@@ -11,6 +11,8 @@ import {
 } from 'react-feather'
 import {
   taskBucket,
+  canFlipDueKind,
+  isDeadline,
   completionsFor,
   completionLog,
   capCompletionLog,
@@ -51,12 +53,18 @@ import IconButton from '../../components/ui/IconButton'
 // Icons for the quick-add preview chips, matching TaskForm's smart-add tokens.
 const TOKEN_ICON = { due: Calendar, time: Clock, repeat: RepeatIcon, who: User }
 
+// Anytime sits above Upcoming on purpose: its tasks are actionable TODAY (the
+// date is only a ceiling), while Upcoming is work you can't start yet.
 const BUCKETS = [
   { id: 'overdue', label: 'Overdue' },
   { id: 'today', label: 'Today' },
+  { id: 'anytime', label: 'Anytime' },
   { id: 'upcoming', label: 'Upcoming' },
   { id: 'someday', label: 'Someday' },
 ]
+
+// How many recurring chores Upcoming tolerates before folding them away.
+const FOLD_RECURRING_AT = 3
 
 export default function TasksView({
   data,
@@ -73,6 +81,7 @@ export default function TasksView({
     tasks,
     completions,
     addTask,
+    updateTask,
     deleteTask,
     completeTask,
     skipTaskOccurrence,
@@ -103,6 +112,8 @@ export default function TasksView({
   const confirm = useConfirm()
   const [expanded, setExpanded] = useState(expandId || null)
   const [showDone, setShowDone] = useState(() => readSession().showDone ?? defaultShowCompleted)
+  // Recurring chores in Upcoming start folded — see upcomingParts.
+  const [showRecurring, setShowRecurring] = useState(() => readSession().showRecurring ?? false)
   const [showAllDone, setShowAllDone] = useState(false)
   const [draftSub, setDraftSub] = useState('')
   // Inline quick-add: type a line, Enter adds it (running the same NL parser the
@@ -127,12 +138,12 @@ export default function TasksView({
     try {
       sessionStorage.setItem(
         sessionKey,
-        JSON.stringify({ filter, areaFilter, tagFilter, showDone }),
+        JSON.stringify({ filter, areaFilter, tagFilter, showDone, showRecurring }),
       )
     } catch {
       // private mode / quota — non-essential, fine to skip
     }
-  }, [sessionKey, filter, areaFilter, tagFilter, showDone])
+  }, [sessionKey, filter, areaFilter, tagFilter, showDone, showRecurring])
 
   const filterOptions = [
     { value: 'all', label: 'Everyone' },
@@ -194,13 +205,32 @@ export default function TasksView({
   const { groups: cappedLog, omitted } = useMemo(() => capCompletionLog(log), [log])
   const shownLog = showAllDone ? log : cappedLog
   const grouped = useMemo(() => {
-    const g = { overdue: [], today: [], upcoming: [], someday: [] }
+    const g = { overdue: [], today: [], anytime: [], upcoming: [], someday: [] }
     for (const t of topOpen) g[taskBucket(t)].push(t)
     // Upcoming is date-driven, so read it chronologically (soonest first) rather
     // than by manual drag order — what's "coming up next" belongs at the top.
     g.upcoming.sort(byUpcoming)
+    // Anytime reads as a queue of deadlines: least slack first, so the thing you
+    // should slot in next is on top.
+    g.anytime.sort(byDue)
     return g
   }, [topOpen])
+
+  // Upcoming is mostly recurring chores for anyone with a real chore rota, and
+  // they drown the handful of one-off dated tasks that share the section. Each
+  // is only one row (they roll forward rather than stacking up), but twelve of
+  // them still bury the two things you'd actually plan around — so they fold
+  // away behind a count, the way Done does.
+  //
+  // Only once there are enough to actually crowd, though: hiding one or two
+  // rows behind a header row saves no space and costs a tap to read them. Below
+  // the threshold Upcoming stays a single chronological list, which is the
+  // better read anyway when it's short.
+  const upcomingParts = useMemo(() => {
+    const recurring = grouped.upcoming.filter((t) => t.recurrence)
+    if (recurring.length < FOLD_RECURRING_AT) return { oneOff: grouped.upcoming, recurring: [] }
+    return { oneOff: grouped.upcoming.filter((t) => !t.recurrence), recurring }
+  }, [grouped.upcoming])
 
   // Today splits in two: clock-anchored tasks lead in time order (a 9 AM
   // commitment shouldn't sink under untimed to-dos), then untimed tasks keep the
@@ -354,6 +384,22 @@ export default function TasksView({
               <button className="text-btn" onClick={() => onEdit(task)}>
                 Edit
               </button>
+              {/* Retrofitting a backlog one task at a time through the form is
+                  the kind of chore nobody finishes, so the on/by flip gets a
+                  one-tap home here. It names the section the task lands in
+                  rather than the field it sets — that's the visible outcome,
+                  and the row moving there is the confirmation. */}
+              {canFlipDueKind(task) && (
+                <button
+                  className="text-btn"
+                  onClick={() => {
+                    haptics.light()
+                    updateTask(task.id, { due_kind: isDeadline(task) ? 'on' : 'by' })
+                  }}
+                >
+                  {isDeadline(task) ? 'Move to Upcoming' : 'Move to Anytime'}
+                </button>
+              )}
               <AddToCalendar task={task} />
               {task.recurrence && (
                 <button className="text-btn" onClick={() => skipTaskOccurrence(task)}>
@@ -520,7 +566,33 @@ export default function TasksView({
             <div key={b.id}>
               <SectionLabel>{b.label}</SectionLabel>
               {b.id === 'upcoming' ? (
-                // Date-driven: chronological, no manual reorder.
+                // Date-driven: chronological, no manual reorder. One-offs lead;
+                // the recurring rota folds away beneath them.
+                <>
+                  {upcomingParts.oneOff.length > 0 && (
+                    <div className="list">{upcomingParts.oneOff.map(renderTask)}</div>
+                  )}
+                  {upcomingParts.recurring.length > 0 && (
+                    <>
+                      <button
+                        className="section-label section-toggle subsection-toggle"
+                        aria-expanded={showRecurring}
+                        onClick={() => setShowRecurring((v) => !v)}
+                      >
+                        Recurring · {upcomingParts.recurring.length}{' '}
+                        <ChevronRight
+                          size={13}
+                          style={{ transform: showRecurring ? 'rotate(90deg)' : 'none' }}
+                        />
+                      </button>
+                      {showRecurring && (
+                        <div className="list">{upcomingParts.recurring.map(renderTask)}</div>
+                      )}
+                    </>
+                  )}
+                </>
+              ) : b.id === 'anytime' ? (
+                // Deadline queue: least slack first, no manual reorder.
                 <div className="list">{grouped[b.id].map(renderTask)}</div>
               ) : b.id === 'today' ? (
                 // Timed tasks lead in clock order; untimed stay reorderable below.

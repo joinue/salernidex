@@ -30,6 +30,17 @@
   background: none;
 }
 
+/* A collapsing label that belongs to the section ABOVE it rather than opening a
+   new one (Tasks › Upcoming › Recurring). Sentence case and tucked in close, so
+   it doesn't compete with the real section headings — an uppercase, full-margin
+   label at this spot reads as a peer of Upcoming instead of a part of it. */
+.subsection-toggle {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  margin: 10px 4px 8px 14px;
+}
+
 /* With a trailing action (a count, "See all", "+ Add") on the same baseline. */
 .section-label-row {
   display: flex;

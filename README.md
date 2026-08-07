@@ -44,8 +44,11 @@ node scripts/tasks-smoke.mjs    # Playwright smoke suites (Chrome channel):
 - **Tasks** — one model for to-dos, recurring chores (RRULE-lite: "the 20th",
   "first Monday"), and projects with subtasks; priority, tags, due-time;
   **deferred start dates** (a task parks under Upcoming until it's due to
-  surface, separate from its deadline); member-based assignees; completion
-  history; people/orgs linkable to projects (the plumber on the faucet project).
+  surface, separate from its deadline) and their mirror image, **"anytime
+  before" deadlines** (do it whenever you like, just not after this date — filed
+  under Anytime instead of buried in Upcoming, and reaching Today a week out);
+  member-based assignees; completion history; people/orgs linkable to projects
+  (the plumber on the faucet project).
 - **Lists** — shared groceries/hardware/packing with rapid add, sections,
   per-item qty/assignee/note/due, and a learned catalog for fast re-add.
 - **Habits** — flexible recurrence (weekday sets, "N times per week", or

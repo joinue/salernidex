@@ -16,7 +16,7 @@ import {
   List as ListIcon,
 } from 'react-feather'
 import { useConfirm } from '../../hooks/useConfirm'
-import { completionsFor, dueLabel, dueState } from '../../lib/tasks'
+import { completionsFor, deadlineLabel, dueLabel, dueState, isDeadline } from '../../lib/tasks'
 import { relativeTime } from '../../lib/contact'
 import { assigneeLabel, normalizeAssignee } from '../../lib/household'
 import { describeRecurrence } from '../../lib/recurrence'
@@ -135,7 +135,11 @@ export default function ProjectDetail({
     ? { done: realSubs.filter((s) => s.completed_at).length, total: realSubs.length }
     : null
   const history = completionsFor(task.id, completions)
-  const dl = dueLabel(task.due_date, task.due_time)
+  // A project can carry a deadline too ("renovation done by the 30th"), and it
+  // reads the same way here as on a task row: room left, not a day to show up.
+  const dl = isDeadline(task)
+    ? deadlineLabel(task.due_date, task.due_time)
+    : dueLabel(task.due_date, task.due_time)
   const ds = dueState(task.due_date)
 
   const toggle = (t) => {

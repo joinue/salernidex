@@ -172,6 +172,8 @@ create table public.tasks (
   area          text,                                -- optional user-defined category ("Work", "Personal"); null = none (TasksView group-by)
   tags          text[] not null default '{}',        -- cross-cutting labels, same shape as people.tags (0022); area is the one category, tags are the many
   due_date      date,
+  due_kind      text not null default 'on'           -- what the due date MEANS (0034): 'on' = belongs to that day (recurring occurrence, appointment) · 'by' = a deadline, actionable now, buckets under Anytime and reaches Today a week out. Ignored when due_date is null
+    check (due_kind in ('on', 'by')),
   start_date    date,                                -- optional defer date (0021); until it arrives the task is hidden from Today + the sender and buckets under Upcoming. null = not deferred
   end_date      date,                                -- optional project target finish (0028); pairs with start_date so a project can span a range (trip depart→return). Ignored on plain tasks
   due_time      time,                                -- optional local time-of-day; null = all-day (0013). Only meaningful with due_date; survives recurrence roll-forward
@@ -814,14 +816,43 @@ alter publication supabase_realtime add table public.member_preferences;
 -- Scheduler (6b): pg_cron invokes the send-reminders Edge Function every
 -- 15 minutes. The function recomputes the same attention rules as
 -- src/lib/reminders.js server-side, applies prefs + snoozes, dedupes via
--- notification_log, and web-pushes (VAPID) to each member's subscriptions:
+-- notification_log, and web-pushes (VAPID) to each member's subscriptions.
+--
+-- Scheduled and verified live on 2026-08-06 (jobid 2). This is the exact block
+-- that works — an earlier sketch here was wrong in three ways, noted inline:
+--
+--   create extension if not exists pg_cron;
+--   create extension if not exists pg_net;
+--
+--   -- Keep this guard. A second live job double-sends; an earlier broken job
+--   -- (403s every 15 min) was found and replaced this way.
+--   select cron.unschedule('send-reminders')
+--   where exists (select 1 from cron.job where jobname = 'send-reminders');
 --
 --   select cron.schedule('send-reminders', '*/15 * * * *', $$
 --     select net.http_post(
---       url    := '<project>.supabase.co/functions/v1/send-reminders',
---       headers:= jsonb_build_object('Authorization', 'Bearer <service-role-key>')
---     )
+--       -- (1) needs the https:// scheme; a bare host is rejected
+--       url     := 'https://<project>.supabase.co/functions/v1/send-reminders',
+--       -- (2) CRON_SECRET, *not* the service-role key: under Supabase's newer
+--       --     API-key system the dashboard service_role value no longer matches
+--       --     SUPABASE_SERVICE_ROLE_KEY. See functions/send-reminders/auth.ts.
+--       -- (3) passing headers REPLACES pg_net's default, so Content-Type must
+--       --     be set explicitly here.
+--       headers := jsonb_build_object(
+--                    'Content-Type',  'application/json',
+--                    'Authorization', 'Bearer <CRON_SECRET>'
+--                  ),
+--       body    := '{}'::jsonb,
+--       -- 5s default is too short: the sweep loops every member.
+--       timeout_milliseconds := 30000
+--     );
 --   $$);
+--
+-- Verify (net.http_post is fire-and-forget, so a successful cron run only means
+-- the request was dispatched — status_code is the real signal):
+--
+--   select status_code, content, created from net._http_response
+--   order by created desc limit 5;
 --
 -- Implementation: supabase/functions/send-reminders/index.ts. Function secrets
 -- (set via `supabase secrets set`): VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY,

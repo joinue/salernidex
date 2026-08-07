@@ -991,6 +991,7 @@ const taskBase = {
   privacy_level: 'family_shared',
   tags: [],
   due_time: null,
+  due_kind: 'on',
   start_date: null,
   priority: 0,
   completed_at: null,
@@ -1042,6 +1043,31 @@ export const demoTasks = [
     parent_id: null,
     privacy_level: 'shared',
     notes: 'He asked about consumables pricing.',
+  },
+  // Deadlines, not appointments: do them whenever there's a gap, just not after
+  // the date. The near one reaches Today (inside ANYTIME_DAYS); the far one
+  // waits in the Tasks page's Anytime section until its week comes round.
+  {
+    ...taskBase,
+    id: 't-registration',
+    title: 'Renew the car registration',
+    assignee: 'me',
+    tags: ['admin'],
+    due_date: dateIn(5),
+    due_kind: 'by',
+    recurrence: null,
+    parent_id: null,
+  },
+  {
+    ...taskBase,
+    id: 't-gutters',
+    title: 'Clear the gutters before the rain',
+    assignee: 'either',
+    tags: ['home'],
+    due_date: dateIn(19),
+    due_kind: 'by',
+    recurrence: null,
+    parent_id: null,
   },
   {
     ...taskBase,

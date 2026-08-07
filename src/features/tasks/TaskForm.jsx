@@ -52,6 +52,7 @@ export default function TaskForm({
     area: task?.area || '',
     tags: task?.tags || [],
     due_date: task?.due_date || '',
+    due_kind: task?.due_kind === 'by' ? 'by' : 'on',
     start_date: task?.start_date || '',
     due_time: task?.due_time ? task.due_time.slice(0, 5) : '',
     priority: task?.priority ?? 0,
@@ -78,6 +79,9 @@ export default function TaskForm({
   // being you rather than "Anyone", the old "is it still Anyone?" test would
   // have read every new task as an explicit pick and silently eaten the token.
   const [assigneeTouched, setAssigneeTouched] = useState(false)
+  // Same story for On/By: until the control is touched, a "by Friday" typed into
+  // the title still gets to steer it.
+  const [dueKindTouched, setDueKindTouched] = useState(false)
 
   const set = (key) => (e) => {
     const value = e.target.value
@@ -100,6 +104,10 @@ export default function TaskForm({
   // "for <name>" in the title, otherwise the default. The picker renders this
   // same value, so typing "for Rita" visibly moves the selection.
   const assignee = assigneeTouched ? form.assignee : uses('who') ? parsed.assignee : form.assignee
+
+  // Does the due date mean "on that day" or "by that day"? Same precedence as
+  // Who: an explicit pick wins, else a parsed "by …", else the current value.
+  const dueKind = dueKindTouched ? form.due_kind : uses('due') ? parsed.due_kind : form.due_kind
 
   const submit = async (e) => {
     e.preventDefault()
@@ -128,6 +136,9 @@ export default function TaskForm({
           area: form.area.trim() || null,
           tags: form.tags,
           due_date: due,
+          // No date, nothing to be flexible about — a Someday task is never a
+          // deadline, so it stores the plain default.
+          due_kind: due ? dueKind : 'on',
           // A defer date only makes sense up to the due date; keep it as typed
           // otherwise (null when blank).
           start_date: form.start_date || null,
@@ -233,7 +244,14 @@ export default function TaskForm({
                   <button
                     type="button"
                     className="chip"
-                    onClick={() => patch({ due_date: '', due_time: '' })}
+                    onClick={() => {
+                      // Clearing the date is starting the "when" over, so the
+                      // On/By choice goes back to untouched too — otherwise a
+                      // re-typed "by friday" would be overruled by a hidden
+                      // control the user set two dates ago.
+                      setDueKindTouched(false)
+                      patch({ due_date: '', due_time: '', due_kind: 'on' })
+                    }}
                   >
                     Clear
                   </button>
@@ -250,6 +268,25 @@ export default function TaskForm({
                   />
                 )}
               </div>
+              {/* What the date MEANS. "Anytime before" files the task under the
+                  Anytime section — actionable now, deadline later — instead of
+                  parking it in Upcoming behind every recurring chore. */}
+              {(form.due_date || uses('due')) && (
+                <div className="due-kind">
+                  <Segmented
+                    options={[
+                      { value: 'on', label: 'On this day' },
+                      { value: 'by', label: 'Anytime before' },
+                    ]}
+                    value={dueKind}
+                    onChange={(v) => {
+                      setDueKindTouched(true)
+                      patch({ due_kind: v })
+                    }}
+                    size="sm"
+                  />
+                </div>
+              )}
             </>
           )}
         </Field>

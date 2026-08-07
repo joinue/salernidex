@@ -621,6 +621,7 @@ export function useData(session) {
       ...prev,
       stamp({
         recurrence: null,
+        due_kind: 'on', // matches the column default, so the optimistic row reads like the stored one
         parent_id: null,
         is_project: false,
         is_heading: false,

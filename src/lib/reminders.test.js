@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildAttention, badgeCount } from './reminders'
+import { buildAttention, badgeCount, ANYTIME_DAYS } from './reminders'
 import { isoDateIn } from './tasks'
 
 // Minimal data shell — only the fields buildAttention reads. Lists are the
@@ -107,6 +107,47 @@ describe('buildAttention — projects vs tasks', () => {
       task({ id: 's', parent_id: 'pt', due_date: isoDateIn(0) }),
     ]
     expect(buildAttention({ ...base, tasks }, prefs)).toHaveLength(0)
+  })
+})
+
+describe('buildAttention — deadlines reach Today a week out', () => {
+  const by = (over = {}) => ({
+    id: 't',
+    title: 'A',
+    assignee: 'anyone',
+    priority: 0,
+    due_kind: 'by',
+    ...over,
+  })
+  const items = (tasks) => buildAttention({ ...base, tasks }, prefs)
+
+  it('surfaces a deadline inside the window as urgency "anytime"', () => {
+    const got = items([by({ due_date: isoDateIn(5) })])
+    expect(got).toHaveLength(1)
+    expect(got[0]).toMatchObject({ kind: 'task', key: 'task:t', urgency: 'anytime' })
+  })
+
+  it('takes the last day of the window and leaves the day after it', () => {
+    expect(items([by({ due_date: isoDateIn(ANYTIME_DAYS) })])).toHaveLength(1)
+    expect(items([by({ due_date: isoDateIn(ANYTIME_DAYS + 1) })])).toHaveLength(0)
+  })
+
+  it('still leaves a plain future task alone — only deadlines get the head start', () => {
+    expect(items([{ ...by({ due_date: isoDateIn(5) }), due_kind: 'on' }])).toHaveLength(0)
+  })
+
+  it('a deadline that has landed is just due, at full urgency', () => {
+    expect(items([by({ due_date: isoDateIn(0) })])[0].urgency).toBe('today')
+    expect(items([by({ due_date: isoDateIn(-1) })])[0].urgency).toBe('overdue')
+  })
+
+  it('a deferred deadline stays parked, however close the date', () => {
+    expect(items([by({ due_date: isoDateIn(3), start_date: isoDateIn(2) })])).toHaveLength(0)
+  })
+
+  it('keeps out of the red badge — there is still room, so it is not due', () => {
+    expect(badgeCount(items([by({ due_date: isoDateIn(5) })]))).toBe(0)
+    expect(badgeCount(items([by({ due_date: isoDateIn(0) })]))).toBe(1)
   })
 })
 

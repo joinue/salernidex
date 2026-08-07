@@ -8,6 +8,9 @@ import {
   byProjects,
   byDue,
   dueLabel,
+  deadlineLabel,
+  isDeadline,
+  shortDate,
 } from '../../lib/tasks'
 import Avatar from '../../components/ui/Avatar'
 import PageHeader from '../../components/shell/PageHeader'
@@ -25,12 +28,11 @@ const SORT_OPTIONS = [
 
 // Compact range/target label for a project card: "Jun 3 – Jul 1" when both ends
 // are set, otherwise the single date via the shared dueLabel ("in 5d", "Jul 1").
-function shortDate(iso) {
-  const [y, m, d] = iso.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
 function rangeLabel(p) {
   if (p.start_date && p.end_date) return `${shortDate(p.start_date)} – ${shortDate(p.end_date)}`
+  // A deadline only reads as one where there's no target finish to show instead
+  // — end_date is a planned landing, which is a different claim from "by then".
+  if (!p.end_date && isDeadline(p)) return deadlineLabel(p.due_date)
   return dueLabel(projectDate(p)) // null-safe
 }
 

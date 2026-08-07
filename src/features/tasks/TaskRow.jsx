@@ -1,5 +1,13 @@
 import { Check, Repeat, Flag, Clock } from 'react-feather'
-import { dueLabel, dueState, priorityLabel, startLabel } from '../../lib/tasks'
+import {
+  deadlineLabel,
+  dueLabel,
+  dueState,
+  isDeadline,
+  priorityLabel,
+  shortDate,
+  startLabel,
+} from '../../lib/tasks'
 import { describeRecurrence } from '../../lib/recurrence'
 import { assigneeLabel, normalizeAssignee } from '../../lib/household'
 import SharedDot from '../../components/ui/SharedDot'
@@ -19,7 +27,12 @@ export default function TaskRow({
   breadcrumb = null,
 }) {
   const done = !!task.completed_at
-  const dl = dueLabel(task.due_date, task.due_time)
+  // A deadline ('by') answers a different question than a due date: not "when
+  // is this on?" but "how much room is left?" — so it gets its own label.
+  const by = isDeadline(task)
+  const dl = by
+    ? deadlineLabel(task.due_date, task.due_time)
+    : dueLabel(task.due_date, task.due_time)
   const ds = dueState(task.due_date)
   const showAssignee = !hideAssignee && normalizeAssignee(task.assignee) !== 'anyone'
   const prio = task.priority || 0
@@ -104,9 +117,13 @@ export default function TaskRow({
     },
     dl && {
       rank: 1,
-      title: dl,
+      title: by ? `Anytime before ${shortDate(task.due_date)}` : dl,
       node: (
-        <span className={`chip due-${ds}`} key="due">
+        <span
+          className={`chip due-${ds}`}
+          key="due"
+          title={by ? `Anytime before ${shortDate(task.due_date)}` : undefined}
+        >
           {dl}
         </span>
       ),

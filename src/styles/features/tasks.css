@@ -99,6 +99,11 @@
   color: var(--text-2);
 }
 
+/* A deadline chip needs no tint of its own: while there's room it reads as the
+   plain grey base chip, and the moment the date lands it picks up .due-today /
+   .due-overdue like any other — which is exactly when it stops being flexible.
+   The wording ("4d left" vs "Aug 13") already tells the two kinds apart. */
+
 /* The one-tap dates that lead the form's Due field. These are the primary
    affordance on a phone — the native date input below is the fallback — so
    unlike a read-only meta chip they're sized as real controls (36px painted,
@@ -136,6 +141,11 @@
 .due-row input[type='time'] {
   flex: 0 0 auto;
   width: auto;
+}
+
+/* On-this-day vs anytime-before, directly under the date it qualifies. */
+.due-kind {
+  margin-top: 8px;
 }
 
 .task-expand {

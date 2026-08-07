@@ -6,12 +6,14 @@
 // attention per member, applies prefs + snoozes, dedupes via
 // notification_log, and web-pushes to each member's devices.
 //
-// Sending policy (docs/phase6-reminders.md):
+// Sending policy (docs/records/phase6-reminders.md):
 //   - individual pushes only for DAY-OF dates and tasks due/overdue today
 //   - a TIMED task (due_time set) fires its individual push at that time, not in
 //     the morning — until then it only rides the digest as a heads-up
 //   - one morning digest per member at their digest_time (±15 min window)
-//   - lead-time heads-ups stay in-app only (no double-pinging)
+//   - a 'by' DEADLINE inside the week rides that digest and nothing else (see
+//     deadlines.ts) — it's a heads-up while there's still room, not a due alert
+//   - other lead-time heads-ups stay in-app only (no double-pinging)
 //
 // Deploy:
 //   supabase functions deploy send-reminders
@@ -20,6 +22,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3'
 import { habitDueToday } from './habitSchedule.ts'
+import { deadlinesAhead } from './deadlines.ts'
+import { digestCopy } from './digest.ts'
 import { isAuthorized } from './auth.ts'
 
 const supabase = createClient(
@@ -421,19 +425,20 @@ Deno.serve(async (req) => {
       ...(prefs.dates ? dateReminders(people, keyDates, today, prefs.dates_lead_days ?? 7) : []),
     ].filter((i) => !hidden.has(i.targetKey))
 
-    if (items.length) {
+    // Deadlines with days still on the clock. Kept out of `items` on purpose:
+    // they must not join today's count ("3 things today" that includes
+    // something due Friday is a lie) and must never become individual pings.
+    // See deadlines.ts.
+    const ahead = (prefs.tasks ? deadlinesAhead(tasks, member.id, today) : []).filter(
+      (t) => !hidden.has(`task:${t.id}`),
+    )
+
+    if (items.length || ahead.length) {
       // Morning digest: one summary at the member's digest_time (±15 min).
       const wantDigest = Math.abs(minutesOf(time) - minutesOf(prefs.digest_time ?? '08:00')) <= 15
-      if (wantDigest) {
-        const lead = items
-          .slice(0, 3)
-          .map((i) => i.body)
-          .join(' · ')
-        sent += await claimSend(subs, member.id, 'digest', '', today, {
-          title: items.length === 1 ? '1 thing today' : `${items.length} things today`,
-          body: lead + (items.length > 3 ? ` · +${items.length - 3} more` : ''),
-          url: '/',
-        })
+      const copy = digestCopy(items, ahead)
+      if (wantDigest && copy) {
+        sent += await claimSend(subs, member.id, 'digest', '', today, { ...copy, url: '/' })
       }
 
       // Individual pings: day-of dates + tasks (check-ins ride the digest — a
