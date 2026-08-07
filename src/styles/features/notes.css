@@ -238,24 +238,29 @@
 }
 /* dvh, not vh: on iOS vh measures the *expanded* viewport, so every one of
    these was quietly bigger than it read (the notes rail already learned this —
-   see .notes-rail). */
+   see .notes-rail).
+
+   The tail is a fixed 96px, and small on purpose. It exists for one case: the
+   caret on the last line of a note long enough to fill the screen, where
+   without a little scrollable slack it lands behind the docked toolbar. 96px
+   clears that bar with room over.
+
+   It used to be 40dvh, which was a workaround from when nothing was placed
+   correctly, and it went wrong the moment everything else was. Add it to a
+   50dvh minimum and a one-line note's editable is ~860px in a ~543px visible
+   band; iOS resolves that by aligning the element's *bottom* with the band and
+   scrolling your text off the top of the screen. Tapping into a note showed a
+   full screen of blank runway with the note itself somewhere above it. Nothing
+   here may exceed the band on its own. */
 .note-editable {
-  min-height: 50dvh;
-  /* The tall tail exists so the caret never hides behind the keyboard, which
-     means it is only wanted while there *is* a keyboard. Left on permanently it
-     was 40dvh of blank scroll between the end of a three-line note and the tag
-     field under it — on an iPhone 14 Pro, 264px of the 436px this page could
-     scroll at all existed purely to be scrolled past. */
-  padding: 8px 0 12dvh;
+  min-height: 30dvh;
+  padding: 8px 0 96px;
   outline: none;
   color: var(--text);
   font-size: 17px;
   line-height: 1.5;
   -webkit-user-select: text;
   user-select: text;
-}
-.note-editor:focus-within .note-editable {
-  padding-bottom: 40dvh;
 }
 .note-editable h1,
 .note-editable h2 {
@@ -768,14 +773,13 @@
   }
 }
 
-/* With a mouse there is no keyboard to clear, so the editor's tall tail is just
-   dead scroll. Keyed off the pointer, not the width: an iPad in landscape is
-   wide enough for two panes and still needs the runway. */
+/* With a mouse there is no keyboard to clear, so even 96px of tail is dead
+   scroll. Keyed off the pointer, not the width: an iPad in landscape is wide
+   enough for two panes and still gets a keyboard. */
 @media (pointer: fine) {
-  .note-editable,
-  .note-editor:focus-within .note-editable {
+  .note-editable {
     min-height: 40dvh;
-    padding-bottom: 12dvh;
+    padding-bottom: 24px;
   }
 }
 
