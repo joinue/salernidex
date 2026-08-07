@@ -29,6 +29,24 @@
   border-bottom: 0.5px solid var(--separator);
 }
 
+/* The list clips at its corner radius while the rows inside it are square, so
+   a ring drawn on the first or last row (the keyboard cursor, the focus
+   outline) had its corners shaved off by that clip. Rounding the end rows to
+   match sends the ring around the same arc the card is cut on. */
+.list > .list-row:first-child,
+.list > .swipe-wrap:first-child .list-row,
+.list > .reorder-row:first-child .list-row {
+  border-top-left-radius: var(--radius);
+  border-top-right-radius: var(--radius);
+}
+
+.list > .list-row:last-child,
+.list > .swipe-wrap:last-child .list-row,
+.list > .reorder-row:last-child .list-row {
+  border-bottom-left-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+}
+
 .list-row:hover {
   background: var(--fill-2);
 }
