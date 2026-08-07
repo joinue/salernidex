@@ -13,8 +13,9 @@ import {
 import { sanitizeNoteHtml, linkifyHtml } from '../../lib/notes'
 import { fileToImageDataUrl } from '../../lib/image'
 import { showToast } from '../../lib/toast'
-import { useVisualBottomGap } from '../../hooks/useKeyboardOpen'
+import { useVisualBottomGap, KEYBOARD_FLOOR } from '../../hooks/useKeyboardOpen'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
+import ViewportProbe from './ViewportProbe'
 
 // Hand-rolled rich-text editor — a contentEditable surface with a formatting
 // toolbar, @-mention picker, inline images, auto-linked URLs, and Markdown-style
@@ -133,18 +134,21 @@ export default function RichTextEditor({
   // belong to neither pane.
   const dockable = useMediaQuery('(pointer: coarse) and (max-width: 899px)')
   const docked = focused && dockable
-  // Above the keyboard when we can see where its top edge is; pinned under the
-  // status bar when we can't.
+  // Above the keyboard when the gap is big enough to *be* the keyboard; pinned
+  // under the status bar when it isn't.
   //
-  // Some installed iOS apps report the keyboard through visualViewport and some
-  // report nothing at all — same OS, same engine, and no way to ask which one
-  // you're in. Where nothing is reported the gap reads 0, which as a bottom
-  // offset puts the bar flat behind the keyboard, invisible, and takes the
-  // formatting controls away entirely for as long as you're typing. Pinning to
-  // the top instead costs reach and covers the nav bar while the keyboard is
-  // up, but it is always on screen and always clear of the Dynamic Island,
-  // which beats correct-in-theory and gone-in-practice.
-  const dockAt = bottomGap > 0 ? 'bottom' : 'top'
+  // The threshold is the point. A previous cut asked `gap > 0`, which is true
+  // of a 40px gap that is a home indicator, a partial pan, or nothing much —
+  // and then used it as the offset to clear a ~340px keyboard, parking the bar
+  // 40px up from the bottom of the screen, buried. Any gap that isn't
+  // keyboard-shaped tells us nothing about where the keyboard is, so it should
+  // not be treated as though it did. Same floor as useKeyboardOpen, and for the
+  // same reason: it is the smallest gap no software keyboard is smaller than.
+  //
+  // Pinning to the top costs reach and covers the nav bar while you type, but
+  // it is on screen and clear of the Dynamic Island every time. Correct in
+  // theory and gone in practice is not the better half of that trade.
+  const dockAt = bottomGap >= KEYBOARD_FLOOR ? 'bottom' : 'top'
 
   // Seed the editable once. (Remount via React key to switch notes.)
   useEffect(() => {
@@ -470,6 +474,8 @@ export default function RichTextEditor({
           onFocus={() => setFocused(true)}
           onBlur={onBlur}
         />
+        {/* TEMPORARY — remove with ViewportProbe.jsx once the bar is placed. */}
+        <ViewportProbe />
       </div>
 
       {picker && (

@@ -335,6 +335,32 @@
   transform: rotate(45deg);
 }
 
+/* TEMPORARY — delete with ViewportProbe.jsx. Ordinary in-flow content on
+   purpose: it is diagnosing the placement of chrome, so it must not use any. */
+.viewport-probe {
+  margin: 12px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+.viewport-probe b {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--accent);
+}
+.viewport-probe span {
+  display: inline-block;
+  width: 74px;
+  color: var(--text-3);
+}
+
 .note-meta {
   margin-top: 18px;
   padding-top: 14px;

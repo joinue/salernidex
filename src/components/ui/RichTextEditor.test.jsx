@@ -158,6 +158,20 @@ describe('RichTextEditor formatting bar', () => {
     expect(bar.style.bottom).toBe('')
   })
 
+  // The one that made the top branch unreachable in practice. A 50px gap is a
+  // home indicator or a half-finished pan, not a keyboard — but it is > 0, so
+  // an earlier cut trusted it as the offset that clears one and parked the bar
+  // 50px off the bottom of the screen, under ~340px of keys.
+  it('does not mistake a small gap for the keyboard', () => {
+    const vv = stubViewport(LAYOUT_H)
+    const { container } = render(<RichTextEditor />)
+    focusBody(container)
+    act(() => vv.openKeyboardByPanning(50))
+
+    expect(toolbar().className).toContain('at-top')
+    expect(toolbar().style.bottom).toBe('')
+  })
+
   it('pins to the top when visualViewport is missing entirely', () => {
     delete window.visualViewport
     const { container } = render(<RichTextEditor />)

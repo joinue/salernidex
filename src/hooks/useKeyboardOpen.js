@@ -15,6 +15,10 @@ import { useEffect, useState } from 'react'
 // doesn't shrink the viewport at all, so it correctly reads as closed).
 const KEYBOARD_MIN = 140
 
+// The same floor, for callers that need to ask "is this gap big enough to be a
+// keyboard?" of a measurement they already have.
+export const KEYBOARD_FLOOR = KEYBOARD_MIN
+
 export function useKeyboardOpen() {
   const [open, setOpen] = useState(false)
 
