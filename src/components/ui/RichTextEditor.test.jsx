@@ -120,64 +120,61 @@ describe('RichTextEditor formatting bar', () => {
     expect(toolbar().className).not.toContain('docked')
   })
 
-  it('sits on the keyboard, and follows it as iOS pans', () => {
+  // The bar is anchored by its bottom edge, which is what the -100% translate
+  // buys: `top` is where the visible band ends, and the element hangs upward
+  // from it. No height measurement, no offset arithmetic against a viewport
+  // that turned out not to be the one you can see.
+  it('rests its bottom edge on the bottom of the visible band', () => {
     const vv = stubViewport(LAYOUT_H)
     const { container } = render(<RichTextEditor />)
     focusBody(container)
     act(() => vv.openKeyboardByPanning())
-    expect(toolbar().style.bottom).toBe(`${KEYBOARD_H}px`)
-    act(() => vv.panTo(120))
-    expect(toolbar().style.bottom).toBe(`${KEYBOARD_H - 120}px`)
-  })
 
-  it('follows the keyboard as far as the bottom of the visible band', () => {
-    const vv = stubViewport(LAYOUT_H)
-    const { container } = render(<RichTextEditor />)
-    focusBody(container)
-    act(() => vv.openKeyboardByPanning())
-    expect(toolbar().className).toContain('at-bottom')
-  })
-
-  // The one that took three tries. Some installed iOS apps report the keyboard
-  // through visualViewport and some report nothing whatsoever, so a gap of 0 is
-  // ambiguous: it means either "no keyboard" or "a keyboard I can't see". As a
-  // bottom offset it puts the bar behind the keyboard, invisible, which is the
-  // worse reading of the two. Pin it to the top instead — never measured, never
-  // hidden — and let CSS clear the status bar.
-  it('pins to the top when the keyboard is unmeasurable, rather than behind it', () => {
-    const vv = stubViewport(LAYOUT_H)
-    const { container } = render(<RichTextEditor />)
-    focusBody(container)
-    act(() => vv.openKeyboardByShrinking())
-
-    const bar = toolbar()
-    expect(bar.parentElement).toBe(document.body)
-    expect(bar.className).toContain('docked')
-    expect(bar.className).toContain('at-top')
-    // No inline bottom at all — the offset that would have buried it.
-    expect(bar.style.bottom).toBe('')
-  })
-
-  // The one that made the top branch unreachable in practice. A 50px gap is a
-  // home indicator or a half-finished pan, not a keyboard — but it is > 0, so
-  // an earlier cut trusted it as the offset that clears one and parked the bar
-  // 50px off the bottom of the screen, under ~340px of keys.
-  it('does not mistake a small gap for the keyboard', () => {
-    const vv = stubViewport(LAYOUT_H)
-    const { container } = render(<RichTextEditor />)
-    focusBody(container)
-    act(() => vv.openKeyboardByPanning(50))
-
-    expect(toolbar().className).toContain('at-top')
+    expect(toolbar().style.top).toBe(`${LAYOUT_H - KEYBOARD_H}px`)
+    expect(toolbar().style.transform).toBe('translateY(-100%)')
     expect(toolbar().style.bottom).toBe('')
   })
 
-  it('pins to the top when visualViewport is missing entirely', () => {
+  it('follows the band as iOS pans to reveal the caret', () => {
+    const vv = stubViewport(LAYOUT_H)
+    const { container } = render(<RichTextEditor />)
+    focusBody(container)
+    act(() => vv.openKeyboardByPanning())
+    act(() => vv.panTo(120))
+    expect(toolbar().style.top).toBe(`${120 + (LAYOUT_H - KEYBOARD_H)}px`)
+  })
+
+  // The real numbers off the device that finally explained this, verbatim.
+  // Every earlier version expressed the position as an inset from the bottom of
+  // the layout viewport, and all of them died here: the band's bottom edge
+  // (210 + 543 = 753) is *below* the layout viewport's own (684), so that inset
+  // is negative and clamps to zero — parking the bar behind the keyboard. Where
+  // the band ends is 753 regardless, which is why the anchor is absolute now.
+  it('handles a band that extends past the layout viewport', () => {
+    stubViewport(543, 210)
+    window.innerHeight = 684
+    const { container } = render(<RichTextEditor />)
+    focusBody(container)
+    expect(toolbar().style.top).toBe('753px')
+  })
+
+  // Same trap from the other side: offsetTop 210 means `top: 0` is 210px above
+  // the top of the screen, which is where the top-pinned attempt went.
+  it('never anchors to the top of the layout viewport', () => {
+    stubViewport(543, 210)
+    window.innerHeight = 684
+    const { container } = render(<RichTextEditor />)
+    focusBody(container)
+    expect(toolbar().style.top).not.toBe('0px')
+    expect(Number.parseInt(toolbar().style.top, 10)).toBeGreaterThan(210)
+  })
+
+  it('falls back to the layout viewport when visualViewport is missing', () => {
     delete window.visualViewport
     const { container } = render(<RichTextEditor />)
     focusBody(container)
-    expect(toolbar().className).toContain('at-top')
     expect(toolbar().parentElement).toBe(document.body)
+    expect(toolbar().style.top).toBe(`${LAYOUT_H}px`)
   })
 
   it('comes home on blur', () => {

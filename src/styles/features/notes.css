@@ -147,17 +147,21 @@
   top: var(--navbar-h);
 }
 
-/* Typing, with a keyboard up: an iOS input accessory bar instead. Sticky is the
-   wrong anchor here and no offset fixes it — iOS pans the whole layout viewport
-   to reveal the caret, and sticky pins to the scrollport, which pans away with
-   it. The bar slid up under the Dynamic Island and NavBar left the screen
-   outright. The keyboard's top edge is the only edge that holds still, and it
-   is where the thumb already is. `bottom` is set inline from
-   useKeyboardInset — CSS has no way to ask where the keyboard is. */
+/* Typing: an iOS input accessory bar, resting on the keyboard where iOS Notes
+   keeps it. Sticky is the wrong anchor here and no offset fixes it — iOS pans
+   the layout viewport to reveal the caret, and sticky pins to the scrollport,
+   which pans away with it, taking the bar under the Dynamic Island and NavBar
+   off the screen entirely.
+   `top` and the -100% translate arrive inline from useVisualBandBottom, and
+   together they put this element's *bottom* edge on the bottom edge of what you
+   can actually see — with a keyboard up, the keyboard's own top edge. `bottom:
+   auto` cancels the sticky rule's offset; a fixed box with both set stretches
+   between them instead of sizing to its content. */
 .note-toolbar.docked {
   position: fixed;
   left: 0;
   right: 0;
+  bottom: auto;
   z-index: var(--z-dock);
   margin: 0;
   /* Match the page gutter so the tools line up with the text they format, and
@@ -167,27 +171,8 @@
   background: color-mix(in srgb, var(--bg) 92%, transparent);
   -webkit-backdrop-filter: var(--header-blur);
   backdrop-filter: var(--header-blur);
-}
-
-/* Resting on the keyboard, where iOS Notes keeps it. `bottom` comes in inline
-   from useVisualBottomGap. */
-.note-toolbar.docked.at-bottom {
-  top: auto;
   border-bottom: none;
   border-top: 0.5px solid var(--separator);
-}
-
-/* The fallback, for the installed apps whose visualViewport never mentions the
-   keyboard: there is no measurement that can put this above it, so it goes
-   where nothing can hide it instead. The top padding is what the sticky version
-   couldn't have — .main's own inset doesn't apply to a fixed element portaled
-   out to <body>, so the bar has to clear the Dynamic Island itself. */
-.note-toolbar.docked.at-top {
-  top: 0;
-  bottom: auto;
-  padding-top: calc(6px + env(safe-area-inset-top));
-  border-top: none;
-  border-bottom: 0.5px solid var(--separator);
 }
 /* Holds the bar's place in flow while it is docked, so tapping into the note
    doesn't yank the text up by a toolbar's height. */

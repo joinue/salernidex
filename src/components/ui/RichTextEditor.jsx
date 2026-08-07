@@ -13,7 +13,7 @@ import {
 import { sanitizeNoteHtml, linkifyHtml } from '../../lib/notes'
 import { fileToImageDataUrl } from '../../lib/image'
 import { showToast } from '../../lib/toast'
-import { useVisualBottomGap, KEYBOARD_FLOOR } from '../../hooks/useKeyboardOpen'
+import { useVisualBandBottom } from '../../hooks/useKeyboardOpen'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import ViewportProbe from './ViewportProbe'
 
@@ -123,32 +123,23 @@ export default function RichTextEditor({
   // The condition is "touch device, single pane, editor focused" — pointedly
   // not "a keyboard is open". Detecting the keyboard is the part that kept
   // going wrong: an installed iOS app can shrink the layout viewport to make
-  // room for one, which measures identically to no keyboard at all, and the bar
-  // then never docked. Focus on a touch screen means a keyboard is coming, and
-  // useVisualBottomGap reads 0 in the shrink case anyway — which puts the bar
-  // on the bottom edge, exactly where it belongs.
+  // room for one, which measures identically to no keyboard at all. Focus on a
+  // touch screen means a keyboard is coming, and useVisualBandBottom reports an
+  // absolute edge rather than an inset, so it needs no such detection: with a
+  // keyboard the band ends at its top, without one it ends at the screen.
   const [focused, setFocused] = useState(false)
-  const bottomGap = useVisualBottomGap()
+  const bandBottom = useVisualBandBottom()
   // Below 900px the note is the whole screen; at or above it the editor shares
   // the window with the index rail, where a bar spanning the viewport would
   // belong to neither pane.
   const dockable = useMediaQuery('(pointer: coarse) and (max-width: 899px)')
   const docked = focused && dockable
-  // Above the keyboard when the gap is big enough to *be* the keyboard; pinned
-  // under the status bar when it isn't.
-  //
-  // The threshold is the point. A previous cut asked `gap > 0`, which is true
-  // of a 40px gap that is a home indicator, a partial pan, or nothing much —
-  // and then used it as the offset to clear a ~340px keyboard, parking the bar
-  // 40px up from the bottom of the screen, buried. Any gap that isn't
-  // keyboard-shaped tells us nothing about where the keyboard is, so it should
-  // not be treated as though it did. Same floor as useKeyboardOpen, and for the
-  // same reason: it is the smallest gap no software keyboard is smaller than.
-  //
-  // Pinning to the top costs reach and covers the nav bar while you type, but
-  // it is on screen and clear of the Dynamic Island every time. Correct in
-  // theory and gone in practice is not the better half of that trade.
-  const dockAt = bottomGap >= KEYBOARD_FLOOR ? 'bottom' : 'top'
+  // Sit the bar's bottom edge on the bottom edge of the visible band. No
+  // threshold, no branch, and nothing that has to work out whether a keyboard
+  // is open: wherever the band ends is where the bar belongs, keyboard or not.
+  // translateY(-100%) is what makes `top` behave as a bottom edge, and saves
+  // measuring the bar's own height to subtract it.
+  const dockStyle = { top: bandBottom, transform: 'translateY(-100%)' }
 
   // Seed the editable once. (Remount via React key to switch notes.)
   useEffect(() => {
@@ -404,10 +395,9 @@ export default function RichTextEditor({
 
   const toolbar = (
     <div
-      className={`note-toolbar ${docked ? `docked at-${dockAt}` : ''}`}
-      // The one thing that can't be CSS: how far up from the bottom of the
-      // layout viewport the visible band currently ends.
-      style={docked && dockAt === 'bottom' ? { bottom: bottomGap } : undefined}
+      className={`note-toolbar ${docked ? 'docked' : ''}`}
+      // The one thing that can't be CSS: where the visible band currently ends.
+      style={docked ? dockStyle : undefined}
     >
       <div className="note-toolbar-scroll" role="toolbar" aria-label="Formatting">
         {tools.map((t) => (
