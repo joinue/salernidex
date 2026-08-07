@@ -189,6 +189,7 @@ select option {
 .see-all,
 .tier-btn,
 .chip-x,
+.pill button,
 .toast-action {
   position: relative;
 }
@@ -204,6 +205,9 @@ select option {
 .see-all::after,
 .tier-btn::after,
 .chip-x::after,
+/* The tag pill's remove "×" — 9x14 painted, and every TagInput in the app
+   (notes, tasks, people, orgs, groups) shipped it that way. */
+.pill button::after,
 .toast-action::after {
   content: '';
   position: absolute;

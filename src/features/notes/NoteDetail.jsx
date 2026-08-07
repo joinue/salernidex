@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MoreHorizontal, Trash2, Star } from 'react-feather'
 import NavBar from '../../components/ui/NavBar'
+import Field from '../../components/ui/Field'
 import RichTextEditor from '../../components/ui/RichTextEditor'
 import TagInput from '../../components/ui/TagInput'
 import PrivacyField from '../../components/ui/PrivacyField'
@@ -120,6 +121,30 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
     return () => {
       clearTimeout(saveTimer.current)
       exitRef.current()
+    }
+  }, [])
+
+  // Unmount is not the only way a note stops being edited. Swiping the app away
+  // or switching to another one leaves this mounted with up to 600ms of typing
+  // still sitting in the debounce, and iOS kills backgrounded PWAs whenever it
+  // likes — so that window is real data loss, not a theoretical one. Flush on
+  // the way out instead of waiting for a teardown that may never run.
+  //
+  // Both events, because neither is reliable alone: iOS frequently never fires
+  // pagehide for an app-switch, and visibilitychange doesn't fire on a bfcache
+  // navigation. save() clears `dirty`, so the second one to arrive is a no-op.
+  useEffect(() => {
+    const flush = () => {
+      if (dirty.current) saveRef.current()
+    }
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') flush()
+    }
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onHidden)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', onHidden)
     }
   }, [])
 
@@ -243,7 +268,13 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
       />
 
       <div className="note-meta">
-        <TagInput tags={tags} onChange={setTags} suggestions={tagSuggestions} />
+        {/* In a <Field>, like every other TagInput in the app. Bare, it fell
+            outside the `.field input` rule that gives these their full width
+            and 44px height, so the notes one alone rendered as a raw 175x23
+            browser input with a placeholder for a label. */}
+        <Field label="Tags">
+          {(id) => <TagInput id={id} tags={tags} onChange={setTags} suggestions={tagSuggestions} />}
+        </Field>
         <PrivacyField value={privacy} onChange={setPrivacy} />
       </div>
 

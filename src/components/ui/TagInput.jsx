@@ -1,6 +1,8 @@
 import { useState } from 'react'
 
-export default function TagInput({ tags, onChange, suggestions = [] }) {
+// `id` is optional and exists for the <Field label="Tags">{(id) => …}</Field>
+// form, which is the only one that actually wires the label to this input.
+export default function TagInput({ tags, onChange, suggestions = [], id }) {
   const [draft, setDraft] = useState('')
 
   const add = (tag) => {
@@ -32,6 +34,7 @@ export default function TagInput({ tags, onChange, suggestions = [] }) {
         </div>
       )}
       <input
+        id={id}
         value={draft}
         placeholder="Type a tag, press Enter"
         onChange={(e) => setDraft(e.target.value)}

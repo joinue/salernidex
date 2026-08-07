@@ -22,6 +22,7 @@ const ROUTES = [
   'groups',
   'orgs',
   'relationships',
+  'notes',
   'settings',
   'activity',
 ]
@@ -97,6 +98,11 @@ const audit = () =>
       const onFloatingChrome = (node) => {
         for (let n = node; n && n !== document.body; n = n.parentElement) {
           if (el === n || el.contains(n)) return false
+          // ...and the control's own container being sticky says nothing about
+          // it either. Without this the exemption ate every probe for anything
+          // living *inside* sticky chrome — which is how ten 38x34 buttons in
+          // the notes formatting toolbar passed this audit for its whole life.
+          if (n.contains(el)) return false
           const pos = getComputedStyle(n).position
           if (pos === 'fixed' || pos === 'sticky') return true
         }
@@ -217,6 +223,23 @@ const expanded = [
       await page.waitForTimeout(600)
       await page.locator('.list-row .row-body').first().click()
       await page.waitForTimeout(600)
+    },
+  },
+  {
+    // The formatting toolbar's ten buttons shipped at 38x34 and no run of this
+    // ever saw them — partly because /notes wasn't in ROUTES, and partly
+    // because the probe drops any sample that lands on sticky or fixed chrome
+    // and the toolbar is itself sticky, which swallowed all four. That
+    // exemption is right for a row half-under a sticky search bar and wrong
+    // for a control *inside* the sticky thing; see onFloatingChrome, which now
+    // only bails when the sticky ancestor isn't the control's own container.
+    name: '/note/<id> editor',
+    go: async () => {
+      await page.goto(`${BASE}/#/notes`)
+      await page.waitForTimeout(600)
+      await page.locator('.note-row').first().click()
+      await page.waitForSelector('.note-toolbar', { timeout: 4000 })
+      await page.waitForTimeout(400)
     },
   },
 ]

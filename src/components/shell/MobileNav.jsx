@@ -27,6 +27,7 @@ export default function MobileNav({
   adds,
   badge = 0,
   hideFab = false,
+  hideTabs = false,
   forceMenu = false,
   scrollRef,
 }) {
@@ -113,20 +114,25 @@ export default function MobileNav({
         </button>
       )}
 
-      <nav
-        className={`tabbar ${keyboardOpen ? 'tucked' : ''}`}
-        aria-label="Main"
-        // Hidden chrome must leave the a11y tree and the focus order too, or an
-        // iPad hardware keyboard tabs into five invisible destinations. `inert`
-        // does both; React 18 needs it as an empty string rather than a bool.
-        inert={keyboardOpen ? '' : undefined}
-      >
-        <Tab id="today" icon={Home} text="Today" count={badge} />
-        <Tab id="people" icon={PeopleIcon} text="People" />
-        <Tab id="habits" icon={Activity} text="Habits" />
-        <Tab id="tasks" icon={CheckSquare} text="Tasks" />
-        <Tab id="lists" icon={List} text="Lists" />
-      </nav>
+      {/* An immersive screen (the note composer) drops the bar outright rather
+          than tucking it: `tucked` is a temporary stand-down that comes back on
+          its own, and there's nothing here to come back for. */}
+      {!hideTabs && (
+        <nav
+          className={`tabbar ${keyboardOpen ? 'tucked' : ''}`}
+          aria-label="Main"
+          // Hidden chrome must leave the a11y tree and the focus order too, or an
+          // iPad hardware keyboard tabs into five invisible destinations. `inert`
+          // does both; React 18 needs it as an empty string rather than a bool.
+          inert={keyboardOpen ? '' : undefined}
+        >
+          <Tab id="today" icon={Home} text="Today" count={badge} />
+          <Tab id="people" icon={PeopleIcon} text="People" />
+          <Tab id="habits" icon={Activity} text="Habits" />
+          <Tab id="tasks" icon={CheckSquare} text="Tasks" />
+          <Tab id="lists" icon={List} text="Lists" />
+        </nav>
+      )}
 
       {sheet && (
         <Sheet title="Add" onClose={close}>

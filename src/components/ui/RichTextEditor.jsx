@@ -12,6 +12,7 @@ import {
 import { sanitizeNoteHtml, linkifyHtml } from '../../lib/notes'
 import { fileToImageDataUrl } from '../../lib/image'
 import { showToast } from '../../lib/toast'
+import { useKeyboardInset } from '../../hooks/useKeyboardOpen'
 
 // Hand-rolled rich-text editor — a contentEditable surface with a formatting
 // toolbar, @-mention picker, inline images, auto-linked URLs, and Markdown-style
@@ -64,6 +65,38 @@ const MARKDOWN = {
 
 const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
+// Where to put the @-mention picker. Both `getBoundingClientRect` and
+// `position: fixed` resolve against the layout viewport, so caret rect and
+// picker offsets are directly comparable — but on a phone the layout viewport
+// is not what you can see. The keyboard covers its bottom and Safari pans it,
+// so the picker used to open behind the keyboard (and, near the right edge,
+// half off-screen) whenever you typed "@" low in a note. visualViewport is the
+// visible band inside it; keep the picker in there.
+const PICKER_W = 240
+const PICKER_MAX_H = 260
+const PICKER_ROW_H = 37 // one .mention-option, incl. its padding
+const CARET_GAP = 4
+const EDGE_GAP = 8
+
+function placePicker(rect, count) {
+  const vv = window.visualViewport
+  const vTop = vv ? vv.offsetTop : 0
+  const vLeft = vv ? vv.offsetLeft : 0
+  const vh = vv ? vv.height : window.innerHeight
+  const vw = vv ? vv.width : window.innerWidth
+  const h = Math.min(PICKER_MAX_H, count * PICKER_ROW_H + 12)
+
+  // Below the caret by default, flipped above it when that would run past the
+  // bottom of the visible band — which, with a keyboard up, is its top edge.
+  const below = rect.bottom + CARET_GAP
+  const top =
+    below + h > vTop + vh - EDGE_GAP ? Math.max(vTop + EDGE_GAP, rect.top - CARET_GAP - h) : below
+  // Clamp horizontally too; `.mention-picker` caps its own width for the case
+  // where the band is narrower than the picker and this can't help.
+  const left = Math.max(vLeft + EDGE_GAP, Math.min(rect.left, vLeft + vw - PICKER_W - EDGE_GAP))
+  return { top, left }
+}
+
 export default function RichTextEditor({
   initialHtml = '',
   onChange,
@@ -75,6 +108,17 @@ export default function RichTextEditor({
   const fileRef = useRef(null)
   const [empty, setEmpty] = useState(!sanitizeNoteHtml(initialHtml).trim())
   const [picker, setPicker] = useState(null) // { items, index, top, left }
+
+  // Dock the toolbar to the keyboard while you're actually typing in this
+  // editor. Sticky-to-the-top was the wrong anchor on a phone: iOS pans the
+  // whole layout viewport up to reveal the caret, and a sticky element is
+  // pinned to the *scrollport*, which pans away with it — so the toolbar slid
+  // up under the Dynamic Island and the nav bar above it left the screen
+  // entirely. The keyboard's top edge is the one anchor that can't pan away,
+  // and it's where iOS Notes puts the same controls anyway: under the thumb.
+  const [focused, setFocused] = useState(false)
+  const keyboardInset = useKeyboardInset()
+  const docked = focused && keyboardInset > 0
 
   // Seed the editable once. (Remount via React key to switch notes.)
   useEffect(() => {
@@ -180,7 +224,7 @@ export default function RichTextEditor({
     const items = candidates.filter((c) => !q || c.label.toLowerCase().includes(q)).slice(0, 8)
     if (items.length === 0) return closePicker()
     const rect = token.range.getBoundingClientRect()
-    setPicker({ items, index: 0, top: rect.bottom + 4, left: rect.left })
+    setPicker({ items, index: 0, ...placePicker(rect, items.length) })
   }
 
   const onInput = () => {
@@ -296,6 +340,7 @@ export default function RichTextEditor({
 
   // On blur, turn freshly-typed bare URLs into links, then persist + close.
   const onBlur = () => {
+    setFocused(false)
     if (ref.current) {
       const linked = linkifyHtml(ref.current.innerHTML)
       if (linked !== ref.current.innerHTML) ref.current.innerHTML = linked
@@ -328,24 +373,35 @@ export default function RichTextEditor({
   ]
 
   return (
-    <div className="note-editor">
-      <div className="note-toolbar" role="toolbar" aria-label="Formatting">
-        {tools.map((t) => (
-          <button
-            key={t.label}
-            type="button"
-            className="note-tool"
-            aria-label={t.label}
-            title={t.label}
-            // mousedown-preventDefault keeps the editor's selection intact.
-            onMouseDown={(e) => {
-              e.preventDefault()
-              t.run()
-            }}
-          >
-            {t.icon ? <t.icon size={18} /> : <span className="note-tool-glyph">{t.glyph}</span>}
-          </button>
-        ))}
+    <div className={`note-editor ${docked ? 'toolbar-docked' : ''}`}>
+      {/* Docking takes the bar out of flow, so a spacer holds its place — or
+          the note's text jumps up by a toolbar's height the moment you tap in
+          and drops back on blur. */}
+      {docked && <div className="note-toolbar-spacer" aria-hidden="true" />}
+      <div
+        className={`note-toolbar ${docked ? 'docked' : ''}`}
+        // The one thing that can't be CSS: how far up from the bottom of the
+        // layout viewport the keyboard's top edge currently sits.
+        style={docked ? { bottom: keyboardInset } : undefined}
+      >
+        <div className="note-toolbar-scroll" role="toolbar" aria-label="Formatting">
+          {tools.map((t) => (
+            <button
+              key={t.label}
+              type="button"
+              className="note-tool"
+              aria-label={t.label}
+              title={t.label}
+              // mousedown-preventDefault keeps the editor's selection intact.
+              onMouseDown={(e) => {
+                e.preventDefault()
+                t.run()
+              }}
+            >
+              {t.icon ? <t.icon size={18} /> : <span className="note-tool-glyph">{t.glyph}</span>}
+            </button>
+          ))}
+        </div>
       </div>
 
       <input
@@ -370,6 +426,7 @@ export default function RichTextEditor({
           onKeyDown={onKeyDown}
           onClick={onEditorClick}
           onPaste={onPaste}
+          onFocus={() => setFocused(true)}
           onBlur={onBlur}
         />
       </div>

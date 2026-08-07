@@ -67,8 +67,25 @@ export function useEdgeBack(ref, enabled, onBack) {
       const dx = e.clientX - startX
       const c = content()
       if (c) {
-        c.style.transition = 'transform 220ms cubic-bezier(0.32, 0.72, 0, 1)'
-        c.style.transform = 'translateX(0)'
+        // Settle back, then take the transform *off* — don't park it at
+        // translateX(0). A transform of any value, identity included, makes an
+        // element a containing block for its fixed-position descendants, so
+        // leaving one here silently re-anchors anything `position: fixed`
+        // inside the page to this box for the rest of the session. One aborted
+        // swipe was enough. Nothing noticed while the only fixed things were
+        // the tab pill and modals — both live outside .content — but the notes
+        // formatting toolbar docks to the keyboard from inside it.
+        const clear = () => {
+          c.style.transition = ''
+          c.style.transform = ''
+        }
+        if (!intent) {
+          clear() // never moved, so there's no transitionend coming
+        } else {
+          c.style.transition = 'transform 220ms cubic-bezier(0.32, 0.72, 0, 1)'
+          c.style.transform = 'translateX(0)'
+          c.addEventListener('transitionend', clear, { once: true })
+        }
       }
       // Re-check: an overlay can open mid-drag (a long-press menu), and the
       // swipe shouldn't then navigate the page underneath it.

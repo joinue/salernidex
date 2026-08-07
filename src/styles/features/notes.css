@@ -116,42 +116,99 @@
 
 .note-editor {
   position: relative;
+  /* Painted height of the formatting bar: --tap-min of button plus its padding.
+     The docked spacer has to match it exactly, so it is stated once. */
+  --note-toolbar-h: calc(var(--tap-min) + 12px);
 }
 /* Toolbar: a quiet row of icon buttons, pinned so it stays in reach however far
-   into a long note you've typed. It has to stick *below* NavBar rather than
-   under it, and --navbar-h is already the right offset with no correction: both
-   resolve against the scroller's content edge, and the bar starts one
-   --main-pad-t above that edge and is exactly that much taller than the bar you
-   see. So its bottom edge lands at --navbar-h, which is where this begins.
-   Embedded in the two-pane rail there is no bar above it — plain top: 0. */
+   into a long note you've typed. Two anchorings, because a phone and a desktop
+   disagree about where "in reach" is.
+
+   Resting / no software keyboard: sticky under the chrome. It has to stick
+   *below* NavBar rather than under it, and --navbar-h is already the right
+   offset with no correction: both resolve against the scroller's content edge,
+   and the bar starts one --main-pad-t above that edge and is exactly that much
+   taller than the bar you see. So its bottom edge lands at --navbar-h, which is
+   where this begins. Embedded in the two-pane rail there is no bar above it —
+   plain top: 0. */
 .note-toolbar {
   position: sticky;
   top: 0;
   z-index: 4;
-  display: flex;
-  gap: 2px;
   padding: 6px 0;
   margin-bottom: 4px;
   background: var(--bg);
   border-bottom: 0.5px solid var(--separator);
-  /* Ten tools won't fit a phone — let the bar scroll rather than wrap. */
+}
+/* :not(.docked) is load-bearing, not decorative — this selector out-specifies
+   .note-toolbar.docked, so without it the docked bar keeps this `top` as well
+   as its `bottom` and stretches to fill everything between the two. */
+.note-detail:not(.embedded) .note-toolbar:not(.docked) {
+  top: var(--navbar-h);
+}
+
+/* Typing, with a keyboard up: an iOS input accessory bar instead. Sticky is the
+   wrong anchor here and no offset fixes it — iOS pans the whole layout viewport
+   to reveal the caret, and sticky pins to the scrollport, which pans away with
+   it. The bar slid up under the Dynamic Island and NavBar left the screen
+   outright. The keyboard's top edge is the only edge that holds still, and it
+   is where the thumb already is. `bottom` is set inline from
+   useKeyboardInset — CSS has no way to ask where the keyboard is. */
+.note-toolbar.docked {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: auto;
+  z-index: var(--z-dock);
+  margin: 0;
+  /* Match the page gutter so the tools line up with the text they format, and
+     clear the notch in landscape. */
+  padding: 6px max(var(--main-pad-x, 14px), env(safe-area-inset-right)) 6px
+    max(var(--main-pad-x, 14px), env(safe-area-inset-left));
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  -webkit-backdrop-filter: var(--header-blur);
+  backdrop-filter: var(--header-blur);
+  border-bottom: none;
+  border-top: 0.5px solid var(--separator);
+}
+/* Holds the bar's place in flow while it is docked, so tapping into the note
+   doesn't yank the text up by a toolbar's height. */
+.note-toolbar-spacer {
+  height: calc(var(--note-toolbar-h) + 4px);
+}
+
+/* Ten tools won't fit a phone, so the row scrolls rather than wraps — and it
+   has to *look* scrollable, which it didn't: the tenth tool was simply clipped
+   at the screen edge with nothing to suggest more existed. The fade is on this
+   inner strip rather than on .note-toolbar so it masks the tools without also
+   fading the bar's own background out from under them. The matching
+   padding-right parks the fade over empty space when everything already fits
+   (wide panes), instead of dimming the last tool for no reason. */
+.note-toolbar-scroll {
+  display: flex;
+  gap: 2px;
+  padding-right: 22px;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
 }
-.note-toolbar::-webkit-scrollbar {
+.note-toolbar-scroll::-webkit-scrollbar {
   display: none;
 }
-.note-detail:not(.embedded) .note-toolbar {
-  top: var(--navbar-h);
-}
+/* The most-tapped controls on the page, and they shipped at 38x34 — under the
+   HIG minimum in both dimensions. They can't borrow the .tap-target trick
+   either: at a 40px pitch a 44px hit area would overlap its neighbours, which
+   is the adjacency bug scripts/mobile-audit.mjs exists to catch. So the painted
+   box grows instead and the row scrolls a little further. */
 .note-tool {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 34px;
+  width: var(--tap-min);
+  height: var(--tap-min);
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -182,15 +239,26 @@
   pointer-events: none;
   font-size: 17px;
 }
+/* dvh, not vh: on iOS vh measures the *expanded* viewport, so every one of
+   these was quietly bigger than it read (the notes rail already learned this —
+   see .notes-rail). */
 .note-editable {
-  min-height: 50vh;
-  padding: 8px 0 40vh; /* tall tail so the caret never hides behind the keyboard */
+  min-height: 50dvh;
+  /* The tall tail exists so the caret never hides behind the keyboard, which
+     means it is only wanted while there *is* a keyboard. Left on permanently it
+     was 40dvh of blank scroll between the end of a three-line note and the tag
+     field under it — on an iPhone 14 Pro, 264px of the 436px this page could
+     scroll at all existed purely to be scrolled past. */
+  padding: 8px 0 12dvh;
   outline: none;
   color: var(--text);
   font-size: 17px;
   line-height: 1.5;
   -webkit-user-select: text;
   user-select: text;
+}
+.note-editor:focus-within .note-editable {
+  padding-bottom: 40dvh;
 }
 .note-editable h1,
 .note-editable h2 {
@@ -272,6 +340,9 @@
   z-index: 60;
   max-height: 260px;
   width: 240px;
+  /* placePicker() keeps it inside the visible band; this is the fallback for a
+     band narrower than the picker itself, where no offset can. */
+  max-width: calc(100vw - 16px);
   overflow-y: auto;
   margin: 0;
   padding: 6px;
@@ -368,17 +439,31 @@
   border-radius: var(--radius-sm);
   background: var(--fill);
 }
+/* 32x26 painted, and no hit extension — the pair failed the 44px floor on the
+   notebook index. The extension is vertical only (left/right pinned to the
+   button's own edges) because these two sit shoulder to shoulder: a centered
+   44px square would have each one reaching into the other. */
 .notes-viewtoggle button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 26px;
+  width: var(--tap-min);
+  height: 34px;
   border: none;
   border-radius: 6px;
   background: transparent;
   color: var(--text-2);
   cursor: pointer;
+}
+.notes-viewtoggle button::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: var(--tap-min);
+  transform: translateY(-50%);
 }
 .notes-viewtoggle button.active {
   background: var(--surface);
@@ -690,9 +775,10 @@
    dead scroll. Keyed off the pointer, not the width: an iPad in landscape is
    wide enough for two panes and still needs the runway. */
 @media (pointer: fine) {
-  .note-editable {
-    min-height: 40vh;
-    padding-bottom: 12vh;
+  .note-editable,
+  .note-editor:focus-within .note-editable {
+    min-height: 40dvh;
+    padding-bottom: 12dvh;
   }
 }
 

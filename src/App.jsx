@@ -98,7 +98,14 @@ const DETAIL_ROUTES = [
 // composer (List detail), or "add" means nothing here (Settings, Activity,
 // Import, the legal pages). A quick-capture button that creates something
 // unrelated to what you're looking at isn't a shortcut, it's a trap.
-const NO_FAB_ROUTES = ['list', 'settings', 'activity', 'import', 'privacy', 'terms']
+const NO_FAB_ROUTES = ['list', 'note', 'settings', 'activity', 'import', 'privacy', 'terms']
+// Screens that hide the bottom bar as well. An open note is a full-screen
+// composer, not a destination you browse from: the ➕ there would create a
+// person or a task on top of the sentence you're writing, and five tab
+// destinations sit under your thumb for the whole time you're typing. Back is
+// the way out, the way it is in Notes itself. (The pair already stood down
+// while the keyboard was up — this is the other 50% of the time.)
+const NO_TABBAR_ROUTES = ['note']
 // Stale bookmarks / typo'd hashes land on Today, not a blank screen.
 const KNOWN_ROUTES = [
   'today',
@@ -852,6 +859,7 @@ function Shell({ session, onLogout, household }) {
           badge={badge}
           scrollRef={mainRef}
           hideFab={NO_FAB_ROUTES.includes(route.name)}
+          hideTabs={NO_TABBAR_ROUTES.includes(route.name)}
           forceMenu={DETAIL_ROUTES.includes(route.name) && route.name !== 'list'}
         />
       )}

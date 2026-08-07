@@ -21,6 +21,14 @@
     --main-pad-b: calc(var(--chrome-bottom) + 12px);
   }
 
+  /* An open note hides both (see NO_TABBAR_ROUTES), so there is no floating
+     chrome left to clear and --content-bottom would just be ~160px of blank
+     scroll under the last field. `:not(.embedded)` picks out the full-screen
+     composer; the two-pane case never reaches this width anyway. */
+  .main:has(.note-detail:not(.embedded)) {
+    --main-pad-b: 28px;
+  }
+
   /* iOS Safari zooms the page when focusing inputs under 16px — never let
      a text input drop below that on touch screens. */
   input,
