@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Bold,
   Italic,
@@ -372,37 +373,52 @@ export default function RichTextEditor({
     { icon: Minus, label: 'Divider', run: () => exec('insertHorizontalRule') },
   ]
 
+  const toolbar = (
+    <div
+      className={`note-toolbar ${docked ? 'docked' : ''}`}
+      // The one thing that can't be CSS: how far up from the bottom of the
+      // layout viewport the keyboard's top edge currently sits.
+      style={docked ? { bottom: keyboardInset } : undefined}
+    >
+      <div className="note-toolbar-scroll" role="toolbar" aria-label="Formatting">
+        {tools.map((t) => (
+          <button
+            key={t.label}
+            type="button"
+            className="note-tool"
+            aria-label={t.label}
+            title={t.label}
+            // mousedown-preventDefault keeps the editor's selection intact.
+            onMouseDown={(e) => {
+              e.preventDefault()
+              t.run()
+            }}
+          >
+            {t.icon ? <t.icon size={18} /> : <span className="note-tool-glyph">{t.glyph}</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
   return (
     <div className={`note-editor ${docked ? 'toolbar-docked' : ''}`}>
       {/* Docking takes the bar out of flow, so a spacer holds its place — or
           the note's text jumps up by a toolbar's height the moment you tap in
           and drops back on blur. */}
       {docked && <div className="note-toolbar-spacer" aria-hidden="true" />}
-      <div
-        className={`note-toolbar ${docked ? 'docked' : ''}`}
-        // The one thing that can't be CSS: how far up from the bottom of the
-        // layout viewport the keyboard's top edge currently sits.
-        style={docked ? { bottom: keyboardInset } : undefined}
-      >
-        <div className="note-toolbar-scroll" role="toolbar" aria-label="Formatting">
-          {tools.map((t) => (
-            <button
-              key={t.label}
-              type="button"
-              className="note-tool"
-              aria-label={t.label}
-              title={t.label}
-              // mousedown-preventDefault keeps the editor's selection intact.
-              onMouseDown={(e) => {
-                e.preventDefault()
-                t.run()
-              }}
-            >
-              {t.icon ? <t.icon size={18} /> : <span className="note-tool-glyph">{t.glyph}</span>}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Docked, the bar is rendered into <body> rather than left here, and
+          that portal is the difference between working and invisible on an
+          iPhone. `.main` carries -webkit-overflow-scrolling: touch, and iOS
+          hoists position:fixed descendants of one of those into the scroller's
+          own compositing layer — where they stop being viewport-relative and
+          get clipped out of existence. It's the same reason the tab pill and
+          the FAB are rendered outside .main and always have been; this bar was
+          the one piece of fixed chrome sitting inside it. The portal also makes
+          it immune to any transformed ancestor, which is a second way to lose a
+          fixed element and one this app has hit before (see useEdgeBack).
+          Undocked it stays put: sticky has to live in the scroller to stick. */}
+      {docked ? createPortal(toolbar, document.body) : toolbar}
 
       <input
         ref={fileRef}
