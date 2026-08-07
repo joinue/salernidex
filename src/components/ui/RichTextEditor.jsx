@@ -133,6 +133,18 @@ export default function RichTextEditor({
   // belong to neither pane.
   const dockable = useMediaQuery('(pointer: coarse) and (max-width: 899px)')
   const docked = focused && dockable
+  // Above the keyboard when we can see where its top edge is; pinned under the
+  // status bar when we can't.
+  //
+  // Some installed iOS apps report the keyboard through visualViewport and some
+  // report nothing at all — same OS, same engine, and no way to ask which one
+  // you're in. Where nothing is reported the gap reads 0, which as a bottom
+  // offset puts the bar flat behind the keyboard, invisible, and takes the
+  // formatting controls away entirely for as long as you're typing. Pinning to
+  // the top instead costs reach and covers the nav bar while the keyboard is
+  // up, but it is always on screen and always clear of the Dynamic Island,
+  // which beats correct-in-theory and gone-in-practice.
+  const dockAt = bottomGap > 0 ? 'bottom' : 'top'
 
   // Seed the editable once. (Remount via React key to switch notes.)
   useEffect(() => {
@@ -388,10 +400,10 @@ export default function RichTextEditor({
 
   const toolbar = (
     <div
-      className={`note-toolbar ${docked ? 'docked' : ''}`}
+      className={`note-toolbar ${docked ? `docked at-${dockAt}` : ''}`}
       // The one thing that can't be CSS: how far up from the bottom of the
       // layout viewport the visible band currently ends.
-      style={docked ? { bottom: bottomGap } : undefined}
+      style={docked && dockAt === 'bottom' ? { bottom: bottomGap } : undefined}
     >
       <div className="note-toolbar-scroll" role="toolbar" aria-label="Formatting">
         {tools.map((t) => (

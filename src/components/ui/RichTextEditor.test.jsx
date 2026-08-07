@@ -130,18 +130,40 @@ describe('RichTextEditor formatting bar', () => {
     expect(toolbar().style.bottom).toBe(`${KEYBOARD_H - 120}px`)
   })
 
-  // The regression that put the bar back under the Dynamic Island: here there
-  // is no measurable keyboard at all, and it still has to dock — to 0, which is
-  // the bottom edge of a layout viewport that now ends at the keyboard.
-  it('docks with no measurable keyboard, when the layout viewport shrank instead', () => {
+  it('follows the keyboard as far as the bottom of the visible band', () => {
+    const vv = stubViewport(LAYOUT_H)
+    const { container } = render(<RichTextEditor />)
+    focusBody(container)
+    act(() => vv.openKeyboardByPanning())
+    expect(toolbar().className).toContain('at-bottom')
+  })
+
+  // The one that took three tries. Some installed iOS apps report the keyboard
+  // through visualViewport and some report nothing whatsoever, so a gap of 0 is
+  // ambiguous: it means either "no keyboard" or "a keyboard I can't see". As a
+  // bottom offset it puts the bar behind the keyboard, invisible, which is the
+  // worse reading of the two. Pin it to the top instead — never measured, never
+  // hidden — and let CSS clear the status bar.
+  it('pins to the top when the keyboard is unmeasurable, rather than behind it', () => {
     const vv = stubViewport(LAYOUT_H)
     const { container } = render(<RichTextEditor />)
     focusBody(container)
     act(() => vv.openKeyboardByShrinking())
 
+    const bar = toolbar()
+    expect(bar.parentElement).toBe(document.body)
+    expect(bar.className).toContain('docked')
+    expect(bar.className).toContain('at-top')
+    // No inline bottom at all — the offset that would have buried it.
+    expect(bar.style.bottom).toBe('')
+  })
+
+  it('pins to the top when visualViewport is missing entirely', () => {
+    delete window.visualViewport
+    const { container } = render(<RichTextEditor />)
+    focusBody(container)
+    expect(toolbar().className).toContain('at-top')
     expect(toolbar().parentElement).toBe(document.body)
-    expect(toolbar().className).toContain('docked')
-    expect(toolbar().style.bottom).toBe('0px')
   })
 
   it('comes home on blur', () => {
