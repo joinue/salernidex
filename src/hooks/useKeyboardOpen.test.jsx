@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { useKeyboardOpen, useKeyboardInset } from './useKeyboardOpen'
+import { useKeyboardOpen, useVisualBottomGap } from './useKeyboardOpen'
 
 // jsdom has no visualViewport, so stand one up we can resize by hand. The hook
 // reads `window.innerHeight - vv.height`, which is the only signal iOS gives us.
@@ -111,7 +111,7 @@ function stubPannableViewport(height, offsetTop = 0) {
 
 const KEYBOARD_H = 336
 
-describe('useKeyboardInset', () => {
+describe('useVisualBottomGap', () => {
   beforeEach(() => {
     window.innerHeight = LAYOUT_H
   })
@@ -120,41 +120,61 @@ describe('useKeyboardInset', () => {
     delete window.visualViewport
   })
 
-  it('is 0 with no keyboard', () => {
+  it('is 0 when the viewports agree', () => {
     stubPannableViewport(LAYOUT_H)
-    const { result } = renderHook(() => useKeyboardInset())
+    const { result } = renderHook(() => useVisualBottomGap())
     expect(result.current).toBe(0)
   })
 
-  it('is 0 for a collapsing browser toolbar', () => {
+  // Safari-in-a-tab: the layout viewport keeps its full height and the keyboard
+  // covers the bottom of it, so the gap is the keyboard.
+  it('measures the keyboard when the layout viewport is left whole', () => {
     const vv = stubPannableViewport(LAYOUT_H)
-    const { result } = renderHook(() => useKeyboardInset())
-    act(() => vv.resizeTo(LAYOUT_H - 60))
-    expect(result.current).toBe(0)
-  })
-
-  it('measures the keyboard when the page has not panned', () => {
-    const vv = stubPannableViewport(LAYOUT_H)
-    const { result } = renderHook(() => useKeyboardInset())
+    const { result } = renderHook(() => useVisualBottomGap())
     act(() => vv.resizeTo(LAYOUT_H - KEYBOARD_H))
     expect(result.current).toBe(KEYBOARD_H)
   })
 
-  // The whole reason this hook exists. iOS reveals the caret by panning the
-  // visual viewport down inside the layout viewport, which slides a bottom-
-  // anchored element out from under the keyboard's edge. Every pixel of pan
-  // has to come back off the offset.
+  // ...and then iOS pans to reveal the caret, which slides a bottom-anchored
+  // element out from under the keyboard's edge. Every pixel of pan comes back
+  // off the offset.
   it('shrinks by however far iOS has panned', () => {
     const vv = stubPannableViewport(LAYOUT_H)
-    const { result } = renderHook(() => useKeyboardInset())
+    const { result } = renderHook(() => useVisualBottomGap())
     act(() => vv.resizeTo(LAYOUT_H - KEYBOARD_H))
     act(() => vv.panTo(120))
     expect(result.current).toBe(KEYBOARD_H - 120)
   })
 
-  it('never goes negative when panned to the end', () => {
+  // The standalone case, and the one that broke this. An installed app can
+  // shrink the layout viewport for the keyboard instead of panning: the two
+  // viewports still agree, so a gap of 0 is the right answer — the layout
+  // viewport now ends where the keyboard begins. What must NOT happen is
+  // reading that as "no keyboard" and refusing to dock at all.
+  it('is 0 when the layout viewport shrinks for the keyboard instead', () => {
     const vv = stubPannableViewport(LAYOUT_H)
-    const { result } = renderHook(() => useKeyboardInset())
+    const { result } = renderHook(() => useVisualBottomGap())
+    act(() => {
+      window.innerHeight = LAYOUT_H - KEYBOARD_H
+      vv.resizeTo(LAYOUT_H - KEYBOARD_H)
+    })
+    expect(result.current).toBe(0)
+  })
+
+  // A collapsing Safari URL bar is not a keyboard, but it is a real gap, and
+  // reporting it is correct: a bar docked 60px up is where the visible band
+  // actually ends. Deciding it's too small to care about is the caller's call,
+  // not this hook's — that judgement is what used to live here and misfire.
+  it('reports small gaps rather than filtering them', () => {
+    const vv = stubPannableViewport(LAYOUT_H)
+    const { result } = renderHook(() => useVisualBottomGap())
+    act(() => vv.resizeTo(LAYOUT_H - 60))
+    expect(result.current).toBe(60)
+  })
+
+  it('never goes negative when panned past the end', () => {
+    const vv = stubPannableViewport(LAYOUT_H)
+    const { result } = renderHook(() => useVisualBottomGap())
     act(() => vv.resizeTo(LAYOUT_H - KEYBOARD_H))
     act(() => vv.panTo(KEYBOARD_H + 40))
     expect(result.current).toBe(0)
@@ -162,7 +182,7 @@ describe('useKeyboardInset', () => {
 
   it('drops back to 0 when the keyboard closes', () => {
     const vv = stubPannableViewport(LAYOUT_H, 0)
-    const { result } = renderHook(() => useKeyboardInset())
+    const { result } = renderHook(() => useVisualBottomGap())
     act(() => vv.resizeTo(LAYOUT_H - KEYBOARD_H))
     expect(result.current).toBe(KEYBOARD_H)
     act(() => vv.panTo(0))
@@ -172,14 +192,14 @@ describe('useKeyboardInset', () => {
 
   it('unsubscribes from both events on unmount', () => {
     const vv = stubPannableViewport(LAYOUT_H)
-    const { unmount } = renderHook(() => useKeyboardInset())
+    const { unmount } = renderHook(() => useVisualBottomGap())
     expect(vv.listenerCount).toBe(2)
     unmount()
     expect(vv.listenerCount).toBe(0)
   })
 
   it('stays 0 where visualViewport is unavailable', () => {
-    const { result } = renderHook(() => useKeyboardInset())
+    const { result } = renderHook(() => useVisualBottomGap())
     expect(result.current).toBe(0)
   })
 })

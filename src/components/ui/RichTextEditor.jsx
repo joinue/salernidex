@@ -13,7 +13,8 @@ import {
 import { sanitizeNoteHtml, linkifyHtml } from '../../lib/notes'
 import { fileToImageDataUrl } from '../../lib/image'
 import { showToast } from '../../lib/toast'
-import { useKeyboardInset } from '../../hooks/useKeyboardOpen'
+import { useVisualBottomGap } from '../../hooks/useKeyboardOpen'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
 
 // Hand-rolled rich-text editor — a contentEditable surface with a formatting
 // toolbar, @-mention picker, inline images, auto-linked URLs, and Markdown-style
@@ -110,16 +111,28 @@ export default function RichTextEditor({
   const [empty, setEmpty] = useState(!sanitizeNoteHtml(initialHtml).trim())
   const [picker, setPicker] = useState(null) // { items, index, top, left }
 
-  // Dock the toolbar to the keyboard while you're actually typing in this
-  // editor. Sticky-to-the-top was the wrong anchor on a phone: iOS pans the
-  // whole layout viewport up to reveal the caret, and a sticky element is
+  // Dock the toolbar to the bottom of the visible viewport while you're typing
+  // in this editor. Sticky-to-the-top was the wrong anchor on a phone: iOS pans
+  // the whole layout viewport up to reveal the caret, and a sticky element is
   // pinned to the *scrollport*, which pans away with it — so the toolbar slid
   // up under the Dynamic Island and the nav bar above it left the screen
-  // entirely. The keyboard's top edge is the one anchor that can't pan away,
-  // and it's where iOS Notes puts the same controls anyway: under the thumb.
+  // entirely. The bottom of the visible band can't pan away, and it's where iOS
+  // Notes puts the same controls anyway: under the thumb.
+  //
+  // The condition is "touch device, single pane, editor focused" — pointedly
+  // not "a keyboard is open". Detecting the keyboard is the part that kept
+  // going wrong: an installed iOS app can shrink the layout viewport to make
+  // room for one, which measures identically to no keyboard at all, and the bar
+  // then never docked. Focus on a touch screen means a keyboard is coming, and
+  // useVisualBottomGap reads 0 in the shrink case anyway — which puts the bar
+  // on the bottom edge, exactly where it belongs.
   const [focused, setFocused] = useState(false)
-  const keyboardInset = useKeyboardInset()
-  const docked = focused && keyboardInset > 0
+  const bottomGap = useVisualBottomGap()
+  // Below 900px the note is the whole screen; at or above it the editor shares
+  // the window with the index rail, where a bar spanning the viewport would
+  // belong to neither pane.
+  const dockable = useMediaQuery('(pointer: coarse) and (max-width: 899px)')
+  const docked = focused && dockable
 
   // Seed the editable once. (Remount via React key to switch notes.)
   useEffect(() => {
@@ -377,8 +390,8 @@ export default function RichTextEditor({
     <div
       className={`note-toolbar ${docked ? 'docked' : ''}`}
       // The one thing that can't be CSS: how far up from the bottom of the
-      // layout viewport the keyboard's top edge currently sits.
-      style={docked ? { bottom: keyboardInset } : undefined}
+      // layout viewport the visible band currently ends.
+      style={docked ? { bottom: bottomGap } : undefined}
     >
       <div className="note-toolbar-scroll" role="toolbar" aria-label="Formatting">
         {tools.map((t) => (

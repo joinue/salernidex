@@ -34,33 +34,36 @@ export function useKeyboardOpen() {
   return open
 }
 
-// The same signal as a distance rather than a boolean: how many CSS pixels at
-// the bottom of the layout viewport the keyboard currently hides. A fixed
-// element offset by this much rests on top of the keyboard — an iOS input
-// accessory bar, which is what the notes formatting toolbar uses it for.
+// How far the bottom of what you can see sits above the bottom of the layout
+// viewport — which is the offset a `position: fixed` element needs to rest on
+// top of the keyboard rather than behind it. The notes formatting toolbar docks
+// with it.
 //
-// Returns 0 whenever no software keyboard is up, so `inset > 0` doubles as
-// "there is a keyboard to dock to" and desktop never takes the docked path.
+// Deliberately *not* gated on "is a keyboard open". iOS has two ways of making
+// room for one and they are not distinguishable from in here: Safari in a tab
+// keeps the layout viewport whole and pans it, while an installed standalone
+// app can shrink it outright. Under the pan the gap is the keyboard minus
+// however far it has scrolled; under the shrink it is 0, because the layout
+// viewport now *ends* at the keyboard. Both answers are already correct, so
+// this measures and returns, and the caller decides when it wants to dock.
+// Trying to detect the keyboard first is what broke it: the shrink case reads
+// as no keyboard at all, so the bar never docked and stayed sticky at the top
+// of the page, under the Dynamic Island — the exact bug it was meant to fix.
 //
-// This one *does* listen to `scroll`, and that's the whole difference from
-// useKeyboardOpen. Whether a keyboard is open can't change during a pan, so
-// that hook can ignore it; *where the bottom of the visible band is* changes on
-// every frame of one, because Safari pans by moving `offsetTop` rather than by
-// scrolling the document. Ignoring it here is exactly the bug this replaces:
-// chrome pinned to a bottom edge that has since slid away.
-export function useKeyboardInset() {
-  const [inset, setInset] = useState(0)
+// This one listens to `scroll` as well as `resize`, and that's the difference
+// from useKeyboardOpen. Whether a keyboard is open can't change during a pan,
+// so that hook can ignore it; where the bottom of the visible band is changes
+// on every frame of one.
+export function useVisualBottomGap() {
+  const [gap, setGap] = useState(0)
 
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
 
-    const update = () => {
-      const closed = window.innerHeight - vv.height <= KEYBOARD_MIN
-      // The visible band ends at offsetTop + height; everything below it is
-      // keyboard (plus whatever Safari has panned out of the way).
-      setInset(closed ? 0 : Math.max(0, window.innerHeight - (vv.height + vv.offsetTop)))
-    }
+    // The visible band ends at offsetTop + height; everything below it is
+    // keyboard, or page that has been panned out of the way.
+    const update = () => setGap(Math.max(0, window.innerHeight - (vv.height + vv.offsetTop)))
     update()
     vv.addEventListener('resize', update)
     vv.addEventListener('scroll', update)
@@ -70,5 +73,5 @@ export function useKeyboardInset() {
     }
   }, [])
 
-  return inset
+  return gap
 }
