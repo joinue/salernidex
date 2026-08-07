@@ -60,17 +60,36 @@ export function useKeyboardOpen() {
 // Listens to `scroll` as well as `resize`: iOS reveals the caret by moving
 // offsetTop, so the edge moves on every frame of a pan.
 export function useVisualBandBottom() {
+  return useVisualBandEdge(
+    (vv) => vv.offsetTop + vv.height,
+    () => window.innerHeight,
+  )
+}
+
+// The other edge of the same band, for chrome that pins to the top of what you
+// can see. `offsetTop` alone: with a keyboard up iOS pushes the band down
+// inside the layout viewport — 210px on the device this was measured against —
+// so `top: 0` is that far above the top of the screen, which is exactly where
+// the note's nav bar used to go when it panned away mid-sentence.
+export function useVisualBandTop() {
+  return useVisualBandEdge(
+    (vv) => vv.offsetTop,
+    () => 0,
+  )
+}
+
+function useVisualBandEdge(measure, fallback) {
   const read = () => {
     const vv = window.visualViewport
-    return vv ? vv.offsetTop + vv.height : window.innerHeight
+    return vv ? measure(vv) : fallback()
   }
-  const [bottom, setBottom] = useState(read)
+  const [edge, setEdge] = useState(read)
 
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
 
-    const update = () => setBottom(vv.offsetTop + vv.height)
+    const update = () => setEdge(measure(vv))
     update()
     vv.addEventListener('resize', update)
     vv.addEventListener('scroll', update)
@@ -78,7 +97,10 @@ export function useVisualBandBottom() {
       vv.removeEventListener('resize', update)
       vv.removeEventListener('scroll', update)
     }
+    // measure/fallback are stable per call site (module-level arrow literals
+    // recreated each render, but never varying in behaviour).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return bottom
+  return edge
 }

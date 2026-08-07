@@ -20,6 +20,36 @@
   backdrop-filter: var(--header-blur);
 }
 
+/* Pinned (the note editor — see NavBar's `pinned` prop). Sticky can't survive
+   typing on a phone: it holds against the scrollport, and iOS reveals the caret
+   by moving the scrollport, so the bar leaves the screen for as long as the
+   keyboard is up. Fixed to the top of the *visible band* instead — `top` comes
+   in inline from useVisualBandTop, because with a keyboard up that band is
+   pushed down inside the layout viewport and 0 would be off-screen.
+
+   The padding is spelled out rather than inherited: this element is portalled
+   to <body>, where .main's --main-pad-* don't reach, so the fallbacks are what
+   actually apply on a phone. */
+.navbar.pinned {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: var(--z-chrome);
+  margin: 0;
+  padding: calc(env(safe-area-inset-top) + 6px) var(--main-pad-x, 14px) 6px;
+}
+
+/* Height of the bar the pinned version has taken out of flow, and it has to be
+   the height the bar actually paints or the large title creeps under it: the
+   safe-area inset the bar clears, plus a --tap-min row (what the back button
+   sets), plus the 6px above and below it. --navbar-h is the *sticky* bar's
+   painted height and is 6px short here, because that one's top padding is
+   cancelling .main's rather than clearing a notch. */
+.navbar-pinned-spacer {
+  height: calc(env(safe-area-inset-top) + var(--tap-min) + 12px);
+  margin-top: calc(-1 * var(--main-pad-t));
+}
+
 .navbar-back {
   display: inline-flex;
   align-items: center;

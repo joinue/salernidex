@@ -15,7 +15,6 @@ import { fileToImageDataUrl } from '../../lib/image'
 import { showToast } from '../../lib/toast'
 import { useVisualBandBottom } from '../../hooks/useKeyboardOpen'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
-import ViewportProbe from './ViewportProbe'
 
 // Hand-rolled rich-text editor — a contentEditable surface with a formatting
 // toolbar, @-mention picker, inline images, auto-linked URLs, and Markdown-style
@@ -421,11 +420,14 @@ export default function RichTextEditor({
   )
 
   return (
-    <div className={`note-editor ${docked ? 'toolbar-docked' : ''}`}>
-      {/* Docking takes the bar out of flow, so a spacer holds its place — or
-          the note's text jumps up by a toolbar's height the moment you tap in
-          and drops back on blur. */}
-      {docked && <div className="note-toolbar-spacer" aria-hidden="true" />}
+    <div className="note-editor">
+      {/* On a touch screen the bar exists only while you're typing. Unfocused
+          there is no selection for Bold or Checklist to act on, so a resting
+          toolbar is a row of controls that do nothing — it just sat at the top
+          of the note taking up space and inviting taps that went nowhere. iOS
+          Notes shows its own the same way: with the keyboard, or not at all.
+          A mouse keeps the resting bar, where a click is cheap and the sticky
+          row costs nothing. */}
       {/* Docked, the bar is rendered into <body> rather than left here, and
           that portal is the difference between working and invisible on an
           iPhone. `.main` carries -webkit-overflow-scrolling: touch, and iOS
@@ -437,7 +439,7 @@ export default function RichTextEditor({
           it immune to any transformed ancestor, which is a second way to lose a
           fixed element and one this app has hit before (see useEdgeBack).
           Undocked it stays put: sticky has to live in the scroller to stick. */}
-      {docked ? createPortal(toolbar, document.body) : toolbar}
+      {dockable ? docked && createPortal(toolbar, document.body) : toolbar}
 
       <input
         ref={fileRef}
@@ -464,8 +466,6 @@ export default function RichTextEditor({
           onFocus={() => setFocused(true)}
           onBlur={onBlur}
         />
-        {/* TEMPORARY — remove with ViewportProbe.jsx once the bar is placed. */}
-        <ViewportProbe />
       </div>
 
       {picker && (

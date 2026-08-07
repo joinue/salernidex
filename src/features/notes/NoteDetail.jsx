@@ -7,6 +7,7 @@ import TagInput from '../../components/ui/TagInput'
 import PrivacyField from '../../components/ui/PrivacyField'
 import ActionSheet from '../../components/ui/ActionSheet'
 import { useConfirm } from '../../hooks/useConfirm'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { extractMentions, mentionCandidates, isNoteEmpty, noteTitle } from '../../lib/notes'
 import { isEditableTarget } from '../../lib/keys'
 import { memberName, isSolo } from '../../lib/household'
@@ -34,6 +35,10 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
   const confirm = useConfirm()
   const note = notes.find((n) => n.id === noteId)
 
+  // Same test the editor's toolbar docks on: a touch screen narrow enough that
+  // the note is the whole window. Wider than that the page doesn't get panned
+  // out from under you and the sticky bar is the nicer one.
+  const pinnable = useMediaQuery('(pointer: coarse) and (max-width: 899px)')
   const [title, setTitle] = useState(note?.title || '')
   const [tags, setTags] = useState(note?.tags || [])
   const [privacy, setPrivacy] = useState(note?.privacy_level || 'shared')
@@ -242,6 +247,9 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
           onBack={onBack}
           title={title.trim() || noteTitle(note)}
           actions={actions}
+          // The one screen you type into for minutes at a stretch, and the one
+          // where a bar that scrolls away takes Back with it.
+          pinned={pinnable}
         >
           {titleInput}
         </NavBar>

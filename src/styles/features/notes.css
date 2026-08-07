@@ -174,12 +174,6 @@
   border-bottom: none;
   border-top: 0.5px solid var(--separator);
 }
-/* Holds the bar's place in flow while it is docked, so tapping into the note
-   doesn't yank the text up by a toolbar's height. */
-.note-toolbar-spacer {
-  height: calc(var(--note-toolbar-h) + 4px);
-}
-
 /* Ten tools won't fit a phone, so the row scrolls rather than wraps — and it
    has to *look* scrollable, which it didn't: the tenth tool was simply clipped
    at the screen edge with nothing to suggest more existed. The fade is on this
@@ -318,32 +312,6 @@
   border: solid #fff;
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
-}
-
-/* TEMPORARY — delete with ViewportProbe.jsx. Ordinary in-flow content on
-   purpose: it is diagnosing the placement of chrome, so it must not use any. */
-.viewport-probe {
-  margin: 12px 0;
-  padding: 8px 10px;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  line-height: 1.6;
-  white-space: nowrap;
-  overflow-x: auto;
-}
-.viewport-probe b {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--accent);
-}
-.viewport-probe span {
-  display: inline-block;
-  width: 74px;
-  color: var(--text-3);
 }
 
 .note-meta {

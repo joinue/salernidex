@@ -238,6 +238,10 @@ const expanded = [
       await page.goto(`${BASE}/#/notes`)
       await page.waitForTimeout(600)
       await page.locator('.note-row').first().click()
+      // The bar only exists while the editor has focus — unfocused there's no
+      // selection for it to act on, so on touch it isn't rendered at all. Tap
+      // in, or this walk sees a note with no toolbar to measure.
+      await page.locator('.note-editable').click()
       await page.waitForSelector('.note-toolbar', { timeout: 4000 })
       await page.waitForTimeout(400)
     },

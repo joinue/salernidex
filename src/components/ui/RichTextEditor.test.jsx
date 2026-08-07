@@ -91,11 +91,13 @@ describe('RichTextEditor formatting bar', () => {
     window.innerHeight = LAYOUT_H
   })
 
-  it('stays inside the editor until focused — sticky has to live in the scroller to stick', () => {
+  // Unfocused on a touch screen there is no selection for these to act on, so
+  // the bar isn't rendered at all rather than sitting at the top of the note
+  // being tappable and inert.
+  it('is absent until focused on a touch screen', () => {
     stubViewport(LAYOUT_H)
-    const { container } = render(<RichTextEditor />)
-    expect(container.querySelector('.note-editor').contains(toolbar())).toBe(true)
-    expect(toolbar().className).not.toContain('docked')
+    render(<RichTextEditor />)
+    expect(toolbar()).toBeNull()
   })
 
   it('leaves the editor for <body> on focus', () => {
@@ -107,14 +109,15 @@ describe('RichTextEditor formatting bar', () => {
     expect(bar.className).toContain('docked')
     expect(bar.parentElement).toBe(document.body)
     expect(container.querySelector('.note-editor').contains(bar)).toBe(false)
-    // ...and its place in flow is held, so the text doesn't jump.
-    expect(container.querySelector('.note-toolbar-spacer')).not.toBeNull()
   })
 
-  it('never docks on a desktop pointer, focused or not', () => {
+  // A mouse keeps the resting bar: a click is cheap, the sticky row costs no
+  // reach, and there is no keyboard to be pushed around by.
+  it('stays in the editor on a desktop pointer, focused or not', () => {
     stubPointer({ touch: false })
     stubViewport(LAYOUT_H)
     const { container } = render(<RichTextEditor />)
+    expect(container.querySelector('.note-editor').contains(toolbar())).toBe(true)
     focusBody(container)
     expect(container.querySelector('.note-editor').contains(toolbar())).toBe(true)
     expect(toolbar().className).not.toContain('docked')
@@ -177,7 +180,7 @@ describe('RichTextEditor formatting bar', () => {
     expect(toolbar().style.top).toBe(`${LAYOUT_H}px`)
   })
 
-  it('comes home on blur', () => {
+  it('goes away again on blur', () => {
     const vv = stubViewport(LAYOUT_H)
     const { container } = render(<RichTextEditor />)
     focusBody(container)
@@ -185,22 +188,19 @@ describe('RichTextEditor formatting bar', () => {
     expect(toolbar().parentElement).toBe(document.body)
 
     blurBody(container)
-    expect(container.querySelector('.note-editor').contains(toolbar())).toBe(true)
-    expect(container.querySelector('.note-toolbar-spacer')).toBeNull()
+    expect(toolbar()).toBeNull()
   })
 
-  it('does not dock for someone else’s keyboard', () => {
+  it('does not appear for someone else’s keyboard', () => {
     const vv = stubViewport(LAYOUT_H)
-    const { container } = render(<RichTextEditor />)
+    render(<RichTextEditor />)
     act(() => vv.openKeyboardByPanning())
-    expect(container.querySelector('.note-editor').contains(toolbar())).toBe(true)
-    expect(toolbar().className).not.toContain('docked')
+    expect(toolbar()).toBeNull()
   })
 
-  it('renders every tool wherever it lives', () => {
+  it('renders every tool once docked', () => {
     stubViewport(LAYOUT_H)
     const { container } = render(<RichTextEditor />)
-    expect(container.querySelectorAll('.note-tool')).toHaveLength(10)
     focusBody(container)
     expect(document.querySelectorAll('.note-tool')).toHaveLength(10)
   })
