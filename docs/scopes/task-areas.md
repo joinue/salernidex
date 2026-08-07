@@ -1,5 +1,15 @@
 # Task areas — scope
 
+> **Scope** — a proposal, not a commitment. Written 2026-08-05.
+> **Status (2026-08-06): phase 1 is partly shipped.** `TasksView` has the area
+> pill row, an area filter, and `TaskForm` has the picker — but the pills carry
+> no counts, and the selection persists to `sessionStorage`, not `appPrefs`.
+> **Phases 2 and 3 are unbuilt:** there is no `task_areas` table (`tasks.area`
+> is still the freeform text column from
+> [`0005_task_areas.sql`](../../supabase/migrations/0005_task_areas.sql)), and
+> no `show_on_today` / `default_privacy` behaviour.
+> The three open questions in §7 are still open.
+
 The ask: *"I have a lot of tasks at work. Intermixing those with the home tasks
 makes the Tasks page a bloated mess. Can I group my tasks?"*
 

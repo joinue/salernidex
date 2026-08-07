@@ -1,5 +1,17 @@
 # Phase 6 — Reminders & notifications (agreed scope)
 
+> **Record** — historical. Agreed 2026-06-12; 6a shipped 2026-06-12, 6b shipped
+> 2026-08-06.
+> **This is no longer the push runbook.** The §6b "Go-live runbook (the only
+> remaining 6b work)" section ran on 2026-08-06 — a real push reached a real
+> phone from the deployed Edge Function. For the *current* state of the reminder
+> stack and what's left (the unscheduled `pg_cron` sweep, dead-subscription
+> pruning, the `service_role` rotation), see
+> [next-steps.md](../next-steps.md).
+> Kept for the locked product decisions in "Decisions (locked)" — the snooze
+> scope, the four categories and their defaults, and the "Check in" naming — all
+> of which still govern the app.
+
 _Agreed 2026-06-12 (Marc + Claude). Build 6a demo-first; 6b activates with Supabase._
 _**6a shipped 2026-06-12.** One naming change from this spec: the section is
 "Check in" with warm copy ("It's been a while", "say hi"), never "Needs a

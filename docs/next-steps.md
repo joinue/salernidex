@@ -1,5 +1,10 @@
 # Next steps — reminder go-live, then native iOS
 
+> **Live** — the rolling handoff. Last updated 2026-08-06.
+> This is the authoritative answer to *"what's in flight right now?"*
+> [ROADMAP.md](../ROADMAP.md) covers the longer arc and defers to this file for
+> current work. If the two disagree, this one is newer.
+
 State of play as of **August 2026**, written at the end of the session that took the
 reminder stack live for the first time. Ordered by what blocks what.
 
@@ -10,14 +15,32 @@ reminder stack live for the first time. Ordered by what blocks what.
 Everything below is small. The hard part (proving the stack works end to end) is done —
 a real push landed on a real phone from the real Edge Function on 2026-08-06.
 
-### 1a. Schedule the sweep — **the only thing between here and it running itself**
+### 1a. Schedule the sweep — ✅ **done 2026-08-06**
 
-The function currently only fires when something calls it. Enable `pg_cron` + `pg_net`,
-then run the `cron.schedule('send-reminders', '*/15 * * * *', …)` block from
-`supabase/schema.sql` (near the Phase 6 section) in the **SQL editor**.
+`pg_cron` + `pg_net` are enabled and the job is scheduled: **jobid 2,
+`send-reminders`, `*/15 * * * *`, active.** First authenticated run returned
+`200 {"ok":true,"members":2,"sent":0}`. Reminders now run unattended.
 
-The job must send `Authorization: Bearer <CRON_SECRET>`. The value is in
-`supabase/.env.local` (gitignored) and is already set as a function secret.
+Three things learned doing it, since `schema.sql`'s sketch was wrong on all three
+(now corrected there):
+
+- The URL needs the **`https://` scheme** — `net.http_post` won't take a bare host.
+- Use **`CRON_SECRET`**, not the service-role key. Under Supabase's newer API-key
+  system the dashboard service_role value no longer matches
+  `SUPABASE_SERVICE_ROLE_KEY`, so that path is unreliable — see
+  [`auth.ts`](../supabase/functions/send-reminders/auth.ts).
+- Passing `headers` **replaces** pg_net's default rather than merging, so
+  `Content-Type: application/json` has to be included explicitly. The timeout was
+  also raised from the 5s default to 30s, since the sweep loops every member.
+
+**There was already a broken jobid 1** returning `403`/timeouts every 15 minutes —
+presumably a half-finished attempt from the session that wrote this doc. The
+`cron.unschedule(...) where exists (...)` guard removed it. If you ever re-run the
+block, keep that guard: two live jobs would double-send.
+
+**`CRON_SECRET` was regenerated** during this work, because `supabase/.env.local` is
+gitignored and never left the office machine. The current value is in
+`supabase/.env.local` **on the home machine only** — the office copy is stale.
 
 Note: the function is deployed with `--no-verify-jwt`, so Supabase's gateway does not
 gate it — `auth.ts` is the only thing standing in front of it. That's intentional, and
@@ -33,11 +56,17 @@ key. Every send to it returns `400 VapidPkHashMismatch`.
 accumulate forever and every sweep wastes a request on them. Consider pruning on `400`
 with `reason: VapidPkHashMismatch` too.
 
-### 1c. Rotate the `service_role` key
+### 1c. Rotate the `service_role` key — **declined 2026-08-06, still outstanding**
 
 It was printed into a chat transcript on 2026-08-06 while debugging. It bypasses all RLS.
 Dashboard → Project Settings → API → rotate. Nothing in the app uses it (the client uses
 the anon key; the Edge Function gets its own injected copy), so rotation is low-risk.
+
+**Decision: not rotating for now** — sole operator, sole access. Recorded here so it
+isn't mistaken for done: **the exposed key is still valid.** The cron job added in 1a
+authenticates with `CRON_SECRET` rather than the service-role key, so at least the
+exposed credential isn't also sitting in `cron.job.command`. Revisit before anyone
+else touches the project.
 
 ### 1d. Two gaps carried over from `notifications-review.md`
 

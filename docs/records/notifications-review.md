@@ -1,5 +1,24 @@
 # Notifications, reminders & push — review and roadmap
 
+> **Record** — historical. Reviewed June 2026.
+> **Two things here are out of date; do not act on them:**
+> 1. **"App-wrapping strategy" is reversed.** It recommends TWA + PWA with
+>    Capacitor later. The decision since taken ([next-steps.md](../next-steps.md)
+>    §3) is **native SwiftUI for Apple platforms — explicitly not Capacitor and
+>    not a WebView wrapper.**
+> 2. **"Tighten cron auth" (P2) is done** — `auth.includes()` was replaced with
+>    an exact, constant-time Bearer comparison in
+>    [`send-reminders/auth.ts`](../../supabase/functions/send-reminders/auth.ts).
+>
+> Still live from the "Still open" list: the two attention engines are unified
+> only by convention, badge-vs-push still disagree on habits, and the timezone
+> item has been upgraded from per-household to **per-member** and is now a
+> selling blocker (next-steps §2a). The test-push button and the
+> `notificationclick` routing gap carry forward as next-steps §1d.
+>
+> Kept for "The stack at a glance" and the persistence model, which remain
+> accurate descriptions of how the system is wired.
+
 Review of the full attention/notification stack (June 2026), with what was fixed in
 this pass and what remains, prioritized. The goal: make this the best it can be as a
 PWA and prepare for wrapping into an installable app.

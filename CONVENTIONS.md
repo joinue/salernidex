@@ -1,8 +1,13 @@
 # Salernidex engineering conventions
 
+> **Rulebook** — authoritative, and partly machine-enforced by
+> `npm run audit:mobile`. No expiry date: if the code disagrees with this file,
+> the code is wrong.
+
 The concise rulebook, for people and AI alike. `README.md` is the product tour;
-`ROADMAP.md` is the phase history; `docs/ui-ux-review.md` is the review these
-rules came out of.
+`ROADMAP.md` is the longer arc and `docs/next-steps.md` is what's in flight;
+`docs/records/ui-ux-review.md` is the review these rules came out of, and
+`docs/README.md` explains how the rest of the documentation is organized.
 
 ## Architecture
 

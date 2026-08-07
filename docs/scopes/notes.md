@@ -1,5 +1,14 @@
 # Notes — what's next
 
+> **Scope** — a proposal, not a commitment. Written 2026-08-05.
+> **Status (2026-08-06): none of the four have shipped.** `MENTION_TYPES` in
+> [`src/lib/notes.js`](../../src/lib/notes.js) still has no `note` type (§1);
+> match highlighting exists in Quick Find (`src/lib/quickFind.js`) but not in
+> Notes (§2); there is no multi-select state in `NotesView` (§3); the rail still
+> pushes history (§4).
+> Read this for the design reasoning, and re-check the code before starting —
+> it describes a future, not the present.
+
 Four candidate pieces of work for the notebook, written up after the desktop
 rework. This is a scope, not a build: each section says what exists today, what
 the change actually is, where it gets hard, and what it costs. They're

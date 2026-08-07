@@ -1,6 +1,6 @@
 # Salernidex — UI/UX review (mobile-first) + design-system plan
 
-> **Status: acted on, 2026-08-04.** Every P0 and P1 below is fixed, along with
+> **Record** — historical. Reviewed and **acted on, 2026-08-04.** Every P0 and P1 below is fixed, along with
 > the structural work in Parts 2 and 3. `CONVENTIONS.md` is the rulebook that
 > came out of it, `#/kitchen-sink` (dev only) is the primitive reference, and
 > `node scripts/mobile-audit.mjs` now fails the build on a re-introduced
@@ -35,7 +35,7 @@ the experience · **P2** polish.
 > **Fixed.** The install hint renders on Today only and its copy no longer truncates; the demo notice is a one-line pill (49px → 22px). On an iPhone SE, `/tasks` went from one partial row to two full ones.
 
 `InstallHint` and the demo banner render inside `.content` above *every* view
-([App.jsx:511-521](src/App.jsx#L511-L521)), so they are re-paid on Today,
+(`App.jsx:511-521`), so they are re-paid on Today,
 Tasks, People, Lists, Settings, every detail page.
 
 Measured on iPhone 14 Pro: install hint 66px + demo banner 49px + margins =
@@ -62,7 +62,7 @@ delivering its own message.
 > **Fixed.** `--tabbar-h` / `--fab-size` / `--chrome-bottom` / `--fab-bottom` / `--content-bottom` in `tokens.css`; every scroller derives its padding from them. The FAB also tucks away on scroll-down (`useHideOnScroll`). The dock bug turned out to be a sticky-offset error — a sticky `bottom` resolves against the scroller's *content* edge, so `.main`'s padding was double-counted and the dock parked 144px too high.
 
 `.main` reserves `92px` of bottom padding
-([styles.css:4712-4718](src/styles.css#L4712-L4718)), but the FAB's top edge
+(`styles.css:4712-4718`), but the FAB's top edge
 sits **128px** above the viewport bottom and the tab bar's top edge sits 67px
 up. Content is therefore ~44px short of clearing the FAB, and the FAB is
 `position: fixed` at `right: 18px` — so it covers a 54px square of *whatever
@@ -85,7 +85,7 @@ These are not aesthetic overlaps — they are controls the user cannot tap.
   tokens (`--tabbar-h`, `--fab-h`, `--dock-h`) and set
   `padding-bottom: calc(var(--tabbar-h) + var(--fab-h) + 24px + env(safe-area-inset-bottom))`.
 - The `ListDetail` add dock needs the same treatment — currently list rows slide
-  under it ([styles.css:2547](src/styles.css#L2547) reserves nothing for it).
+  under it (`styles.css:2547` reserves nothing for it).
 - Consider whether the FAB should hide on scroll-down / reappear on scroll-up
   (the standard iOS answer to exactly this problem), or move to a trailing-edge
   position that never lands on a row's action zone.
@@ -97,10 +97,10 @@ These are not aesthetic overlaps — they are controls the user cannot tap.
 A styled `ConfirmDialog` exists and is used in 6 places, but delete still goes
 through `window.confirm` in:
 
-- [HabitDetail.jsx:363](src/components/HabitDetail.jsx#L363) — deletes a habit *and all its history*
-- [ListDetail.jsx:342](src/components/ListDetail.jsx#L342) — deletes a list
-- [ProjectDetail.jsx:155](src/components/ProjectDetail.jsx#L155) — deletes a project *and its subtasks*
-- [ImportExport.jsx:212](src/components/ImportExport.jsx#L212) — restore/overwrite
+- `HabitDetail.jsx:363` — deletes a habit *and all its history*
+- `ListDetail.jsx:342` — deletes a list
+- `ProjectDetail.jsx:155` — deletes a project *and its subtasks*
+- `ImportExport.jsx:212` — restore/overwrite
 
 On iOS this is a grey system alert with a browser origin in it, in the middle of
 an app that otherwise looks native. It's the single most jarring moment in the
@@ -115,7 +115,7 @@ you sure".
 > **Fixed.** To-do leads, habits follow.
 
 Section order is Habits → To-do → Lists → Check in → Dates → Recent activity
-([TodayView.jsx:245-419](src/components/TodayView.jsx#L245-L419)). With the two
+(`TodayView.jsx:245-419`). With the two
 banners, the greeting, and the search bar above it, **the first due/overdue task
 is below the fold** — even though overdue items are what drive the red "9" on
 the Today tab and the app icon badge.
@@ -135,7 +135,7 @@ On `/tasks` a user simultaneously sees: a `+` in the page header, an inline
 "Add a task…" quick-add row, and the floating `+` FAB. All three create a task.
 On `/settings` and `/person/<id>` the FAB is present but creates something
 unrelated to the screen (acknowledged in
-[MobileNav.jsx:57-60](src/components/MobileNav.jsx#L57-L60) via `forceMenu`).
+`MobileNav.jsx:57-60` via `forceMenu`).
 
 **Fix.** Pick one per screen. The strongest version: keep the inline quick-add
 where it exists (it's the fastest capture path and it's good), keep the FAB as
@@ -149,7 +149,7 @@ Import).
 
 Apple HIG minimum is 44×44. `.task-check` handles this correctly with a
 `::before { inset: -10px -12px }` hit extension
-([styles.css:2835-2839](src/styles.css#L2835-L2839)) — but that is the **only**
+(`styles.css:2835-2839`) — but that is the **only**
 such extension in 5,694 lines of CSS. Everything else ships at its visual size:
 
 | Class | Size | Where |
@@ -178,7 +178,7 @@ that scrolls away with the content. On a long person page the way back is only
 reachable by scrolling to the top. iOS puts back in a pinned nav bar that
 collapses the large title into a small centered one on scroll.
 
-Edge-swipe back exists ([App.jsx:331](src/App.jsx#L331)), which mitigates it —
+Edge-swipe back exists (`App.jsx:331`), which mitigates it —
 but it's an invisible affordance, and it doesn't help a user who reaches for the
 top of the screen.
 
@@ -228,7 +228,7 @@ gets it.
 
 > **Not fixed.** Still open — `Sheet` has no `useVisualViewport` pass. Reachable only via the filter sheet, the backfill note editor and the member picker.
 
-`Modal` uses `useVisualViewport` ([Modal.jsx:14](src/components/Modal.jsx#L14)).
+`Modal` uses `useVisualViewport` (`Modal.jsx:14`).
 `Sheet` does not — so any sheet containing a text field (filter sheet, backfill
 note editor, member picker) will be covered by the keyboard on a real device.
 
@@ -303,7 +303,7 @@ anything else.
 
 ### What's missing from the token layer
 
-`:root` ([styles.css:8-48](src/styles.css#L8-L48)) defines colors, 2 radii, 3
+`:root` (`styles.css:8-48`) defines colors, 2 radii, 3
 shadows. It does not define:
 
 - **Spacing** — 90 distinct `padding` declarations across the file.

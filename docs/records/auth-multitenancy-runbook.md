@@ -1,5 +1,14 @@
 # Auth + multitenancy go-live runbook
 
+> **Record** — historical. Written and executed June 2026.
+> **This cutover already happened.** Auth, create-or-join-by-code onboarding,
+> household switching, and per-household RLS isolation are all live; migrations
+> through `0033` are applied. The "apply the SQL migration and flip the Auth
+> settings" instructions below are **not** work to be done.
+> Kept as the record of how the live project was configured — the Supabase Auth
+> dashboard settings in §1 are still the settings in force, so this is the place
+> to look when reproducing the project or debugging a redirect-URL problem.
+
 What ships in this change: a real auth flow (sign-in / sign-up / password-reset),
 a desktop landing page, an onboarding step that **creates or joins a household by
 invite code**, a **Demo** button that opens the in-memory sample app, and full

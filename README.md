@@ -54,10 +54,11 @@ node scripts/tasks-smoke.mjs    # Playwright smoke suites (Chrome channel):
 - **Reminders** — in-app attention engine (`src/lib/reminders.js`) plus
   **deployed web-push**: service worker, real subscriptions, and a
   `send-reminders` edge function (morning digest, day-of pings, dedupe) on a
-  cron ([docs/phase6-reminders.md](docs/phase6-reminders.md) has the runbook).
-- **Portability** — lossless JSON backup/restore (**v9**), CSV import/export
+  `pg_cron` sweep every 15 minutes. Running unattended since 2026-08-06.
+- **Portability** — lossless JSON backup/restore (**v10**), CSV import/export
   with column mapping + duplicate review, vCard 3.0 export (person / group /
-  everyone) straight into the phone's address book.
+  everyone) straight into the phone's address book, and calendar export (`.ics`
+  or a Google/Outlook deep link).
 - **iOS-native feel** — bottom tab bar, sheets, swipe rows, long-press menus,
   pull-to-refresh, edge-swipe back, haptics, large titles, light/dark,
   standalone PWA chrome with safe-area handling.
@@ -81,6 +82,13 @@ demo mode. To go live: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
 `VITE_VAPID_PUBLIC_KEY`. The VAPID **private** half never gets a `VITE_`
 prefix and never goes in the deploy env — anything `VITE_*` is compiled into
 the browser bundle. It belongs only in the Edge Function's secrets
-(`supabase secrets set VAPID_PRIVATE_KEY=…`), with the push runbook in
-[docs/phase6-reminders.md](docs/phase6-reminders.md). Migrations live in
+(`supabase secrets set VAPID_PRIVATE_KEY=…`); the full env layout is in
+[docs/next-steps.md](docs/next-steps.md). Migrations live in
 `supabase/migrations/`; edge functions in `supabase/functions/`.
+
+## Docs
+
+[docs/README.md](docs/README.md) explains how the documentation is organized —
+which files are authoritative, which are proposals, and which are history.
+[ROADMAP.md](ROADMAP.md) is the longer arc;
+[docs/next-steps.md](docs/next-steps.md) is what's in flight right now.
