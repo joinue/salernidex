@@ -45,6 +45,11 @@ they describe futures, and the present moves.
 - [`scopes/task-areas.md`](scopes/task-areas.md) — grouping tasks by area
   ("Work" vs "Home"), in three phases. *Phase 1 partly shipped; the `task_areas`
   table and the behavioural work are not.*
+- [`scopes/competitive-superlist.md`](scopes/competitive-superlist.md) — the
+  2026-08-13 read of Superlist v1.56: the full feature diff, four candidates
+  worth building (offline writes, attachments, multi-select, calendar in
+  Today), two open product questions, and — the part worth keeping — an
+  explicit list of what we're *declining* and why. *Nothing shipped.*
 
 ## Records — how we got here
 

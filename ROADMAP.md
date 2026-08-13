@@ -1,7 +1,7 @@
 # Salernidex — roadmap & status
 
 > **Live** — the longer arc: what's built, what's deliberately not, and the
-> standing constraints. Last updated 2026-08-06 against `main` @ a7df3a3.
+> standing constraints. Last updated 2026-08-13 against `main` @ e4c8243.
 > For **what's in flight right now**, [`docs/next-steps.md`](docs/next-steps.md)
 > is authoritative and this file defers to it.
 > See [`docs/README.md`](docs/README.md) for how the docs are organized.
@@ -72,11 +72,19 @@ zero-setup dev/preview fallback, not the primary target.
 
 - **Per-member timezone** — `TZ_NAME` is one hardcoded zone for the whole system, so "today" is Arizona's for everyone. **Blocks selling outside Arizona**, and it's schema work that must land before any App Store binary exists. [next-steps §2a](docs/next-steps.md).
 - **Native iOS / iPadOS / watchOS** — decision reached: **native SwiftUI**, keeping the React web app and Supabase unchanged; explicitly *not* Capacitor or a WebView wrapper. Bound to the web implementation by a shared cross-language test-vector corpus rather than shared code. First step is extracting that corpus. [next-steps §3](docs/next-steps.md).
-- **Offline Tier 2** — durable queued writes, plus `updated_at` guarding so a stale queued write can't clobber a newer one.
+- **Offline Tier 2** — durable queued writes, plus `updated_at` guarding so a stale queued write can't clobber a newer one. **Table stakes, not polish:** Superlist ships an offline-first engine, so a competitor in this category treats a lost write as a bug.
 - **Notebook tier 2** — note-to-note links, search match highlighting, multi-select, rail/Back behaviour. All four unbuilt. [`docs/scopes/notes.md`](docs/scopes/notes.md).
 - **Attention-engine unification** — the client and the Edge Function still re-derive the same rules separately and will drift; they want a shared module rather than a port. The contract tests are the current guard ([`badge.parity.test.ts`](supabase/functions/send-reminders/badge.parity.test.ts) and the `*.parity.test.ts` siblings). *The habit half is settled:* habits are now attention items on the client too, at the ambient `soft` tier — they reach Today and share the Edge Function's `habit:<id>` snooze key, but never the red count, and a parity test pins that so promoting them has to be a deliberate act.
 - **CardDAV sync** — live two-way address-book sync. Needs a CardDAV server; weigh it against what vCard export already covers.
-- **Things polish still worth stealing** — the check-off animation, and calendar events inline in Today.
+- **Attachments** — images and PDFs on a task, list item, or note. Supabase Storage is already proven for avatars ([`avatarStorage.js`](src/lib/avatarStorage.js)) but nothing else; the work is the privacy/RLS inheritance, signed URLs, and keeping the backup format honest. The most household-shaped gap we have — "get *this* one" is a photo. [`docs/scopes/competitive-superlist.md`](docs/scopes/competitive-superlist.md) §3b.
+- **Multi-select + bulk actions** — none anywhere today. One selection mode shared across Tasks, Lists, Notes, and People. The cost is gesture collision: long-press already belongs to [`ReorderableList`](src/components/ui/ReorderableList.jsx), so it resolves once in [`lib/gestures.js`](src/lib/gestures.js), not per-view. [competitive-superlist §3c](docs/scopes/competitive-superlist.md).
+- **Polish still worth stealing** — the Things check-off animation, and calendar events inline in Today. The calendar half wants **EventKit on native**, not an OAuth stack for the web ([competitive-superlist §3d](docs/scopes/competitive-superlist.md)).
+
+**Two open product questions** — both answerable without code, and 4b has a schema
+consequence, so it must be settled *before* an App Store binary exists:
+
+- **Is an item commentable?** We have an activity log, not a reply surface. Whether "which brand?" belongs in the app or in the text thread the household already has. [competitive-superlist §4a](docs/scopes/competitive-superlist.md).
+- **Is household membership the only permission boundary?** Today a join code grants everything, including the rolodex — there's no way to hand one list to a house-sitter. [competitive-superlist §4b](docs/scopes/competitive-superlist.md).
 
 ---
 

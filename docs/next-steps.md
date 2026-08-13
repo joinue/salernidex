@@ -1,6 +1,6 @@
 # Next steps — reminder go-live, then native iOS
 
-> **Live** — the rolling handoff. Last updated 2026-08-06.
+> **Live** — the rolling handoff. Last updated 2026-08-13.
 > This is the authoritative answer to *"what's in flight right now?"*
 > [ROADMAP.md](../ROADMAP.md) covers the longer arc and defers to this file for
 > current work. If the two disagree, this one is newer.
@@ -122,6 +122,12 @@ would behave differently on the same account. Decide deliberately:
 
 - bring the web up to a queued-write model, or
 - accept the asymmetry and say so in the UI.
+
+**Leaning: bring the web up.** Superlist v1.56 ships an offline-first sync engine, which
+puts durable writes in the category's baseline rather than its polish tier — see
+[`scopes/competitive-superlist.md`](scopes/competitive-superlist.md) §3a. Note the
+ordering constraint it creates: **attachments must land after this**, since a queued
+binary upload is a different problem from a queued row write.
 
 Related: conflict resolution is currently last-write-wins per row via full refetch. Once
 both clients queue offline writes, guard the update with an `updated_at` comparison so a
