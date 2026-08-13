@@ -1,7 +1,7 @@
 # Salernidex — roadmap & status
 
 > **Live** — the longer arc: what's built, what's deliberately not, and the
-> standing constraints. Last updated 2026-08-13 against `main` @ e4c8243.
+> standing constraints. Last updated 2026-08-13 against `main` @ c90e43a.
 > For **what's in flight right now**, [`docs/next-steps.md`](docs/next-steps.md)
 > is authoritative and this file defers to it.
 > See [`docs/README.md`](docs/README.md) for how the docs are organized.

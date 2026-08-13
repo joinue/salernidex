@@ -1,7 +1,7 @@
 # Superlist — competitive read & what's worth taking
 
 > **Scope** — a proposal, not a commitment. Written 2026-08-13 against
-> Superlist **v1.56** (June 2026) and `main` @ e4c8243.
+> Superlist **v1.56** (June 2026) and `main` @ c90e43a.
 > Nothing here is agreed work. §3 is the only part recommended for building;
 > §4 is two product questions that need an answer before they can be scoped;
 > §5 is the list of things deliberately **not** taken, recorded so they don't
