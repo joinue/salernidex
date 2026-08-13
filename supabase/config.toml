@@ -1,0 +1,26 @@
+# Supabase CLI config. Deliberately minimal — this project is operated from the
+# dashboard plus `supabase functions deploy`, not run locally, so the only thing
+# pinned here is per-function gateway auth. That one setting has already caused
+# one silent outage, which is the whole reason this file exists.
+project_id = "ttgkepvpgpnkjyqfgcit"
+
+# send-reminders is invoked by pg_cron with `Authorization: Bearer <CRON_SECRET>`
+# — a shared secret we control, not a JWT. With the gateway check on, Supabase
+# rejects that header with 401 UNAUTHORIZED_INVALID_JWT_FORMAT *before* the
+# function runs, so the 15-minute sweep dies and nothing is logged anywhere the
+# app can see it. auth.ts is the real check (constant-time compare against
+# CRON_SECRET or the service-role key) and is unit-tested precisely so this can
+# be off.
+#
+# This used to live only in the `--no-verify-jwt` deploy flag. A flag is not a
+# setting: a plain `supabase functions deploy send-reminders` silently turned the
+# gate back on and killed reminders for a week. Pinning it here makes it survive
+# a redeploy that forgets the flag.
+[functions.send-reminders]
+verify_jwt = false
+
+# delete-account is invoked from the browser with the caller's own JWT
+# (supabase.functions.invoke forwards it) and identifies the user from it, so the
+# gateway check stays on.
+[functions.delete-account]
+verify_jwt = true

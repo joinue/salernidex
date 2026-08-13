@@ -517,9 +517,18 @@ function Shell({ session, onLogout, household }) {
       now,
     ],
   )
+  // Foreground half of the badge. The background half lives in public/sw.js,
+  // which applies the count carried by each push — this can only run with a page
+  // open, so on its own the icon froze at whatever it read when you last closed
+  // the app. Whichever ran last, opening the app puts the number right.
+  //
+  // The promise needs catching: iOS rejects setAppBadge outright until
+  // notification permission is granted, and an unhandled rejection every time
+  // the count changes is noise in the console for a badge that was never going
+  // to appear.
   useEffect(() => {
-    if (badge > 0) navigator.setAppBadge?.(badge)
-    else navigator.clearAppBadge?.()
+    const applied = badge > 0 ? navigator.setAppBadge?.(badge) : navigator.clearAppBadge?.()
+    applied?.catch?.(() => {})
   }, [badge])
 
   // Quiet sidebar counts: open top-level tasks, unchecked list items.

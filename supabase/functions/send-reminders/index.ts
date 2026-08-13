@@ -25,6 +25,7 @@ import { habitDueToday } from './habitSchedule.ts'
 import { deadlinesAhead } from './deadlines.ts'
 import { digestCopy } from './digest.ts'
 import { isAuthorized } from './auth.ts'
+import { badgeCount } from './badge.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -283,7 +284,7 @@ function habitReminders(
 // the caller can roll its claim back and retry on the next tick.
 async function pushToSubs(
   subs: any[],
-  payload: { title: string; body: string; url: string; tag?: string },
+  payload: { title: string; body: string; url: string; tag?: string; badge?: number },
 ) {
   let ok = 0
   await Promise.allSettled(
@@ -340,7 +341,7 @@ async function claimSend(
   kind: string,
   targetKey: string,
   sentFor: string,
-  payload: { title: string; body: string; url: string },
+  payload: { title: string; body: string; url: string; badge?: number },
 ) {
   if (!(await claim(memberId, kind, targetKey, sentFor))) return 0
   const n = await pushToSubs(subs, { ...payload, tag: targetKey || kind })
@@ -419,6 +420,38 @@ Deno.serve(async (req) => {
         .map((s: any) => s.target_key),
     )
 
+    // The app-icon number, recomputed fresh and attached to every push this
+    // member gets — public/sw.js applies it, which is the only way the badge can
+    // move while the app is closed (src/App.jsx can only set it from an open
+    // page). Scoped to the member's own household because that is what the app
+    // counts; see badge.ts.
+    //
+    // Deliberately NOT wired to the client's `todayScope` preference, which
+    // lives in localStorage and never reaches the server (member_preferences has
+    // no column for it). 'mine' is the default and matches the rule the pushes
+    // below already use; a member who switched Today to "Everyone's" sees the
+    // in-app badge correct itself the moment they open the app.
+    const hh = member.household_id
+    const badge = badgeCount(
+      {
+        tasks: tasks.filter((t: any) => t.household_id === hh),
+        lists: lists.filter((l: any) => l.household_id === hh),
+        people: people.filter((p: any) => p.household_id === hh),
+        keyDates: keyDates.filter((k: any) => k.household_id === hh),
+      },
+      member.id,
+      today,
+      prefs,
+      hidden,
+    )
+
+    // Every send in this iteration carries the same subs, member, day and badge.
+    const send = (
+      kind: string,
+      targetKey: string,
+      p: { title: string; body: string; url: string },
+    ) => claimSend(subs, member.id, kind, targetKey, today, { ...p, badge })
+
     const items: Item[] = [
       ...(prefs.tasks ? dueTasksToday(tasks, member.id, today, time) : []),
       ...(prefs.nudges ? checkIns(people, interactions, member.id) : []),
@@ -438,14 +471,14 @@ Deno.serve(async (req) => {
       const wantDigest = Math.abs(minutesOf(time) - minutesOf(prefs.digest_time ?? '08:00')) <= 15
       const copy = digestCopy(items, ahead)
       if (wantDigest && copy) {
-        sent += await claimSend(subs, member.id, 'digest', '', today, { ...copy, url: '/' })
+        sent += await send('digest', '', { ...copy, url: '/' })
       }
 
       // Individual pings: day-of dates + tasks (check-ins ride the digest — a
       // "say hi" item is never urgent enough to interrupt someone's day). A
       // timed task that isn't due yet (ready === false) waits for a later tick.
       for (const item of items.filter((i) => i.kind !== 'nudge' && i.ready !== false)) {
-        sent += await claimSend(subs, member.id, item.kind, item.targetKey, today, {
+        sent += await send(item.kind, item.targetKey, {
           title: item.title,
           body: item.body,
           url: item.url,
@@ -459,7 +492,7 @@ Deno.serve(async (req) => {
       (i) => !hidden.has(i.targetKey),
     )
     for (const item of habitItems) {
-      sent += await claimSend(subs, member.id, item.kind, item.targetKey, today, {
+      sent += await send(item.kind, item.targetKey, {
         title: item.title,
         body: item.body,
         url: item.url,
@@ -474,7 +507,7 @@ Deno.serve(async (req) => {
         (i) => !hidden.has(i.targetKey),
       )
       for (const item of listItemsToSend) {
-        sent += await claimSend(subs, member.id, item.kind, item.targetKey, today, {
+        sent += await send(item.kind, item.targetKey, {
           title: item.title,
           body: item.body,
           url: item.url,

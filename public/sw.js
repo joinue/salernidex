@@ -83,7 +83,17 @@ self.addEventListener('fetch', (e) => {
   )
 })
 
-// 6b: the send-reminders Edge Function pushes { title, body, url, tag }.
+// 6b: the send-reminders Edge Function pushes { title, body, url, tag, badge }.
+//
+// `badge` is the app-icon count (send-reminders/badge.ts, a parity-tested port
+// of badgeCount in src/lib/reminders.js). Applying it here is the only way the
+// icon can change while the app is closed: the Badging API needs running code,
+// and src/App.jsx only runs with a page open — so before this, the icon kept
+// whatever number it had when you last closed the app.
+//
+// Note the two unrelated things called "badge": the `badge:` option below is
+// Android's monochrome status-bar glyph for the notification. The app icon is
+// registration.setAppBadge().
 self.addEventListener('push', (e) => {
   let data = {}
   try {
@@ -92,12 +102,25 @@ self.addEventListener('push', (e) => {
     data = { body: e.data?.text() }
   }
   e.waitUntil(
-    self.registration.showNotification(data.title || 'Salernidex', {
-      body: data.body || '',
-      icon: '/web-app-manifest-192x192.png',
-      badge: '/favicon-96x96.png',
-      tag: data.tag || undefined, // same tag replaces, so re-sends don't stack
-      data: { url: data.url || '/' },
+    Promise.all([
+      self.registration.showNotification(data.title || 'Salernidex', {
+        body: data.body || '',
+        icon: '/web-app-manifest-192x192.png',
+        badge: '/favicon-96x96.png',
+        tag: data.tag || undefined, // same tag replaces, so re-sends don't stack
+        data: { url: data.url || '/' },
+      }),
+      // Omitted on a payload that doesn't carry a count (an older function
+      // version): leave the badge alone rather than wrongly clearing it.
+      typeof data.badge === 'number'
+        ? data.badge > 0
+          ? self.registration.setAppBadge?.(data.badge)
+          : self.registration.clearAppBadge?.()
+        : null,
+    ]).catch(() => {
+      // Badging can reject (iOS refuses it without notification permission).
+      // The notification itself has already been shown by then, so swallow it —
+      // an unhandled rejection here would fail the whole push event.
     }),
   )
 })
