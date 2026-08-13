@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { scrollTop, watchScroll } from '../lib/scroller'
 
 // True while the user is scrolling *down* through a container — the cue for
 // tucking floating chrome (the FAB) out of the way.
@@ -24,12 +25,15 @@ export function useHideOnScroll(ref, enabled = true) {
       setHidden(false)
       return
     }
-    let last = el.scrollTop
+    // Which box moves depends on the shell — `.main` on desktop, the document
+    // on a phone — so read and subscribe through lib/scroller rather than
+    // assuming the element passed in is the one that scrolls.
+    let last = scrollTop(el)
     let frame = 0
 
     const measure = () => {
       frame = 0
-      const y = el.scrollTop
+      const y = scrollTop(el)
       const dy = y - last
       if (y <= TOP_ZONE) setHidden(false)
       else if (dy > THRESHOLD) setHidden(true)
@@ -42,9 +46,9 @@ export function useHideOnScroll(ref, enabled = true) {
       if (!frame) frame = requestAnimationFrame(measure)
     }
 
-    el.addEventListener('scroll', onScroll, { passive: true })
+    const unwatch = watchScroll(el, onScroll)
     return () => {
-      el.removeEventListener('scroll', onScroll)
+      unwatch()
       if (frame) cancelAnimationFrame(frame)
     }
   }, [ref, enabled])

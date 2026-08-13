@@ -3,8 +3,18 @@ import { renderHook, act } from '@testing-library/react'
 import { useKeyboardOpen, useVisualBandBottom } from './useKeyboardOpen'
 
 // jsdom has no visualViewport, so stand one up we can resize by hand. The hook
-// reads `window.innerHeight - vv.height`, which is the only signal iOS gives us.
+// reads `window.innerHeight - vv.height` for size, and `document.activeElement`
+// for whether a keyboard could be up at all.
 const LAYOUT_H = 844 // iPhone 14 portrait
+
+// A shrunken viewport only counts as a keyboard when something is focused, so
+// every "keyboard is up" case needs a real field to focus.
+function focusField() {
+  const input = document.createElement('input')
+  document.body.append(input)
+  input.focus()
+  return input
+}
 
 function stubViewport(height) {
   const listeners = new Set()
@@ -32,6 +42,7 @@ describe('useKeyboardOpen', () => {
 
   afterEach(() => {
     delete window.visualViewport
+    document.body.innerHTML = ''
   })
 
   it('is false when the viewports agree', () => {
@@ -43,13 +54,26 @@ describe('useKeyboardOpen', () => {
   it('ignores a collapsing browser toolbar', () => {
     // Safari's URL bar is ~60px — well under the floor, and it must not read as
     // a keyboard or the tab bar would tuck away on an ordinary scroll.
+    focusField()
     const vv = stubViewport(LAYOUT_H)
     const { result } = renderHook(() => useKeyboardOpen())
     act(() => vv.resizeTo(LAYOUT_H - 60))
     expect(result.current).toBe(false)
   })
 
+  // Once the document is the scroller, innerHeight reports the large viewport,
+  // so the browser's toolbars sit in the gap whenever they're shown. A tall
+  // enough toolbar clears the floor on size alone — but nothing is focused, so
+  // nothing here is a keyboard.
+  it('ignores a browser-chrome gap past the floor when nothing is focused', () => {
+    const vv = stubViewport(LAYOUT_H)
+    const { result } = renderHook(() => useKeyboardOpen())
+    act(() => vv.resizeTo(LAYOUT_H - 199))
+    expect(result.current).toBe(false)
+  })
+
   it('is true once the keyboard is up', () => {
+    focusField()
     const vv = stubViewport(LAYOUT_H)
     const { result } = renderHook(() => useKeyboardOpen())
     act(() => vv.resizeTo(LAYOUT_H - 336)) // iOS portrait keyboard
@@ -57,17 +81,41 @@ describe('useKeyboardOpen', () => {
   })
 
   it('reports a keyboard that is already open on mount', () => {
+    focusField()
     stubViewport(LAYOUT_H - 336)
     const { result } = renderHook(() => useKeyboardOpen())
     expect(result.current).toBe(true)
   })
 
   it('flips back when the keyboard closes', () => {
+    focusField()
     const vv = stubViewport(LAYOUT_H - 336)
     const { result } = renderHook(() => useKeyboardOpen())
     expect(result.current).toBe(true)
     act(() => vv.resizeTo(LAYOUT_H))
     expect(result.current).toBe(false)
+  })
+
+  // Tapping away dismisses the keyboard, but iOS grows the viewport back a beat
+  // later. Blur is what brings the tab bar and the FAB straight back.
+  it('closes on blur, before the viewport has grown back', () => {
+    const field = focusField()
+    stubViewport(LAYOUT_H - 336)
+    const { result } = renderHook(() => useKeyboardOpen())
+    expect(result.current).toBe(true)
+    act(() => field.blur())
+    expect(result.current).toBe(false)
+  })
+
+  // Moving between two fields keeps one keyboard up the whole time; the chrome
+  // must not flicker back in on the way through.
+  it('stays open while focus moves between fields', () => {
+    focusField()
+    stubViewport(LAYOUT_H - 336)
+    const { result } = renderHook(() => useKeyboardOpen())
+    expect(result.current).toBe(true)
+    act(() => focusField())
+    expect(result.current).toBe(true)
   })
 
   it('unsubscribes on unmount', () => {

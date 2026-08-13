@@ -1,5 +1,6 @@
 // Task → calendar bridge. A task with only a due date exports as an all-day
-// event; one with a due_time becomes a 1-hour event in floating local time.
+// event; one with a due_time becomes a 1-hour event in floating local time; a
+// project exports as its start→target date range (see projectRange).
 // Three ways out, all client-side — no OAuth, no backend, no lock-in
 // (same philosophy as vcard.js):
 //   • taskToIcs / downloadTaskIcs — the RFC 5545 standard. Opening the .ics on
@@ -40,20 +41,48 @@ const minutesOf = (t) => {
 // separately when an event's hour spills into the next day).
 const hhmmss = (min) => `${pad2(Math.floor(min / 60) % 24)}${pad2(min % 60)}00`
 
+// An all-day span in the three forms each target wants. `endInclusive` is the
+// last day the event covers; ICS DTEND and Google's end date are both
+// *exclusive*, so they get the day after.
+function allDaySpan(start, endInclusive) {
+  const end = nextDay(endInclusive)
+  return {
+    ics: [`DTSTART;VALUE=DATE:${compact(start)}`, `DTEND;VALUE=DATE:${compact(end)}`],
+    google: `${compact(start)}/${compact(end)}`,
+    outlook: { startdt: start, enddt: end, allday: 'true' },
+  }
+}
+
+// A project carries a date RANGE — start_date → end_date (migration 0028): a
+// trip runs depart→return, a renovation has a target finish. On a project that
+// range *is* the event, so it outranks due_date. Either end alone is enough (a
+// target with no start, or the reverse) and collapses to a single day.
+//
+// Only projects read start_date here. On a plain task the same column means the
+// opposite thing — "not before X", the deferral date from 0021 — and exporting
+// a deferred task from the day it becomes actionable would misread it.
+function projectRange(task) {
+  if (!task.is_project) return null
+  const start = task.start_date || task.end_date
+  if (!start) return null
+  const end = task.end_date || task.start_date
+  // A target set before the start would emit DTEND < DTSTART, which calendars
+  // reject outright — the whole file, not just the event. ProjectDetail's date
+  // inputs prevent it, but rows written before that guard existed may not.
+  return { start, end: end < start ? start : end }
+}
+
 // Resolve a task's event span in the forms each target wants. All-day events use
 // YYYYMMDD with an *exclusive* end (due_date + 1). A timed task (due_time set)
 // becomes a 1-hour event in floating local time — no TZID, so it lands in
 // whatever calendar the user opens it in at that wall-clock time.
 function spanFor(task) {
+  // Projects are all-day by nature — Start and Target are date-only fields —
+  // so a range wins before due_time is ever consulted.
+  const range = projectRange(task)
+  if (range) return allDaySpan(range.start, range.end)
   const start = task.due_date || todayIso()
-  if (!task.due_time) {
-    const end = nextDay(start)
-    return {
-      ics: [`DTSTART;VALUE=DATE:${compact(start)}`, `DTEND;VALUE=DATE:${compact(end)}`],
-      google: `${compact(start)}/${compact(end)}`,
-      outlook: { startdt: start, enddt: end, allday: 'true' },
-    }
-  }
+  if (!task.due_time) return allDaySpan(start, start)
   const startMin = minutesOf(task.due_time)
   const endMin = startMin + 60
   const endDate = endMin >= 1440 ? nextDay(start) : start
@@ -141,8 +170,12 @@ function esc(value) {
 }
 
 // Free-text description from the task's optional fields, newline-joined.
+// `parent_title` isn't a database column — callers exporting a subtask graft it
+// on, because "Book the flights" sitting alone in Apple Calendar three weeks
+// later tells you nothing about which trip it belongs to.
 function description(task) {
   const lines = []
+  if (task.parent_title) lines.push(`Part of: ${task.parent_title}`)
   if (task.area) lines.push(`Area: ${task.area}`)
   if (task.notes) lines.push(task.notes)
   return lines.join('\n')
@@ -154,7 +187,7 @@ export function taskToIcs(task, { dtstamp } = {}) {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Salernidex//Tasks//EN',
+    'PRODID:-//DOOT//Tasks//EN',
     'CALSCALE:GREGORIAN',
     'BEGIN:VEVENT',
     // Stable UID so re-importing the same task updates rather than duplicating.
@@ -195,7 +228,12 @@ export function downloadTaskIcs(task) {
   const a = document.createElement('a')
   a.href = url
   a.download = (task.title || 'task').replace(/[\\/:*?"<>|]/g, '').trim() + '.ics'
+  // In the DOM before the click: a detached anchor's click is ignored outright
+  // by some browsers, and this is the Apple path — iOS hands the .ics to
+  // Calendar, which is the target that matters most here.
+  document.body.appendChild(a)
   a.click()
+  a.remove()
   // Defer the revoke so the browser finishes reading the blob first (see vcard).
   setTimeout(() => URL.revokeObjectURL(url), 0)
 }

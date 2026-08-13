@@ -65,8 +65,10 @@
 }
 
 @media (max-width: 720px) {
-  /* clear the tabbar + FAB */
+  /* Clear the tab pill *and* the FAB. --toast-bottom already carries the
+     home-indicator inset (via --tabbar-inset), so adding env() here again —
+     which the old 98px literal did — would double-count it. */
   .toasts {
-    bottom: calc(98px + env(safe-area-inset-bottom));
+    bottom: var(--toast-bottom);
   }
 }

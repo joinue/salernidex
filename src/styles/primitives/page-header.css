@@ -48,10 +48,18 @@
     background 120ms ease;
 }
 
-.info-btn:hover,
+/* aria-expanded is the state that matters on touch — the popover is open, so
+   the ⓘ stays tinted. :hover only adds the pointer preview of that state. */
 .info-btn[aria-expanded='true'] {
   color: var(--accent);
   background: var(--accent-soft);
+}
+
+@media (hover: hover) {
+  .info-btn:hover {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
 }
 
 /* Centered horizontally on the viewport, pinned just below the ⓘ (top is set
@@ -158,8 +166,10 @@
   transition: background 120ms ease;
 }
 
-.title-menu-item:hover {
-  background: var(--fill-2);
+@media (hover: hover) {
+  .title-menu-item:hover {
+    background: var(--fill-2);
+  }
 }
 
 .title-menu-item.active {
@@ -199,9 +209,11 @@
     background 120ms ease;
 }
 
-.header-action:hover {
-  background: var(--accent);
-  color: #fff;
+@media (hover: hover) {
+  .header-action:hover {
+    background: var(--accent);
+    color: #fff;
+  }
 }
 
 .header-action:active {
@@ -214,9 +226,11 @@
   color: var(--text-2);
 }
 
-.header-action.neutral:hover {
-  background: var(--fill);
-  color: var(--text);
+@media (hover: hover) {
+  .header-action.neutral:hover {
+    background: var(--fill);
+    color: var(--text);
+  }
 }
 
 /* Legacy title (kept for any view not yet migrated) */

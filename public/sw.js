@@ -1,4 +1,4 @@
-// SALERNIDEX service worker — push display + click-through, plus a Tier-1
+// DOOT service worker — push display + click-through, plus a Tier-1
 // offline app-shell cache so a cold launch with no network still paints the app
 // (the data layer hydrates from its own IndexedDB snapshot; see lib/offlineCache).
 //
@@ -9,7 +9,7 @@
 //                    (online users always get fresh index.html → latest chunks)
 //   • /assets/*     → cache-first (Vite hashes these; the name IS the version)
 //   • other GETs    → stale-while-revalidate (icons, manifest, favicons)
-const SHELL_CACHE = 'salernidex-shell-v1'
+const SHELL_CACHE = 'doot-shell-v1'
 const SHELL_URL = '/index.html'
 
 self.addEventListener('install', (e) => {
@@ -103,7 +103,7 @@ self.addEventListener('push', (e) => {
   }
   e.waitUntil(
     Promise.all([
-      self.registration.showNotification(data.title || 'Salernidex', {
+      self.registration.showNotification(data.title || 'DOOT', {
         body: data.body || '',
         icon: '/web-app-manifest-192x192.png',
         badge: '/favicon-96x96.png',

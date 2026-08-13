@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Plus, Trash2, Edit2 } from 'react-feather'
+import { Check, Plus, Trash2, Edit2, Folder } from 'react-feather'
 import SwipeRow from '../../components/ui/SwipeRow'
 import ReorderableList from '../../components/ui/ReorderableList'
 import Avatar from '../../components/ui/Avatar'
@@ -242,11 +242,12 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
 // A single list. Grocery lists group open items by aisle (the shop order);
 // standard lists keep a hand-orderable list with optional inline section
 // headings. Checked items sink to a shared "Got it" section, struck.
-export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote }) {
+export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, onOpenProject }) {
   const {
     lists,
     listItems,
     notes = [],
+    tasks = [],
     listCatalog,
     addListItem,
     addListHeading,
@@ -259,6 +260,15 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote })
   } = data
   const list = lists.find((l) => l.id === listId)
   const grocery = list?.kind === 'grocery'
+  // A list scoped to a project (project_id, set from ProjectDetail) used to say
+  // nothing about it here — you could open the packing list off Today with no
+  // sign it belonged to the trip, and no way to get there. The link is one line
+  // of chrome and it makes the relationship two-way.
+  const project = list?.project_id ? tasks.find((t) => t.id === list.project_id) : null
+  // Only when we can actually go there — a dead chip is worse than no chip. A
+  // project that's been deleted (or is private to someone else) just leaves the
+  // list looking like any other, which is what it now is.
+  const showProject = !!project && !!onOpenProject
   const [draft, setDraft] = useState('')
   const inputRef = useRef(null)
 
@@ -365,11 +375,18 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote })
           </div>
         </div>
       </NavBar>
-      {items.done.length > 0 && (
+      {(showProject || items.done.length > 0) && (
         <div className="profile-actions" style={{ justifyContent: 'flex-start', marginTop: 12 }}>
-          <button className="pill-btn neutral" onClick={() => clearCheckedItems(listId)}>
-            Clear checked
-          </button>
+          {showProject && (
+            <button className="pill-btn neutral" onClick={() => onOpenProject(project.id)}>
+              <Folder size={13} /> {project.title}
+            </button>
+          )}
+          {items.done.length > 0 && (
+            <button className="pill-btn neutral" onClick={() => clearCheckedItems(listId)}>
+              Clear checked
+            </button>
+          )}
         </div>
       )}
 

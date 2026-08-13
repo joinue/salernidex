@@ -16,6 +16,7 @@ import RecurrencePicker from '../../components/ui/RecurrencePicker'
 import AssigneePicker from '../../components/ui/AssigneePicker'
 import PrivacyField from '../../components/ui/PrivacyField'
 import TagInput from '../../components/ui/TagInput'
+import NoteBacklinks from '../../components/ui/NoteBacklinks'
 import { focusOnDesktop } from '../../lib/constants'
 import { normalizeAssignee, defaultAssignee, members, isSolo } from '../../lib/household'
 import { PRIVATE_LEVEL } from '../../lib/privacy'
@@ -39,6 +40,8 @@ export default function TaskForm({
   onSave,
   onClose,
   onMakeProject,
+  onOpenNote,
+  notes = [],
   defaultPrivacy = 'shared',
   areas = [],
   tagSuggestions = [],
@@ -446,6 +449,16 @@ export default function TaskForm({
             'Add task'
           )}
         </button>
+
+        {/* A plain task has no page of its own, so this sheet is where its
+            backlinks have to live — otherwise @-mentioning a task in a note is
+            write-only, and it's the one mention type that never comes back. A
+            project mentioned here answers on ProjectDetail instead, which
+            already carries the section. Below the save button on purpose: it's
+            reference, not a field you're filling in. */}
+        {task?.id && !form.is_project && (
+          <NoteBacklinks notes={notes} type="task" id={task.id} onOpenNote={onOpenNote} />
+        )}
       </form>
     </Modal>
   )

@@ -1,18 +1,38 @@
 import { useEffect, useState } from 'react'
+import { isEditableTarget } from '../lib/keys'
 
 // True while the software keyboard is up.
 //
 // iOS Safari never shrinks the *layout* viewport for the keyboard — it shrinks
 // the visual viewport and pans the page instead — so `position: fixed` chrome
 // stays pinned to a bottom edge that now lives behind the keyboard, and drifts
-// across the screen as Safari pans. The only reliable signal is the gap between
-// the two viewports. Android/Chrome defaults to the same model
+// across the screen as Safari pans. The gap between the two viewports is the
+// only size signal iOS gives us. Android/Chrome defaults to the same model
 // (`interactive-widget=resizes-visual`), so one measurement covers both.
 //
-// The floor keeps Safari's collapsing URL bar (~60px) and the iOS input
-// accessory bar from reading as a keyboard; every software keyboard clears it
-// comfortably, including the shortest (an external keyboard's accessory strip
-// doesn't shrink the viewport at all, so it correctly reads as closed).
+// The gap alone carried this for a while, on a shell where the document never
+// scrolled and the two viewports therefore agreed exactly whenever the keyboard
+// was down. That margin is gone. Now that a phone scrolls the document (see
+// lib/scroller.js), `window.innerHeight` reports the *large* viewport — the
+// screen as it would be with the browser toolbars collapsed — while
+// visualViewport keeps reporting what you can actually see, so whatever chrome
+// the browser is showing sits in the gap permanently rather than never.
+//
+// The floor was already thinner than it looks: the device reading recorded in
+// useVisualBandBottom below is innerHeight 684 against a visual height of 543,
+// a gap of 141 — one pixel the right side of it. Adding a toolbar's worth of
+// slack on top of that is not something to leave to a constant, and the failure
+// is not subtle when it goes: the tab bar and the FAB tuck off screen and stay
+// there for the rest of the session.
+//
+// So focus is the primary signal now and size is the confirmation. A software
+// keyboard cannot be up without an editable element focused, and browser chrome
+// has nothing to do with focus — which makes the pair immune to a gap of any
+// size that isn't a keyboard.
+//
+// The floor still earns its keep in the other direction: with a field focused
+// but a *hardware* keyboard attached, iOS shows only the accessory strip and
+// barely shrinks the viewport, which correctly reads as closed.
 const KEYBOARD_MIN = 140
 
 export function useKeyboardOpen() {
@@ -22,13 +42,27 @@ export function useKeyboardOpen() {
     const vv = window.visualViewport
     if (!vv) return
 
-    // Only `resize` — not `scroll`. Safari fires scroll continuously while it
-    // pans the visual viewport, and the gap we measure doesn't change during a
-    // pan, so listening would be pure churn.
-    const update = () => setOpen(window.innerHeight - vv.height > KEYBOARD_MIN)
+    const update = () =>
+      setOpen(
+        isEditableTarget(document.activeElement) && window.innerHeight - vv.height > KEYBOARD_MIN,
+      )
     update()
+
+    // `resize` is the keyboard arriving or leaving. Not `scroll`: Safari fires
+    // that continuously while it pans the visual viewport, and the gap doesn't
+    // change during a pan, so listening would be pure churn.
     vv.addEventListener('resize', update)
-    return () => vv.removeEventListener('resize', update)
+    // Focus is the other half, and it moves without resizing anything: tabbing
+    // between two fields keeps the keyboard up, while a tap-away dismisses it a
+    // beat before the viewport grows back. Reading focus as it changes is what
+    // brings the chrome back promptly instead of on the resize that follows.
+    document.addEventListener('focusin', update)
+    document.addEventListener('focusout', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      document.removeEventListener('focusin', update)
+      document.removeEventListener('focusout', update)
+    }
   }, [])
 
   return open

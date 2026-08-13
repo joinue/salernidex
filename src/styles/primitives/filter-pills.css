@@ -36,8 +36,10 @@
   border-radius: 999px;
 }
 
-.filter-clear:hover {
-  background: var(--accent-soft);
+@media (hover: hover) {
+  .filter-clear:hover {
+    background: var(--accent-soft);
+  }
 }
 
 .filter-clear:active {

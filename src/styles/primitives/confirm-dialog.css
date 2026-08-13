@@ -108,8 +108,10 @@
   transition: transform 120ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.modal-close:hover {
-  color: var(--text);
+@media (hover: hover) {
+  .modal-close:hover {
+    color: var(--text);
+  }
 }
 
 .modal-close:active {

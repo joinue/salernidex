@@ -59,6 +59,68 @@ describe('taskToIcs', () => {
     expect(ics).toContain('DTEND:20260615T160000')
     expect(ics).not.toContain('VALUE=DATE')
   })
+
+  it('names the parent project so a subtask reads on its own', () => {
+    const ics = taskToIcs({ ...base, title: 'Book the flights', parent_title: 'Japan trip' })
+    expect(ics).toContain('DESCRIPTION:Part of: Japan trip')
+  })
+})
+
+describe('projects export their date range', () => {
+  const project = {
+    id: 'p1',
+    title: 'Kitchen reno',
+    is_project: true,
+    start_date: '2026-06-01',
+    end_date: '2026-06-30',
+  }
+
+  it('spans start_date → end_date, with an exclusive end', () => {
+    const ics = taskToIcs(project)
+    expect(ics).toContain('DTSTART;VALUE=DATE:20260601')
+    expect(ics).toContain('DTEND;VALUE=DATE:20260701') // day after the target
+  })
+
+  it('carries the range onto the deep links', () => {
+    expect(new URL(googleCalendarUrl(project)).searchParams.get('dates')).toBe('20260601/20260701')
+    const o = new URL(outlookCalendarUrl(project))
+    expect(o.searchParams.get('startdt')).toBe('2026-06-01')
+    expect(o.searchParams.get('enddt')).toBe('2026-07-01')
+    expect(o.searchParams.get('allday')).toBe('true')
+  })
+
+  it('collapses to a single day when only one end of the range is set', () => {
+    const target = taskToIcs({ ...project, start_date: null })
+    expect(target).toContain('DTSTART;VALUE=DATE:20260630')
+    expect(target).toContain('DTEND;VALUE=DATE:20260701')
+    const start = taskToIcs({ ...project, end_date: null })
+    expect(start).toContain('DTSTART;VALUE=DATE:20260601')
+    expect(start).toContain('DTEND;VALUE=DATE:20260602')
+  })
+
+  it('never emits an end before the start, however the row was written', () => {
+    const ics = taskToIcs({ ...project, start_date: '2026-06-30', end_date: '2026-06-01' })
+    expect(ics).toContain('DTSTART;VALUE=DATE:20260630')
+    expect(ics).toContain('DTEND;VALUE=DATE:20260701')
+  })
+
+  it('the range outranks due_date and due_time — Start/Target are date-only', () => {
+    const ics = taskToIcs({ ...project, due_date: '2026-12-25', due_time: '15:00' })
+    expect(ics).toContain('DTSTART;VALUE=DATE:20260601')
+    expect(ics).not.toContain('T150000')
+  })
+
+  it('a project with no range still exports from its due date', () => {
+    const ics = taskToIcs({ ...project, start_date: null, end_date: null, due_date: '2026-06-15' })
+    expect(ics).toContain('DTSTART;VALUE=DATE:20260615')
+    expect(ics).toContain('DTEND;VALUE=DATE:20260616')
+  })
+
+  it("leaves a plain task's start_date alone — there it means 'not before'", () => {
+    const ics = taskToIcs({ ...base, start_date: '2026-01-01' })
+    expect(ics).toContain('DTSTART;VALUE=DATE:20260615') // the due date, not the defer date
+    expect(ics).toContain('DTEND;VALUE=DATE:20260616')
+  })
 })
 
 describe('recurrenceToRrule', () => {

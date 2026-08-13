@@ -1,4 +1,4 @@
-/* Salernidex stylesheet index.
+/* DOOT stylesheet index.
 
    @import order is the cascade, so it is deliberate and mirrors the original
    single-file order: tokens, then base, then primitives, then features, with
@@ -11,6 +11,7 @@
 
 @import './tokens.css';
 @import './base.css';
+@import './primitives/wordmark.css';
 @import './shell/install-hint.css';
 @import './shell/badges.css';
 @import './primitives/switch.css';

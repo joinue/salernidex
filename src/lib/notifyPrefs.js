@@ -8,6 +8,7 @@ const KEY = 'salernidex-notify-prefs' // { [memberId]: { ...prefs } }
 export const DEFAULT_PREFS = {
   tasks: true,
   lists: true, // a list with a due date, reaching today/overdue
+  habits: true, // a habit scheduled today and not logged yet (ambient — never in the red count)
   nudges: true, // internal name; reads as "check-in reminders" everywhere a human sees it
   dates: true,
   fyi: false, // partner activity — off by default, it's the noisiest

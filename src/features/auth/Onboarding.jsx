@@ -47,6 +47,10 @@ export default function Onboarding({ session, onDone, onLogout }) {
     setBusy(false)
 
     if (res.error) return setError(res.error.message)
+    // join_household() returns NULL for a bad code instead of raising, so the
+    // failed-attempt row it just wrote survives (a RAISE would roll the counter
+    // back with it). No row means the code didn't match — see migration 0035.
+    if (!res.data) return setError('That invite code is not valid.')
     const hid = res.data?.household_id
     if (hid) localStorage.setItem(ACTIVE_HOUSEHOLD_KEY, hid)
     onDone() // re-loads the household hook → app proceeds into the Shell
@@ -57,8 +61,7 @@ export default function Onboarding({ session, onDone, onLogout }) {
       <section className="auth-panel">
         <div className="auth-card">
           <div className="auth-card-brand">
-            <img className="login-mark" src="/logo-mark.png" alt="" width="44" height="44" />
-            <span>Salernidex</span>
+            <span>DOOT</span>
           </div>
 
           <form onSubmit={submit}>

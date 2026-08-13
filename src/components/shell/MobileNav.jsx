@@ -11,6 +11,7 @@ import {
   Briefcase,
   UserPlus,
   Users,
+  FileText,
 } from 'react-feather'
 import Sheet from '../ui/Sheet'
 import { useLongPress } from '../../hooks/useLongPress'
@@ -36,6 +37,7 @@ export default function MobileNav({
     onAddPerson,
     onAddTask,
     onAddProject,
+    onAddNote,
     onAddList,
     onAddHabit,
     onAddOrg,
@@ -63,6 +65,7 @@ export default function MobileNav({
     people: onAddPerson,
     tasks: onAddTask,
     projects: onAddProject,
+    notes: onAddNote,
     lists: onAddList,
     habits: onAddHabit,
     orgs: onAddOrg,
@@ -144,6 +147,9 @@ export default function MobileNav({
           </button>
           <button className="sheet-item" onClick={pick(onAddProject)}>
             <Folder size={20} /> Project
+          </button>
+          <button className="sheet-item" onClick={pick(onAddNote)}>
+            <FileText size={20} /> Note
           </button>
           <button className="sheet-item" onClick={pick(onAddList)}>
             <List size={20} /> List

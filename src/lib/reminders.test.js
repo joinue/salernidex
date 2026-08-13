@@ -231,3 +231,64 @@ describe('buildAttention — whose tasks reach Today', () => {
     expect(badgeCount(items)).toBe(1)
   })
 })
+
+// Habits enter the engine so Today, the snooze store and the Edge Function all
+// read one definition of "scheduled and not done" — but at the ambient 'soft'
+// tier, so a morning's rituals can't sit in the red count.
+describe('buildAttention — habit kind', () => {
+  const habit = (over = {}) => ({
+    id: 'h1',
+    name: 'Run',
+    polarity: 'build',
+    measure: 'binary',
+    active_days: [],
+    created_at: '2026-01-01T00:00:00Z',
+    ...over,
+  })
+  const withHabits = (habits, habitEntries = []) => ({ ...base, habits, habitEntries })
+
+  it('surfaces an unlogged habit as a soft item keyed like the push', () => {
+    const items = buildAttention(withHabits([habit()]), { ...prefs, habits: true })
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({ kind: 'habit', key: 'habit:h1', urgency: 'soft' })
+    expect(items[0].habit.name).toBe('Run')
+  })
+
+  it('keeps habits out of the badge no matter how many are due', () => {
+    const data = withHabits([habit(), habit({ id: 'h2', name: 'Read' })])
+    const items = buildAttention(data, { ...prefs, habits: true })
+    expect(items).toHaveLength(2)
+    expect(badgeCount(items)).toBe(0)
+  })
+
+  it('drops a habit once the day is logged', () => {
+    const data = withHabits(
+      [habit()],
+      [{ habit_id: 'h1', date: isoDateIn(0), value: 1, skipped: false }],
+    )
+    expect(buildAttention(data, { ...prefs, habits: true })).toHaveLength(0)
+  })
+
+  it('respects the habits pref being off', () => {
+    expect(buildAttention(withHabits([habit()]), { ...prefs, habits: false })).toHaveLength(0)
+  })
+
+  it('honors a per-member snooze on the habit key', () => {
+    const data = withHabits([habit()])
+    const snoozes = [{ member_id: 'm1', target_key: 'habit:h1', until: null }]
+    expect(buildAttention(data, { ...prefs, habits: true }, snoozes, 'm1')).toHaveLength(0)
+    // …and someone else's snooze doesn't hide it from you.
+    expect(
+      buildAttention(
+        data,
+        { ...prefs, habits: true },
+        [{ member_id: 'm2', target_key: 'habit:h1', until: null }],
+        'm1',
+      ),
+    ).toHaveLength(1)
+  })
+
+  it('never invents habit items for a household with none', () => {
+    expect(buildAttention(base, { ...prefs, habits: true })).toHaveLength(0)
+  })
+})

@@ -59,7 +59,7 @@ function PushSection({ memberId }) {
   if (support === 'ios-install-first') {
     return (
       <p className="muted" style={{ fontSize: 13, margin: '10px 4px 0' }}>
-        On iPhone, add Salernidex to your Home Screen first (Share → Add to Home Screen) — then
+        On iPhone, add DOOT to your Home Screen first (Share → Add to Home Screen) — then
         notifications can be enabled here.
       </p>
     )
@@ -793,6 +793,12 @@ export default function SettingsView({ go, household, isDemo = false, onLogout, 
           sub="A list with a due date that's due or overdue"
           on={prefs.lists}
           onChange={(v) => updatePrefs({ lists: v })}
+        />
+        <Toggle
+          label="Habits"
+          sub="A habit scheduled for today that you haven't logged"
+          on={prefs.habits}
+          onChange={(v) => updatePrefs({ habits: v })}
         />
         <Toggle
           label="Check-ins"

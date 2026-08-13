@@ -8,10 +8,11 @@
 // allowlist of formatting tags and the mention chip survive; scripts, event
 // handlers, styles, and javascript: URLs are stripped.
 
-// The entity kinds a mention can point at. People/orgs/groups have backlink
-// surfaces today; projects/lists/tasks are linkable too (clickable in the body)
-// and forward-compatible for their own backlink sections later.
-export const MENTION_TYPES = ['person', 'organization', 'group', 'project', 'list', 'task']
+// The entity kinds a mention can point at. Every one of them now has a backlink
+// surface as well — person, org, group, list and project on their detail pages,
+// habit on its own, and a plain task inside the sheet it's edited in — so a
+// mention is never one-way.
+export const MENTION_TYPES = ['person', 'organization', 'group', 'project', 'list', 'task', 'habit']
 
 // Formatting tags kept as-is. Inline + block structure only — no media, no
 // tables, nothing that can carry script or layout.
@@ -269,8 +270,8 @@ export function linkifyHtml(html) {
 }
 
 // The @-mention candidate list, built from the loaded data — every entity a
-// note can reference. People / organizations / groups have backlink surfaces
-// today; projects / lists / tasks are linkable too. Returns [{type,id,label,sub}].
+// note can reference, and every one of them links back (see MENTION_TYPES).
+// Returns [{type,id,label,sub}].
 export function mentionCandidates(data) {
   const out = []
   for (const p of data.people || [])
@@ -289,6 +290,10 @@ export function mentionCandidates(data) {
   }
   for (const l of data.lists || [])
     if (l.name) out.push({ type: 'list', id: l.id, label: l.name, sub: 'List' })
+  // Own habits only: a housemate's shared habit is read-only and naming it in
+  // your notebook would file backlinks on a page you can't act on.
+  for (const h of data.habits || [])
+    if (h.name && !h.archived_at) out.push({ type: 'habit', id: h.id, label: h.name, sub: 'Habit' })
   return out
 }
 

@@ -1,8 +1,18 @@
 /* ---------- layout ---------- */
 
+/* Grows with its content on a phone (the document is the scroller there); a
+   fixed frame from the sidebar breakpoint up. See base.css for why. */
 .layout {
   display: flex;
-  height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+@media (min-width: 721px) {
+  .layout {
+    height: 100%;
+    min-height: 0;
+  }
 }
 
 .main {
@@ -12,11 +22,29 @@
   --main-pad-b: 96px;
   --main-pad-x: 32px;
   flex: 1;
-  overflow-y: auto;
+  /* A flex item's automatic minimum size is its content's min-content width, so
+     a wide child stretches this past the flex line instead of being contained.
+     `overflow-y: auto` used to mask that — scroll containers resolve
+     `min-width: auto` to 0 — so the blowout only surfaced once the phone shell
+     stopped scrolling here, and it surfaced as something far stranger than a
+     sideways scrollbar: the page grew wider than the viewport, iOS zoomed out
+     to fit, and every `position: fixed` element measured from the bottom of a
+     viewport that was suddenly ~200px taller than the screen. The tab bar and
+     the FAB were being drawn below the fold. */
+  min-width: 0;
   padding: var(--main-pad-t) var(--main-pad-x) var(--main-pad-b);
   scroll-behavior: smooth;
-  overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch;
+}
+
+/* Only a scrollport on desktop. On a phone it must stay `visible`, or it
+   becomes a scroll container again and swallows the document scrolling that
+   the collapsing-toolbar behaviour depends on. */
+@media (min-width: 721px) {
+  .main {
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 .content {

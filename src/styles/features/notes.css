@@ -73,11 +73,15 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* The open note, and the keyboard cursor. Both have to out-rank .list-row:hover,
-   hence the doubled selectors. */
-.note-row.active,
-.note-row.active:hover {
+/* The open note, and the keyboard cursor. The active row also has to out-rank
+   .list-row:hover, hence the doubled selector inside the pointer query. */
+.note-row.active {
   background: var(--accent-soft);
+}
+@media (hover: hover) {
+  .note-row.active:hover {
+    background: var(--accent-soft);
+  }
 }
 .note-row.cursor {
   box-shadow: inset 0 0 0 2px var(--accent);
@@ -217,8 +221,10 @@
   font-weight: 600;
   line-height: 1;
 }
-.note-tool:hover {
-  background: var(--fill);
+@media (hover: hover) {
+  .note-tool:hover {
+    background: var(--fill);
+  }
 }
 .note-tool:active {
   background: var(--accent-soft);
@@ -369,9 +375,13 @@
   text-align: left;
   cursor: pointer;
 }
-.mention-option.active,
-.mention-option:hover {
+.mention-option.active {
   background: var(--accent-soft);
+}
+@media (hover: hover) {
+  .mention-option:hover {
+    background: var(--accent-soft);
+  }
 }
 .mention-option-label {
   overflow: hidden;
@@ -504,8 +514,10 @@
   font-size: 14px;
   cursor: pointer;
 }
-.notes-trash-link:hover {
-  color: var(--text);
+@media (hover: hover) {
+  .notes-trash-link:hover {
+    color: var(--text);
+  }
 }
 .trash-actions {
   display: flex;
@@ -537,8 +549,10 @@
   cursor: pointer;
   transition: background 100ms ease;
 }
-.note-card:hover {
-  background: var(--fill-2);
+@media (hover: hover) {
+  .note-card:hover {
+    background: var(--fill-2);
+  }
 }
 .note-card.active,
 .note-card.cursor {

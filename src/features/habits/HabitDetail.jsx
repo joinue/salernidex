@@ -27,6 +27,7 @@ import { HabitDot } from './HabitRow'
 import Sheet from '../../components/ui/Sheet'
 import { memberName } from '../../lib/household'
 import NavBar from '../../components/ui/NavBar'
+import NoteBacklinks from '../../components/ui/NoteBacklinks'
 import EmptyState from '../../components/ui/EmptyState'
 import SectionLabel from '../../components/ui/SectionLabel'
 import StatTile, { StatGrid } from '../../components/ui/StatTile'
@@ -182,10 +183,11 @@ function addDaysISO(iso, n) {
   return toISODate(new Date(y, m - 1, d + n))
 }
 
-export default function HabitDetail({ data, habitId, onBack, onEdit }) {
+export default function HabitDetail({ data, habitId, onBack, onEdit, onOpenNote }) {
   const {
     habits,
     sharedHabits,
+    notes = [],
     habitEntries,
     logHabit,
     archiveHabit,
@@ -358,6 +360,10 @@ export default function HabitDetail({ data, habitId, onBack, onEdit }) {
         <SectionLabel>{isTrack ? 'Trend' : 'By week'}</SectionLabel>
         <MiniChart habit={habit} map={map} today={today} />
       </div>
+
+      {/* Renders nothing when there are no backlinks, so no wrapper — an empty
+          habit-section would leave its margin behind. */}
+      <NoteBacklinks notes={notes} type="habit" id={habitId} onOpenNote={onOpenNote} />
 
       {!readOnly && (
         <div className="habit-actions" style={{ marginTop: 20 }}>

@@ -208,8 +208,10 @@
 .list-suggest-item:not(:last-child) {
   border-bottom: 0.5px solid var(--separator);
 }
-.list-suggest-item:hover {
-  background: var(--fill-2);
+@media (hover: hover) {
+  .list-suggest-item:hover {
+    background: var(--fill-2);
+  }
 }
 .list-suggest-item:active {
   background: var(--fill);

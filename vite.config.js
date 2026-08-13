@@ -22,6 +22,9 @@ export default defineConfig({
       // gestures.js is mostly constants, but swallowNextClick and
       // DRAG_EXEMPT_SELECTOR are DOM behaviour and are tested as such.
       ['src/lib/gestures.test.js', 'jsdom'],
+      // quickFind indexes note bodies, so it reaches lib/notes' htmlToText and
+      // needs the same DOMParser notes.test.js does.
+      ['src/lib/quickFind.test.js', 'jsdom'],
       ['src/**/*.test.js', 'node'],
     ],
   },

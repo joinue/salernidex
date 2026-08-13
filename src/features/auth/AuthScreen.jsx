@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Users, CheckSquare, Sunrise, List, Activity, Eye, EyeOff } from 'react-feather'
 import { supabase } from '../../lib/supabase'
+import Wordmark from '../../components/ui/Wordmark'
 
 // The no-session screen. On desktop it doubles as a minimal landing page
 // (brand hero on the left, auth card on the right); on mobile it collapses to
@@ -15,17 +16,17 @@ const VALUE_PROPS = [
   {
     Icon: Users,
     title: 'One shared rolodex',
-    body: 'Everyone you both know, with the context that matters.',
+    body: 'Everyone you both know, plus the birthdays you swore you’d remember this year.',
   },
   {
     Icon: CheckSquare,
     title: 'Chores, to-dos & projects',
-    body: 'Recurring chores and shared lists, assigned to whoever’s on it.',
+    body: 'Recurring chores and shared lists, each with a name on it. Yours, probably.',
   },
   {
     Icon: Sunrise,
     title: 'A single Today',
-    body: 'What’s due, who to check in on, and what’s coming up — together.',
+    body: 'What’s due, who to check in on, what’s coming up. No more “I thought you had it.”',
   },
 ]
 
@@ -49,13 +50,13 @@ const friendlyError = (message = '', mode) => {
   if (m.includes('invalid login credentials'))
     return 'That email or password doesn’t match. Try again, or reset your password.'
   if (m.includes('email not confirmed'))
-    return 'Confirm your email first — check your inbox for the link we sent.'
+    return 'Confirm your email first. Check your inbox for the link we sent.'
   if (m.includes('already registered') || m.includes('already been registered'))
-    return 'An account with this email already exists — try signing in instead.'
+    return 'An account with this email already exists. Try signing in instead.'
   if (m.includes('user not found'))
     return mode === 'reset' ? 'No account found for that email.' : message
   if (m.includes('rate') || m.includes('security purposes'))
-    return 'Too many attempts just now — wait a moment and try again.'
+    return 'Too many attempts just now. Wait a moment and try again.'
   return message
 }
 
@@ -113,7 +114,10 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
       const { error } = await supabase.auth.updateUser({ password })
       setBusy(false)
       if (error) return setError(friendlyError(error.message, mode))
-      setSent({ title: 'Password updated', body: 'Your new password is saved — you’re signed in.' })
+      setSent({
+        title: 'Password updated',
+        body: 'Your new password is saved, and you’re signed in.',
+      })
       return setMode('sent')
     }
 
@@ -156,9 +160,12 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
     <div className="auth-wrap">
       <section className="auth-hero">
         <div className="auth-hero-inner">
-          <img className="login-mark" src="/logo-mark.png" alt="" width="56" height="56" />
-          <h1 className="auth-hero-title">Salernidex</h1>
-          <p className="auth-hero-tag">The shared operating system for your household.</p>
+          <h1 className="auth-hero-title">
+            <Wordmark size="full" />
+          </h1>
+          <p className="auth-hero-tag">
+            Things to do? Doot. The shared operating system for your household.
+          </p>
           <ul className="auth-values">
             {VALUE_PROPS.map(({ Icon, title, body }) => (
               <li key={title}>
@@ -182,8 +189,7 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
       <section className="auth-panel">
         <div className="auth-card">
           <div className="auth-card-brand">
-            <img className="login-mark" src="/logo-mark.png" alt="" width="44" height="44" />
-            <span>Salernidex</span>
+            <span>DOOT</span>
           </div>
 
           {/* Mobile-only value context — the desktop hero is hidden below 860px,
@@ -221,7 +227,8 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
             <div className="auth-sent">
               <h2 className="auth-title">Live preview</h2>
               <p className="muted auth-sub">
-                This build isn’t connected to an account yet — explore the demo on sample data.
+                This build isn’t wired to an account yet. Poke around the demo on sample data
+                instead.
               </p>
               <button className="btn-primary" onClick={onDemo}>
                 Explore the demo
@@ -233,7 +240,7 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
 
               {mode === 'recover' && (
                 <p className="muted auth-sub">
-                  Pick a new password for your account — you’ll stay signed in.
+                  Pick a new password for your account. You’ll stay signed in.
                 </p>
               )}
 

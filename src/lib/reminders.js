@@ -9,6 +9,7 @@
 //                  (internal name; the UI says "check in" — never "nudge"/"follow up")
 //   kind 'date'  — birthday or key date inside the lead window     (payload: entry from upcomingDates)
 //   kind 'list'  — a list with a due_date that's due today/overdue  (payload: list)
+//   kind 'habit' — a habit scheduled today that isn't done yet      (payload: habit)
 //   urgency: 'overdue' | 'today' | 'anytime' | 'upcoming' | 'soft'
 //     'soft' is the ambient tier (relationship check-ins): shown in Today, but
 //     kept out of the red count badge so it can't perpetually inflate it.
@@ -21,6 +22,7 @@
 // push-only (6b) — in-app, the Recent activity section already covers them.
 import { taskBucket, byDue, dueState, slackDays } from './tasks'
 import { followUp, lastInteraction, upcomingDates } from './contact'
+import { entryMap, habitsDueToday } from './habits'
 import { DEFAULT_PREFS } from './notifyPrefs'
 
 // How far ahead a deadline ('by') task reaches onto Today. A week is the span
@@ -56,7 +58,15 @@ export function buildAttention(
   now = Date.now(),
   { taskScope = 'mine', normalizeAssignee = (v) => v } = {},
 ) {
-  const { people = [], tasks = [], interactions = [], keyDates = [], lists = [] } = data
+  const {
+    people = [],
+    tasks = [],
+    interactions = [],
+    keyDates = [],
+    lists = [],
+    habits = [],
+    habitEntries = [],
+  } = data
   const active = people.filter((p) => !p.deleted_at)
 
   const hidden = new Set(
@@ -107,6 +117,19 @@ export function buildAttention(
       const bucket = dueState(l.due_date)
       if (bucket !== 'overdue' && bucket !== 'today') continue
       items.push({ kind: 'list', key: `list:${l.id}`, urgency: bucket, list: l })
+    }
+  }
+
+  // A habit scheduled today that you haven't done yet. Ambient like a check-in,
+  // so it rides the 'soft' tier: it belongs to today, but a daily ritual you
+  // already know about must not sit in the red count every morning until you
+  // log it — that's exactly the badge-never-reaches-zero failure 'soft' exists
+  // to prevent. The key matches the Edge Function's `habit:<id>` targetKey, so
+  // snoozing one here also silences its push.
+  if (prefs.habits) {
+    const map = entryMap(habitEntries)
+    for (const h of habitsDueToday(habits, map, new Date(now))) {
+      items.push({ kind: 'habit', key: `habit:${h.id}`, urgency: 'soft', habit: h })
     }
   }
 

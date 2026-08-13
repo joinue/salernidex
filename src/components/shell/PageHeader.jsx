@@ -8,6 +8,13 @@ import IconButton from '../ui/IconButton'
 // `onSearch` (mobile) adds a leading Quick Find button before both.
 // `subtitle` shows a quiet count/summary under the title.
 //
+// `actionQuiet` drops the primary action to the same neutral fill the
+// secondary one wears. The accent-filled circle is the page's *primary* action;
+// a header whose only trailing buttons are destinations (Today: Notes and
+// Settings) shouldn't hand that weight to whichever one happens to sit last —
+// on Today that painted Settings, the least-used thing on the screen, as the
+// brightest control on it.
+//
 // `createAction` is `action`'s sibling for the page's own "new thing" button:
 // identical on desktop, but omitted on mobile, where the floating ➕ already
 // offers exactly that create from the thumb zone. Passing both a header ➕ and
@@ -26,6 +33,7 @@ export default function PageHeader({
   createAction,
   actionIcon: ActionIcon = Plus,
   actionLabel,
+  actionQuiet = false,
   secondaryAction,
   secondaryActionIcon: SecondaryIcon,
   secondaryActionLabel,
@@ -162,8 +170,8 @@ export default function PageHeader({
             <IconButton
               icon={ActionIcon}
               size="md"
-              variant="accent"
-              className="header-action"
+              variant={actionQuiet ? undefined : 'accent'}
+              className={`header-action ${actionQuiet ? 'neutral' : ''}`}
               onClick={primary}
               label={actionLabel || 'Add'}
             />

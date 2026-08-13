@@ -157,7 +157,7 @@ export default function ImportExport({ data }) {
   // ---- Full backup (everything, round-trippable) ----
   const exportBackup = () => {
     const backup = {
-      app: 'salernidex',
+      app: 'doot',
       backup_version: BACKUP_VERSION,
       exported_at: new Date().toISOString(),
       people: allPeople, // includes soft-deleted + private, so restore is lossless
@@ -184,7 +184,7 @@ export default function ImportExport({ data }) {
       },
     }
     const stamp = new Date().toISOString().slice(0, 10)
-    download(`salernidex-backup-${stamp}.json`, JSON.stringify(backup, null, 2), 'application/json')
+    download(`doot-backup-${stamp}.json`, JSON.stringify(backup, null, 2), 'application/json')
   }
 
   const onBackupFile = (e) => {
@@ -201,8 +201,10 @@ export default function ImportExport({ data }) {
         setStatus('That file is not valid JSON.')
         return
       }
-      if (backup.app !== 'salernidex' || !Array.isArray(backup.people)) {
-        setStatus('This does not look like a Salernidex backup.')
+      // 'salernidex' is the pre-rebrand tag — keep accepting it so older backups restore.
+      const known = backup.app === 'doot' || backup.app === 'salernidex'
+      if (!known || !Array.isArray(backup.people)) {
+        setStatus('This does not look like a DOOT backup.')
         return
       }
       const counts = [
@@ -279,7 +281,7 @@ export default function ImportExport({ data }) {
         notes: csvSafe(p.notes || ''),
       })),
     )
-    download('salernidex-people.csv', csv, 'text/csv')
+    download('doot-people.csv', csv, 'text/csv')
   }
 
   const onCsvFile = (e) => {
@@ -454,7 +456,7 @@ export default function ImportExport({ data }) {
       <div className="list">
         <button
           className="list-row"
-          onClick={() => downloadVcf('salernidex-contacts', active, orgsById, affiliations)}
+          onClick={() => downloadVcf('doot-contacts', active, orgsById, affiliations)}
         >
           <span className="activity-icon">
             <Download size={16} />

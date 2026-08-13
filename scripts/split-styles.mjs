@@ -79,7 +79,7 @@ for (const { file, body } of chunks) {
   fs.writeFileSync(dest, body.replace(/^\n+/, '').replace(/\n+$/, '') + '\n')
 }
 
-const index = `/* Salernidex stylesheet index.
+const index = `/* DOOT stylesheet index.
 
    @import order is the cascade, so it is deliberate and mirrors the original
    single-file order: tokens, then base, then primitives, then features, with

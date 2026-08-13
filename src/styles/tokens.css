@@ -93,6 +93,12 @@
   --fab-bottom: calc(var(--chrome-bottom) + var(--fab-gap));
   /* What a scroll container must reserve so its last row clears the FAB. */
   --content-bottom: calc(var(--fab-bottom) + var(--fab-size) + 20px);
+  /* Where transient chrome (the toast pill) parks: clear of the FAB's top edge,
+     not level with it. A toast is centered and can grow to the full gutter
+     width, so "beside the FAB" is only true for the shortest messages — at
+     ~20 characters the pill starts cutting through the button. Derived, because
+     the literal this replaced (98px) put every longer toast straight over it. */
+  --toast-bottom: calc(var(--fab-bottom) + var(--fab-size) + 12px);
 
   /* Top chrome. The height of the sticky bar `NavBar` paints, measured from the
      scrollport's top edge (the bar's own top padding cancels .main's, so this

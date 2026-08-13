@@ -16,8 +16,8 @@ export default function LegalView({ doc, onBack }) {
       <NavBar backLabel="Back" onBack={onBack} title={doc === 'privacy' ? 'Privacy' : 'Terms'} />
       <Body />
       <p className="legal-meta">
-        Salernidex is operated by {OPERATOR}. Questions? Email{' '}
-        <a href={`mailto:${CONTACT}`}>{CONTACT}</a>.
+        DOOT is operated by {OPERATOR}. Questions? Email <a href={`mailto:${CONTACT}`}>{CONTACT}</a>
+        .
       </p>
     </div>
   )
@@ -30,14 +30,14 @@ function Privacy() {
       <p className="legal-date">Last updated {EFFECTIVE_DATE}</p>
 
       <p>
-        Salernidex (the “Service”) is a private household organizer operated by {OPERATOR}, an
-        Arizona limited liability company (“Joinue,” “we,” “us”). This policy explains what we
-        collect, why, and what choices you have. By using the Service you agree to this policy.
+        DOOT (the “Service”) is a private household organizer operated by {OPERATOR}, an Arizona
+        limited liability company (“Joinue,” “we,” “us”). This policy explains what we collect, why,
+        and what choices you have. By using the Service you agree to this policy.
       </p>
 
       <h2>1. Who controls your data</h2>
       <p>
-        Salernidex is a tool you use to record your own household, contacts, and to-dos. For the
+        DOOT is a tool you use to record your own household, contacts, and to-dos. For the
         information you enter — including details about other people — <strong>you</strong> decide
         what to put in and how it is used. With respect to that content you act as the data
         controller; we act as a processor that stores it on your behalf. You are responsible for
@@ -155,10 +155,10 @@ function Terms() {
       <p className="legal-date">Last updated {EFFECTIVE_DATE}</p>
 
       <p>
-        These Terms of Use (“Terms”) govern your access to and use of Salernidex (the “Service”),
-        operated by {OPERATOR}, an Arizona limited liability company (“Joinue,” “we,” “us”). By
-        creating an account or using the Service, you agree to these Terms. If you do not agree, do
-        not use the Service.
+        These Terms of Use (“Terms”) govern your access to and use of DOOT (the “Service”), operated
+        by {OPERATOR}, an Arizona limited liability company (“Joinue,” “we,” “us”). By creating an
+        account or using the Service, you agree to these Terms. If you do not agree, do not use the
+        Service.
       </p>
 
       <h2>1. Who may use the Service</h2>

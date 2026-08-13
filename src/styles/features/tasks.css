@@ -158,8 +158,11 @@
   padding: 7px 14px;
 }
 
-.list-row.sub:hover {
-  background: transparent;
+/* Cancels .list-row:hover, so it lives in the same pointer query. */
+@media (hover: hover) {
+  .list-row.sub:hover {
+    background: transparent;
+  }
 }
 
 /* Inline add-subtask row (used in the Tasks list's expanded task — a single
@@ -456,8 +459,10 @@ select.rec-select + .segmented {
   color: var(--accent);
 }
 
-.quick-chip:hover {
-  background: var(--fill-2);
+@media (hover: hover) {
+  .quick-chip:hover {
+    background: var(--fill-2);
+  }
 }
 
 .quick-chip:active {
@@ -516,8 +521,13 @@ select.rec-select + .segmented {
   opacity: 0;
 }
 
-.activity-row:hover .icon-btn {
-  opacity: 1;
+/* focus-within too: these are real tab stops, and revealing them on hover
+   alone left a keyboard user tabbing onto an invisible button. */
+@media (hover: hover) {
+  .activity-row:hover .icon-btn,
+  .activity-row:focus-within .icon-btn {
+    opacity: 1;
+  }
 }
 
 @media (hover: none) {
@@ -608,8 +618,10 @@ a.value-row {
   cursor: pointer;
 }
 
-.conn-name:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .conn-name:hover {
+    text-decoration: underline;
+  }
 }
 
 .conn-type {

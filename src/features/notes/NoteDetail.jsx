@@ -64,13 +64,13 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
     if (wasEmptyOnOpen.current) titleRef.current?.focus()
   }, [])
 
-  // Every entity a note can @-mention (people/orgs/groups/projects/lists/tasks).
-  // Granular deps on purpose: `data` is a fresh object each render, so depending
-  // on it would rebuild the list every time.
+  // Every entity a note can @-mention (people/orgs/groups/projects/tasks/lists/
+  // habits). Granular deps on purpose: `data` is a fresh object each render, so
+  // depending on it would rebuild the list every time.
   const candidates = useMemo(
     () => mentionCandidates(data),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data.people, data.orgs, data.groups, data.tasks, data.lists],
+    [data.people, data.orgs, data.groups, data.tasks, data.lists, data.habits],
   )
 
   // Tag suggestions drawn from the household's other notes.

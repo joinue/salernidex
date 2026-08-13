@@ -93,6 +93,12 @@
   margin-top: 18px;
 }
 
+/* Just the hero's size — which of the two PNGs shows is settled once, in
+   primitives/wordmark.css. */
+.auth-hero-title .wordmark {
+  width: min(260px, 60%);
+}
+
 .auth-hero-tag {
   font-size: 17px;
   color: var(--text-2);
@@ -324,8 +330,10 @@
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
-.pw-toggle:hover {
-  color: var(--text);
+@media (hover: hover) {
+  .pw-toggle:hover {
+    color: var(--text);
+  }
 }
 
 /* Quiet helper under a field (e.g. password requirements on signup). */
@@ -448,8 +456,10 @@
   text-decoration: underline;
 }
 
-.auth-consent a:hover {
-  color: var(--accent);
+@media (hover: hover) {
+  .auth-consent a:hover {
+    color: var(--accent);
+  }
 }
 
 /* Quiet legal links under the auth card. */
@@ -465,7 +475,9 @@
   text-decoration: none;
 }
 
-.auth-legal a:hover {
-  color: var(--accent);
-  text-decoration: underline;
+@media (hover: hover) {
+  .auth-legal a:hover {
+    color: var(--accent);
+    text-decoration: underline;
+  }
 }

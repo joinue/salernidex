@@ -1,19 +1,25 @@
 import { isProject, dueLabel } from './tasks'
 import { groupMembers } from './groups'
 import { noteTitle, htmlToText } from './notes'
+import { cadenceLabel } from './habits'
 import { affiliationsFor, personSummary } from './orgs'
 
 // Quick Find: one ranked index across every entity — people, tasks, lists,
-// orgs, groups — plus pages and create actions. Same scoring idea as
-// searchPeople (every query word must match somewhere, word-start doubles,
-// best field wins per word) so results feel consistent with People search.
+// notes, habits, orgs, groups — plus pages and create actions. Same scoring
+// idea as searchPeople (every query word must match somewhere, word-start
+// doubles, best field wins per word) so results feel consistent with People
+// search. Every destination the app has belongs here; a page you can't reach by
+// name is a page ⌘K quietly pretends doesn't exist.
 
 // Pages, with synonyms so "network" finds Relationships, "export" finds
 // Import / Export, etc.
 const NAV = [
   { route: '', title: 'Today', alias: 'home dashboard' },
-  { route: 'tasks', title: 'Tasks', alias: 'todos chores projects' },
+  { route: 'tasks', title: 'Tasks', alias: 'todos chores' },
+  { route: 'projects', title: 'Projects', alias: 'plans milestones' },
   { route: 'lists', title: 'Lists', alias: 'groceries shopping' },
+  { route: 'notes', title: 'Notes', alias: 'notebook writing scratch' },
+  { route: 'habits', title: 'Habits', alias: 'streaks routines rituals' },
   { route: 'people', title: 'People', alias: 'people contacts rolodex network' },
   { route: 'activity', title: 'Activity', alias: 'history log touchpoints' },
   { route: 'relationships', title: 'Relationships', alias: 'network connections' },
@@ -26,7 +32,9 @@ const NAV = [
 const ACTIONS = [
   { action: 'person', title: 'New person', alias: 'add contact create' },
   { action: 'task', title: 'New task', alias: 'add todo create' },
+  { action: 'note', title: 'New note', alias: 'add write create' },
   { action: 'list', title: 'New list', alias: 'add create' },
+  { action: 'habit', title: 'New habit', alias: 'add streak routine create' },
   { action: 'org', title: 'New organization', alias: 'add company create' },
   { action: 'group', title: 'New group', alias: 'add create' },
   { action: 'relationship', title: 'New relationship', alias: 'add connection create' },
@@ -39,6 +47,7 @@ export const TYPE_LABELS = {
   task: 'Tasks',
   list: 'Lists',
   note: 'Notes',
+  habit: 'Habits',
   org: 'Organizations',
   group: 'Groups',
   nav: 'Pages',
@@ -151,6 +160,23 @@ export function buildIndex(data) {
         [title, 70],
         [htmlToText(n.body), 15],
         [(n.tags || []).join(' '), 20],
+      ],
+    })
+  }
+
+  // Own habits and the ones a housemate shares with you — HabitDetail renders
+  // both, so both are real destinations. Archived habits stay findable (that's
+  // often exactly why you're searching) and say so.
+  for (const h of [...(data.habits || []), ...(data.sharedHabits || [])]) {
+    add({
+      type: 'habit',
+      id: h.id,
+      icon: h.icon,
+      title: h.name || 'Untitled',
+      sub: h.archived_at ? `Archived · ${cadenceLabel(h)}` : cadenceLabel(h),
+      fields: [
+        [h.name, 80],
+        [h.unit, 15],
       ],
     })
   }

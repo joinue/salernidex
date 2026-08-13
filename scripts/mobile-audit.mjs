@@ -157,8 +157,16 @@ let failures = 0
 // scroll-down) and check what's left underneath.
 const settleAtBottom = async () => {
   await page.evaluate(() => {
+    // Drive both candidates, mirroring lib/scroller.js: the document is the
+    // scroller at phone widths and `.main` is the scrollport above them. This
+    // walk runs in an iPhone context today, so `.main` is the no-op half — but
+    // asking only it is what silently turned this audit into a check of an
+    // unscrolled page, and reported every control still under the tab bar.
     const m = document.querySelector('.main')
     if (m) m.scrollTop = m.scrollHeight
+    // Instant: the document carries `scroll-behavior: smooth`, and a smooth
+    // scroll would still be in flight when the measurements are taken.
+    window.scrollTo({ top: document.scrollingElement.scrollHeight, behavior: 'instant' })
   })
   await page.waitForTimeout(400)
   await page.evaluate(() => document.querySelector('.fab')?.classList.remove('tucked'))

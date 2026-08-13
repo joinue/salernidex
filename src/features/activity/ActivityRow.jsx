@@ -2,17 +2,21 @@ import { CheckCircle } from 'react-feather'
 import { relativeTime } from '../../lib/contact'
 import { assigneeLabel } from '../../lib/household'
 import { INTERACTION_BY_ID } from '../../lib/constants'
+import { logLabel } from '../../lib/habits'
 import Avatar from '../../components/ui/Avatar'
 import PressableRow from '../../components/ui/PressableRow'
+import { HabitDot } from '../habits/HabitRow'
 
 // One line in the household-activity feed. Renders a touchpoint, a task
-// completion, or list activity from a feed entry (see lib/activity). Tapping
-// navigates to the relevant place; touchpoints also support a long-press menu.
+// completion, a habit check-in, or list activity from a feed entry (see
+// lib/activity). Tapping navigates to the relevant place; touchpoints also
+// support a long-press menu.
 export default function ActivityRow({
   entry: e,
   onOpenPerson,
   onOpenList,
   onOpenTasks,
+  onOpenHabit,
   onPersonLongPress,
 }) {
   if (e.kind === 'completion') {
@@ -24,6 +28,21 @@ export default function ActivityRow({
         <div className="row-body">
           <div className="row-title">{e.task.title}</div>
           <div className="row-sub">Completed{e.by ? ` · ${assigneeLabel(e.by)}` : ''}</div>
+        </div>
+        <span className="row-time">{relativeTime(e.ts)}</span>
+      </PressableRow>
+    )
+  }
+  if (e.kind === 'habit') {
+    return (
+      <PressableRow key={e.key} onClick={onOpenHabit ? () => onOpenHabit(e.habit.id) : undefined}>
+        <HabitDot habit={e.habit} />
+        <div className="row-body">
+          <div className="row-title">{e.habit.name}</div>
+          <div className="row-sub">
+            {logLabel(e.habit, e.value)}
+            {e.note ? ` — ${e.note}` : ''}
+          </div>
         </div>
         <span className="row-time">{relativeTime(e.ts)}</span>
       </PressableRow>

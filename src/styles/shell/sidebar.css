@@ -17,9 +17,6 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
   padding: 0 12px 24px;
 }
 
@@ -41,15 +38,20 @@
     color 120ms ease;
 }
 
-.sidebar-toggle:hover {
-  background: var(--fill-2);
-  color: var(--text);
+@media (hover: hover) {
+  .sidebar-toggle:hover {
+    background: var(--fill-2);
+    color: var(--text);
+  }
 }
 
+/* The mark is the wordmark — the app's icon is the word — so the brand row is
+   the logo itself rather than a logo plus the name spelled out beside it. Size
+   it by height and let the width follow; setting `display` here would fight the
+   light/dark swap in primitives/wordmark.css at equal specificity. */
 .sidebar .brand-mark {
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
+  height: 30px;
+  width: auto;
   flex-shrink: 0;
 }
 
@@ -84,9 +86,11 @@
   flex: 1;
 }
 
-.nav-search:hover {
-  background: var(--fill-2);
-  border-color: var(--text-3);
+@media (hover: hover) {
+  .nav-search:hover {
+    background: var(--fill-2);
+    border-color: var(--text-3);
+  }
 }
 
 .nav-item {
@@ -111,8 +115,10 @@
   transition: color 120ms ease;
 }
 
-.nav-item:hover {
-  background: var(--fill-2);
+@media (hover: hover) {
+  .nav-item:hover {
+    background: var(--fill-2);
+  }
 }
 
 .nav-item.active {
@@ -145,20 +151,25 @@
   width: 64px;
 }
 
-/* Every label in the rail — brand word, nav text, theme text — leaves together.
-   The title attribute on each button carries the name instead. */
+/* Every label in the rail — nav text, theme text — leaves together. The title
+   attribute on each button carries the name instead. */
 .sidebar.collapsed .nav-text,
 .sidebar.collapsed .nav-search-text,
 .sidebar.collapsed .nav-kbd {
   display: none;
 }
 
-/* Mark on top, toggle beneath it — the only two things wide enough to need
-   their own row once the wordmark is gone. */
+/* Mark on top, toggle beneath it — side by side they don't fit a 64px rail.
+   The mark stays: it's the one thing here that still has to say which app
+   this is. */
 .sidebar.collapsed .brand {
   flex-direction: column;
   gap: 12px;
   padding: 0 0 20px;
+}
+
+.sidebar.collapsed .brand-mark {
+  height: 24px;
 }
 
 .sidebar.collapsed .sidebar-toggle {

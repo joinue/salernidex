@@ -14,12 +14,21 @@ const KINDS = [
   { value: 'all', label: 'All' },
   { value: 'interaction', label: 'People' },
   { value: 'completion', label: 'Tasks' },
+  { value: 'habit', label: 'Habits' },
   { value: 'list', label: 'Lists' },
 ]
 
-// The full household activity log: every touchpoint, task completion, and list
-// change, grouped by day. A basic audit trail reachable from "See all" on Today.
-export default function ActivityView({ data, onBack, onOpenPerson, onOpenList, onOpenTasks }) {
+// The full household activity log: every touchpoint, task completion, habit
+// check-in, and list change, grouped by day. A basic audit trail reachable from
+// "See all" on Today.
+export default function ActivityView({
+  data,
+  onBack,
+  onOpenPerson,
+  onOpenList,
+  onOpenTasks,
+  onOpenHabit,
+}) {
   const [filter, setFilter] = useState('all')
   const [actionPerson, setActionPerson] = useState(null)
 
@@ -54,6 +63,7 @@ export default function ActivityView({ data, onBack, onOpenPerson, onOpenList, o
                   onOpenPerson={onOpenPerson}
                   onOpenList={onOpenList}
                   onOpenTasks={onOpenTasks}
+                  onOpenHabit={onOpenHabit}
                   onPersonLongPress={setActionPerson}
                 />
               ))}

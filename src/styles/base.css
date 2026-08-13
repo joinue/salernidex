@@ -32,26 +32,48 @@
   border-radius: 999px;
 }
 
-/* The app is a fixed-height shell: .main scrolls, the document never does. That
-   makes the root height the box every piece of fixed chrome is measured against,
-   and on iOS a percentage is the wrong box. `height: 100%` resolves against the
-   initial containing block — the *large* viewport, sized as though the URL bar
-   were collapsed — so with Safari's toolbar showing the shell laid out 60-90px
-   taller than the screen, and `.tabbar`/`.fab`, positioned from that bottom,
-   sat behind the toolbar. Nor does it settle on scroll: because .main is the
-   scroller and the document itself never moves, Safari never collapses the bar.
-   `dvh` is the dynamic viewport — what is actually visible right now — which is
-   the same box JoinUE's shell uses (`min-height: 100dvh`), and the reason its
-   nav lands correctly. Same rule sheet.css already follows for its 88dvh cap.
+/* Two shells, and which one you get decides who scrolls.
+   ---------------------------------------------------------------------------
+   A phone lets the *document* scroll. That is not a stylistic choice: iOS
+   Safari collapses its toolbars only for pages whose document moves, and a
+   shell that scrolls an inner div instead keeps ~60px of toolbar on screen for
+   the whole session — which is what left the floating tab pill sitting visibly
+   higher than it should. Scrolling the document also hands back native scroll
+   restoration, correct `env(safe-area-inset-bottom)` once the toolbar folds
+   away, and find-in-page. `min-height` rather than `height`, so the page can
+   grow past the viewport and actually have somewhere to scroll to.
 
-   The 100% line stays as the fallback for anything without dvh (Safari < 15.4).
+   Desktop keeps the fixed-height frame, where it earns its keep: the sidebar
+   and the notes two-pane split are genuinely independent scroll regions, and
+   there is no browser chrome to reclaim. `.main` is the scrollport there.
+
+   `dvh` is the dynamic viewport — what is visible right now — with the vh line
+   behind it as the fallback for anything without dvh (Safari < 15.4). Only the
+   desktop half needs the exact viewport box; the phone half just needs a floor.
    dvh tracks browser chrome but NOT the keyboard — that stays useKeyboardOpen's
-   job. */
-html,
-body,
+   job. Anything reading scroll position in JS goes through lib/scroller.js,
+   which forks on the same 720px breakpoint. */
 #root {
-  height: 100%;
-  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Programmatic scrolls (route changes, the A–Z scrubber, the list editor) stay
+   smooth whichever box is moving. `.main` carries this for the desktop shell;
+   the document needs its own copy now that it scrolls on a phone, or those all
+   silently became jump cuts. Inert on whichever box isn't the scroller, and the
+   reduced-motion reset above already forces both back to `auto`. */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (min-width: 721px) {
+  html,
+  body,
+  #root {
+    height: 100%;
+    height: 100dvh;
+  }
 }
 
 body {

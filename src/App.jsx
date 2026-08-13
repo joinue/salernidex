@@ -15,6 +15,7 @@ import { clearSnapshots } from './lib/offlineCache'
 import { areaNames, taskTags, isProject } from './lib/tasks'
 import { setAppPrefs } from './lib/appPrefs'
 import { buildProjectRows } from './lib/projectTemplates'
+import { scrollToTop } from './lib/scroller'
 import InstallHint from './components/shell/InstallHint'
 import AuthScreen from './features/auth/AuthScreen'
 import Onboarding from './features/auth/Onboarding'
@@ -319,10 +320,11 @@ function Shell({ session, onLogout, household }) {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
-  // Land at the top of the page on navigation — the scroll container persists
-  // across route changes, so without this you keep the previous page's offset.
+  // Land at the top of the page on navigation — the scroller persists across
+  // route changes, so without this you keep the previous page's offset. Which
+  // box that is depends on the shell, hence lib/scroller rather than mainRef.
   useEffect(() => {
-    mainRef.current?.scrollTo(0, 0)
+    scrollToTop(mainRef.current)
   }, [route.name, route.id])
 
   const go = (path) => {
@@ -396,7 +398,7 @@ function Shell({ session, onLogout, household }) {
                         privacy: 'Privacy Policy',
                         terms: 'Terms of Use',
                       }[route.name]
-    document.title = named ? `${named} — Salernidex` : 'Salernidex'
+    document.title = named ? `${named} — DOOT` : 'DOOT'
   }, [route, data.people, data.orgs, data.groups, data.lists, data.tasks, data.habits, data.notes])
   const openPerson = (id) => go(`person/${id}`)
   const openOrg = (id) => go(`org/${id}`)
@@ -409,6 +411,7 @@ function Shell({ session, onLogout, household }) {
   // doesn't fall straight out of the list you're looking at).
   const createNote = (fields) => openNote(data.addNote(fields || {}))
   const openProject = (id) => go(`project/${id}`)
+  const openHabit = (id) => go(`habit/${id}`)
   // Open a linked task from an entity page: projects get the full ProjectDetail,
   // plain tasks open the editor sheet.
   const openTask = (t) => (isProject(t) ? openProject(t.id) : setEditingTask(t))
@@ -421,6 +424,7 @@ function Shell({ session, onLogout, household }) {
     if (type === 'organization') return openOrg(id)
     if (type === 'group') return openGroup(id)
     if (type === 'list') return openList(id)
+    if (type === 'habit') return openHabit(id)
     if (type === 'project' || type === 'task') {
       const t = data.tasks.find((x) => x.id === id)
       if (t) openTask(t)
@@ -465,6 +469,7 @@ function Shell({ session, onLogout, household }) {
       entry.parentId ? openProject(entry.parentId) : go(`tasks/${entry.id}`)
     else if (entry.type === 'list') openList(entry.id)
     else if (entry.type === 'note') openNote(entry.id)
+    else if (entry.type === 'habit') openHabit(entry.id)
     else if (entry.type === 'org') openOrg(entry.id)
     else if (entry.type === 'group') openGroup(entry.id)
     else if (entry.type === 'nav') go(entry.route)
@@ -472,7 +477,11 @@ function Shell({ session, onLogout, household }) {
       const open = {
         person: () => setEditingPerson('new'),
         task: () => setEditingTask('new'),
+        // A note is created by opening one, not by filling in a form — same
+        // path the notebook's own "New note" takes.
+        note: () => createNote(),
         list: () => setEditingList('new'),
+        habit: () => setPickingHabit(true),
         org: () => setEditingOrg('new'),
         group: () => setEditingGroup('new'),
         relationship: () => setRelationshipFrom('new'),
@@ -511,6 +520,8 @@ function Shell({ session, onLogout, household }) {
       data.interactions,
       data.keyDates,
       data.reminderSnoozes,
+      data.habits,
+      data.habitEntries,
       prefs,
       data.memberId,
       appPrefs.todayScope,
@@ -569,6 +580,7 @@ function Shell({ session, onLogout, household }) {
     onAddPerson: () => setEditingPerson('new'),
     onAddTask: () => setEditingTask('new'),
     onAddProject: () => openProjectPicker(),
+    onAddNote: () => createNote(),
     onAddList: () => setEditingList('new'),
     onAddOrg: () => setEditingOrg('new'),
     onAddGroup: () => setEditingGroup('new'),
@@ -620,6 +632,7 @@ function Shell({ session, onLogout, household }) {
                 onSettings={isMobile ? () => go('settings') : undefined}
                 onSearch={isMobile ? () => setQuickFind(true) : undefined}
                 onOpenHabits={() => go('habits')}
+                onOpenHabit={openHabit}
                 onOpenNotes={() => go('notes')}
                 onOpenNote={openNote}
               />
@@ -631,6 +644,7 @@ function Shell({ session, onLogout, household }) {
                 onOpenPerson={openPerson}
                 onOpenList={openList}
                 onOpenTasks={() => go('tasks')}
+                onOpenHabit={openHabit}
               />
             )}
             {route.name === 'tasks' && (
@@ -691,6 +705,7 @@ function Shell({ session, onLogout, household }) {
                 onBack={() => (window.history.length > 1 ? window.history.back() : go('lists'))}
                 onEdit={(l) => setEditingList(l)}
                 onOpenNote={openNote}
+                onOpenProject={openProject}
               />
             )}
             {/* One component owns both notes routes: on a wide screen the index
@@ -817,8 +832,13 @@ function Shell({ session, onLogout, household }) {
               <HabitDetail
                 data={data}
                 habitId={route.id}
-                onBack={() => go('habits')}
+                // A habit is now reachable from Today, the activity feed and
+                // Quick Find, so "back" has to mean where you came from — a
+                // fixed hop to the Habits index would strand you somewhere you
+                // never were. Deep-linked with no history → Habits.
+                onBack={() => (window.history.length > 1 ? window.history.back() : go('habits'))}
                 onEdit={(h) => setEditingHabit(h)}
+                onOpenNote={openNote}
               />
             )}
             {route.name === 'import' && (
@@ -952,6 +972,13 @@ function Shell({ session, onLogout, household }) {
           onMakeProject={(title) => {
             setEditingTask(null)
             openProjectPicker(title)
+          }}
+          notes={data.notes}
+          // Close the sheet on the way out — leaving it stacked over the note
+          // you just opened would put a form on top of what you went to read.
+          onOpenNote={(id) => {
+            setEditingTask(null)
+            openNote(id)
           }}
           defaultPrivacy={appPrefs.taskPrivacy}
           areas={areaNames(data.tasks)}

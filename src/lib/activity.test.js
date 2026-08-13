@@ -69,3 +69,73 @@ describe('activityDayLabel / groupByDay', () => {
     expect(groups[0].items).toHaveLength(2)
   })
 })
+
+describe('buildActivityFeed — habit check-ins', () => {
+  const habits = [
+    { id: 'h1', name: 'Run', polarity: 'build', measure: 'binary' },
+    { id: 'gone', name: 'Old', deleted_at: '2026-01-01' },
+  ]
+  const habitEntries = [
+    { id: 'e1', habit_id: 'h1', date: '2026-06-10', value: 1, updated_at: '2026-06-10T07:00:00Z' },
+    // rest day — a real action, but not a record of anything done
+    {
+      id: 'e2',
+      habit_id: 'h1',
+      date: '2026-06-11',
+      value: 0,
+      skipped: true,
+      updated_at: '2026-06-11T07:00:00Z',
+    },
+    // orphan: the habit was deleted out from under it
+    {
+      id: 'e3',
+      habit_id: 'gone',
+      date: '2026-06-11',
+      value: 1,
+      updated_at: '2026-06-11T08:00:00Z',
+    },
+    // no such habit at all
+    {
+      id: 'e4',
+      habit_id: 'ghost',
+      date: '2026-06-11',
+      value: 1,
+      updated_at: '2026-06-11T09:00:00Z',
+    },
+  ]
+
+  it('includes logged days and drops rest days, deleted and orphaned habits', () => {
+    const feed = buildActivityFeed({ habits, habitEntries })
+    expect(feed).toHaveLength(1)
+    expect(feed[0]).toMatchObject({ kind: 'habit', ts: '2026-06-10T07:00:00Z', value: 1 })
+    expect(feed[0].habit.name).toBe('Run')
+  })
+
+  it('sorts by when it was logged, not the day it is for', () => {
+    // Backfilled yesterday's run this morning: it should land above a check-off
+    // that happened last night.
+    const feed = buildActivityFeed({
+      habits,
+      habitEntries: [
+        {
+          id: 'late',
+          habit_id: 'h1',
+          date: '2026-06-09',
+          value: 1,
+          updated_at: '2026-06-11T09:00:00Z',
+        },
+      ],
+      lists: [{ id: 'l1', name: 'Groceries' }],
+      listItems: [{ id: 'li1', list_id: 'l1', text: 'Milk', created_at: '2026-06-10T20:00:00Z' }],
+    })
+    expect(feed.map((e) => e.kind)).toEqual(['habit', 'list'])
+  })
+
+  it('falls back to created_at, then the date, when there is no updated_at', () => {
+    const feed = buildActivityFeed({
+      habits,
+      habitEntries: [{ id: 'x', habit_id: 'h1', date: '2026-06-10', value: 1 }],
+    })
+    expect(feed[0].ts).toBe('2026-06-10')
+  })
+})

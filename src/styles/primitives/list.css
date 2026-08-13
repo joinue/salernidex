@@ -47,8 +47,15 @@
   border-bottom-right-radius: var(--radius);
 }
 
-.list-row:hover {
-  background: var(--fill-2);
+/* Hover is a pointer affordance, so it is declared for pointers only. iOS
+   Safari applies :hover on tap and *leaves it applied* until you tap something
+   else, so an unguarded hover rule reads as "this row is still selected" long
+   after you came back from it — the whole list ends up with one arbitrarily
+   highlighted row. :active is the touch feedback and stays unguarded. */
+@media (hover: hover) {
+  .list-row:hover {
+    background: var(--fill-2);
+  }
 }
 
 .list-row:active {

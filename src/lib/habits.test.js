@@ -17,6 +17,10 @@ import {
   hasRule,
   cadenceLabel,
   goalLabel,
+  rowSummary,
+  logLabel,
+  habitsScheduledToday,
+  habitsDueToday,
 } from './habits'
 
 // Build entries spanning back from a fixed "today" so tests are deterministic.
@@ -120,6 +124,53 @@ describe('rrule scheduling', () => {
     )
     expect(goalLabel({ polarity: 'build', measure: 'binary', rrule: rule })).toBe('Each time')
     expect(goalLabel({ polarity: 'limit', measure: 'binary', rrule: rule })).toBe('Avoid')
+  })
+})
+
+describe('rowSummary', () => {
+  // The row has ~143px for this line. Every case here used to overflow into an
+  // ellipsis that ate the number, which is the part worth reading.
+  it('drops the cadence when the goal has already said it', () => {
+    expect(goalLabel({ polarity: 'build', measure: 'count', target: 8, unit: 'glasses' })).toBe(
+      'Goal ≥ 8 glasses/day',
+    )
+    expect(rowSummary({ polarity: 'build', measure: 'count', target: 8, unit: 'glasses' })).toBe(
+      '≥ 8 glasses/day',
+    )
+    expect(rowSummary({ polarity: 'limit', measure: 'count', target: 2, unit: 'drinks' })).toBe(
+      '≤ 2 drinks/day',
+    )
+    expect(rowSummary({ polarity: 'build', measure: 'binary' })).toBe('Once a day')
+    expect(rowSummary({ polarity: 'limit', measure: 'binary' })).toBe('Avoid each day')
+  })
+
+  it('drops "/day" when the habit only runs on some days, and keeps those days', () => {
+    expect(
+      rowSummary({
+        polarity: 'build',
+        measure: 'count',
+        target: 1,
+        unit: 'session',
+        active_days: [1, 3, 5],
+      }),
+    ).toBe('≥ 1 session · Mo We Fr')
+  })
+
+  it('keeps a cadence the goal has not stated', () => {
+    // "Tracking lbs" says nothing about frequency, so "Daily" still earns space.
+    expect(rowSummary({ polarity: 'track', unit: 'lbs' })).toBe('Tracking lbs · Daily')
+    expect(
+      rowSummary({
+        polarity: 'build',
+        measure: 'count',
+        target: 3,
+        rrule: { freq: 'daily', interval: 3, anchor: '2026-01-01' },
+      }),
+    ).toBe('≥ 3 · Every 3 days')
+  })
+
+  it('returns null for a weekly habit — the row prints live progress instead', () => {
+    expect(rowSummary({ polarity: 'build', measure: 'binary', weekly_target: 3 })).toBeNull()
   })
 })
 
@@ -459,5 +510,94 @@ describe('goalLabel pluralization', () => {
 
   it('handles units with no plural form', () => {
     expect(goalLabel(h({ target: 1, unit: 'min' }))).toBe('Goal ≥ 1 min/day')
+  })
+})
+
+// The two predicates the Today card and the attention engine share. Splitting
+// them is the point: Today keeps showing a habit you already logged (the row is
+// how you correct it), while the engine must stop asking once it's done.
+describe('habitsScheduledToday / habitsDueToday', () => {
+  const today = new Date(2026, 5, 10) // Wed 2026-06-10
+  const todayISO = toISODate(today)
+  const h = (over) => ({
+    id: 'h',
+    name: 'H',
+    polarity: 'build',
+    measure: 'binary',
+    active_days: [],
+    created_at: '2026-01-01T00:00:00Z',
+    ...over,
+  })
+  const entries = (rows) => entryMap(rows)
+
+  it('drops habits that are off-schedule, rested, archived, or deleted', () => {
+    const habits = [
+      h({ id: 'daily' }),
+      h({ id: 'mondays', active_days: [1] }), // today is Wednesday
+      h({ id: 'resting' }),
+      h({ id: 'archived', archived_at: '2026-06-01' }),
+      h({ id: 'gone', deleted_at: '2026-06-01' }),
+    ]
+    const map = entries([{ habit_id: 'resting', date: todayISO, value: 0, skipped: true }])
+    expect(habitsScheduledToday(habits, map, today).map((x) => x.id)).toEqual(['daily'])
+  })
+
+  it('keeps a logged habit on the card but takes it out of what is due', () => {
+    const habits = [h({ id: 'run' })]
+    const done = entries([{ habit_id: 'run', date: todayISO, value: 1 }])
+    expect(habitsScheduledToday(habits, done, today).map((x) => x.id)).toEqual(['run'])
+    expect(habitsDueToday(habits, done, today)).toEqual([])
+    // …and it is due again while there's nothing logged.
+    expect(habitsDueToday(habits, entries([]), today).map((x) => x.id)).toEqual(['run'])
+  })
+
+  it('counts a count habit as due until it reaches its target', () => {
+    const habits = [h({ id: 'water', measure: 'count', target: 8 })]
+    const partial = entries([{ habit_id: 'water', date: todayISO, value: 5 }])
+    expect(habitsDueToday(habits, partial, today).map((x) => x.id)).toEqual(['water'])
+    const met = entries([{ habit_id: 'water', date: todayISO, value: 8 }])
+    expect(habitsDueToday(habits, met, today)).toEqual([])
+  })
+
+  it('never nags about a limit habit — it asks you not to do something', () => {
+    const habits = [h({ id: 'soda', polarity: 'limit', measure: 'count', target: 0 })]
+    expect(habitsScheduledToday(habits, entries([]), today).map((x) => x.id)).toEqual(['soda'])
+    expect(habitsDueToday(habits, entries([]), today)).toEqual([])
+  })
+
+  it('a track habit is due until the day has a number', () => {
+    const habits = [h({ id: 'weight', polarity: 'track', measure: 'count' })]
+    expect(habitsDueToday(habits, entries([]), today).map((x) => x.id)).toEqual(['weight'])
+    // Zero is a real reading, not an absence — an entry row settles it.
+    const logged = entries([{ habit_id: 'weight', date: todayISO, value: 0 }])
+    expect(habitsDueToday(habits, logged, today)).toEqual([])
+  })
+
+  it('drops a weekly habit off both lists once the week is filled', () => {
+    const habits = [h({ id: 'gym', weekly_target: 2 })]
+    // Mon + Tue of the same week (Monday-start), so the target is already met.
+    const map = entries([
+      { habit_id: 'gym', date: '2026-06-08', value: 1 },
+      { habit_id: 'gym', date: '2026-06-09', value: 1 },
+    ])
+    expect(habitsScheduledToday(habits, map, today)).toEqual([])
+    expect(habitsDueToday(habits, map, today)).toEqual([])
+  })
+
+  it('tolerates missing input', () => {
+    expect(habitsScheduledToday(undefined, entryMap([]), today)).toEqual([])
+    expect(habitsDueToday(null, entryMap([]), today)).toEqual([])
+  })
+})
+
+describe('logLabel', () => {
+  it('reads a binary win as "Did it" and a miss flatly', () => {
+    expect(logLabel({ measure: 'binary', polarity: 'build' }, 1)).toBe('Did it')
+    expect(logLabel({ measure: 'binary', polarity: 'build' }, 0)).toBe('Logged')
+  })
+  it('gives a count habit its number and unit, singularized', () => {
+    expect(logLabel({ measure: 'count', unit: 'glasses' }, 8)).toBe('8 glasses')
+    expect(logLabel({ measure: 'count', unit: 'glasses' }, 1)).toBe('1 glass')
+    expect(logLabel({ measure: 'count' }, 3)).toBe('3')
   })
 })

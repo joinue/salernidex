@@ -1,11 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   normalizeAssignee,
   assigneeLabel,
   assigneeOptions,
   defaultAssignee,
   members,
+  newJoinCode,
 } from './household'
+import { normalizeJoinCode } from './joinCode'
 
 // household.js reads localStorage; stub it (node env has none) and seed a
 // two-member household so the legacy assignee mapping is exercised.
@@ -97,5 +99,39 @@ describe('defaultAssignee — who a new task starts out belonging to', () => {
       }),
     )
     expect(defaultAssignee()).toBe('anyone')
+  })
+})
+
+// The join code is the only credential guarding a household — join_household()
+// admits whoever presents it. These assert the properties that make it one.
+describe('newJoinCode', () => {
+  const raw = () => normalizeJoinCode(newJoinCode())
+
+  it('is 12 chars, matching the DB default’s strength', () => {
+    expect(raw()).toHaveLength(12)
+  })
+
+  it('uses only the ambiguity-free alphabet (no O/0, I/1, L)', () => {
+    const codes = Array.from({ length: 500 }, raw).join('')
+    expect(codes).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]+$/)
+  })
+
+  it('formats in hyphenated groups of three', () => {
+    expect(newJoinCode()).toMatch(/^[A-Z2-9]{3}(-[A-Z2-9]{3}){3}$/)
+  })
+
+  it('does not repeat across a large sample', () => {
+    const n = 5000
+    expect(new Set(Array.from({ length: n }, raw)).size).toBe(n)
+  })
+
+  // Guards the actual regression: the old generator drew 6 chars from
+  // Math.random(). If someone swaps the CSPRNG back out, entropy collapses
+  // quietly and nothing else in the suite would notice.
+  it('draws from the CSPRNG, not Math.random()', () => {
+    const spy = vi.spyOn(Math, 'random')
+    newJoinCode()
+    expect(spy).not.toHaveBeenCalled()
+    spy.mockRestore()
   })
 })

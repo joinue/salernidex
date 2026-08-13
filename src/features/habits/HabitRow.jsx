@@ -5,10 +5,10 @@ import {
   isScheduled,
   currentStreak,
   weekProgress,
-  goalLabel,
-  cadenceLabel,
+  rowSummary,
   valueOn,
 } from '../../lib/habits'
+import PressableRow from '../../components/ui/PressableRow'
 import HabitQuickLog from './HabitQuickLog'
 
 // The habit's colored badge — its icon, or the first letter as a fallback.
@@ -41,7 +41,11 @@ export default function HabitRow({ habit, map, today, todayISO, onOpen, onLog })
   const offDay = !readOnly && !isScheduled(habit, today)
 
   return (
-    <div className={`list-row ${offDay ? 'habit-offday' : ''}`} onClick={() => onOpen(habit.id)}>
+    <PressableRow
+      className={`list-row ${offDay ? 'habit-offday' : ''}`}
+      onClick={() => onOpen(habit.id)}
+      label={habit.name}
+    >
       <HabitDot habit={habit} />
       <div className="row-body">
         <div className="row-title">
@@ -54,7 +58,7 @@ export default function HabitRow({ habit, map, today, todayISO, onOpen, onLog })
           )}
         </div>
         <div className="row-sub">
-          {weekly ? `${wp.count}/${wp.target} this week` : goalLabel(habit)} · {cadenceLabel(habit)}
+          {weekly ? `${wp.count}/${wp.target} this week` : rowSummary(habit)}
         </div>
       </div>
       {readOnly ? (
@@ -67,6 +71,6 @@ export default function HabitRow({ habit, map, today, todayISO, onOpen, onLog })
         <HabitQuickLog habit={habit} value={valueOn(habit, todayISO, map)} onLog={onLog} />
       )}
       <ChevronRight size={18} className="row-chevron" />
-    </div>
+    </PressableRow>
   )
 }

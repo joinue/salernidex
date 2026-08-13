@@ -75,6 +75,22 @@ list" used to open "Delete list").
 The A–Z scrubber is the one documented exception: it's a drag strip, not 27
 buttons.
 
+## `:hover` is for pointers only
+
+Every rule that depends on `:hover` lives inside `@media (hover: hover)`. iOS
+Safari applies `:hover` to whatever you tapped and **leaves it applied** until a
+tap lands elsewhere, so an unguarded hover rule doesn't read as feedback on a
+phone — it reads as *"this row is selected"*, on one arbitrary row, for the rest
+of the session. Tap a task, come back with the edge swipe, and the row you
+opened is still tinted.
+
+Touch feedback is `:active`'s job and stays unguarded. A control that is only
+*revealed* on hover (the swipe-row action cluster, the activity-row icons) pairs
+the query with a `hover: none` fallback that shows it outright, and with
+`:focus-within` so it isn't invisible to the keyboard.
+
+`npm run audit:hover` fails on any `:hover` rule outside a pointer query.
+
 ## Accessibility
 
 - One focus ring for the whole app, in `base.css`, on `:focus-visible`. Don't

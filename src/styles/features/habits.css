@@ -27,8 +27,18 @@
   color: var(--orange);
 }
 
-.list-row.habit-offday {
-  opacity: 0.5;
+/* Not scheduled today — quieter, not disabled. Logging an off-day is allowed,
+   so the trailing control keeps full strength; fading the whole row to 0.5 (as
+   this did) dropped the title to 3.3:1 against the card, under the 4.5:1 floor,
+   and made a working stepper look switched off. The badge carries the dimming
+   and the title stays legible at 6.7:1. */
+.list-row.habit-offday .habit-dot {
+  opacity: 0.4;
+}
+
+.list-row.habit-offday .row-title,
+.list-row.habit-offday .row-sub {
+  opacity: 0.72;
 }
 
 /* Quick-log: a check for yes/no habits, a stepper for counts. */
@@ -361,15 +371,23 @@
   color: var(--accent);
 }
 
+/* Two lines, not one with an ellipsis. These sentences are generated from the
+   user's own data ("Stretch 91% more often on days you stick to Meditate") and
+   run past a phone's 274px well before the interesting half — clipping them
+   left a strip that cost a row of space and said nothing. Still capped, so a
+   long insight can't push the list down the page. */
 .insight-strip-text {
   flex: 1;
   min-width: 0;
   font-size: 13px;
   font-weight: 500;
+  line-height: 1.35;
   color: var(--text);
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
   animation: insight-in 360ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 

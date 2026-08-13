@@ -101,8 +101,10 @@
   border-bottom: none;
 }
 
-.member-row:hover {
-  background: var(--fill-2);
+@media (hover: hover) {
+  .member-row:hover {
+    background: var(--fill-2);
+  }
 }
 
 .member-row.on {

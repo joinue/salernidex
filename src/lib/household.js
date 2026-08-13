@@ -7,16 +7,36 @@
 // the whole members + assignee UX is buildable and testable. The stored
 // assignee values are member ids (stable), so renaming a member never rewrites
 // task data. Legacy values ('me' | 'partner' | 'either') are mapped on read.
+import { formatJoinCode } from './joinCode'
+
 const KEY = 'salernidex-household'
 const LEGACY = 'salernidex-members'
 
 const rid = (p = 'm-') => p + Math.random().toString(36).slice(2, 8)
 
+// The join code is the ONLY thing standing between a stranger and a household —
+// join_household() adds whoever presents it, with no approval step — so it has
+// to be treated as a password, not a friendly nickname. Three properties matter:
+//   • 12 chars over a 31-char alphabet ≈ 59 bits, on par with the DB default's
+//     12 hex chars. The old 6 chars was ~30 bits: guessable in bulk.
+//   • drawn from the CSPRNG, not Math.random() (a PRNG whose state is
+//     recoverable from its own output).
+//   • rejection-sampled — a plain `% 31` over 0-255 would favor the first
+//     8 letters, since 256 isn't a multiple of 31.
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789' // no ambiguous chars
+const CODE_LENGTH = 12
+
 function genCode() {
-  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789' // no ambiguous chars
+  const ceiling = 256 - (256 % CODE_ALPHABET.length) // 248 — discard bytes above
   let s = ''
-  for (let i = 0; i < 6; i++) s += alphabet[Math.floor(Math.random() * alphabet.length)]
-  return `${s.slice(0, 3)}-${s.slice(3)}`
+  while (s.length < CODE_LENGTH) {
+    const bytes = new Uint8Array(CODE_LENGTH)
+    globalThis.crypto.getRandomValues(bytes)
+    for (const b of bytes) {
+      if (b < ceiling && s.length < CODE_LENGTH) s += CODE_ALPHABET[b % CODE_ALPHABET.length]
+    }
+  }
+  return formatJoinCode(s)
 }
 
 // A fresh, friendly join code (ABC-DEF). Used by the live household hook when

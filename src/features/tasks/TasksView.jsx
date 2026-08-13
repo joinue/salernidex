@@ -341,6 +341,7 @@ export default function TasksView({
                   size="sm"
                   hideAssignee={normalizeAssignee(s.assignee) === normalizeAssignee(task.assignee)}
                 />
+                <AddToCalendar task={s} parent={task} trigger="icon" />
                 <IconButton
                   icon={X}
                   variant="danger"

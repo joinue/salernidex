@@ -11,6 +11,17 @@
   box-shadow: var(--shadow-card);
 }
 
+/* The manifest icon carries its own white tile, which would vanish into a white
+   card — the hairline keeps the tile's edge readable in light mode without
+   drawing a box around it in dark. */
+.install-hint .install-icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid var(--separator);
+}
+
 /* ---------- iOS standalone (installed PWA) ---------- */
 
 /* black-translucent status bar: content draws underneath; pad it back */

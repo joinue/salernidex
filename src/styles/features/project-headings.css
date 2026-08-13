@@ -30,9 +30,15 @@
   transition: opacity 120ms ease;
 }
 
-.heading-row:hover .icon-btn,
 .reorder-row.lifted .heading-row .icon-btn {
   opacity: 1;
+}
+
+@media (hover: hover) {
+  .heading-row:hover .icon-btn,
+  .heading-row:focus-within .icon-btn {
+    opacity: 1;
+  }
 }
 
 @media (hover: none) {

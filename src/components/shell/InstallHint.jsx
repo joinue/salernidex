@@ -3,7 +3,11 @@ import { X, Share, Download } from 'react-feather'
 import IconButton from '../ui/IconButton'
 import { isIos, isStandalone } from '../../lib/platform'
 
-// Install affordance. Two paths:
+// Install affordance. The icon shown is the manifest icon itself, not a
+// stand-in — the prompt is a preview of what ends up on the home screen, so it
+// should be the same artwork at the same corner radius.
+//
+// Two paths:
 //   1. Chrome/Edge (desktop + Android) fire `beforeinstallprompt`; we captured
 //      it in main.jsx, so here we show a one-tap "Install" button.
 //   2. iOS Safari has no such event, so we show instructions for the Share →
@@ -47,15 +51,15 @@ export default function InstallHint() {
     return (
       <div className="install-hint">
         <img
-          src="/logo-mark.png"
+          className="install-icon"
+          src="/web-app-manifest-192x192.png"
           width="36"
           height="36"
           alt=""
-          style={{ borderRadius: 8, flexShrink: 0 }}
         />
         <div className="row-body">
           <div className="row-title" style={{ fontSize: 15 }}>
-            Install Salernidex
+            Install DOOT
           </div>
           <div className="row-sub">Its own window and app icon — no browser tab to lose.</div>
         </div>
@@ -72,11 +76,11 @@ export default function InstallHint() {
     return (
       <div className="install-hint">
         <img
-          src="/logo-mark.png"
+          className="install-icon"
+          src="/web-app-manifest-192x192.png"
           width="36"
           height="36"
           alt=""
-          style={{ borderRadius: 8, flexShrink: 0 }}
         />
         <div className="row-body">
           <div className="row-title" style={{ fontSize: 15 }}>

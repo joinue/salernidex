@@ -21,11 +21,10 @@ import { noteTitle, noteSnippet } from '../../lib/notes'
 import {
   entryMap,
   valueOn,
-  isScheduled,
-  isSkipped,
   isWeekly,
   weekProgress,
   toISODate,
+  habitsScheduledToday,
 } from '../../lib/habits'
 import { byOrder } from '../../lib/order'
 import HabitQuickLog from '../habits/HabitQuickLog'
@@ -92,6 +91,7 @@ export default function TodayView({
   onSettings,
   onSearch,
   onOpenHabits,
+  onOpenHabit,
   onOpenNotes,
   onOpenNote,
   household,
@@ -109,21 +109,17 @@ export default function TodayView({
   // Keep greetings, the date, and relative/overdue labels fresh on a wall-
   // mounted tablet that may run for days without a reload.
   const now = useNow()
-  // Habits the user pinned to Today, that are scheduled for today. (useNow gives
-  // a timestamp number, so wrap it in a Date for the date-aware habit helpers.)
+  // Habits the user pinned to Today, that are scheduled for today. Which habits
+  // today asks for is lib/habits' call (scheduling, rest days, weekly targets)
+  // — the attention engine reads the same predicate, so the card and the
+  // reminders can't disagree. `show_on_today` is the one rule that stays here:
+  // it's a display pin, not a fact about the habit. (useNow gives a timestamp
+  // number, so wrap it in a Date for the date-aware habit helpers.)
   const nowDate = new Date(now)
   const todayISO = toISODate(nowDate)
   const habitMap = useMemo(() => entryMap(habitEntries), [habitEntries])
-  const todayHabits = (data.habits || [])
-    .filter((h) => h.show_on_today && !h.archived_at && isScheduled(h, nowDate))
-    // A rest day (or a vacation, which rests the span) drops the habit off Today.
-    .filter((h) => !isSkipped(h, todayISO, habitMap))
-    // Weekly habits drop off Today once the week's target is met.
-    .filter((h) => {
-      if (!isWeekly(h)) return true
-      const wp = weekProgress(h, habitMap, nowDate)
-      return wp.count < wp.target
-    })
+  const todayHabits = habitsScheduledToday(data.habits, habitMap, nowDate)
+    .filter((h) => h.show_on_today)
     .sort(byOrder)
   const [logPerson, setLogPerson] = useState(null)
   const [actionPerson, setActionPerson] = useState(null)
@@ -146,6 +142,8 @@ export default function TodayView({
       data.interactions,
       data.keyDates,
       data.reminderSnoozes,
+      data.habits,
+      data.habitEntries,
       prefs,
       memberId,
       taskScope,
@@ -194,8 +192,16 @@ export default function TodayView({
   // Pinned notes as quick reference on the dashboard (a few, tap to open).
   const pinnedNotes = (data.notes || []).filter((n) => n.pinned).slice(0, 4)
 
+  // Counted off the sections that actually render, not off `attention` as a
+  // whole: the engine now also carries habit items, which this page draws from
+  // its own pinned-habits list. Reading the raw length would let an unpinned
+  // habit suppress the empty state and leave the page blank.
   const nothing =
-    attention.length === 0 &&
+    dueTasks.length === 0 &&
+    anytimeTasks.length === 0 &&
+    dueLists.length === 0 &&
+    checkIns.length === 0 &&
+    dates.length === 0 &&
     recent.length === 0 &&
     todayHabits.length === 0 &&
     pinnedNotes.length === 0
@@ -223,6 +229,9 @@ export default function TodayView({
         action={onSettings}
         actionIcon={Settings}
         actionLabel="Settings"
+        // Both trailing buttons here are destinations, not this page's primary
+        // action — that's the FAB. Neither should wear the accent circle.
+        actionQuiet
         secondaryAction={onOpenNotes}
         secondaryActionIcon={FileText}
         secondaryActionLabel="Notes"
@@ -310,7 +319,11 @@ export default function TodayView({
             <SectionLabel>Habits</SectionLabel>
             <div className="list">
               {todayHabits.map((h) => (
-                <div className="list-row today-habit" key={h.id} onClick={() => onOpenHabits?.()}>
+                <div
+                  className="list-row today-habit"
+                  key={h.id}
+                  onClick={() => (onOpenHabit ? onOpenHabit(h.id) : onOpenHabits?.())}
+                >
                   <HabitDot habit={h} />
                   <div className="row-body">
                     <div className="row-title">{h.name}</div>
@@ -519,6 +532,7 @@ export default function TodayView({
                     onOpenPerson={onOpenPerson}
                     onOpenList={onOpenList}
                     onOpenTasks={onOpenTasks}
+                    onOpenHabit={onOpenHabit}
                     onPersonLongPress={setActionPerson}
                   />
                 ))}

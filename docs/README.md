@@ -56,6 +56,11 @@ reversed or completed.
   review of 2026-08-04, acted on in full. `CONVENTIONS.md` is what came out of
   it. The best single explanation of *why the app is shaped the way it is*.
   (File paths inside predate the `ui/shell/features` split.)
+- [`records/cross-surface-review.md`](records/cross-surface-review.md) — the
+  2026-08-13 pass over the *seams* rather than the features: whether each area
+  of the app is reachable from the others. Acted on in full. Records why habits
+  sit in the attention engine but never in the red badge, and the recurring
+  failure mode it found (a new pillar ships without its wiring).
 - [`records/notifications-review.md`](records/notifications-review.md) — June
   2026 review of the attention/notification stack. Its "stack at a glance" is
   still accurate; **its app-wrapping recommendation has been reversed.**

@@ -1,5 +1,5 @@
 {
-  "name": "salernidex",
+  "name": "doot",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "audit:mobile": "node scripts/mobile-audit.mjs",
     "audit:zoom": "node scripts/ios-zoom-audit.mjs",
+    "audit:hover": "node scripts/hover-audit.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

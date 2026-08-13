@@ -94,100 +94,166 @@ for (const file of cssFiles) {
       /\b(input|textarea|select)\b/.test(selector) ||
       CONTROL_CLASSES.some((c) => selector.includes(`.${c}`))
     if (!namesControl) continue
-    findings.set(`${selector}  →  ${size[1]}px`, `static: ${file.split(path.sep).join('/')}`)
+    const what = `${selector}  →  ${size[1]}px`
+    findings.set(what, { what, where: `static: ${file.split(path.sep).join('/')}` })
   }
 }
 
 // ---- runtime pass ---------------------------------------------------------
+//
+// Swept at more than one viewport, because two different rules hold this line
+// and only one of them holds it everywhere. `font: inherit` in base.css is the
+// real guarantee and has no media query; the explicit 16px in responsive.css is
+// a backstop that lives inside `@media (max-width: 720px)`. A phone in
+// landscape is past that breakpoint — 734px and 814px on these two devices — so
+// it runs with the backstop off and `font: inherit` alone. Auditing portrait
+// only, which this did for its whole life, never once looked at the width where
+// a `font-size` override would go unopposed.
+const VIEWPORTS = ['iPhone 14 Pro', 'iPhone 14 Pro landscape', 'iPhone 14 Pro Max landscape']
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true })
-const ctx = await browser.newContext({ ...devices['iPhone 14 Pro'] })
-const page = await ctx.newPage()
-await page.goto(BASE, { waitUntil: 'networkidle' })
 
-const scan = async (where) => {
-  const bad = await page.evaluate((sel) => {
-    const out = []
-    for (const e of document.querySelectorAll(sel)) {
-      const cs = getComputedStyle(e)
-      if (cs.display === 'none' || cs.visibility === 'hidden') continue
-      // Sub-pixel slack: 15.99px is a rounding artifact, not a 15px mistake.
-      if (parseFloat(cs.fontSize) >= 15.995) continue
-      const label =
-        e.closest('.field')?.querySelector('.label, label')?.textContent?.trim() ||
-        e.placeholder ||
-        e.getAttribute('aria-label') ||
-        e.name ||
-        ''
-      const cls = String(e.className).split(' ')[0] || '(no class)'
-      out.push(
-        `${e.tagName.toLowerCase()}${e.type ? `[${e.type}]` : ''} .${cls} "${label}" → ${cs.fontSize}`,
-      )
+for (const deviceName of VIEWPORTS) {
+  const device = devices[deviceName]
+  // Width is what selects the CSS, so lead the label with it: "under 16px" is
+  // a different bug at 393 (both rules failed) than at 814 (only one did).
+  const at = `${device.viewport.width}px ${deviceName}`
+  const ctx = await browser.newContext({ ...device })
+  const page = await ctx.newPage()
+  await page.goto(BASE, { waitUntil: 'networkidle' })
+
+  const scan = async (where) => {
+    const bad = await page.evaluate((sel) => {
+      const out = []
+      for (const e of document.querySelectorAll(sel)) {
+        const cs = getComputedStyle(e)
+        if (cs.display === 'none' || cs.visibility === 'hidden') continue
+        // Sub-pixel slack: 15.99px is a rounding artifact, not a 15px mistake.
+        if (parseFloat(cs.fontSize) >= 15.995) continue
+        const label =
+          e.closest('.field')?.querySelector('.label, label')?.textContent?.trim() ||
+          e.placeholder ||
+          e.getAttribute('aria-label') ||
+          e.name ||
+          ''
+        const cls = String(e.className).split(' ')[0] || '(no class)'
+        out.push(
+          `${e.tagName.toLowerCase()}${e.type ? `[${e.type}]` : ''} .${cls} "${label}" → ${cs.fontSize}`,
+        )
+      }
+      return out
+    }, ZOOMY)
+    // Keyed by control *and* viewport: the same field can be fine in portrait
+    // and wrong in landscape, and collapsing those two would report the pair as
+    // one finding at whichever width happened to run first.
+    for (const b of bad) {
+      const key = `${at}|${b}`
+      if (!findings.has(key)) findings.set(key, { what: b, where: `${at} · ${where}` })
     }
-    return out
-  }, ZOOMY)
-  for (const b of bad) if (!findings.has(b)) findings.set(b, where)
-}
+  }
 
-const demoIn = async () => {
-  const btn = page.getByRole('button', { name: 'Explore the demo' })
-  if (await btn.count()) await btn.click()
-  await page.waitForSelector('.large-title', { timeout: 10000 }).catch(() => {})
-}
+  const demoIn = async () => {
+    const btn = page.getByRole('button', { name: 'Explore the demo' })
+    if (await btn.count()) await btn.click()
+    await page.waitForSelector('.large-title', { timeout: 10000 }).catch(() => {})
+  }
 
-// The auth screen has inputs of its own, before there's a session.
-await scan('auth screen')
-await demoIn()
-
-for (const r of ROUTES) {
-  await page.goto(`${BASE}/#/${r}`)
-  await page.waitForTimeout(500)
-  await scan(`/${r || 'today'}`)
-}
-
-// Every form behind the FAB.
-await page.click('.fab')
-await page.waitForTimeout(500)
-const names = await page.$$eval('.sheet-item', (els) => els.map((e) => e.textContent.trim()))
-await page.mouse.click(196, 20) // tap the backdrop to dismiss
-await page.waitForTimeout(300)
-
-for (let i = 0; i < names.length; i++) {
-  // A hash change doesn't unmount an open Modal, so reload for a clean slate —
-  // which drops the in-memory demo session, hence the re-login.
-  await page.goto(`${BASE}/#/`)
-  await page.reload({ waitUntil: 'networkidle' })
+  // The auth screen has inputs of its own, before there's a session.
+  await scan('auth screen')
   await demoIn()
-  await page.waitForSelector('.fab', { timeout: 10000 }).catch(() => {})
-  await page.click('.fab')
-  await page.waitForTimeout(400)
-  const item = page.locator('.sheet-item').nth(i)
-  if (!(await item.count())) continue
-  await item.click()
-  await page.waitForTimeout(700)
+
+  for (const r of ROUTES) {
+    await page.goto(`${BASE}/#/${r}`)
+    await page.waitForTimeout(500)
+    await scan(`/${r || 'today'}`)
+  }
+
   // Expand disclosures so fields that start hidden are measured too.
-  for (const t of ['More options', 'More', 'Advanced']) {
-    const d = page.getByRole('button', { name: t })
-    if (await d.count()) {
-      await d
-        .first()
-        .click({ timeout: 1500 })
-        .catch(() => {})
-      await page.waitForTimeout(300)
+  const expandDisclosures = async () => {
+    for (const t of ['More options', 'More', 'Advanced']) {
+      const d = page.getByRole('button', { name: t })
+      if (await d.count()) {
+        await d
+          .first()
+          .click({ timeout: 1500 })
+          .catch(() => {})
+        await page.waitForTimeout(300)
+      }
     }
   }
-  await scan(`form: ${names[i]}`)
-}
 
-// Detail screens, which carry inline editors the list screens don't.
-for (const route of ['lists', 'habits', 'notes', 'people', 'projects']) {
-  await page.goto(`${BASE}/#/${route}`)
-  await page.waitForTimeout(500)
-  const row = page.locator('.list-row').first()
-  if (await row.count()) {
-    await row.click().catch(() => {})
-    await page.waitForTimeout(800)
-    await scan(`${route} detail`)
+  // Every form the shell can open — but *how* you open them is the shell's
+  // choice, and this walk has to follow it. The phone shell stacks them behind
+  // the FAB's cross-create sheet. Above 720px there is no FAB: an iPhone in
+  // landscape is past the breakpoint and gets the desktop sidebar, so the same
+  // forms are reached through each view's own "New …" button. Asking only for
+  // the FAB would skip every form at precisely the widths this sweep exists to
+  // cover — and would do it by crashing, which is at least honest.
+  if (await page.locator('.fab').count()) {
+    await page.click('.fab')
+    await page.waitForTimeout(500)
+    const names = await page.$$eval('.sheet-item', (els) => els.map((e) => e.textContent.trim()))
+    // Escape rather than a tap at fixed coordinates: the sheet is bottom-anchored
+    // and grows with the viewport, so a hardcoded point that lands on the backdrop
+    // in portrait is not guaranteed to in a 343px-tall landscape.
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(300)
+
+    for (let i = 0; i < names.length; i++) {
+      // A hash change doesn't unmount an open Modal, so reload for a clean slate —
+      // which drops the in-memory demo session, hence the re-login.
+      await page.goto(`${BASE}/#/`)
+      await page.reload({ waitUntil: 'networkidle' })
+      await demoIn()
+      await page.waitForSelector('.fab', { timeout: 10000 }).catch(() => {})
+      await page.click('.fab')
+      await page.waitForTimeout(400)
+      const item = page.locator('.sheet-item').nth(i)
+      if (!(await item.count())) continue
+      await item.click()
+      await page.waitForTimeout(700)
+      await expandDisclosures()
+      await scan(`form: ${names[i]}`)
+    }
+  } else {
+    // Matched on the accessible name rather than a hardcoded list, so a view
+    // that grows a new create button is covered without editing this script.
+    for (const r of ROUTES) {
+      await page.goto(`${BASE}/#/${r}`)
+      await page.waitForTimeout(500)
+      const label = await page.$$eval('button', (els) =>
+        els
+          .map((e) => (e.getAttribute('aria-label') || e.textContent || '').trim())
+          .find((t) => /^(new|add)\s/i.test(t)),
+      )
+      if (!label) continue
+      await page
+        .getByRole('button', { name: label })
+        .first()
+        .click({ timeout: 2000 })
+        .catch(() => {})
+      await page.waitForTimeout(700)
+      if (!(await page.locator('.modal, .sheet').count())) continue
+      await expandDisclosures()
+      await scan(`form: ${label}`)
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(250)
+    }
   }
+
+  // Detail screens, which carry inline editors the list screens don't.
+  for (const route of ['lists', 'habits', 'notes', 'people', 'projects']) {
+    await page.goto(`${BASE}/#/${route}`)
+    await page.waitForTimeout(500)
+    const row = page.locator('.list-row').first()
+    if (await row.count()) {
+      await row.click().catch(() => {})
+      await page.waitForTimeout(800)
+      await scan(`${route} detail`)
+    }
+  }
+
+  await ctx.close()
 }
 
 await browser.close()
@@ -198,7 +264,7 @@ if (!findings.size) {
 }
 console.log(`${findings.size} control(s) under 16px — iOS will zoom the page on focus:\n`)
 const byWhere = new Map()
-for (const [what, where] of findings) {
+for (const { what, where } of findings.values()) {
   if (!byWhere.has(where)) byWhere.set(where, [])
   byWhere.get(where).push(what)
 }

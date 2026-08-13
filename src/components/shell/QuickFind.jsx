@@ -33,7 +33,10 @@ import Avatar from '../ui/Avatar'
 const NAV_ICONS = {
   '': Home,
   tasks: CheckSquare,
+  projects: Folder,
   lists: List,
+  notes: FileText,
+  habits: Activity,
   people: Users,
   activity: Activity,
   relationships: Share2,
@@ -46,6 +49,7 @@ const TYPE_ICONS = {
   task: CheckSquare,
   project: Folder,
   note: FileText,
+  habit: Activity,
   org: Briefcase,
   group: Users,
   action: Plus,
@@ -54,6 +58,9 @@ const TYPE_ICONS = {
 function RowIcon({ entry }) {
   if (entry.type === 'person') return <Avatar name={entry.title} src={entry.avatar_url} size={32} />
   if (entry.type === 'list') return <span className="qf-icon qf-emoji">{entry.icon || '📝'}</span>
+  // A habit's own emoji when it has one, same as a list.
+  if (entry.type === 'habit' && entry.icon)
+    return <span className="qf-icon qf-emoji">{entry.icon}</span>
   const Icon =
     entry.type === 'nav' ? NAV_ICONS[entry.route] || Home : TYPE_ICONS[entry.type] || Search
   return (
@@ -63,10 +70,10 @@ function RowIcon({ entry }) {
   )
 }
 
-// Global Quick Find: type to search everything (people, tasks, lists, orgs,
-// groups, pages, create actions), arrow/enter or tap to jump there. Centered
-// palette on desktop, full-screen search on mobile. Empty query shows recents
-// and pages.
+// Global Quick Find: type to search everything (people, tasks, lists, notes,
+// habits, orgs, groups, pages, create actions), arrow/enter or tap to jump
+// there. Centered palette on desktop, full-screen search on mobile. Empty query
+// shows recents and pages.
 export default function QuickFind({ data, onPick, onClose }) {
   const isMobile = useMediaQuery('(max-width: 720px)')
   const [query, setQuery] = useState('')

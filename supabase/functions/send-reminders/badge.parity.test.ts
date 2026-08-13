@@ -251,4 +251,40 @@ describe('parity with the client attention engine', () => {
     expect(server).toBe(client)
     expect(server).toBeGreaterThan(0) // guard against both sides being empty
   })
+
+  // Habits ARE attention items on the client (they feed Today and carry
+  // snoozes), but they ride the 'soft' tier and must never reach the number.
+  // The server's badge port has no habit input at all, so this is the case
+  // where the two could quietly diverge: if habits were ever promoted out of
+  // 'soft', the client count would climb every morning and the server's would
+  // not. Pinning it here means that change has to be deliberate.
+  it('never lets a habit due today move the number', () => {
+    const prefs = { ...PREFS, habits: true }
+    const data = {
+      tasks: [task({ id: 'now', due_date: isoDateIn(0), assignee: 'm1' })],
+      habits: [
+        { id: 'h1', name: 'Run', polarity: 'build', measure: 'binary', active_days: [] },
+        {
+          id: 'h2',
+          name: 'Water',
+          polarity: 'build',
+          measure: 'count',
+          target: 8,
+          active_days: [],
+        },
+      ],
+      habitEntries: [],
+    }
+    // One task due today, two habits outstanding: the badge is still 1.
+    agree(data, 1, prefs)
+
+    // And the habits really are in the engine — otherwise this test would pass
+    // for the wrong reason (nothing generated, nothing counted).
+    const items = buildAttention({ ...base, ...data }, prefs, [], 'm1')
+    expect(items.filter((i) => i.kind === 'habit').map((i) => i.key)).toEqual([
+      'habit:h1',
+      'habit:h2',
+    ])
+    expect(items.filter((i) => i.kind === 'habit').every((i) => i.urgency === 'soft')).toBe(true)
+  })
 })

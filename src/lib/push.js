@@ -152,7 +152,7 @@ export async function disablePush() {
 // them properly. No server involved.
 export async function sendTestNotification() {
   const reg = await navigator.serviceWorker.ready
-  await reg.showNotification('Salernidex', {
+  await reg.showNotification('DOOT', {
     body: "Notifications are working — you'll get the morning summary here once live accounts arrive.",
     icon: '/web-app-manifest-192x192.png',
     badge: '/favicon-96x96.png',

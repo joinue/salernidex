@@ -207,6 +207,41 @@ export function weekProgress(habit, map, today = new Date()) {
   return { count: weekCount(habit, map, weekStartOf(today), today), target: habit.weekly_target }
 }
 
+// ---- "what does today ask of me" ---------------------------------------
+// The two predicates below are the ONE definition of a habit's claim on today.
+// Today's Habits section and the attention engine (lib/reminders) both read
+// them, so the dashboard and the badge/push can't drift the way they used to
+// when Today re-derived this inline.
+
+// Habits on today's card: scheduled for the day, not rested, and — for weekly
+// habits — still short of the week's target. Includes ones you've already
+// logged, because the row is also how you log and correct them. Archived and
+// soft-deleted habits never qualify. Display rules stay with the caller (Today
+// additionally honours the per-habit `show_on_today` pin).
+export function habitsScheduledToday(habits, map, today = new Date()) {
+  const iso = toISODate(today)
+  return (habits || []).filter((h) => {
+    if (h.archived_at || h.deleted_at) return false
+    if (!isScheduled(h, today)) return false
+    if (isSkipped(h, iso, map)) return false
+    if (!isWeekly(h)) return true
+    const { count, target } = weekProgress(h, map, today)
+    return count < target
+  })
+}
+
+// The subset that still wants something from you — today's entry isn't a
+// success yet. Note the two polarities that resolve themselves: a `limit` habit
+// ("≤ 0 a day") is satisfied until you log against it, so it never nags; a
+// `track` habit has no notion of success, so it's outstanding only while
+// there's no number for the day.
+export function habitsDueToday(habits, map, today = new Date()) {
+  const iso = toISODate(today)
+  return habitsScheduledToday(habits, map, today).filter((h) =>
+    h.polarity === 'track' ? !map.has(`${h.id}|${iso}`) : !isSuccess(h, valueOn(h, iso, map)),
+  )
+}
+
 // A week is a "rest week" when every elapsed day in it (since the habit existed,
 // up to today) is a rest day — e.g. a vacation that paused the habit. Like a
 // daily rest day, a rest week is transparent to the weekly streak: it neither
@@ -326,12 +361,55 @@ export function goalLabel(h) {
     : `Goal ≥ ${h.target ?? 1}${u}${per}`
 }
 
+// How one logged day reads in the activity feed: "Did it" for a binary win,
+// otherwise the number with its unit ("3 glasses"). Deliberately flat — the
+// feed is a record of what happened, not a scorecard, so a day that missed the
+// target says "Logged" rather than judging it.
+export function logLabel(h, value) {
+  if (h.measure === 'binary') return isSuccess(h, value) ? 'Did it' : 'Logged'
+  const u = h.unit ? ` ${unitFor(h.unit, value)}` : ''
+  return `${value}${u}`
+}
+
 export function cadenceLabel(h) {
   if (hasRule(h)) return describeRecurrence(h.rrule)
   if (isWeekly(h)) return `${h.weekly_target}× / week`
   return !h.active_days?.length || h.active_days.length === 7
     ? 'Daily'
     : h.active_days.map((d) => DOW2[d]).join(' ')
+}
+
+// Is this habit on every day of the week?
+function isEveryDay(h) {
+  return !hasRule(h) && !isWeekly(h) && (!h.active_days?.length || h.active_days.length === 7)
+}
+
+// The one-line summary under a habit's name in a list row.
+//
+// `goalLabel(h) · cadenceLabel(h)` is the full statement and it's right on the
+// detail screen, but in a row it has ~143px next to the badge and the day's
+// logging control, and it overflowed on five of the nine seeded habits — the
+// ellipsis ate the part that carried the number. CONVENTIONS.md is explicit
+// that a line needing an ellipsis is the wrong line, so this is the shorter
+// line rather than a wider column.
+//
+// Two redundancies come out:
+//   - "Goal ≥" / "Limit ≤" → "≥" / "≤". The symbol already says which way the
+//     habit runs, and it's the only part of that phrase carrying meaning.
+//   - the cadence, whenever the goal has already said it. "8 glasses/day ·
+//     Daily" says daily twice; "1 session/day · Mo We Fr" says /day about a
+//     habit that isn't. A weekly habit's row shows live progress ("2/3 this
+//     week") which states the target too, so it takes no cadence at all.
+export function rowSummary(h) {
+  if (isWeekly(h)) return null // the row prints live week progress instead
+  const everyDay = isEveryDay(h)
+  let goal = goalLabel(h).replace(/^(Goal|Limit) /, '')
+  // "/day" is only true when the habit runs every day. Against a Mo/We/Fr
+  // cadence it contradicts the days printed immediately after it.
+  if (!everyDay) goal = goal.replace('/day', '')
+  // A goal that already states the frequency doesn't need "Daily" after it.
+  if (everyDay && /\/day|a day|each day/.test(goal)) return goal
+  return `${goal} · ${cadenceLabel(h)}`
 }
 
 // 'yyyy-mm-dd' → "Tue, Jun 10" (parsed from parts to stay timezone-safe).

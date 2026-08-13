@@ -18,6 +18,7 @@ import {
   ChevronsRight,
 } from 'react-feather'
 import ThemeToggle from '../ui/ThemeToggle'
+import Wordmark from '../ui/Wordmark'
 import { isEditableTarget } from '../../lib/keys'
 
 const isMac = /Mac/.test(navigator.platform)
@@ -78,8 +79,7 @@ export default function Sidebar({ active, go, onSearch, onLogout, badge = 0, cou
   return (
     <nav className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="brand">
-        <img className="brand-mark" src="/logo-mark.png" alt="" width="28" height="28" />
-        <span className="nav-text">Salernidex</span>
+        <Wordmark className="brand-mark" />
         <button
           className="sidebar-toggle"
           onClick={() => setCollapsed((v) => !v)}

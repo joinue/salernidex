@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { RefreshCw } from 'react-feather'
 import haptics from '../../lib/haptics'
 import { swallowNextClick } from '../../lib/gestures'
+import { scrollTop } from '../../lib/scroller'
 
 const THRESHOLD = 64 // px pulled before a release triggers refresh
 const MAX = 96
@@ -18,12 +19,17 @@ export default function PullToRefresh({ onRefresh, children }) {
   const [dragging, setDragging] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
-  const scroller = () => rootRef.current?.closest('.main')
+  // `.main` is the scrollport on desktop; on a phone the document scrolls and
+  // this element never moves. scrollTop() reads whichever is live — the pull
+  // must only engage from a genuine top-of-page, either way.
+  const atTop = () => scrollTop(rootRef.current?.closest('.main')) <= 0
 
   // `.main` is touch-action:pan-y, so the browser also treats a downward drag at
   // the top as a pan it might claim — and once it claims one it fires
-  // pointercancel and our pull dies mid-gesture. Suppressing touchmove while
-  // engaged keeps the gesture ours. It has to be a native non-passive listener:
+  // pointercancel and our pull dies mid-gesture. On a phone the document is the
+  // scroller, which makes this the same fight against the page's own overscroll.
+  // Suppressing touchmove while engaged keeps the gesture ours either way. It
+  // has to be a native non-passive listener:
   // React registers touchmove passively at the root, where preventDefault is a
   // silent no-op.
   useEffect(() => {
@@ -47,8 +53,7 @@ export default function PullToRefresh({ onRefresh, children }) {
     if (!d || d.pointerId !== e.pointerId) return
     const dy = e.clientY - d.y0
     if (!d.engaged) {
-      const sc = scroller()
-      if (dy > 6 && sc && sc.scrollTop <= 0) {
+      if (dy > 6 && atTop()) {
         d.engaged = true
         setDragging(true)
         try {
