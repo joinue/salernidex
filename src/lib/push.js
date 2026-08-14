@@ -150,6 +150,10 @@ export async function disablePush() {
 
 // Local notification through the service worker — proves the device shows
 // them properly. No server involved.
+//
+// Kept, but it is the weaker of the two tests: it never leaves the browser, so
+// it passes just as happily when delivery is completely broken. Reach for
+// sendRealTestPush() to answer "will a reminder actually arrive?".
 export async function sendTestNotification() {
   const reg = await navigator.serviceWorker.ready
   await reg.showNotification('DOOT', {
@@ -158,4 +162,49 @@ export async function sendTestNotification() {
     badge: '/favicon-96x96.png',
     data: { url: '/' },
   })
+}
+
+// The real thing: asks the server to push to this account's devices, over the
+// same VAPID keypair and transport the reminder sweep uses. This is the only
+// test that can fail — which is the point. It exercises the three things that
+// break silently and are invisible from the client: the key pairing, the stored
+// subscription, and whether the function is reachable at all.
+export async function sendRealTestPush() {
+  if (demoMode || !supabase) throw new Error('Sign in to send a real test push.')
+  const { data, error } = await supabase.functions.invoke('send-test-push')
+  // A non-2xx from the function arrives as `error` with the body unread; the
+  // message alone ("Edge Function returned a non-2xx status code") would hide
+  // whether this was auth, a missing deploy, or a send failure.
+  if (error) throw new Error(error.message || 'Could not reach the push service.')
+  if (data?.error) throw new Error(data.error)
+  return data
+}
+
+// What to tell the user about a sendRealTestPush() result. Pure so it can be
+// tested without a server: the copy is the whole feature here, since a test that
+// reports "sent" when nothing arrived is worse than no test.
+export function testPushMessage({ sent = 0, total = 0, results = [] } = {}) {
+  if (!total) {
+    return 'This device has no push registration on the server yet. Turn notifications off and on again to re-register.'
+  }
+  if (sent === total) {
+    return sent === 1
+      ? 'Sent. It should arrive on this device within a few seconds.'
+      : `Sent to all ${sent} of your devices.`
+  }
+  // Name the mismatch specifically. It is the failure the user can do nothing
+  // about, and the one that otherwise looks identical to "it worked".
+  const reasons = new Set(results.filter((r) => !r.ok).map((r) => r.reason))
+  if (reasons.has('key-mismatch')) {
+    return 'Rejected: this build and the server are using different VAPID keys, so no reminder can be delivered. The keys have to match before push works.'
+  }
+  if (reasons.has('expired')) {
+    const lost = total - sent
+    return sent
+      ? `Sent to ${sent} of ${total}. ${lost} stale registration${lost === 1 ? ' was' : 's were'} dropped — re-enable notifications on those devices.`
+      : 'Your registration had expired and has been cleared. Turn notifications off and on again to re-register.'
+  }
+  if (reasons.has('rate-limited'))
+    return 'The push service is rate-limiting us. Try again in a minute.'
+  return `Sent to ${sent} of ${total}. The rest failed — check the function logs.`
 }

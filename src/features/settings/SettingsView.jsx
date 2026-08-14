@@ -17,6 +17,8 @@ import {
   enablePush,
   disablePush,
   sendTestNotification,
+  sendRealTestPush,
+  testPushMessage,
 } from '../../lib/push'
 import {
   getHousehold,
@@ -102,6 +104,20 @@ function PushSection({ memberId }) {
     setBusy(false)
   }
 
+  // The end-to-end check. Whatever comes back gets reported verbatim-ish through
+  // testPushMessage — including the failures, which is the entire reason this
+  // sits next to the local one rather than replacing it silently.
+  const realTest = async () => {
+    setBusy(true)
+    setNote(null)
+    try {
+      setNote(testPushMessage(await sendRealTestPush()))
+    } catch (err) {
+      setNote(err.message)
+    }
+    setBusy(false)
+  }
+
   const ready = perm === 'granted' && enabled
 
   return (
@@ -121,13 +137,20 @@ function PushSection({ memberId }) {
       </div>
       {ready && (
         <>
+          <button className="list-row" onClick={realTest} disabled={busy}>
+            <div className="row-body">
+              <div className="row-sub" style={{ color: 'var(--accent)' }}>
+                {busy ? <span className="dots">Sending</span> : 'Send a real test push'}
+              </div>
+            </div>
+          </button>
           <button
             className="list-row"
             onClick={() => sendTestNotification().catch((e) => setNote(e.message))}
           >
             <div className="row-body">
               <div className="row-sub" style={{ color: 'var(--accent)' }}>
-                Send a test notification
+                Show a test notification on this device
               </div>
             </div>
           </button>

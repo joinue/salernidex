@@ -24,3 +24,10 @@ verify_jwt = false
 # gateway check stays on.
 [functions.delete-account]
 verify_jwt = true
+
+# Same deal — send-test-push derives the caller's member ids from the JWT, which
+# is what stops a test push reaching anyone else's devices. Stated rather than
+# left to the default, since the default is exactly what silently flipped on
+# send-reminders.
+[functions.send-test-push]
+verify_jwt = true
