@@ -62,7 +62,7 @@ export default function ListsView({ data, onOpenList, onEditList, onAdd, onSearc
                     className="list-emoji"
                     style={l.color ? { background: l.color } : undefined}
                   >
-                    {l.icon || (l.kind === 'grocery' ? '🛒' : '📝')}
+                    {l.icon || (l.kind === 'grocery' ? '🛒' : l.kind === 'meal_plan' ? '🍽️' : '📝')}
                   </span>
                   <div className="row-body">
                     <div className="row-titleline">

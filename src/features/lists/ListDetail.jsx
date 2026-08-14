@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Plus, Trash2, Edit2, Folder } from 'react-feather'
+import { Check, Plus, Trash2, Edit2, Folder, ShoppingCart } from 'react-feather'
 import SwipeRow from '../../components/ui/SwipeRow'
 import ReorderableList from '../../components/ui/ReorderableList'
 import Avatar from '../../components/ui/Avatar'
@@ -7,7 +7,18 @@ import { byOrder, moveUpdates } from '../../lib/order'
 import { groupByAisle, AISLES, OTHER } from '../../lib/aisles'
 import { suggestItems } from '../../lib/catalog'
 import { stepQty, qtyLabel, parseQty } from '../../lib/listItems'
+import {
+  dayChipLabel,
+  dayLabel,
+  isMealPlan,
+  parseIngredients,
+  planWindow,
+  suggestedDay,
+  toISO,
+  windowDays,
+} from '../../lib/mealPlan'
 import { assigneeOptions, assigneeLabel, isSolo } from '../../lib/household'
+import { showToast } from '../../lib/toast'
 import haptics from '../../lib/haptics'
 import NavBar from '../../components/ui/NavBar'
 import SectionLabel from '../../components/ui/SectionLabel'
@@ -15,6 +26,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import IconButton from '../../components/ui/IconButton'
 import SelectRow from '../../components/ui/SelectRow'
 import Stepper from '../../components/ui/Stepper'
+import ActionSheet from '../../components/ui/ActionSheet'
 import NoteBacklinks from '../../components/ui/NoteBacklinks'
 
 // One row of a list. Tap the text to edit it inline (text, an optional note, a
@@ -23,7 +35,7 @@ import NoteBacklinks from '../../components/ui/NoteBacklinks'
 // delete. A heading row (standard-list section) has no checkbox and edits text
 // only. Editing state is local so a parent re-render (realtime sync, a sibling
 // toggle) can't yank focus mid-edit — hence a top-level component.
-function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
+function ListItemRow({ it, grocery, meal, onToggle, onDelete, onSave, onShop }) {
   const heading = it.is_heading
   const solo = isSolo()
   const [editing, setEditing] = useState(false)
@@ -32,6 +44,7 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
   const [qty, setQty] = useState(it.qty || '')
   const [category, setCategory] = useState(it.category || OTHER)
   const [assignee, setAssignee] = useState(it.assignee || 'anyone')
+  const [onDate, setOnDate] = useState(it.on_date || '')
   const textRef = useRef(null)
   const editorRef = useRef(null)
 
@@ -41,6 +54,7 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
     setQty(it.qty || '')
     setCategory(it.category || OTHER)
     setAssignee(it.assignee || 'anyone')
+    setOnDate(it.on_date || '')
     setEditing(true)
   }
 
@@ -71,6 +85,9 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
       if (q !== (it.qty || '')) patch.qty = q || null
       if (grocery && category !== (it.category || OTHER)) patch.category = category
       if (assignee !== (it.assignee || 'anyone')) patch.assignee = assignee
+      // Clearing the date is meaningful on a meal plan — it moves the meal to
+      // Unscheduled rather than deleting it — so an empty string saves as null.
+      if (meal && onDate !== (it.on_date || '')) patch.on_date = onDate || null
     }
     if (Object.keys(patch).length) onSave(it.id, patch)
     setEditing(false)
@@ -124,11 +141,34 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
               value={note}
               onChange={(e) => setNote(e.target.value)}
               onKeyDown={onKey}
-              placeholder="Add a note…"
-              aria-label="Item note"
+              // On a meal the note IS the ingredient line — say so, because
+              // that's what "Add to groceries" reads back out of it.
+              placeholder={meal ? 'Ingredients, comma separated…' : 'Add a note…'}
+              aria-label={meal ? 'Ingredients' : 'Item note'}
             />
           )}
-          {!heading && (
+          {meal && !heading && (
+            <div className="meal-date-field">
+              <input
+                type="date"
+                value={onDate}
+                onMouseDown={keepFocus}
+                onChange={(e) => setOnDate(e.target.value)}
+                aria-label="Day"
+              />
+              {onDate && (
+                <button
+                  type="button"
+                  className="chip"
+                  onMouseDown={keepFocus}
+                  onClick={() => setOnDate('')}
+                >
+                  Unschedule
+                </button>
+              )}
+            </div>
+          )}
+          {!heading && !meal && (
             <Stepper
               label="quantity"
               onMouseDown={keepFocus}
@@ -196,11 +236,18 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
 
   const assigned = it.assignee && it.assignee !== 'anyone'
   const badge = qtyLabel(it.qty)
+  // A meal with ingredients written down can hand them to the grocery list.
+  // Offered only when there's something to send, so the action is never a
+  // no-op the user has to discover by tapping it.
+  const shoppable = meal && onShop && parseIngredients(it.note).length > 0
 
   return (
     <SwipeRow
       label={it.text}
       actions={[
+        ...(shoppable
+          ? [{ label: 'To groceries', icon: ShoppingCart, onClick: () => onShop(it) }]
+          : []),
         { label: 'Edit', icon: Edit2, onClick: open },
         { label: 'Delete', icon: Trash2, variant: 'danger', onClick: () => onDelete(it.id) },
       ]}
@@ -260,6 +307,7 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
   } = data
   const list = lists.find((l) => l.id === listId)
   const grocery = list?.kind === 'grocery'
+  const meal = isMealPlan(list)
   // A list scoped to a project (project_id, set from ProjectDetail) used to say
   // nothing about it here — you could open the packing list off Today with no
   // sign it belonged to the trip, and no way to get there. The link is one line
@@ -271,6 +319,12 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
   const showProject = !!project && !!onOpenProject
   const [draft, setDraft] = useState('')
   const inputRef = useRef(null)
+  // Which day the add dock files into. Null until the user picks one, so the
+  // suggestion below can keep moving forward as the week fills up rather than
+  // freezing on whatever day happened to be free when the page mounted.
+  const [pickedDay, setPickedDay] = useState(null)
+  // Meals waiting on a choice of grocery list (only when there's more than one).
+  const [shopping, setShopping] = useState(null)
 
   const items = useMemo(() => {
     const mine = listItems.filter((it) => it.list_id === listId)
@@ -280,6 +334,18 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
       .sort((a, b) => (a.checked_at < b.checked_at ? 1 : -1))
     return { open, done }
   }, [listItems, listId])
+
+  // Today, recomputed on every render rather than held in state: a plan left
+  // open on the kitchen tablet overnight must roll to the new day by itself.
+  const todayISO = toISO(new Date())
+  const plan = useMemo(
+    () => (meal ? planWindow([...items.open, ...items.done], todayISO) : null),
+    [meal, items, todayISO],
+  )
+  const addDay = pickedDay ?? (plan ? suggestedDay(items.open, todayISO) : null)
+
+  // Every grocery list in the household — where a meal's ingredients can go.
+  const groceryLists = useMemo(() => lists.filter((l) => l.kind === 'grocery'), [lists])
 
   // Add-as-you-type suggestions from the household's remembered items, minus
   // what's already open on this list (no point suggesting a dupe).
@@ -305,6 +371,11 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
     if (grocery) {
       const { qty, text } = parseQty(raw)
       addListItem(listId, text, qty ? { qty } : {})
+    } else if (meal) {
+      addListItem(listId, raw, { on_date: addDay })
+      // Adding to a day means you're filling that day; the next one should
+      // follow the plan forward rather than snapping back to today.
+      setPickedDay(null)
     } else {
       addListItem(listId, raw)
     }
@@ -326,6 +397,13 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
     inputRef.current?.focus()
   }
 
+  // Tapping an empty day aims the add dock at it and opens the keyboard — the
+  // gap you tapped is the one you're about to fill.
+  const focusDay = (iso) => {
+    setPickedDay(iso)
+    inputRef.current?.focus()
+  }
+
   const toggle = (it) => {
     if (!it.checked_at) haptics.light()
     toggleListItem(it)
@@ -340,14 +418,45 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
     deleteList(listId)
   }
 
+  // Send a meal's ingredients to a grocery list. addListItem does the rest for
+  // free: each line gets categorized into an aisle, a line that's already open
+  // bumps its quantity instead of doubling up, and "2 avocados" peels into a
+  // count — all of which is why this pushes items through the normal add path
+  // rather than inserting rows itself.
+  const sendToGroceries = (item, targetList) => {
+    const ingredients = parseIngredients(item.note)
+    if (!ingredients.length) return
+    for (const line of ingredients) {
+      const { qty, text } = parseQty(line)
+      addListItem(targetList.id, text, qty ? { qty } : {})
+    }
+    haptics.light()
+    showToast(`Added ${ingredients.length} to ${targetList.name}`)
+  }
+
+  // One grocery list is the overwhelmingly common case, so don't ask. Several
+  // and the sheet is the only honest answer; none and say so rather than
+  // silently doing nothing.
+  const startShopping = (item) => {
+    if (groceryLists.length === 0) {
+      showToast('No grocery list yet — make one and try again')
+    } else if (groceryLists.length === 1) {
+      sendToGroceries(item, groceryLists[0])
+    } else {
+      setShopping(item)
+    }
+  }
+
   const row = (it) => (
     <ListItemRow
       key={it.id}
       it={it}
       grocery={grocery}
+      meal={meal}
       onToggle={toggle}
       onDelete={deleteListItem}
       onSave={updateListItem}
+      onShop={startShopping}
     />
   )
 
@@ -366,7 +475,7 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
             className="list-emoji lg"
             style={list.color ? { background: list.color } : undefined}
           >
-            {list.icon || (grocery ? '🛒' : '📝')}
+            {list.icon || (grocery ? '🛒' : meal ? '🍽️' : '📝')}
           </span>
           <h1 className="person-name">{list.name}</h1>
           <div className="head-actions">
@@ -384,15 +493,56 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
           )}
           {items.done.length > 0 && (
             <button className="pill-btn neutral" onClick={() => clearCheckedItems(listId)}>
-              Clear checked
+              {meal ? 'Clear made' : 'Clear checked'}
             </button>
           )}
         </div>
       )}
 
       <div className="list-detail-body">
-        {items.open.length === 0 && items.done.length === 0 ? (
+        {items.open.length === 0 && items.done.length === 0 && !meal ? (
           <EmptyState>Nothing here yet. Add the first item above.</EmptyState>
+        ) : meal ? (
+          <>
+            {/* Days are the sections, and an empty one still renders — the
+                gaps are the point of looking at a meal plan. */}
+            {plan.earlier.length > 0 && (
+              <section className="meal-day past">
+                <SectionLabel>Earlier</SectionLabel>
+                <div className="list">{plan.earlier.map(row)}</div>
+              </section>
+            )}
+            {plan.days.map((d) => (
+              <section className={`meal-day ${d.iso === todayISO ? 'is-today' : ''}`} key={d.iso}>
+                <SectionLabel>{dayLabel(d.iso, todayISO)}</SectionLabel>
+                {d.items.length > 0 ? (
+                  <div className="list">{d.items.map(row)}</div>
+                ) : (
+                  <button className="meal-day-empty" onClick={() => focusDay(d.iso)}>
+                    <Plus size={14} /> Plan something
+                  </button>
+                )}
+              </section>
+            ))}
+            {plan.later.length > 0 && (
+              <section className="meal-day">
+                <SectionLabel>Later</SectionLabel>
+                <div className="list">{plan.later.map(row)}</div>
+              </section>
+            )}
+            {plan.unscheduled.length > 0 && (
+              <section className="meal-day">
+                <SectionLabel>No day yet</SectionLabel>
+                <div className="list">{plan.unscheduled.map(row)}</div>
+              </section>
+            )}
+            {plan.done.length > 0 && (
+              <section className="meal-day">
+                <SectionLabel>Made · {plan.done.length}</SectionLabel>
+                <div className="list">{plan.done.map(row)}</div>
+              </section>
+            )}
+          </>
         ) : grocery ? (
           <>
             {groupByAisle(items.open.filter((it) => !it.is_heading)).map((g) => (
@@ -423,10 +573,29 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
           mobile it sticks just above the tab bar; suggestions grow upward from
           the input so the field itself never moves. */}
       <div className="list-add-dock">
-        {!grocery && (
+        {!grocery && !meal && (
           <button className="text-btn add-section-btn" onClick={addSection}>
             <Plus size={14} /> Add section
           </button>
+        )}
+        {/* Which day the next meal lands on. A scrolling row rather than a date
+            input: planning a week is seven taps, and a native picker for each
+            one would be seven sheets. */}
+        {meal && (
+          <div className="meal-day-picker" role="radiogroup" aria-label="Day">
+            {windowDays(todayISO).map((iso) => (
+              <button
+                key={iso}
+                type="button"
+                role="radio"
+                aria-checked={iso === addDay}
+                className={`chip ${iso === addDay ? 'accent' : ''}`}
+                onClick={() => setPickedDay(iso)}
+              >
+                {dayChipLabel(iso, todayISO)}
+              </button>
+            ))}
+          </div>
         )}
         {/* A listbox's children have to be options — as plain buttons they were
             announced as an empty list. Kept as <button> for the tap behavior,
@@ -454,8 +623,10 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
             ref={inputRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Add an item…"
-            aria-label={`Add an item to ${list.name}`}
+            placeholder={
+              meal ? `What's for ${dayLabel(addDay, todayISO).toLowerCase()}?` : 'Add an item…'
+            }
+            aria-label={meal ? `Add a meal to ${list.name}` : `Add an item to ${list.name}`}
             enterKeyHint="done"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -464,11 +635,27 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
               }
             }}
           />
-          <button className="list-add-btn" onClick={add} aria-label="Add item">
+          <button
+            className="list-add-btn"
+            onClick={add}
+            aria-label={meal ? 'Add meal' : 'Add item'}
+          >
             <Plus size={20} />
           </button>
         </div>
       </div>
+
+      {shopping && (
+        <ActionSheet
+          title={`Add ${shopping.text}'s ingredients to…`}
+          actions={groceryLists.map((l) => ({
+            label: l.name,
+            icon: ShoppingCart,
+            onClick: () => sendToGroceries(shopping, l),
+          }))}
+          onClose={() => setShopping(null)}
+        />
+      )}
     </div>
   )
 }

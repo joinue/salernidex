@@ -13,7 +13,19 @@ import { COLORS } from '../../lib/colors'
 const KIND_OPTIONS = [
   { value: 'standard', label: 'Standard' },
   { value: 'grocery', label: 'Grocery' },
+  { value: 'meal_plan', label: 'Meals' },
 ]
+
+// The icon each type defaults to, and the one-line explanation under the
+// picker. Kept together so adding a fourth kind is one entry, not three edits.
+const KIND_ICONS = { standard: '📝', grocery: '🛒', meal_plan: '🍽️' }
+const KIND_HINTS = {
+  standard: 'A plain checklist you can split into sections.',
+  grocery: 'Items sort into aisles automatically.',
+  meal_plan:
+    "Meals laid out by day. Write the ingredients in a meal's note and send them to a grocery list.",
+}
+const DEFAULT_ICONS = Object.values(KIND_ICONS)
 
 // Create or edit a list (name + an emoji icon for quick recognition). An
 // optional due date puts the list on Today; an optional reminder time fires a
@@ -23,7 +35,7 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
   const [kind, setKind] = useState(list?.kind || 'standard')
   // Default to the icon that matches the type, not always the cart — a new
   // standard list ("Packing") was shipping with a grocery trolley on it.
-  const [icon, setIcon] = useState(list?.icon || (list?.kind === 'grocery' ? '🛒' : '📝'))
+  const [icon, setIcon] = useState(list?.icon || KIND_ICONS[list?.kind] || KIND_ICONS.standard)
   const [color, setColor] = useState(list?.color || COLORS[0])
   const [privacy, setPrivacy] = useState(
     list?.privacy_level || (isSolo() ? PRIVATE_LEVEL : defaultPrivacy),
@@ -97,15 +109,13 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
               value={kind}
               onChange={(v) => {
                 setKind(v)
-                // Follow the type in both directions, but never overwrite an
-                // icon the user picked themselves.
-                if (icon === '🛒' || icon === '📝') setIcon(v === 'grocery' ? '🛒' : '📝')
+                // Follow the type, but never overwrite an icon the user picked
+                // themselves — only one still sitting on a type's default.
+                if (DEFAULT_ICONS.includes(icon)) setIcon(KIND_ICONS[v])
               }}
             />
             <p className="muted" style={{ fontSize: 13, margin: '6px 2px 0' }}>
-              {kind === 'grocery'
-                ? 'Items sort into aisles automatically.'
-                : 'A plain checklist you can split into sections.'}
+              {KIND_HINTS[kind]}
             </p>
           </div>
         )}

@@ -1270,8 +1270,67 @@ export const demoLists = [
     created_at: now,
     updated_at: now,
   },
+  {
+    id: 'l-meals',
+    name: 'This week',
+    icon: '🍽️',
+    kind: 'meal_plan', // items are indexed by on_date, not sort order (0037)
+    privacy_level: 'family_shared',
+    created_at: now,
+    updated_at: now,
+  },
 ]
 export const demoListItems = [
+  // The week's dinners. Dated relative to today so the plan always straddles
+  // the window, with one empty day in the middle — a full week reads as
+  // finished, and the gap is what the surface is for. Notes are ingredient
+  // lines, which is what "To groceries" reads back out.
+  {
+    id: 'lm1',
+    list_id: 'l-meals',
+    text: 'Sheet-pan chicken',
+    note: 'chicken thighs, potatoes, broccoli, lemon',
+    on_date: dateIn(0),
+    assignee: 'm-1',
+    checked_at: null,
+    created_at: daysAgo(2),
+  },
+  {
+    id: 'lm2',
+    list_id: 'l-meals',
+    text: 'Tacos',
+    note: 'ground beef, tortillas, salsa, avocado',
+    on_date: dateIn(1),
+    assignee: 'm-2',
+    checked_at: null,
+    created_at: daysAgo(2),
+  },
+  {
+    id: 'lm3',
+    list_id: 'l-meals',
+    text: 'Leftovers',
+    on_date: dateIn(2),
+    checked_at: null,
+    created_at: daysAgo(2),
+  },
+  // dateIn(3) deliberately left open.
+  {
+    id: 'lm4',
+    list_id: 'l-meals',
+    text: 'Pasta night',
+    note: 'spaghetti, parmesan, basil',
+    on_date: dateIn(4),
+    checked_at: null,
+    created_at: daysAgo(2),
+  },
+  {
+    id: 'lm5',
+    list_id: 'l-meals',
+    text: 'Pizza from Tony’s',
+    on_date: dateIn(-1),
+    checked_at: daysAgo(1),
+    created_at: daysAgo(3),
+  },
   {
     id: 'li1',
     list_id: 'l-grocery',

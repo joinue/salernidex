@@ -346,3 +346,94 @@
 .icon-pick:active {
   transform: scale(0.92);
 }
+
+/* ---------- meal plan (lists.kind = 'meal_plan') ---------- */
+
+/* Days are the sections here, so they sit tighter than aisle groups — the
+   whole point is seeing the week at once, and 24px of label margin per day
+   pushed Friday off a phone screen. */
+.meal-day {
+  margin-bottom: 10px;
+}
+
+.meal-day .section-label {
+  margin-top: 14px;
+}
+
+.meal-day.is-today .section-label {
+  color: var(--accent);
+}
+
+/* Days before today that never got made. Present so nothing disappears, quiet
+   so they don't compete with the week ahead. */
+.meal-day.past {
+  opacity: 0.72;
+}
+
+/* An empty day is a tappable gap, not blank space — it's the affordance that
+   makes "plan the week" one pass down the page. */
+.meal-day-empty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  /* 44px so it clears the tap-target audit on its own. */
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px dashed var(--separator);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3, var(--text-2));
+  font-size: 14px;
+  text-align: left;
+}
+
+@media (hover: hover) {
+  .meal-day-empty:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+}
+
+.meal-day-empty:active {
+  background: var(--fill);
+}
+
+/* The dock's day picker. Scrolls rather than wraps: seven chips wrap to two
+   rows on an iPhone SE and push the input under the tab pill. */
+.meal-day-picker {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* Let the focus ring on the end chips show instead of clipping it. */
+  padding: 2px;
+  margin: -2px;
+  touch-action: pan-x;
+}
+
+.meal-day-picker::-webkit-scrollbar {
+  display: none;
+}
+
+.meal-day-picker .chip {
+  flex: 0 0 auto;
+}
+
+/* Day + unschedule, inside the row editor. */
+.meal-date-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.meal-date-field input[type='date'] {
+  height: 36px;
+  padding: 0 10px;
+  background: var(--fill);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 15px;
+}
