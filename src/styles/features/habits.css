@@ -461,7 +461,7 @@
 }
 
 /* ---------- habit starter templates ---------- */
-/* Empty-state starters: one-tap habits, centred and wrapped to the column.
+/* Empty-state starters: one-tap habits, centered and wrapped to the column.
    It wraps rather than scrolling sideways — an empty screen shouldn't hand you
    a second scroll axis, and every starter stays visible at any width. */
 .template-rail {

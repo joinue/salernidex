@@ -38,7 +38,7 @@
 
 /* Only a scrollport on desktop. On a phone it must stay `visible`, or it
    becomes a scroll container again and swallows the document scrolling that
-   the collapsing-toolbar behaviour depends on. */
+   the collapsing-toolbar behavior depends on. */
 @media (min-width: 721px) {
   .main {
     overflow-y: auto;

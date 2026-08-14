@@ -32,7 +32,7 @@ describe('Stepper', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('honours a custom step', async () => {
+  it('honors a custom step', async () => {
     const onChange = vi.fn()
     render(<Stepper value={100} onChange={onChange} step={500} label="steps" />)
     await userEvent.click(increase())

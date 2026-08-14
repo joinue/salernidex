@@ -217,7 +217,7 @@ export function weekProgress(habit, map, today = new Date()) {
 // habits — still short of the week's target. Includes ones you've already
 // logged, because the row is also how you log and correct them. Archived and
 // soft-deleted habits never qualify. Display rules stay with the caller (Today
-// additionally honours the per-habit `show_on_today` pin).
+// additionally honors the per-habit `show_on_today` pin).
 export function habitsScheduledToday(habits, map, today = new Date()) {
   const iso = toISODate(today)
   return (habits || []).filter((h) => {

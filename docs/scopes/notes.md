@@ -202,7 +202,7 @@ preceded Notes; phone-width navigation still pushes per note; a deep link to
 
 ## Recommended order
 
-**1 → 2 → 3, and 4 only if the Back behaviour actually annoys someone.**
+**1 → 2 → 3, and 4 only if the Back behavior actually annoys someone.**
 
 Note links first because they change what the notebook *is* — and because the
 stale-label fix inside them pays off across all six existing mention types.

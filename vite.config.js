@@ -6,7 +6,7 @@ export default defineConfig({
   // Three test surfaces, all colocated with their source and all run by
   // `npm test`:
   //   *.test.js  — pure logic (recurrence, parsing, ordering, privacy …), node
-  //   *.test.jsx — primitives with real behaviour, jsdom + Testing Library
+  //   *.test.jsx — primitives with real behavior, jsdom + Testing Library
   //   *.test.ts  — the pure halves of the Deno Edge Functions, which are ports
   //                of src/lib code and need to stay honest to it, node
   test: {
@@ -20,7 +20,7 @@ export default defineConfig({
       // and an HTML sanitizer is precisely the code that wants covering.
       ['src/lib/notes.test.js', 'jsdom'],
       // gestures.js is mostly constants, but swallowNextClick and
-      // DRAG_EXEMPT_SELECTOR are DOM behaviour and are tested as such.
+      // DRAG_EXEMPT_SELECTOR are DOM behavior and are tested as such.
       ['src/lib/gestures.test.js', 'jsdom'],
       // quickFind indexes note bodies, so it reaches lib/notes' htmlToText and
       // needs the same DOMParser notes.test.js does.

@@ -200,7 +200,7 @@
 }
 /* The most-tapped controls on the page, and they shipped at 38x34 — under the
    HIG minimum in both dimensions. They can't borrow the .tap-target trick
-   either: at a 40px pitch a 44px hit area would overlap its neighbours, which
+   either: at a 40px pitch a 44px hit area would overlap its neighbors, which
    is the adjacency bug scripts/mobile-audit.mjs exists to catch. So the painted
    box grows instead and the row scrolls a little further. */
 .note-tool {

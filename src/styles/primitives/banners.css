@@ -157,9 +157,9 @@
    forward is the most common way an empty screen goes wrong.
    Stretched, not shrink-to-fit: as a centered flex item it would size to its
    content's *min-content* width, so a row of nowrap chips would blow the box
-   past the viewport and centre it half off-screen. Stretching pins it to the
+   past the viewport and center it half off-screen. Stretching pins it to the
    column width so wide children lay out against the page; text-align keeps a
-   plain button centred as before. */
+   plain button centered as before. */
 .empty-action {
   align-self: stretch;
   margin-top: 12px;

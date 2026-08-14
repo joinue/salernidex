@@ -27,7 +27,7 @@ export const EDGE_BACK_SLOP_PX = 12
 // whatever happened to be under the finger. Every drag primitive that can end
 // on top of other content calls this on release. It was hand-rolled in Sheet
 // and ReorderableList and simply missing from PullToRefresh; one copy means one
-// behaviour.
+// behavior.
 export function swallowNextClick(window_ = window) {
   const swallow = (e) => {
     e.stopPropagation()

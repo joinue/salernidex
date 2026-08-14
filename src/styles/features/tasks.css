@@ -100,7 +100,7 @@
 }
 
 /* A deadline chip needs no tint of its own: while there's room it reads as the
-   plain grey base chip, and the moment the date lands it picks up .due-today /
+   plain gray base chip, and the moment the date lands it picks up .due-today /
    .due-overdue like any other — which is exactly when it stops being flexible.
    The wording ("4d left" vs "Aug 13") already tells the two kinds apart. */
 

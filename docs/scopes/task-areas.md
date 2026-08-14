@@ -7,7 +7,7 @@
 > **Phases 2 and 3 are unbuilt:** there is no `task_areas` table (`tasks.area`
 > is still the freeform text column from
 > [`0005_task_areas.sql`](../../supabase/migrations/0005_task_areas.sql)), and
-> no `show_on_today` / `default_privacy` behaviour.
+> no `show_on_today` / `default_privacy` behavior.
 > The three open questions in §7 are still open.
 
 The ask: *"I have a lot of tasks at work. Intermixing those with the home tasks
@@ -32,7 +32,7 @@ one being fixed.
 `tasks.area` is a nullable free-text column — one category per task, added in
 migration `0005_task_areas`. It already drives:
 
-| Surface | Behaviour |
+| Surface | Behavior |
 |---|---|
 | `TasksView` | a pill row (`All areas · Work · Home`) that filters every bucket |
 | `TaskRow` | a `.chip.area` on the row |
@@ -45,7 +45,7 @@ feel like a place you go:
 
 1. **No front door.** It's a free-text field that lived behind "More options"
    until the form rework. Nobody discovers it.
-2. **No identity.** No icon, no colour, no order, no count. The area pills are
+2. **No identity.** No icon, no color, no order, no count. The area pills are
    indistinguishable from the tag pills stacked directly above them — same
    `.area-pill` class, same size, same position.
 3. **It fragments.** `areaNames` de-duplicates on the exact trimmed string, so
@@ -76,7 +76,7 @@ which is precisely the risk while both render as identical pill rows.
 
 **Optional.** No area is a valid, permanent state. Someone with 20 tasks should
 never see area chrome. The current pill row already gets this right — it renders
-only once an area exists — and that behaviour carries forward.
+only once an area exists — and that behavior carries forward.
 
 Which gives the one-liner:
 
@@ -91,7 +91,7 @@ Which gives the one-liner:
 |         | Approach                                                                | Verdict                                                                                                |
 | ------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | **A**   | Keep free-text `area`, invest only in UI                                | **All of phase 1.** Ships fast, no migration, fixes most of the felt pain                              |
-| **B**   | Back `area` with a real `task_areas` table — identity, order, behaviour  | **Recommended end state.** Casing fragmentation and the missing rename/merge are structural            |
+| **B**   | Back `area` with a real `task_areas` table — identity, order, behavior  | **Recommended end state.** Casing fragmentation and the missing rename/merge are structural            |
 | **C**   | Areas as saved filters ("smart areas") over tags/assignee/dates          | Over-built for now. Work-vs-home is a plain exclusive partition                                        |
 | **D**   | Reuse Projects                                                          | No. A project is bounded and has a finish line. "Work" never finishes                                  |
 
@@ -221,9 +221,9 @@ benefit. Keeping the name "area" removes what would otherwise have been the bulk
 of this phase.
 
 **Phase 2 — the table.** `task_areas` + `tasks.area_id` + the backfill, icon and
-colour, manual order, the manage screen (rename/merge/delete), sidebar counts.
+color, manual order, the manage screen (rename/merge/delete), sidebar counts.
 
-**Phase 3 — behaviour.** `show_on_today` wired through `buildAttention` _and_ the
+**Phase 3 — behavior.** `show_on_today` wired through `buildAttention` _and_ the
 Edge Function, `default_privacy`, and per-area defaults for new tasks.
 
 Each phase is independently shippable and each leaves the app coherent.

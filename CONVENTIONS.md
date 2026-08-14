@@ -27,7 +27,7 @@ A component belongs in `ui/` when two features would both reach for it, in
 
 ## Styling
 
-- **Tokens only.** No hardcoded colour, radius, shadow, easing, duration,
+- **Tokens only.** No hardcoded color, radius, shadow, easing, duration,
   z-index or chrome offset. They all live in `src/styles/tokens.css`. If you
   need a value that isn't there, add it there.
 - **Compose primitives; never restyle one from a feature.** If a primitive
@@ -98,7 +98,7 @@ the query with a `hover: none` fallback that shows it outright, and with
 - Section headings go through `SectionLabel`, which renders an `<h2>`. A page
   should have a heading outline, not one `<h1>` and 50 `<div>`s.
 - Every icon-only control needs an accessible name. `IconButton` requires
-  `label`; decorative icons inside a labelled control take `aria-hidden`.
+  `label`; decorative icons inside a labeled control take `aria-hidden`.
 - The active tab carries `aria-current="page"`.
 
 ## Destructive actions
@@ -126,7 +126,7 @@ Add a specimen there whenever you add one.
 | `Field` | label + control + hint/error, with the label wired to the control |
 | `Button` | `primary` / `pill` / `text`, `tone="danger"` |
 | `IconButton` | every icon-only control |
-| `Chip` | tags, dates, statuses; pick a **tone**, never a colour |
+| `Chip` | tags, dates, statuses; pick a **tone**, never a color |
 | `EmptyState` | empty and loading states, with an optional way forward |
 | `Stepper` | −/value/+ |
 | `StatTile` + `StatGrid` | a figure with its caption |
@@ -150,7 +150,7 @@ iOS Safari zooms the whole page when a control under 16px takes focus, and it
 does not zoom back out — the layout shifts under the user's thumb mid-typing.
 Every `<input>`, `<textarea>` and `<select>` is therefore **at least 16px**,
 whatever the surrounding type scale is doing. A control that needs to read as
-quieter does it with colour or weight, not size.
+quieter does it with color or weight, not size.
 
 `npm run audit:zoom` enforces this in two passes: a static sweep of the CSS
 (which reaches states a crawler can't) and a `getComputedStyle` pass over the
@@ -168,9 +168,9 @@ drills into a list, so the options are always the topmost surface. A plain
 ## Testing
 
 - Vitest. `npm test`. Logic and utilities live in `src/lib/` with colocated
-  `*.test.js`; primitives with real behaviour have `*.test.jsx` beside them in
+  `*.test.js`; primitives with real behavior have `*.test.jsx` beside them in
   `components/ui/`.
-- Test behaviour, not markup. Skip purely presentational wrappers.
+- Test behavior, not markup. Skip purely presentational wrappers.
 - `node scripts/mobile-audit.mjs` guards chrome occlusion and touch targets.
 - `node scripts/demo-smoke.mjs` (and the other `*-smoke.mjs`) drive the demo in
   a real browser. Keep them passing; a red suite is worse than no suite.

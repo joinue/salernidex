@@ -102,7 +102,7 @@ through `window.confirm` in:
 - `ProjectDetail.jsx:155` — deletes a project *and its subtasks*
 - `ImportExport.jsx:212` — restore/overwrite
 
-On iOS this is a grey system alert with a browser origin in it, in the middle of
+On iOS this is a gray system alert with a browser origin in it, in the middle of
 an app that otherwise looks native. It's the single most jarring moment in the
 product, and it guards the four most destructive operations.
 
@@ -343,7 +343,7 @@ Missing, and currently re-rolled per feature:
 
 joinue has `/admin/kitchen-sink`. A `#/kitchen-sink` route (dev-only) rendering
 every primitive in every state, light and dark, at 375px and 1024px, is the
-cheapest possible guard against the drift catalogued above. It's also where the
+cheapest possible guard against the drift cataloged above. It's also where the
 next contributor learns the vocabulary.
 
 ---
@@ -379,7 +379,7 @@ most — but 5,694 lines in one file means nothing is scoped, nothing is
 deletable with confidence, and "is this class still used?" is unanswerable.
 Split it: `styles/tokens.css`, `styles/base.css`, `styles/primitives/*.css`,
 `styles/features/*.css`, imported from one `styles/index.css`. Pure file moves,
-no behaviour change, and it makes the primitive extraction above enforceable.
+no behavior change, and it makes the primitive extraction above enforceable.
 
 **2. `components/` is 70 files with no structure.** `Avatar.jsx` and
 `HabitInsightsView.jsx` sit as siblings. Mirror the CSS split:
@@ -430,7 +430,7 @@ Chrome-height tokens + derived bottom padding (P0-2) · banners out of `.content
 `:focus-visible` ring.
 
 **2. Split the files.** `styles.css` → `styles/`; `components/` → `ui/` +
-`features/`. No behaviour change, do it in one commit so the diff reads as
+`features/`. No behavior change, do it in one commit so the diff reads as
 moves.
 
 **3. Extract the primitives** in the Part 2 table, starting with `NavBar`

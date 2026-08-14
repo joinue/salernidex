@@ -51,7 +51,7 @@ function ListItemRow({ it, grocery, onToggle, onDelete, onSave }) {
     // visible. On a small phone the rest of it opened underneath the add dock
     // with no way to scroll it back. `nearest` isn't enough either: the dock is
     // a sticky overlay, so the browser counts the band behind it as visible and
-    // scrolls 11px short. Centring clears it on every size.
+    // scrolls 11px short. Centering clears it on every size.
     editorRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [editing])
 
@@ -429,7 +429,7 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
           </button>
         )}
         {/* A listbox's children have to be options — as plain buttons they were
-            announced as an empty list. Kept as <button> for the tap behaviour,
+            announced as an empty list. Kept as <button> for the tap behavior,
             relabelled so AT sees the choices. */}
         {suggestions.length > 0 && (
           <div className="list-suggest" role="listbox" aria-label="Suggestions">

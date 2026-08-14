@@ -12,7 +12,7 @@ import { useId } from 'react'
 //   <Field label="Name" hint="Shown to your household"><input … /></Field>
 //
 // Pass a function child to receive the id; pass plain children when the control
-// carries its own labelling (a Segmented, a chip row).
+// carries its own labeling (a Segmented, a chip row).
 export default function Field({ label, hint, error, children, className = '' }) {
   const id = useId()
   return (

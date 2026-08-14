@@ -128,7 +128,7 @@ describe('searchIndex / groupResults', () => {
     expect(first('cabin')).toMatchObject({ type: 'note', id: 'n1' })
   })
 
-  it('groups hits into labelled sections without exceeding the caps', () => {
+  it('groups hits into labeled sections without exceeding the caps', () => {
     const sections = groupResults(find('a'), { perType: 2, max: 4 })
     expect(sections.every((s) => s.label)).toBe(true)
     expect(sections.every((s) => s.items.length <= 2)).toBe(true)

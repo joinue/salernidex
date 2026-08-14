@@ -32,7 +32,7 @@ describe('Chip', () => {
     expect(onRemove).toHaveBeenCalledOnce()
   })
 
-  it('maps tone to a class rather than taking a colour', () => {
+  it('maps tone to a class rather than taking a color', () => {
     const { container } = render(<Chip tone="danger">2d overdue</Chip>)
     expect(container.firstChild).toHaveClass('chip', 'chip-danger')
   })

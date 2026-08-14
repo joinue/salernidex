@@ -2,7 +2,7 @@ import { X } from 'react-feather'
 
 // The small rounded token: a tag, a due date, an assignee, a status. Tone
 // carries the meaning, so a screen picks a tone rather than reaching for a
-// colour.
+// color.
 //
 //   <Chip>home</Chip>
 //   <Chip tone="danger">2d overdue</Chip>

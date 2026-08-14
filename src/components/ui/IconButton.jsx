@@ -10,7 +10,7 @@ import { forwardRef } from 'react'
 // mystery to a screen reader, and this is the single most common place to
 // forget one.
 //
-// Variants: `quiet` (grey, default), `accent` (tinted circle, page actions),
+// Variants: `quiet` (gray, default), `accent` (tinted circle, page actions),
 // `danger` (destructive). Sizes: `sm` 32, `md` 38, `lg` 44 — all tap at 44.
 const SIZES = { sm: 16, md: 18, lg: 20 }
 

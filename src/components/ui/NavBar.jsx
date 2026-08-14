@@ -5,7 +5,7 @@ import { useVisualBandTop } from '../../hooks/useKeyboardOpen'
 
 // iOS navigation bar for detail screens: a sticky frosted strip carrying Back
 // and any trailing actions, with the page's large title underneath. Scroll the
-// large title away and its text collapses into the centre of the bar, the way
+// large title away and its text collapses into the center of the bar, the way
 // UINavigationController does it.
 //
 // Replaces the hand-rolled `← Back` link every detail page used to open with.

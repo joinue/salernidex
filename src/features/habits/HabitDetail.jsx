@@ -39,7 +39,7 @@ const RANGES = [
   { value: 53, label: '1y' },
 ]
 
-// What each heatmap square means, spoken. The cells are empty buttons — colour
+// What each heatmap square means, spoken. The cells are empty buttons — color
 // is the only visual channel — so without this a screen reader gets a grid of
 // hundreds of unnamed buttons.
 const CELL_STATUS = {

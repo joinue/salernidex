@@ -10,7 +10,7 @@
 -- member_preferences.default_*_privacy) — no data backfill.
 --
 -- The four privacy-aware RLS policies (from 0001) matched the old label, so they
--- are recreated against 'private'. Behaviour is unchanged. The app reads the
+-- are recreated against 'private'. Behavior is unchanged. The app reads the
 -- value through lib/privacy.js (PRIVATE_LEVEL) and backups restore older
 -- 'marc_only' rows as 'private' (useData.restoreBackup). Idempotent.
 

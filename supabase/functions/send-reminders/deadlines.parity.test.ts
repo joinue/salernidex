@@ -6,7 +6,7 @@
 // silently, and this one shares a constant (ANYTIME_DAYS) with the client — if
 // somebody widens the in-app head start to ten days and the push still stops at
 // seven, nothing fails, the notification just quietly arrives three days late.
-// Unit cases below pin the behaviour; the parity block pins the *agreement*.
+// Unit cases below pin the behavior; the parity block pins the *agreement*.
 // Vitest only: Deno never loads test files, so the deployed bundle is
 // unaffected.
 

@@ -132,7 +132,7 @@ function useVisualBandEdge(measure, fallback) {
       vv.removeEventListener('scroll', update)
     }
     // measure/fallback are stable per call site (module-level arrow literals
-    // recreated each render, but never varying in behaviour).
+    // recreated each render, but never varying in behavior).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

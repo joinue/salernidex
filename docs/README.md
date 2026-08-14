@@ -41,10 +41,10 @@ they describe futures, and the present moves.
 
 - [`scopes/notes.md`](scopes/notes.md) — four candidates for the notebook:
   note-to-note links, search match highlighting, multi-select, and the rail's
-  Back-button behaviour. *None shipped as of 2026-08-06.*
+  Back-button behavior. *None shipped as of 2026-08-06.*
 - [`scopes/task-areas.md`](scopes/task-areas.md) — grouping tasks by area
   ("Work" vs "Home"), in three phases. *Phase 1 partly shipped; the `task_areas`
-  table and the behavioural work are not.*
+  table and the behavioral work are not.*
 - [`scopes/competitive-superlist.md`](scopes/competitive-superlist.md) — the
   2026-08-13 read of Superlist v1.56: the full feature diff, four candidates
   worth building (offline writes, attachments, multi-select, calendar in

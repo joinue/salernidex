@@ -20,7 +20,7 @@ import { relativeTime } from '../../lib/contact'
 //
 // The chrome is `NavBar`, like every other detail screen: Back and the pin / ⋯
 // cluster stay frosted at the top of the scrollport, and the big title sits
-// under them and collapses into the bar's centre once you scroll past it. This
+// under them and collapses into the bar's center once you scroll past it. This
 // page used to hand-roll a `← Notes` link in normal flow, which meant that the
 // moment you tapped into the body and iOS scrolled the caret up, every piece of
 // chrome — back button, title, "Edited …" — left the screen and the only thing

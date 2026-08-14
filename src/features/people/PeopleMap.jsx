@@ -152,7 +152,7 @@ export default function PeopleMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Reflect selection onto the markers: highlight ring + raise above neighbours.
+  // Reflect selection onto the markers: highlight ring + raise above neighbors.
   useEffect(() => {
     for (const [id, { marker }] of markers.current) {
       const el = marker.getElement()

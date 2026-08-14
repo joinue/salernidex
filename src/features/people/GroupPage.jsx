@@ -62,7 +62,7 @@ export default function GroupPage({
     completeTask(t, !t.completed_at)
   }
 
-  // What "edit" means depends on the flavour, and the empty state has to offer
+  // What "edit" means depends on the flavor, and the empty state has to offer
   // the same thing the action row does — otherwise an empty group is a page
   // telling you no one matches with no way to do anything about it.
   const editLabel = group?.kind === 'manual' ? 'Edit members' : 'Edit rules'

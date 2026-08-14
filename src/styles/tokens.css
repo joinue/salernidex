@@ -54,7 +54,7 @@
 
   /* The disclosure chevron on a <select>. A background-image can't read
      currentColor, so the tint has to live here and be re-stated per theme —
-     otherwise every dropdown arrow in the app is light-mode grey on black. */
+     otherwise every dropdown arrow in the app is light-mode gray on black. */
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a8a8e' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
 
   /* Motion. One signature curve (iOS sheet easing) + a small duration scale, so

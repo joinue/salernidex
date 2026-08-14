@@ -19,7 +19,7 @@ import RichTextEditor from './RichTextEditor'
 // viewports say it is.
 //
 // Nothing available here reproduces either bug — Chrome, headless or in
-// Playwright's iPhone emulation, honours the CSS exactly and pans rather than
+// Playwright's iPhone emulation, honors the CSS exactly and pans rather than
 // shrinks. So these tests pin structure and arithmetic, not pixels.
 
 const LAYOUT_H = 844

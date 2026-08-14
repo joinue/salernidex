@@ -27,7 +27,7 @@ export default function PressableRow({
 
   const onKeyDown = (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return
-    // Let the row's own controls keep their native keyboard behaviour; only
+    // Let the row's own controls keep their native keyboard behavior; only
     // claim the key when the row itself is focused.
     if (e.target !== e.currentTarget) return
     e.preventDefault()

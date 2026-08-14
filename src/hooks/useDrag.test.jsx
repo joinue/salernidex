@@ -35,7 +35,7 @@ describe('useDrag axis-intent lock', () => {
     expect(onMove).toHaveBeenCalled()
   })
 
-  // This is the behaviour that makes swipe-vs-scroll feel native: a vertical
+  // This is the behavior that makes swipe-vs-scroll feel native: a vertical
   // drag on a swipe row must be handed back to the scroller, not tracked.
   it('bows out of a vertical drag on an x-axis gesture, and stays out', () => {
     const onStart = vi.fn()

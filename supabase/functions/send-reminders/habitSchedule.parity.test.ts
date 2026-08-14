@@ -5,7 +5,7 @@
 // src/lib/recurrence.js, because the Edge Function can't import the browser
 // app's modules. Ports rot silently — a limit habit's weekly count was already
 // wrong here before this file existed. Unit tests in habitSchedule.test.ts pin
-// the behaviour; this one pins the *agreement*, which is the property that
+// the behavior; this one pins the *agreement*, which is the property that
 // actually matters. Vitest only: Deno never loads test files, so the deployed
 // bundle is unaffected.
 

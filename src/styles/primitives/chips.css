@@ -130,7 +130,7 @@
   color: var(--accent);
 }
 
-/* Chip tones. A screen picks a tone, never a colour — that's what keeps
+/* Chip tones. A screen picks a tone, never a color — that's what keeps
    "overdue" the same red everywhere it appears. */
 .chip-accent {
   background: var(--accent-soft);

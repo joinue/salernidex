@@ -6,7 +6,7 @@
 -- time so a task can be "due at 3:00 PM", which is what lets the reminder sender
 -- ping at the right moment instead of only in the morning digest.
 --
---   - null  = all-day (existing behaviour; unchanged for every current row)
+--   - null  = all-day (existing behavior; unchanged for every current row)
 --   - 'HH:MM[:SS]' (local time) = a timed deadline
 --
 -- Only meaningful alongside due_date; the UI never sets a time without a date.

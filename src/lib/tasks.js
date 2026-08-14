@@ -141,7 +141,7 @@ export function taskBucket(task) {
 // Is the on/by choice worth offering as a one-tap flip on this task? Only where
 // it visibly moves the task between Upcoming and Anytime. For anything already
 // due, still deferred, or undated, flipping changes nothing you can see — and a
-// shortcut labelled "Move to Anytime" that doesn't move anything is worse than
+// shortcut labeled "Move to Anytime" that doesn't move anything is worse than
 // no shortcut. Those tasks can still be changed in the form.
 export function canFlipDueKind(task) {
   const bucket = taskBucket(task)

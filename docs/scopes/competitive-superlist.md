@@ -53,7 +53,7 @@ recognition, not a model.
 
 ## 2. Where the comparison is unfair in both directions
 
-**In their favour:** they have four native clients and we have a PWA. Every
+**In their favor:** they have four native clients and we have a PWA. Every
 platform-shaped gap in the table above (widgets, offline durability, launch
 speed) is downstream of that one decision, and [next-steps §3](../next-steps.md)
 already answers it.

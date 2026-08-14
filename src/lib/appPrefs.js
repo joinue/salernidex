@@ -30,7 +30,7 @@ export const DEFAULT_APP_PREFS = {
   showCompleted: false, // start with the Done section expanded
   // Whose tasks reach Today — and, with it, the tab count, the app-icon badge
   // and the push reminders. 'mine' shows what's assigned to you plus anything
-  // left open to Anyone; 'all' is the old whole-household behaviour.
+  // left open to Anyone; 'all' is the old whole-household behavior.
   todayScope: 'mine', // 'mine' | 'all'
   // People page default sort: 'name' | 'recent' | 'tier' (lib/search.js).
   peopleSort: LEGACY_PEOPLE_SORT,

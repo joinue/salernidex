@@ -119,7 +119,7 @@
   border: 2.5px solid var(--surface);
   box-sizing: border-box;
 }
-/* Tail: a rotated square in the avatar's ring colour, tucked behind it. */
+/* Tail: a rotated square in the avatar's ring color, tucked behind it. */
 .avatar-pin::after {
   content: '';
   position: absolute;

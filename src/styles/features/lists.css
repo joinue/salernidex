@@ -174,7 +174,7 @@
 }
 .list-edit-note {
   /* 16px or iOS zooms the page on focus. It reads as the quieter line through
-     colour, not size. */
+     color, not size. */
   font-size: 16px;
   color: var(--text-2);
 }

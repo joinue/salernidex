@@ -6,7 +6,7 @@ import { isoDateIn } from '../../lib/tasks'
 
 // TaskForm holds real logic, not just markup: the natural-language token merge,
 // who a new task lands on, and which fields are worth showing before you've
-// asked for them. These are the behaviours worth locking down.
+// asked for them. These are the behaviors worth locking down.
 
 // household.js reads localStorage synchronously; seed a two-member household so
 // the assignee UI renders (it hides itself when solo).
@@ -127,7 +127,7 @@ describe('TaskForm — who a new task lands on', () => {
 })
 
 describe('TaskForm — the natural-language preview', () => {
-  it('strips a recognised date out of the title and applies it', async () => {
+  it('strips a recognized date out of the title and applies it', async () => {
     const { onSave } = setup()
     await userEvent.type(titleBox(), 'take the bins out tomorrow')
     await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
