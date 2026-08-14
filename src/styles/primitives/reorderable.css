@@ -25,7 +25,10 @@
   border-bottom: none !important;
 }
 
-/* reorder group nested inside an existing .list card (project subtasks) */
+/* Reorder group nested inside something that already owns the card — the
+   project page's .list of subtasks, and the same subtasks inline under an
+   expanded task row (.task-expand). The wrapper draws its own dividers because
+   neither parent is a .list the bare row rules can match through. */
 .reorder-plain > .reorder-row:not(:last-child) > .list-row,
 .reorder-plain > .reorder-row:not(:last-child) > div > .list-row:last-child {
   border-bottom: 0.5px solid var(--separator);

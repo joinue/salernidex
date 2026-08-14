@@ -40,6 +40,7 @@ const task = (over = {}) => ({
 // `confirm` resolves to whatever the test wants the user to have chosen.
 const setup = (tasks, { confirmAnswer = true, ...over } = {}) => {
   const deleteTask = vi.fn()
+  const onOpenTask = vi.fn()
   const confirm = vi.fn().mockResolvedValue(confirmAnswer)
   const data = {
     tasks,
@@ -55,10 +56,10 @@ const setup = (tasks, { confirmAnswer = true, ...over } = {}) => {
   }
   render(
     <ConfirmContext.Provider value={confirm}>
-      <TasksView data={data} onAdd={vi.fn()} onEdit={vi.fn()} />
+      <TasksView data={data} onAdd={vi.fn()} onEdit={vi.fn()} onOpenTask={onOpenTask} />
     </ConfirmContext.Provider>,
   )
-  return { deleteTask, confirm, data }
+  return { deleteTask, confirm, data, onOpenTask }
 }
 
 const sectionTitles = () =>
@@ -241,6 +242,103 @@ describe('TasksView — rows are operable without a pointer', () => {
     const { data } = setup([task({ id: 'a', title: 'Bins', due_date: isoDateIn(0) })])
     await userEvent.click(screen.getByRole('button', { name: 'Mark done' }))
     expect(data.completeTask).toHaveBeenCalled()
+    expect(screen.queryByPlaceholderText('Add a subtask…')).not.toBeInTheDocument()
+  })
+})
+
+describe('TasksView — inline subtasks reorder like the project page', () => {
+  const open = async () => userEvent.click(screen.getByRole('button', { name: /expand details/ }))
+  const subTitles = () =>
+    [...document.querySelectorAll('.list-row.sub .row-title')].map((e) => e.textContent)
+
+  it('shows them in manual order, not the order they were created', async () => {
+    setup([
+      task({ id: 'a', title: 'Move house', due_date: isoDateIn(0) }),
+      task({ id: 's1', title: 'Book van', parent_id: 'a', sort_order: 2 }),
+      task({ id: 's2', title: 'Pack kitchen', parent_id: 'a', sort_order: 1 }),
+    ])
+    await open()
+    expect(subTitles()).toEqual(['Pack kitchen', 'Book van'])
+  })
+
+  it('an unranked subtask sinks below ranked ones rather than jumping the queue', async () => {
+    setup([
+      task({ id: 'a', title: 'Move house', due_date: isoDateIn(0) }),
+      task({ id: 's1', title: 'Added later', parent_id: 'a', created_at: '2026-02-01T00:00:00Z' }),
+      task({ id: 's2', title: 'Placed by hand', parent_id: 'a', sort_order: 5 }),
+    ])
+    await open()
+    expect(subTitles()).toEqual(['Placed by hand', 'Added later'])
+  })
+
+  it('hands the drag to the same reorder path the project page uses', async () => {
+    const { data } = setup([
+      task({ id: 'a', title: 'Move house', due_date: isoDateIn(0) }),
+      task({ id: 's1', title: 'Book van', parent_id: 'a', sort_order: 1 }),
+      task({ id: 's2', title: 'Pack kitchen', parent_id: 'a', sort_order: 2 }),
+    ])
+    await open()
+    // The gesture itself belongs to ReorderableList (tested there); what this
+    // view owes is a wrapper wired to reorderTasks over the displayed order.
+    expect(document.querySelectorAll('.reorder-plain > .reorder-row')).toHaveLength(2)
+    expect(data.reorderTasks).not.toHaveBeenCalled()
+  })
+})
+
+// Two tasks, deliberately in different buckets (Overdue then Today) so their
+// order on screen is fixed by BUCKETS and not by whatever the sort does with
+// two identical rows.
+describe('TasksView — several tasks open at once', () => {
+  const pair = [
+    task({ id: 'a', title: 'Move house', due_date: isoDateIn(-2) }),
+    task({ id: 'b', title: 'Plan the trip', due_date: isoDateIn(0) }),
+  ]
+  const expand = async (title) =>
+    userEvent.click(screen.getByRole('button', { name: new RegExp(`${title}, expand details`) }))
+  const openPanels = () => screen.queryAllByPlaceholderText('Add a subtask…')
+
+  it('leaves the first one open when you expand the second', async () => {
+    setup(pair)
+    await expand('Move house')
+    await expand('Plan the trip')
+    expect(openPanels()).toHaveLength(2)
+  })
+
+  it('collapses only the row you tapped', async () => {
+    setup(pair)
+    await expand('Move house')
+    await expand('Plan the trip')
+    await userEvent.click(screen.getByRole('button', { name: /Move house, collapse details/ }))
+    expect(openPanels()).toHaveLength(1)
+    expect(
+      screen.getByRole('button', { name: /Plan the trip, collapse details/ }),
+    ).toBeInTheDocument()
+  })
+
+  it('keeps each open task’s subtask draft to itself', async () => {
+    const { data } = setup(pair)
+    await expand('Move house')
+    await expand('Plan the trip')
+    const [first, second] = openPanels()
+    await userEvent.type(first, 'Book the van')
+    // One shared draft would have echoed it into the other panel.
+    expect(second).toHaveValue('')
+    await userEvent.type(second, 'Renew passport{Enter}')
+    expect(data.addTask).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Renew passport', parent_id: 'b' }),
+    )
+    expect(first).toHaveValue('Book the van')
+  })
+})
+
+describe('TasksView — opening one task on its own page', () => {
+  it('goes to the page instead of expanding the row', async () => {
+    const { onOpenTask } = setup([
+      task({ id: 'a', title: 'Call the plumber', due_date: isoDateIn(0) }),
+    ])
+    await userEvent.click(screen.getByRole('button', { name: 'Open Call the plumber' }))
+    expect(onOpenTask).toHaveBeenCalledWith('a')
+    // The button sits inside the row, so the tap must not also reach the row.
     expect(screen.queryByPlaceholderText('Add a subtask…')).not.toBeInTheDocument()
   })
 })

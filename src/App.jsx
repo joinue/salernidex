@@ -34,6 +34,7 @@ import ListsView from './features/lists/ListsView'
 import ListDetail from './features/lists/ListDetail'
 import NotesView from './features/notes/NotesView'
 import ProjectDetail from './features/tasks/ProjectDetail'
+import TaskDetail from './features/tasks/TaskDetail'
 import PersonPage from './features/people/PersonPage'
 import OrgsView from './features/people/OrgsView'
 import OrgPage from './features/people/OrgPage'
@@ -72,9 +73,10 @@ import { isEditableTarget } from './lib/keys'
 import EmptyState from './components/ui/EmptyState'
 
 // Hash routing: #/ (today), #/activity, #/people, #/person/<id>, #/tasks,
-// #/project/<id>, #/lists, #/list/<id>, #/orgs, #/org/<id>, #/groups,
-// #/group/<id>, #/relationships, #/import. Quick Find can append an id to the
-// Tasks page (#/tasks/<id>) to land with that row expanded.
+// #/task/<id>, #/project/<id>, #/lists, #/list/<id>, #/orgs, #/org/<id>,
+// #/groups, #/group/<id>, #/relationships, #/import. Quick Find can append an
+// id to the Tasks page (#/tasks/<id>) to land with that row expanded; #/task/
+// <id> is the singular — that one task on a page of its own.
 function parseHash() {
   const [name, id] = window.location.hash.replace(/^#\/?/, '').split('/')
   return { name: name || 'today', id }
@@ -86,6 +88,7 @@ const DETAIL_ROUTES = [
   'person',
   'org',
   'group',
+  'task',
   'project',
   'list',
   'note',
@@ -114,6 +117,7 @@ const KNOWN_ROUTES = [
   'board',
   'activity',
   'tasks',
+  'task',
   'projects',
   'project',
   'lists',
@@ -378,7 +382,7 @@ function Shell({ session, onLogout, household }) {
             ? data.groups.find((g) => g.id === route.id)?.name
             : route.name === 'list'
               ? data.lists.find((l) => l.id === route.id)?.name
-              : route.name === 'project'
+              : route.name === 'project' || route.name === 'task'
                 ? data.tasks.find((t) => t.id === route.id)?.title
                 : route.name === 'note'
                   ? data.notes.find((n) => n.id === route.id)?.title || 'Note'
@@ -413,6 +417,10 @@ function Shell({ session, onLogout, household }) {
   // doesn't fall straight out of the list you're looking at).
   const createNote = (fields) => openNote(data.addNote(fields || {}))
   const openProject = (id) => go(`project/${id}`)
+  // A plain task's own page, opened from the ⤢ on its row in the Tasks list.
+  // Distinct from openTask below, which is the "follow a link to this task"
+  // entry other screens use.
+  const openTaskPage = (id) => go(`task/${id}`)
   const openHabit = (id) => go(`habit/${id}`)
   // Open a linked task from an entity page: projects get the full ProjectDetail,
   // plain tasks open the editor sheet.
@@ -567,15 +575,17 @@ function Shell({ session, onLogout, household }) {
           ? 'groups'
           : route.name === 'list'
             ? 'lists'
-            : route.name === 'project'
-              ? 'projects'
-              : route.name === 'note'
-                ? 'notes'
-                : route.name === 'habit'
-                  ? 'habits'
-                  : route.name === 'activity'
-                    ? 'today'
-                    : route.name
+            : route.name === 'task'
+              ? 'tasks'
+              : route.name === 'project'
+                ? 'projects'
+                : route.name === 'note'
+                  ? 'notes'
+                  : route.name === 'habit'
+                    ? 'habits'
+                    : route.name === 'activity'
+                      ? 'today'
+                      : route.name
 
   const adds = {
     go,
@@ -668,11 +678,24 @@ function Shell({ session, onLogout, household }) {
                 expandId={route.id}
                 onAdd={() => setEditingTask('new')}
                 onEdit={(t) => setEditingTask(t)}
+                onOpenTask={openTaskPage}
                 onSearch={isMobile ? () => setQuickFind(true) : undefined}
                 hub={workNav('tasks')}
                 defaultFilter={appPrefs.taskFilter}
                 defaultShowCompleted={appPrefs.showCompleted}
                 defaultPrivacy={appPrefs.taskPrivacy}
+              />
+            )}
+            {route.name === 'task' && (
+              <TaskDetail
+                data={data}
+                taskId={route.id}
+                // Reached from the Tasks list, Quick Find, or a bookmark, so
+                // back means where you came from. Deep-linked with no history
+                // → the Tasks list.
+                onBack={() => (window.history.length > 1 ? window.history.back() : go('tasks'))}
+                onEdit={(t) => setEditingTask(t)}
+                onOpenNote={openNote}
               />
             )}
             {route.name === 'projects' && (

@@ -5,6 +5,7 @@ import {
   CheckSquare,
   Calendar,
   Clock,
+  Maximize2,
   Repeat as RepeatIcon,
   User,
   X,
@@ -71,6 +72,7 @@ export default function TasksView({
   expandId,
   onAdd,
   onEdit,
+  onOpenTask,
   onSearch,
   hub,
   defaultFilter = 'all',
@@ -110,12 +112,17 @@ export default function TasksView({
   // Same idea for one tag (cross-cutting label). Independent of the area filter.
   const [tagFilter, setTagFilter] = useState(() => readSession().tagFilter ?? 'all')
   const confirm = useConfirm()
-  const [expanded, setExpanded] = useState(expandId || null)
+  // A set, not one id. Comparing two tasks' subtasks is a normal thing to want,
+  // and an accordion that closes the first the moment you open the second makes
+  // you keep re-opening it to check what you just read. Each row toggles alone.
+  const [expanded, setExpanded] = useState(() => new Set(expandId ? [expandId] : []))
   const [showDone, setShowDone] = useState(() => readSession().showDone ?? defaultShowCompleted)
   // Recurring chores in Upcoming start folded — see upcomingParts.
   const [showRecurring, setShowRecurring] = useState(() => readSession().showRecurring ?? false)
   const [showAllDone, setShowAllDone] = useState(false)
-  const [draftSub, setDraftSub] = useState('')
+  // Keyed by task id: with several rows open at once, one shared draft would put
+  // what you type under one task into the box under every other one too.
+  const [subDrafts, setSubDrafts] = useState({})
   // Inline quick-add: type a line, Enter adds it (running the same NL parser the
   // modal uses), and the field stays focused for the next one — fast capture
   // without opening the full form. The FAB/"New task" still opens the modal when
@@ -128,8 +135,10 @@ export default function TasksView({
   )
 
   // Deep link from Quick Find (#/tasks/<id>): land with that task expanded.
+  // Added to whatever is already open rather than replacing it — arriving here
+  // shouldn't shut the rows you left open.
   useEffect(() => {
-    if (expandId) setExpanded(expandId)
+    if (expandId) setExpanded((prev) => new Set(prev).add(expandId))
   }, [expandId])
 
   // Mirror the active filters into sessionStorage so a remount (stepping into a
@@ -242,7 +251,18 @@ export default function TasksView({
     return { timed, untimed }
   }, [grouped.today])
 
-  const subtasks = (id) => tasks.filter((t) => t.parent_id === id && !t.is_heading)
+  // Sorted the way ProjectDetail sorts a project's steps: manual order first,
+  // creation order for whatever was never dragged. The sort isn't cosmetic —
+  // moveUpdates() ranks a drop against the array as displayed, so without it
+  // the reorder below would write ranks against the wrong neighbours.
+  const subtasks = (id) => tasks.filter((t) => t.parent_id === id && !t.is_heading).sort(byOrder)
+
+  const toggleExpanded = (id) =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
 
   const toggle = (t) => {
     if (!t.completed_at) haptics.success()
@@ -268,7 +288,7 @@ export default function TasksView({
   }
 
   const addSub = (parent) => {
-    const title = draftSub.trim()
+    const title = (subDrafts[parent.id] || '').trim()
     if (!title) return
     addTask({
       title,
@@ -276,7 +296,7 @@ export default function TasksView({
       assignee: parent.assignee,
       privacy_level: parent.privacy_level,
     })
-    setDraftSub('')
+    setSubDrafts((d) => ({ ...d, [parent.id]: '' }))
   }
 
   const addQuick = () => {
@@ -308,15 +328,29 @@ export default function TasksView({
 
     // topOpen already excludes projects — they live in ProjectsView — so every
     // row rendered here expands inline.
-    const isOpen = expanded === task.id
+    const isOpen = expanded.has(task.id)
     const history = completionsFor(task.id, completions)
     return (
       <div key={task.id}>
         <PressableRow
-          onClick={() => setExpanded(isOpen ? null : task.id)}
+          onClick={() => toggleExpanded(task.id)}
           label={`${task.title}, ${isOpen ? 'collapse' : 'expand'} details`}
         >
           <TaskRow task={task} onToggle={toggle} progress={progress} />
+          {/* Beside the chevron rather than instead of it, because they answer
+              different questions. The chevron is a glance — check the subtasks
+              without losing the list. This one leaves the list behind and gives
+              the task a page, where nothing is abbreviated to fit a row. */}
+          {onOpenTask && (
+            <IconButton
+              icon={Maximize2}
+              label={`Open ${task.title}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenTask(task.id)
+              }}
+            />
+          )}
           <ChevronRight
             size={18}
             className="row-chevron"
@@ -333,27 +367,39 @@ export default function TasksView({
                 {task.notes}
               </p>
             )}
-            {subs.map((s) => (
-              <div className="list-row sub" key={s.id}>
-                <TaskRow
-                  task={s}
-                  onToggle={toggle}
-                  size="sm"
-                  hideAssignee={normalizeAssignee(s.assignee) === normalizeAssignee(task.assignee)}
-                />
-                <AddToCalendar task={s} parent={task} trigger="icon" />
-                <IconButton
-                  icon={X}
-                  variant="danger"
-                  label="Delete subtask"
-                  onClick={() => deleteTask(s.id)}
-                />
-              </div>
-            ))}
+            {/* Same primitive, same persistence path as the project page's
+                subtasks — the order you drag here is the order you'd see if you
+                opened the task full-screen. */}
+            {subs.length > 0 && (
+              <ReorderableList
+                className="reorder-plain"
+                items={subs}
+                onMove={(from, to) => reorderTasks(moveUpdates(subs, from, to))}
+                renderItem={(s) => (
+                  <div className="list-row sub">
+                    <TaskRow
+                      task={s}
+                      onToggle={toggle}
+                      size="sm"
+                      hideAssignee={
+                        normalizeAssignee(s.assignee) === normalizeAssignee(task.assignee)
+                      }
+                    />
+                    <AddToCalendar task={s} parent={task} trigger="icon" />
+                    <IconButton
+                      icon={X}
+                      variant="danger"
+                      label="Delete subtask"
+                      onClick={() => deleteTask(s.id)}
+                    />
+                  </div>
+                )}
+              />
+            )}
             <div className="subtask-add">
               <input
-                value={expanded === task.id ? draftSub : ''}
-                onChange={(e) => setDraftSub(e.target.value)}
+                value={subDrafts[task.id] || ''}
+                onChange={(e) => setSubDrafts((d) => ({ ...d, [task.id]: e.target.value }))}
                 placeholder="Add a subtask…"
                 enterKeyHint="done"
                 onKeyDown={(e) => {
