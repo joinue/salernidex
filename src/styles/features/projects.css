@@ -31,6 +31,49 @@
   margin-left: 0;
 }
 
+/* ProjectDetail's status + dates, collapsed to one tappable line. Open, the
+   controls sit under it in the same card, so the summary reads as their
+   heading rather than as something they replaced. */
+.project-meta-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 14px;
+  background: var(--surface);
+  text-align: left;
+}
+
+.project-meta-when {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-meta-when.unset {
+  color: var(--text-3);
+}
+
+.project-meta-caret {
+  flex-shrink: 0;
+  color: var(--text-3);
+  transition: transform 200ms var(--ease-ios);
+}
+
+.project-meta-caret.open {
+  transform: rotate(180deg);
+}
+
+.project-meta-edit {
+  padding: 4px 12px 12px;
+  border-top: 0.5px solid var(--separator);
+}
+
 /* ProjectDetail: the date-range + status control row, and the scoped-lists
    cards. Kept light — they lean on existing chip/list-row styling. */
 .project-status-row {
@@ -38,7 +81,7 @@
   gap: 8px;
   flex-wrap: wrap;
   justify-content: center;
-  margin: 4px 0 2px;
+  margin: 8px 0 2px;
 }
 /* Inline start/target dates. Not in a .field — they sit in a label beside their
    caption — so they carry the field treatment themselves. */
@@ -53,18 +96,6 @@
   font-size: 16px;
 }
 
-.project-notes-edit {
-  width: 100%;
-  min-height: 72px;
-  padding: 10px 12px;
-  resize: vertical;
-  font: inherit;
-  line-height: 1.45;
-}
-
-.project-notes-edit:focus {
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
 .list-row.project-list-row .list-emoji {
   font-size: 22px;
 }
@@ -100,7 +131,10 @@
   width: 100%;
 }
 
-/* Notes: a roomy, themed scratchpad that reads as one inset card. */
+/* Quick note: a themed scratchpad that reads as one inset card. It's sized by
+   its content (ProjectDetail measures it on input), so it starts as a single
+   line beside the project's real notes and only takes the room it earns —
+   hence no fixed min-height and no drag handle to fight the measurement. */
 .project-notes-card {
   padding: 6px;
 }
@@ -108,14 +142,14 @@
 .project-notes-edit {
   display: block;
   width: 100%;
-  min-height: 96px;
   padding: 12px 14px;
   background: transparent;
   color: var(--text);
   border: none;
   border-radius: var(--radius-sm);
   outline: none;
-  resize: vertical;
+  resize: none;
+  overflow: hidden;
   font: inherit;
   /* 16px or iOS zooms the page on focus. */
   font-size: 16px;

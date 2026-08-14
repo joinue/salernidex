@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Plus,
   Edit2,
@@ -12,33 +12,56 @@ import {
   Moon,
   CheckCircle,
   RotateCcw,
+  ChevronDown,
   ChevronRight,
   List as ListIcon,
 } from 'react-feather'
 import { useConfirm } from '../../hooks/useConfirm'
-import { completionsFor, deadlineLabel, dueLabel, dueState, isDeadline } from '../../lib/tasks'
+import {
+  completionsFor,
+  deadlineLabel,
+  dueLabel,
+  dueState,
+  isDeadline,
+  projectDateSummary,
+} from '../../lib/tasks'
 import { relativeTime } from '../../lib/contact'
 import { assigneeLabel, normalizeAssignee } from '../../lib/household'
 import { describeRecurrence } from '../../lib/recurrence'
 import { byOrder, moveUpdates } from '../../lib/order'
 import { personSummary } from '../../lib/orgs'
+import {
+  extractMentions,
+  mentionChipHtml,
+  noteSnippet,
+  noteTitle,
+  notesMentioning,
+  sortNotes,
+  withMention,
+  withoutMention,
+} from '../../lib/notes'
 import haptics from '../../lib/haptics'
 import Avatar from '../../components/ui/Avatar'
 import TaskRow from './TaskRow'
 import ReorderableList from '../../components/ui/ReorderableList'
 import LinkEntityForm from '../people/LinkEntityForm'
 import AddToCalendar from '../../components/ui/AddToCalendar'
+import Button from '../../components/ui/Button'
 import NavBar from '../../components/ui/NavBar'
 import SectionLabel from '../../components/ui/SectionLabel'
 import EmptyState from '../../components/ui/EmptyState'
 import IconButton from '../../components/ui/IconButton'
 import Sheet from '../../components/ui/Sheet'
 import SwipeRow from '../../components/ui/SwipeRow'
-import NoteBacklinks from '../../components/ui/NoteBacklinks'
 
 // Full-page view for a project (a task flagged is_project and/or with
-// subtasks). Adds two things a plain task doesn't get: linked people/orgs
-// (the rolodex bridge) and a roomy place to manage subtasks.
+// subtasks). What a plain task doesn't get: a roomy place to manage subtasks,
+// and everything the project gathers around itself — notes, lists, and linked
+// people/orgs (the rolodex bridge).
+//
+// It reads top to bottom in the order you'd work: what state it's in (one line,
+// unfolded to change), then the steps, then the reference material, then who
+// it involves. Status and dates used to open at full height above all of it.
 //
 // Subtasks can be grouped Things-style: a heading is just a subtask row with
 // is_heading set, and the tasks that follow it (in manual order) sit under it.
@@ -54,6 +77,7 @@ export default function ProjectDetail({
   onOpenGroup,
   onOpenList,
   onOpenNote,
+  onAddNote,
 }) {
   const {
     tasks,
@@ -74,6 +98,7 @@ export default function ProjectDetail({
     addTaskLink,
     deleteTaskLink,
     saveList,
+    updateNote,
   } = data
   const confirm = useConfirm()
   const task = tasks.find((t) => t.id === taskId)
@@ -81,11 +106,66 @@ export default function ProjectDetail({
   const [draftList, setDraftList] = useState('')
   const [linking, setLinking] = useState(false)
   const [attaching, setAttaching] = useState(false)
-  // Notes are edited inline (this is the project's reference scratchpad —
-  // measurements, confirmation #s). Seeded from the row; saved on blur.
+  const [attachingNote, setAttachingNote] = useState(false)
+  // Status and dates are set once and read for the rest of the project's life,
+  // so the controls stay folded behind their summary line until you want them.
+  const [metaOpen, setMetaOpen] = useState(false)
+  // The quick note is edited inline (the project's own scratchpad —
+  // measurements, confirmation #s). Seeded from the row; written back on blur.
   const [notesDraft, setNotesDraft] = useState(task?.notes || '')
+  const quickNoteRef = useRef(null)
+
+  // Grow the scratchpad to fit what's in it, so an empty one is a single line
+  // and a full one never scrolls inside itself.
+  const fitQuickNote = (el) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }
+  useEffect(() => {
+    fitQuickNote(quickNoteRef.current)
+  }, [])
+
+  const saveQuickNote = () => {
+    if (task && notesDraft !== (task.notes || '')) updateTask(task.id, { notes: notesDraft })
+  }
+
+  // Blur is not the only way you stop typing in it. Tapping a note row leaves
+  // the page and unmounts the box — no blur — and iOS kills backgrounded PWAs
+  // whenever it likes, so both are real loss, not theoretical. Flush on the way
+  // out instead. The ref keeps the handlers pointed at the current draft; the
+  // save is a no-op when nothing changed, so whichever fires second is free.
+  const saveQuickNoteRef = useRef(saveQuickNote)
+  useEffect(() => {
+    saveQuickNoteRef.current = saveQuickNote
+  })
+  useEffect(() => {
+    const flush = () => saveQuickNoteRef.current()
+    const onHidden = () => document.visibilityState === 'hidden' && flush()
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onHidden)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', onHidden)
+      flush()
+    }
+  }, [])
 
   const projectLists = useMemo(() => lists.filter((l) => l.project_id === taskId), [lists, taskId])
+
+  // Notes filed under this project: the ones that @-mention it. 'task' counts
+  // too — a note that named it before it was promoted still carries the type it
+  // was chosen with.
+  const projectNotes = useMemo(
+    () => sortNotes(notesMentioning(notes, ['project', 'task'], taskId)),
+    [notes, taskId],
+  )
+
+  // Everything else in the notebook, offered for "Attach existing".
+  const attachableNotes = useMemo(() => {
+    const filed = new Set(projectNotes.map((n) => n.id))
+    return sortNotes(notes.filter((n) => !filed.has(n.id)))
+  }, [notes, projectNotes])
 
   // Free-standing lists (not already tied to a project) you can pull in. Keeping
   // it to unattached lists means attaching here never quietly steals a list from
@@ -184,6 +264,46 @@ export default function ProjectDetail({
     if (ok) saveList({ project_id: null }, listId)
   }
 
+  // Notes file themselves under a project by @-mentioning it, so a note started
+  // here opens with that chip already in its body — the same link you'd get by
+  // typing "@" in the notebook, and the one the backlink list reads.
+  //
+  // The empty line after it is load-bearing: tapping into the body puts the
+  // caret at the end, and anything typed onto the chip's own line would become
+  // the note's title ("@Kitchen refreshPaint quotes"). With a line of its own to
+  // land on, the first thing typed titles the note and the chip stays a marker.
+  const newNote = () =>
+    onAddNote?.({
+      body: `<div>${mentionChipHtml({ type: 'project', id: task.id, label: task.title })}</div><div><br></div>`,
+      mentions: [{ type: 'project', id: task.id }],
+      privacy_level: task.privacy_level,
+    })
+
+  const saveMentions = (note, body) =>
+    updateNote(note.id, { body, mentions: extractMentions(body) })
+
+  const attachNote = (note) => {
+    saveMentions(note, withMention(note.body, { type: 'project', id: task.id, label: task.title }))
+    setAttachingNote(false)
+  }
+
+  // Detaching edits the note — the link lives in its text — so say so. Both
+  // mention types come out: the note may have named this as a plain task.
+  const detachNote = async (note) => {
+    const ok = await confirm({
+      title: `Remove “${noteTitle(note)}” from this project?`,
+      message: 'The @mention comes out of the note. The note itself stays in your notebook.',
+      confirmLabel: 'Remove',
+      danger: true,
+    })
+    if (!ok) return
+    const stripped = ['project', 'task'].reduce(
+      (body, type) => withoutMention(body, { type, id: task.id }),
+      note.body,
+    )
+    saveMentions(note, stripped)
+  }
+
   const setStatus = (status) => updateTask(task.id, { project_status: status })
   const toggleDone = () => completeTask(task, !task.completed_at)
   const setDate = (field, value) => updateTask(task.id, { [field]: value || null })
@@ -204,6 +324,8 @@ export default function ProjectDetail({
 
   const isDone = !!task.completed_at
   const isSomeday = task.project_status === 'someday'
+  const statusLabel = isDone ? 'Done' : isSomeday ? 'Someday' : 'Active'
+  const dateSummary = projectDateSummary(task)
 
   return (
     <div className="detail">
@@ -247,75 +369,84 @@ export default function ProjectDetail({
         </div>
       </NavBar>
 
-      <SectionLabel>Status &amp; dates</SectionLabel>
-      <div className="list" style={{ padding: 12 }}>
-        <div className="project-status-row">
-          <button
-            className={`pill-btn ${!isDone && !isSomeday ? 'on' : ''}`}
-            onClick={() => {
-              if (isDone) toggleDone()
-              setStatus('active')
-            }}
-          >
-            Active
-          </button>
-          <button
-            className={`pill-btn ${!isDone && isSomeday ? 'on' : ''}`}
-            onClick={() => {
-              if (isDone) toggleDone()
-              setStatus('someday')
-            }}
-          >
-            <Moon size={14} /> Someday
-          </button>
-          <button className={`pill-btn ${isDone ? 'on' : ''}`} onClick={toggleDone}>
-            {isDone ? (
-              <>
-                <RotateCcw size={14} /> Reopen
-              </>
-            ) : (
-              <>
-                <CheckCircle size={14} /> Mark done
-              </>
-            )}
-          </button>
-        </div>
-        <div className="project-dates">
-          <label className="project-date-field">
-            <span className="project-date-label">
-              <Calendar size={13} /> Start
-            </span>
-            <input
-              type="date"
-              value={task.start_date || ''}
-              onChange={(e) => setDate('start_date', e.target.value)}
-            />
-          </label>
-          <label className="project-date-field">
-            <span className="project-date-label">
-              <Calendar size={13} /> Target
-            </span>
-            <input
-              type="date"
-              value={task.end_date || ''}
-              min={task.start_date || undefined}
-              onChange={(e) => setDate('end_date', e.target.value)}
-            />
-          </label>
-        </div>
-      </div>
-
-      <SectionLabel>Notes</SectionLabel>
-      <div className="list project-notes-card">
-        <textarea
-          className="project-notes-edit"
-          value={notesDraft}
-          onChange={(e) => setNotesDraft(e.target.value)}
-          onBlur={() => {
-            if (notesDraft !== (task.notes || '')) updateTask(task.id, { notes: notesDraft })
-          }}
-          placeholder="Measurements, confirmation #s, links — anything you want at hand."
-        />
+      {/* Status and dates, folded into one line. They're set early and then
+          mostly read, and as a permanent block of three buttons and two date
+          pickers they pushed the actual work — the subtasks — off the first
+          screenful. The summary is the button that unfolds them. */}
+      <div className="list project-meta">
+        <button
+          type="button"
+          className="project-meta-summary"
+          aria-expanded={metaOpen}
+          onClick={() => setMetaOpen((v) => !v)}
+        >
+          <span className={`chip ${isDone ? 'good' : isSomeday ? '' : 'accent'}`}>
+            {isDone ? <CheckCircle size={11} /> : isSomeday ? <Moon size={11} /> : null}
+            {statusLabel}
+          </span>
+          <span className={`project-meta-when ${dateSummary ? '' : 'unset'}`}>
+            {dateSummary || 'No dates set'}
+          </span>
+          <ChevronDown size={16} className={`project-meta-caret ${metaOpen ? 'open' : ''}`} />
+        </button>
+        {metaOpen && (
+          <div className="project-meta-edit">
+            <div className="project-status-row">
+              <button
+                className={`pill-btn ${!isDone && !isSomeday ? 'on' : ''}`}
+                onClick={() => {
+                  if (isDone) toggleDone()
+                  setStatus('active')
+                }}
+              >
+                Active
+              </button>
+              <button
+                className={`pill-btn ${!isDone && isSomeday ? 'on' : ''}`}
+                onClick={() => {
+                  if (isDone) toggleDone()
+                  setStatus('someday')
+                }}
+              >
+                <Moon size={14} /> Someday
+              </button>
+              <button className={`pill-btn ${isDone ? 'on' : ''}`} onClick={toggleDone}>
+                {isDone ? (
+                  <>
+                    <RotateCcw size={14} /> Reopen
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle size={14} /> Mark done
+                  </>
+                )}
+              </button>
+            </div>
+            <div className="project-dates">
+              <label className="project-date-field">
+                <span className="project-date-label">
+                  <Calendar size={13} /> Start
+                </span>
+                <input
+                  type="date"
+                  value={task.start_date || ''}
+                  onChange={(e) => setDate('start_date', e.target.value)}
+                />
+              </label>
+              <label className="project-date-field">
+                <span className="project-date-label">
+                  <Calendar size={13} /> Target
+                </span>
+                <input
+                  type="date"
+                  value={task.end_date || ''}
+                  min={task.start_date || undefined}
+                  onChange={(e) => setDate('end_date', e.target.value)}
+                />
+              </label>
+            </div>
+          </div>
+        )}
       </div>
 
       <SectionLabel>
@@ -391,6 +522,85 @@ export default function ProjectDetail({
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Notes read like the Lists section below: links out to real notebook
+          notes, which a project can collect several of, rather than one box of
+          text. The link is the note's own @-mention of this project, so it
+          points both ways and shows up in the notebook too. */}
+      <SectionLabel>
+        Notes
+        {projectNotes.length > 0 && <span className="section-count">{projectNotes.length}</span>}
+      </SectionLabel>
+      <div className="list">
+        {projectNotes.length === 0 ? (
+          <EmptyState inline>
+            No notes filed here yet. Start one below, or @-mention this project in any note.
+          </EmptyState>
+        ) : (
+          projectNotes.map((n) => (
+            <SwipeRow
+              key={n.id}
+              label={noteTitle(n)}
+              onClick={() => onOpenNote?.(n.id)}
+              actions={[
+                { label: 'Remove', icon: X, variant: 'danger', onClick: () => detachNote(n) },
+              ]}
+            >
+              <div className="list-row">
+                <div className="row-body">
+                  <div className="row-title">{noteTitle(n)}</div>
+                  <div className="row-sub">
+                    {noteSnippet(n, 60) || `Edited ${relativeTime(n.updated_at)}`}
+                  </div>
+                </div>
+                <ChevronRight size={18} className="row-chevron" />
+              </div>
+            </SwipeRow>
+          ))
+        )}
+        <div className={`subtask-composer ${projectNotes.length > 0 ? 'divided' : ''}`}>
+          <div className="subtask-composer-actions">
+            <Button variant="text" icon={Plus} onClick={newNote} disabled={!onAddNote}>
+              New note
+            </Button>
+            <Button
+              variant="text"
+              className="quiet"
+              onClick={() => setAttachingNote(true)}
+              disabled={attachableNotes.length === 0}
+              title={
+                attachableNotes.length === 0
+                  ? 'Every note is already filed here'
+                  : 'File a note you already wrote under this project'
+              }
+            >
+              Attach existing
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* The project's own scratchpad, kept because it's the fastest place to
+          put a confirmation number — but sized to what's in it, so an unused
+          one costs a line rather than a card. */}
+      <SectionLabel>Quick note</SectionLabel>
+      <div className="list project-notes-card">
+        <textarea
+          ref={quickNoteRef}
+          className="project-notes-edit"
+          aria-label="Quick note"
+          // One line to start; fitQuickNote takes it from there. The default
+          // rows=2 is what the measurement floors at, not the CSS.
+          rows={1}
+          value={notesDraft}
+          onChange={(e) => {
+            setNotesDraft(e.target.value)
+            fitQuickNote(e.target)
+          }}
+          onBlur={saveQuickNote}
+          placeholder="Measurements, confirmation #s, links — anything you want at hand."
+        />
       </div>
 
       <SectionLabel>Lists</SectionLabel>
@@ -522,8 +732,6 @@ export default function ProjectDetail({
         )}
       </div>
 
-      <NoteBacklinks notes={notes} type={['project', 'task']} id={taskId} onOpenNote={onOpenNote} />
-
       {history.length > 0 && (
         <>
           <SectionLabel>History</SectionLabel>
@@ -589,6 +797,28 @@ export default function ProjectDetail({
                   </div>
                 )
               })
+            )}
+          </div>
+        </Sheet>
+      )}
+
+      {attachingNote && (
+        <Sheet title="Attach a note" onClose={() => setAttachingNote(false)}>
+          <div className="list">
+            {attachableNotes.length === 0 ? (
+              <EmptyState inline>Every note you have is already filed here.</EmptyState>
+            ) : (
+              attachableNotes.map((n) => (
+                <div className="list-row" key={n.id} onClick={() => attachNote(n)}>
+                  <div className="row-body">
+                    <div className="row-title">{noteTitle(n)}</div>
+                    <div className="row-sub">
+                      {noteSnippet(n, 60) || `Edited ${relativeTime(n.updated_at)}`}
+                    </div>
+                  </div>
+                  <Plus size={18} className="row-chevron" />
+                </div>
+              ))
             )}
           </div>
         </Sheet>

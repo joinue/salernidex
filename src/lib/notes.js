@@ -173,26 +173,94 @@ export function extractMentions(html) {
   return out
 }
 
-// Display title: the explicit title, else the first non-empty body line, else a
-// gentle placeholder. Never returns raw HTML.
+// The HTML for one inline mention chip — byte-for-byte what the editor inserts
+// when you pick from the @-picker (RichTextEditor.choose), so a chip written by
+// an entity page and one typed into the note are the same node. Escaped, because
+// the label is a user-entered name.
+const escapeHtml = (s) =>
+  String(s).replace(
+    /[&<>"]/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
+  )
+
+export function mentionChipHtml({ type, id, label }) {
+  return `<span class="mention" data-type="${escapeHtml(type)}" data-id="${escapeHtml(id)}" contenteditable="false">@${escapeHtml(label)}</span>`
+}
+
+// Attach an entity to a note from the *entity's* side ("Attach existing" on a
+// project page). The chip has to land in the body, not just in `mentions`: the
+// editor recomputes mentions from the body on every save, so a link that isn't
+// written down would be dropped the next time anyone typed in the note.
+//
+// It goes on its own line at the end — never mid-sentence — and a note that
+// already mentions the entity comes back untouched.
+export function withMention(body, { type, id, label }) {
+  const html = body || ''
+  if (extractMentions(html).some((m) => m.type === type && m.id === id)) return html
+  return `${html}<div>${mentionChipHtml({ type, id, label })}</div>`
+}
+
+// The reverse: pull every chip pointing at one entity out of a note's body. A
+// wrapper left holding nothing (the line `withMention` added) goes too, so
+// detaching doesn't leave a blank line behind.
+export function withoutMention(body, { type, id }) {
+  if (!body) return ''
+  const doc = new DOMParser().parseFromString(String(body), 'text/html')
+  doc.querySelectorAll('span.mention').forEach((el) => {
+    if (el.getAttribute('data-type') !== type || el.getAttribute('data-id') !== id) return
+    const parent = el.parentElement
+    el.remove()
+    if (parent && parent !== doc.body && !parent.textContent.trim() && !parent.children.length) {
+      parent.remove()
+    }
+  })
+  return doc.body.innerHTML
+}
+
+// An invisible separator, wrapped around each mention chip's text so a line
+// that is *only* chips can be told from one that merely contains them. It has
+// to be a real character rather than a marker element: line breaks come from
+// htmlToText, which flattens the tree.
+const CHIP_MARK = '⁣'
+const CHIP_RUN = /⁣[^⁣]*⁣/g
+
+function markedLines(html) {
+  if (!html) return []
+  const doc = new DOMParser().parseFromString(String(html), 'text/html')
+  doc.querySelectorAll('span.mention').forEach((el) => {
+    el.textContent = `${CHIP_MARK}${el.textContent}${CHIP_MARK}`
+  })
+  return htmlToText(doc.body.innerHTML)
+    .split('\n')
+    .filter((l) => l.trim())
+}
+
+// The body's lines as they read, minus the ones holding nothing but @-mention
+// chips. Those are filing markers — a note started from a project page opens
+// with one — and naming a note after the project it's filed under tells you
+// nothing you didn't already know. Unless the chips are the whole note, in
+// which case they're still all there is to show.
+function displayLines(html) {
+  const lines = markedLines(html)
+  const prose = lines.filter((l) => l.replace(CHIP_RUN, '').trim())
+  return (prose.length ? prose : lines).map((l) => l.split(CHIP_MARK).join('').trim())
+}
+
+// Display title: the explicit title, else the first line the body actually
+// says, else a gentle placeholder. Never returns raw HTML.
 export function noteTitle(note) {
   const t = (note?.title || '').trim()
   if (t) return t
-  const firstLine = htmlToText(note?.body)
-    .split('\n')
-    .find((l) => l.trim())
-  return (firstLine || '').trim() || 'New note'
+  return displayLines(note?.body)[0] || 'New note'
 }
 
-// One-line preview: the body text with the title's first line removed (so the
-// snippet doesn't just echo the title).
+// One-line preview: the body text with the title's line removed (so the snippet
+// doesn't just echo the title).
 export function noteSnippet(note, max = 100) {
-  const text = htmlToText(note?.body)
-  const lines = text.split('\n').filter((l) => l.trim())
+  const lines = displayLines(note?.body)
   const explicitTitle = (note?.title || '').trim()
-  // If the title is implicit (first body line), drop that line from the snippet.
-  const body = explicitTitle ? lines : lines.slice(1)
-  const snippet = body.join(' ').trim()
+  // If the title is implicit, it came from the first of these lines — drop it.
+  const snippet = (explicitTitle ? lines : lines.slice(1)).join(' ').trim()
   return snippet.length > max ? snippet.slice(0, max).trimEnd() + '…' : snippet
 }
 

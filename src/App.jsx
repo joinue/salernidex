@@ -720,6 +720,7 @@ function Shell({ session, onLogout, household }) {
                 onOpenGroup={openGroup}
                 onOpenList={openList}
                 onOpenNote={openNote}
+                onAddNote={createNote}
               />
             )}
             {route.name === 'lists' && (

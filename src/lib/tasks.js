@@ -353,6 +353,18 @@ export function projectDate(project) {
   return project.end_date || project.due_date || null
 }
 
+// The one-line "when" for a project, for the collapsed status bar on its page:
+// 'Jun 3 → Jul 1' with both ends set, otherwise whichever end there is. Null
+// when the project carries no range at all, so the caller can offer to add one.
+export function projectDateSummary(project) {
+  const start = project?.start_date
+  const end = project?.end_date
+  if (start && end) return `${shortDate(start)} → ${shortDate(end)}`
+  if (start) return `Starts ${shortDate(start)}`
+  if (end) return `Target ${shortDate(end)}`
+  return null
+}
+
 // Comparator factory for the Projects index. 'recent' = most recently touched
 // first; 'name' = alphabetical; 'due' = soonest project date first, undated last.
 export function byProjects(sort) {

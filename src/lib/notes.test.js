@@ -10,6 +10,9 @@ import {
   htmlToText,
   noteTitle,
   noteSnippet,
+  mentionChipHtml,
+  withMention,
+  withoutMention,
 } from './notes'
 
 // Pure, DOM-free helpers — always run.
@@ -196,6 +199,48 @@ describe.runIf(hasDOM)('extractMentions', () => {
   })
 })
 
+// A mention chip on a line of its own — how a note gets filed under an entity.
+const chip = (type, id, label) => `<div>${mentionChipHtml({ type, id, label })}</div>`
+
+// Attaching a note to an entity from that entity's page (ProjectDetail's Notes
+// section). The link has to be written into the body, because the editor
+// recomputes `mentions` from the body on every save.
+describe.runIf(hasDOM)('withMention / withoutMention', () => {
+  const project = { type: 'project', id: 'pr1', label: 'Kitchen reno' }
+
+  it('appends a chip the editor and the sanitizer both recognize', () => {
+    const body = withMention('<div>Quotes</div>', project)
+    expect(extractMentions(body)).toEqual([{ type: 'project', id: 'pr1' }])
+    expect(sanitizeNoteHtml(body)).toContain('data-id="pr1"')
+    expect(htmlToText(body)).toContain('@Kitchen reno')
+  })
+
+  it('leaves a note that already mentions it untouched', () => {
+    const once = withMention('', project)
+    expect(withMention(once, project)).toBe(once)
+  })
+
+  it('escapes the label rather than letting it carry markup', () => {
+    const chip = mentionChipHtml({ type: 'project', id: 'pr1', label: '<b>x</b>' })
+    expect(chip).not.toContain('<b>')
+    expect(sanitizeNoteHtml(chip)).toContain('@&lt;b&gt;x&lt;/b&gt;')
+  })
+
+  it('detaches by removing the chip and the line it sat on', () => {
+    const body = withMention('<div>Quotes</div>', project)
+    expect(withoutMention(body, project)).toBe('<div>Quotes</div>')
+  })
+
+  it('leaves other mentions, and text around the one it removes, in place', () => {
+    const body =
+      '<div>Ask <span class="mention" data-type="project" data-id="pr1">@Kitchen reno</span> about ' +
+      '<span class="mention" data-type="person" data-id="p1">@Ada</span></div>'
+    const out = withoutMention(body, project)
+    expect(extractMentions(out)).toEqual([{ type: 'person', id: 'p1' }])
+    expect(htmlToText(out)).toContain('Ask')
+  })
+})
+
 describe.runIf(hasDOM)('noteTitle / noteSnippet', () => {
   it('falls back to the first body line for the title', () => {
     expect(noteTitle({ title: '', body: '<div>First line</div><div>Second</div>' })).toBe(
@@ -208,5 +253,25 @@ describe.runIf(hasDOM)('noteTitle / noteSnippet', () => {
     expect(noteSnippet({ title: '', body: '<div>Title</div><div>Body text</div>' })).toBe(
       'Body text',
     )
+  })
+
+  // A note started from a project page opens with a mention chip on its own
+  // line. That line files the note; it doesn't name it.
+  it('titles a note by its first real line, not the chip it was filed with', () => {
+    const filed = {
+      title: '',
+      body: `${chip('project', 'pr1', 'Kitchen reno')}<div>Paint quotes</div>`,
+    }
+    expect(noteTitle(filed)).toBe('Paint quotes')
+    expect(noteSnippet(filed)).toBe('')
+  })
+
+  it('keeps a mention that sits inside a line it titles', () => {
+    const body = `<div>Ask <span class="mention" data-type="person" data-id="p1">@Ada</span> about it</div>`
+    expect(noteTitle({ title: '', body })).toBe('Ask @Ada about it')
+  })
+
+  it('falls back to the chips when they are the whole note', () => {
+    expect(noteTitle({ title: '', body: chip('person', 'p1', 'Ada') })).toBe('@Ada')
   })
 })

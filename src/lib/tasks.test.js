@@ -17,6 +17,7 @@ import {
   isProject,
   projectBucket,
   projectDate,
+  projectDateSummary,
   byProjects,
   completionFields,
   skipFields,
@@ -59,6 +60,22 @@ describe('projectDate', () => {
     expect(projectDate({ end_date: '2026-07-01', due_date: '2026-06-20' })).toBe('2026-07-01')
     expect(projectDate({ due_date: '2026-06-20' })).toBe('2026-06-20')
     expect(projectDate({})).toBeNull()
+  })
+})
+
+describe('projectDateSummary', () => {
+  it('reads as a range when both ends are set', () => {
+    expect(projectDateSummary({ start_date: '2026-06-03', end_date: '2026-07-01' })).toBe(
+      'Jun 3 → Jul 1',
+    )
+  })
+  it('names the end it has when only one is set', () => {
+    expect(projectDateSummary({ start_date: '2026-06-03' })).toBe('Starts Jun 3')
+    expect(projectDateSummary({ end_date: '2026-07-01' })).toBe('Target Jul 1')
+  })
+  it('is null with no dates, so the caller can offer to add them', () => {
+    expect(projectDateSummary({})).toBeNull()
+    expect(projectDateSummary(null)).toBeNull()
   })
 })
 
