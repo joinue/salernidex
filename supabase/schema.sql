@@ -236,8 +236,8 @@ create table public.lists (
   name          text not null,
   icon          text,                               -- emoji, e.g. 🛒
   color         text,                               -- optional accent tint for the emoji tile (0031)
-  kind          text not null default 'standard'    -- 'standard' | 'grocery' (aisle-grouped); see groups.kind (0019)
-    check (kind in ('standard', 'grocery')),
+  kind          text not null default 'standard'    -- 'standard' | 'grocery' (aisle-grouped, 0019) | 'meal_plan' (day-indexed, 0037); see groups.kind
+    check (kind in ('standard', 'grocery', 'meal_plan')),
   privacy_level privacy_level not null default 'family_shared',
   due_date         date,                            -- optional "get it by" date; surfaces on Today (0016)
   reminder_time    time,                            -- local HH:MM nudge; null = none (0016)
@@ -256,6 +256,7 @@ create table public.list_items (
   qty         text,                                 -- structured quantity ("2", "2 lbs", "a dozen") (0023)
   category    text,                                 -- grocery aisle ("Produce"…); null = "Other" (0019)
   is_heading  boolean not null default false,       -- standard-list section row, à la tasks.is_heading (0019)
+  on_date     date,                                 -- meal-plan day this item belongs to; null = unscheduled / not a meal plan (0037)
   checked_at  timestamptz,                          -- null = not yet got/done
   sort_order  double precision,                     -- manual drag order (see tasks.sort_order)
   assignee    uuid,                                 -- household_members FK; who's grabbing it, null = anyone (0023)
@@ -417,6 +418,8 @@ create index tasks_parent_idx on public.tasks (parent_id);
 create index task_completions_task_idx on public.task_completions (task_id, completed_at desc);
 create index task_links_task_idx on public.task_links (task_id);
 create index list_items_list_idx on public.list_items (list_id, created_at);
+-- Meal-plan reads are one list over a rolling date window (0037).
+create index list_items_on_date_idx on public.list_items (list_id, on_date) where on_date is not null;
 create index lists_due_idx on public.lists (due_date) where due_date is not null;
 create index lists_project_idx on public.lists (project_id) where project_id is not null;
 

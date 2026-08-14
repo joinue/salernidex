@@ -23,6 +23,7 @@ import { completionFields, skipFields } from '../lib/tasks'
 import { categorize } from '../lib/aisles'
 import { buildCatalog, bumpCatalog, catalogKey } from '../lib/catalog'
 import { mergeQty, qtyLabel } from '../lib/listItems'
+import { MEAL_PLAN } from '../lib/mealPlan'
 import { currentMember, currentMemberId, getHousehold, isSolo } from '../lib/household'
 import { entryMap, currentStreak, isScheduled, isSuccess, isWeekly, toISODate } from '../lib/habits'
 import haptics from '../lib/haptics'
@@ -939,7 +940,13 @@ export function useData(session) {
   // keyword guess). Adding also records the item in the recent-items catalog so
   // it autocompletes next time (private lists are exempt — see recordCatalog).
   const addListItem = (listId, text, opts = {}) => {
-    const { note = null, qty = null, assignee = 'anyone', category: categoryOverride } = opts
+    const {
+      note = null,
+      qty = null,
+      assignee = 'anyone',
+      category: categoryOverride,
+      on_date = null, // meal-plan day (0037); null everywhere else
+    } = opts
     const list = lists.find((l) => l.id === listId)
     // Grocery lists file each item into an aisle on the way in (overridable). A
     // suggestion supplies its remembered aisle; otherwise guess from the text.
@@ -951,13 +958,20 @@ export function useData(session) {
     // so typing the name and pressing Enter was the only way to make one.
     // mergeQty returns null when the two can't be combined ("2 lbs" + "3 oz"),
     // and then a separate row is the honest answer.
-    const dupe = listItems.find(
-      (it) =>
-        it.list_id === listId &&
-        !it.checked_at &&
-        !it.is_heading &&
-        catalogKey(it.text) === catalogKey(text),
-    )
+    //
+    // Never on a meal plan: "tacos" twice means Tuesday AND Friday, not tacos
+    // ×2, and the second one carries a different on_date that merging would
+    // throw away.
+    const dupe =
+      list?.kind === MEAL_PLAN
+        ? null
+        : listItems.find(
+            (it) =>
+              it.list_id === listId &&
+              !it.checked_at &&
+              !it.is_heading &&
+              catalogKey(it.text) === catalogKey(text),
+          )
     if (dupe) {
       const merged = mergeQty(dupe.qty, qty)
       if (merged !== null) {
@@ -973,7 +987,7 @@ export function useData(session) {
     }
 
     const rowId = uuid()
-    const row = { id: rowId, list_id: listId, text, note, qty, category, assignee }
+    const row = { id: rowId, list_id: listId, text, note, qty, category, assignee, on_date }
     setListItems((prev) => [
       ...prev,
       stamp({ ...row, is_heading: false, checked_at: null, sort_order: null, created_at: now() }),
