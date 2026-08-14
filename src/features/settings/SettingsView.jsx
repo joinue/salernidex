@@ -1,5 +1,15 @@
 import { useState } from 'react'
-import { ChevronRight, DownloadCloud, Plus, X, Check, Copy, LogOut, Bell } from 'react-feather'
+import {
+  ChevronRight,
+  DownloadCloud,
+  Plus,
+  X,
+  Check,
+  Copy,
+  LogOut,
+  Bell,
+  Monitor,
+} from 'react-feather'
 import PageHeader from '../../components/shell/PageHeader'
 import Segmented from '../../components/ui/Segmented'
 import Avatar from '../../components/ui/Avatar'
@@ -864,6 +874,26 @@ export default function SettingsView({ go, household, isDemo = false, onLogout, 
         </div>
       )}
       <PushSection memberId={meId} />
+
+      <SectionLabel>Display</SectionLabel>
+      <div className="list">
+        {/* The board's whole job is to run somewhere nobody is holding a phone,
+            so the way in is a setting you use once on the device that stays in
+            the kitchen — not a tab everyone carries around. */}
+        <button className="list-row" onClick={() => go('board')}>
+          <span className="activity-icon">
+            <Monitor size={16} />
+          </span>
+          <div className="row-body">
+            <div className="row-title">Household board</div>
+            <div className="row-sub">
+              A full-screen view for a tablet on the counter. Keeps the screen awake; nothing
+              private appears.
+            </div>
+          </div>
+          <ChevronRight size={18} className="row-chevron" />
+        </button>
+      </div>
 
       <SectionLabel>Data</SectionLabel>
       <div className="list">

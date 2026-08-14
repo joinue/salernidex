@@ -43,6 +43,7 @@
 @import './primitives/pull-to-refresh.css';
 @import './primitives/banners.css';
 @import './features/auth.css';
+@import './features/board.css';
 @import './features/legal.css';
 @import './features/relationships.css';
 @import './features/import-export.css';

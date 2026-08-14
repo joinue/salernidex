@@ -46,6 +46,7 @@ import HabitTemplatePicker from './features/habits/HabitTemplatePicker'
 import RelationshipsView from './features/people/RelationshipsView'
 import SettingsView from './features/settings/SettingsView'
 import LegalView from './features/settings/LegalView'
+import BoardView from './features/board/BoardView'
 import ErrorBoundary from './components/shell/ErrorBoundary'
 import Toasts from './components/shell/Toasts'
 
@@ -110,6 +111,7 @@ const NO_TABBAR_ROUTES = ['note']
 // Stale bookmarks / typo'd hashes land on Today, not a blank screen.
 const KNOWN_ROUTES = [
   'today',
+  'board',
   'activity',
   'tasks',
   'projects',
@@ -586,6 +588,19 @@ function Shell({ session, onLogout, household }) {
     onAddGroup: () => setEditingGroup('new'),
     onAddHabit: () => setPickingHabit(true),
     onAddRelationship: () => setRelationshipFrom('new'),
+  }
+
+  // The board takes the whole screen and none of the chrome — no sidebar, no
+  // tab bar, no FAB, no pull-to-refresh. It's a display, not a destination, so
+  // it returns above the layout rather than rendering inside it. Still inside
+  // Shell because it reads the same `data` everything else does.
+  if (route.name === 'board') {
+    return (
+      <BoardView
+        data={data}
+        onExit={() => (window.history.length > 1 ? window.history.back() : go('today'))}
+      />
+    )
   }
 
   return (

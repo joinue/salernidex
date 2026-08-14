@@ -25,6 +25,10 @@ const ROUTES = [
   'notes',
   'settings',
   'activity',
+  // The board renders no app chrome at all, so its only floating element is
+  // its own exit button — worth auditing precisely because nothing else here
+  // guards it.
+  'board',
 ]
 // Chrome that floats over content, and is therefore allowed to overlap only
 // non-interactive things.
