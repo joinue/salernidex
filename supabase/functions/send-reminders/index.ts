@@ -26,6 +26,7 @@ import { deadlinesAhead } from './deadlines.ts'
 import { digestCopy } from './digest.ts'
 import { isAuthorized } from './auth.ts'
 import { badgeCount } from './badge.ts'
+import { localNow } from './localTime.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -38,8 +39,10 @@ webpush.setVapidDetails(
   Deno.env.get('VAPID_PRIVATE_KEY')!,
 )
 
-// Household-local timezone (single-household assumption until go-live adds
-// one per household; America/Phoenix has no DST, conveniently).
+// Fallback zone only. The real one is per member (household_members.timezone,
+// migration 0036); this covers a row written before that column existed, or one
+// carrying a zone this runtime can't resolve. Keeping TZ_NAME as the fallback is
+// what makes applying 0036 a no-op for delivery times.
 const TZ = Deno.env.get('TZ_NAME') ?? 'America/Phoenix'
 
 const DEFAULT_PREFS = {
@@ -63,17 +66,8 @@ type Item = {
 }
 
 // ---- local-time helpers -----------------------------------------------
-function localNow() {
-  // en-CA gives YYYY-MM-DD; HH:mm extracted separately
-  const date = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date())
-  const time = new Intl.DateTimeFormat('en-GB', {
-    timeZone: TZ,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(new Date())
-  return { date, time } // { '2026-06-12', '08:07' }
-}
+// localNow lives in localTime.ts now: it takes the member's zone rather than a
+// process-wide one, and its DST behavior is tested there.
 
 const monthDay = (iso: string) => iso?.slice(5) // 'MM-DD'
 
@@ -364,7 +358,9 @@ Deno.serve(async (req) => {
     return new Response('Forbidden', { status: 403 })
   }
 
-  const { date: today, time } = localNow()
+  // Absolute instant — the one time value that is genuinely shared, since a
+  // snooze expiry is a moment rather than a wall clock. Everything calendar- or
+  // clock-shaped is computed per member inside the loop (0036).
   const nowIso = new Date().toISOString()
 
   const [
@@ -411,6 +407,13 @@ Deno.serve(async (req) => {
     // No device = nothing deliverable; skip before doing any per-member work.
     const subs = subsByMember.get(member.id) ?? []
     if (!subs.length) continue
+
+    // "Today" and "now" are per member, not per system (0036). Two members in
+    // different zones are legitimately on different days at this instant, and
+    // each one's digest_time and reminder windows are wall-clock times where
+    // THEY are. An unset or unusable zone falls back to TZ_NAME, so a row that
+    // predates the column behaves exactly as it did before.
+    const { date: today, time } = localNow(member.timezone ?? TZ)
 
     const prefs = prefsByMember.get(member.id) ?? DEFAULT_PREFS
     const hidden = new Set(
@@ -516,6 +519,14 @@ Deno.serve(async (req) => {
     }
   }
 
-  console.log('[send-reminders]', { date: today, time, members: members.length, sent })
+  // No single date/time to report any more — that was the bug. Log the distinct
+  // local days the run saw instead, which is also the quickest way to spot a
+  // member sitting on a zone nobody expected.
+  console.log('[send-reminders]', {
+    at: nowIso,
+    days: [...new Set(members.map((m: any) => localNow(m.timezone ?? TZ).date))].sort(),
+    members: members.length,
+    sent,
+  })
   return Response.json({ ok: true, members: members.length, sent })
 })

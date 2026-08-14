@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { ACTIVE_HOUSEHOLD_KEY } from '../../hooks/useHousehold'
+import { stampMemberTimezone } from '../../lib/timezone'
 import Segmented from '../../components/ui/Segmented'
 
 // First-run flow for a signed-in user with no household yet: pick a display
@@ -51,6 +52,17 @@ export default function Onboarding({ session, onDone, onLogout }) {
     // failed-attempt row it just wrote survives (a RAISE would roll the counter
     // back with it). No row means the code didn't match — see migration 0035.
     if (!res.data) return setError('That invite code is not valid.')
+
+    // Stamp the member's timezone from the browser (migration 0036). It decides
+    // what "today" means for their reminders and when their morning digest
+    // fires, so a member set up in New York must not inherit Arizona's clock.
+    //
+    // No picker and no prompt: the browser already knows, and asking would be a
+    // question with one right answer. Deliberately not awaited into the happy
+    // path — a member whose zone didn't stick still gets reminders, just on the
+    // default clock, and blocking setup on a preference write would be worse.
+    await stampMemberTimezone(res.data.id)
+
     const hid = res.data?.household_id
     if (hid) localStorage.setItem(ACTIVE_HOUSEHOLD_KEY, hid)
     onDone() // re-loads the household hook → app proceeds into the Shell

@@ -476,6 +476,8 @@ create table public.household_members (
   display_name  text not null default '',
   role          text not null default 'member' check (role in ('owner', 'member')),
   person_id     uuid references public.people(id) on delete set null,  -- this member's self contact card; its photo is the member's avatar (0025)
+  timezone      text not null default 'America/Phoenix'                -- IANA zone deciding this member's "today"/"now" for reminders (0036)
+    check (timezone ~ '^[A-Za-z][A-Za-z0-9+_/-]*$'),
   joined_at     timestamptz not null default now(),
   unique (household_id, user_id)
 );
