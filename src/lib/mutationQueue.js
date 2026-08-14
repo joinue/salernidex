@@ -221,6 +221,99 @@ export async function applyMutation(client, m) {
   return { status: 'ok' }
 }
 
+// ---- recording ---------------------------------------------------------
+
+// A stand-in for the Supabase client that writes nothing and remembers
+// everything. Hand it to a write closure and you get back the mutations that
+// closure WOULD have performed, as data.
+//
+// This is what keeps the call sites honest. The alternative was hand-writing
+// sixty descriptors next to sixty optimistic updates, where the descriptor and
+// the local update could drift apart silently — the update saying one thing and
+// the queued write another, which is the worst possible bug in a sync layer
+// because the screen and the server disagree and neither looks wrong on its own.
+// Here the closure IS the description; there is nothing to keep in step.
+//
+// Every awaited chain resolves to { data: null, error: null }, so a closure that
+// only writes runs to completion unchanged. A closure that READS mid-flight
+// cannot work this way — and shouldn't, since a mutation that depends on a
+// network read is one that can never be replayed from an outbox.
+export function createRecorder() {
+  const mutations = []
+  let current = null
+
+  const builder = {
+    from(table) {
+      current = { table, where: [] }
+      return this
+    },
+    insert(values) {
+      current.op = 'insert'
+      current.values = values
+      return this
+    },
+    upsert(values, opts) {
+      current.op = 'upsert'
+      current.values = values
+      if (opts?.onConflict) current.onConflict = opts.onConflict
+      return this
+    },
+    update(values) {
+      current.op = 'update'
+      current.values = values
+      return this
+    },
+    delete() {
+      current.op = 'delete'
+      return this
+    },
+    eq(column, value) {
+      current.where.push(['eq', column, value])
+      return this
+    },
+    in(column, value) {
+      current.where.push(['in', column, value])
+      return this
+    },
+    // Awaiting the chain is what commits it to the list — that ordering is why
+    // a `for` loop of awaited updates records as N mutations in loop order.
+    then(resolve, reject) {
+      if (current) {
+        mutations.push(current)
+        current = null
+      }
+      return Promise.resolve({ data: null, error: null }).then(resolve, reject)
+    },
+  }
+
+  // Reading inside a write closure can't work here, and the bare "is not a
+  // function" you'd otherwise get sends you looking in the wrong place. This is
+  // not a gap to be filled in later: a mutation whose content depends on a
+  // query cannot be replayed from an outbox, because at replay time the answer
+  // may be different or the network may be gone. Compute the value from local
+  // state before calling sync() — completeTask() is the worked example.
+  for (const name of ['select', 'order', 'limit', 'single', 'maybeSingle', 'rpc']) {
+    builder[name] = () => {
+      throw new Error(
+        `mutationQueue: .${name}() is not available inside a write closure — ` +
+          'a queued mutation cannot depend on a read. Resolve the value from local state first.',
+      )
+    }
+  }
+
+  return { builder, mutations }
+}
+
+// Run a write closure against a recorder and return what it would have done.
+// The closure may be sync or async, and may branch or loop — all of that is
+// ordinary JavaScript evaluated here, so only the writes it actually reaches
+// get recorded.
+export async function record(op) {
+  const { builder, mutations } = createRecorder()
+  await op(builder)
+  return mutations
+}
+
 // ---- the queue ---------------------------------------------------------
 
 export function createMutationQueue(store = indexedDBStore()) {

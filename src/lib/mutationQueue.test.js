@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   applyMutation,
   classifyError,
+  record,
   createMutationQueue,
   memoryStore,
   GUARDED_TABLES,
@@ -178,6 +179,80 @@ describe('applyMutation', () => {
       })
       expect(calls[0].filters.some(([fn]) => fn === 'lte')).toBe(false)
     })
+  })
+})
+
+describe('record', () => {
+  it('captures a single write as data', async () => {
+    const ops = await record((db) => db.from('tasks').update({ title: 'x' }).eq('id', 't1'))
+    expect(ops).toEqual([
+      { table: 'tasks', where: [['eq', 'id', 't1']], op: 'update', values: { title: 'x' } },
+    ])
+  })
+
+  it('captures a multi-step closure in the order it awaited them', async () => {
+    // The real shape of restoreTask: parent before children, because of the
+    // self-referencing FK. Replay order has to preserve that.
+    const ops = await record(async (db) => {
+      await db.from('tasks').upsert([{ id: 'parent' }])
+      await db.from('tasks').upsert([{ id: 'child', parent_id: 'parent' }])
+      await db.from('task_links').upsert([{ id: 'l1' }])
+    })
+    expect(ops.map((m) => [m.table, m.op])).toEqual([
+      ['tasks', 'upsert'],
+      ['tasks', 'upsert'],
+      ['task_links', 'upsert'],
+    ])
+    expect(ops[0].values).toEqual([{ id: 'parent' }])
+  })
+
+  it('records a loop as one mutation per iteration', async () => {
+    // reorderTasks writes a row per moved item.
+    const updates = [
+      { id: 'a', sort_order: 0 },
+      { id: 'b', sort_order: 1 },
+      { id: 'c', sort_order: 2 },
+    ]
+    const ops = await record(async (db) => {
+      for (const u of updates) {
+        await db.from('tasks').update({ sort_order: u.sort_order }).eq('id', u.id)
+      }
+    })
+    expect(ops).toHaveLength(3)
+    expect(ops.map((m) => m.where[0][2])).toEqual(['a', 'b', 'c'])
+  })
+
+  it('records only the branch actually taken', async () => {
+    const ops = await record(async (db) => {
+      const removed = []
+      if (removed.length) await db.from('affiliations').delete().in('id', removed)
+      await db.from('affiliations').upsert([{ id: 'a1' }])
+    })
+    expect(ops).toHaveLength(1)
+    expect(ops[0].op).toBe('upsert')
+  })
+
+  it('explains itself when a write closure tries to read', async () => {
+    // The bare "is not a function" would send the next person looking at the
+    // Supabase client rather than at the rule they broke.
+    await expect(record((db) => db.from('tasks').select('id').eq('id', 't1'))).rejects.toThrow(
+      /cannot depend on a read/,
+    )
+  })
+
+  it('resolves each chain so `must()` sees no error', async () => {
+    // Call sites wrap every step in must(), which throws on res.error. If the
+    // recorder resolved to anything else, every multi-step closure would abort
+    // on its first step and silently record a fraction of its writes.
+    const must = (res) => {
+      if (res.error) throw res.error
+      return res
+    }
+    const ops = await record(async (db) => {
+      must(await db.from('tasks').delete().eq('id', 't1'))
+      must(await db.from('tasks').insert({ id: 't2' }))
+    })
+    expect(ops).toHaveLength(2)
   })
 })
 

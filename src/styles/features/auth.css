@@ -1,11 +1,16 @@
 /* ---------- login ---------- */
 
+/* Signed-out screens render outside `.main`, so the device insets `.main`
+   carries (responsive.css) never reach them — installed on a phone, the top of
+   this box is underneath the Dynamic Island. Every wrapper here has to reserve
+   the insets itself. env() is 0 in a browser tab, so this is a no-op there. */
 .login-wrap {
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
   background: var(--bg);
 }
 
@@ -48,6 +53,11 @@
   align-items: stretch;
   justify-content: center;
   gap: clamp(40px, 6vw, 96px);
+  /* Bare insets, not a minimum: the hero and panel already bring their own
+     padding, so this just slides that gap out from under the island / home
+     indicator instead of stacking a second one on top of it. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
   /* Ambient wash: a cool accent glow top-right and a warm brand-navy glow
      bottom-left, over the canvas. Adds depth without leaving the light look. */
   background:

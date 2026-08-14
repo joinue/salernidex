@@ -32,6 +32,7 @@ import { filterVisible, PRIVATE_LEVEL } from '../lib/privacy'
 import { hydrateAppPrefs, bindAppPrefsRemote, getAppPrefs } from '../lib/appPrefs'
 import { hydrateNotifyPrefs, bindNotifyRemote } from '../lib/notifyPrefs'
 import { loadSnapshot, saveSnapshot } from '../lib/offlineCache'
+import { mutationQueue, record } from '../lib/mutationQueue'
 
 // Streak lengths (days, or weeks for weekly habits) worth a small celebration.
 const MILESTONES = new Set([7, 14, 30, 50, 75, 100, 150, 200, 365])
@@ -331,15 +332,15 @@ export function useData(session) {
     // Writes from the client mirror to the table; the cache stays the source the
     // UI reads (bindAppPrefsRemote pushes the full merged prefs on each change).
     bindAppPrefsRemote((mid, prefs) =>
-      sync(() =>
-        supabase
+      sync((db) =>
+        db
           .from('member_preferences')
           .upsert({ member_id: mid, ...toPrefRow(prefs) }, { onConflict: 'member_id' }),
       ),
     )
     bindNotifyRemote((mid, prefs) =>
-      sync(() =>
-        supabase
+      sync((db) =>
+        db
           .from('notification_prefs')
           .upsert({ member_id: mid, ...toNotifyRow(prefs) }, { onConflict: 'member_id' }),
       ),
@@ -387,18 +388,48 @@ export function useData(session) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, refresh, refreshPrefs, refreshNotifyPrefs])
 
-  // Background write. `op` returns a Supabase query (thenable resolving to
-  // { error }) or a promise from a multi-step async fn that throws on failure.
-  // On error: toast + refresh, which snaps local state back to the server's.
+  // Drain the outbox against the server. Safe to call often — it no-ops while
+  // already running, so a burst of writes doesn't start a burst of drains.
+  //
+  // Only a DROPPED or SUPERSEDED write refetches. That's the important change
+  // from the old behavior: a write that failed because the network is gone is
+  // still going to land, so snapping local state back to the server would undo
+  // an edit that is merely waiting.
+  const flushing = useRef(false)
+  const flush = useCallback(async () => {
+    if (flushing.current || isDemo || !supabase) return
+    flushing.current = true
+    try {
+      const res = await mutationQueue.drain(supabase, {
+        householdId,
+        onDrop: (m, err) => showToast(friendlyError(err), { variant: 'error', duration: 6000 }),
+      })
+      if (res.dropped || res.superseded) refresh()
+    } finally {
+      flushing.current = false
+    }
+  }, [isDemo, householdId, refresh])
+
+  // Background write. `op` receives a client-shaped recorder and performs its
+  // writes against it; what it would have done is captured as data, put in a
+  // durable outbox, and only then sent.
+  //
+  // The indirection is the whole point. Before this, `op` closed over the real
+  // client, and a closure cannot outlive the page — so a write that failed
+  // because a phone went through a tunnel was gone, announced by a toast the
+  // user had already walked away from. Recorded, it survives a reload.
   const sync = (op) => {
     if (isDemo) return
     pendingWrites.current += 1
     Promise.resolve()
-      .then(op)
-      .then((res) => {
-        if (res?.error) throw res.error
+      .then(() => record(op))
+      .then(async (mutations) => {
+        for (const m of mutations) await mutationQueue.enqueue({ ...m, householdId })
       })
+      .then(flush)
       .catch((err) => {
+        // Reaching here means the closure itself threw while being recorded —
+        // a bug in the write, not a failed request. Those never reach the queue.
         showToast(friendlyError(err), { variant: 'error', duration: 6000 })
         refresh()
       })
@@ -407,7 +438,20 @@ export function useData(session) {
       })
   }
 
-  // For multi-step sync ops: throw if a step failed so sync() rolls back.
+  // Send anything left over from a previous session as soon as there's a
+  // household to send it for, and again whenever the network comes back. This
+  // is what makes the outbox durable rather than merely deferred.
+  useEffect(() => {
+    if (isDemo || !householdId) return
+    flush()
+    const onOnline = () => flush()
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [isDemo, householdId, flush])
+
+  // Multi-step ops wrap each step so a failure aborts the rest. Against the
+  // recorder nothing can fail, so this now only catches a genuine bug — but it
+  // stays, because it is also what documents each step as required.
   const must = (res) => {
     if (res.error) throw res.error
     return res
@@ -430,10 +474,10 @@ export function useData(session) {
             },
           ],
     )
-    sync(() =>
+    sync((db) =>
       id
-        ? supabase.from('people').update(fields).eq('id', id)
-        : supabase.from('people').insert(stamp({ ...fields, id: rowId })),
+        ? db.from('people').update(fields).eq('id', id)
+        : db.from('people').insert(stamp({ ...fields, id: rowId })),
     )
     // Returned so a caller that just created someone can attach rows keyed to
     // them (PersonForm saves the person, then their affiliations).
@@ -444,9 +488,7 @@ export function useData(session) {
   const deletePerson = (id) => {
     const name = people.find((p) => p.id === id)?.name
     setPeople((prev) => prev.map((p) => (p.id === id ? { ...p, deleted_at: now() } : p)))
-    sync(() =>
-      supabase.from('people').update({ deleted_at: new Date().toISOString() }).eq('id', id),
-    )
+    sync((db) => db.from('people').update({ deleted_at: new Date().toISOString() }).eq('id', id))
     showToast(name ? `Archived ${name}` : 'Contact archived', {
       actionLabel: 'Undo',
       onAction: () => restorePerson(id),
@@ -455,7 +497,7 @@ export function useData(session) {
 
   const restorePerson = (id) => {
     setPeople((prev) => prev.map((p) => (p.id === id ? { ...p, deleted_at: null } : p)))
-    sync(() => supabase.from('people').update({ deleted_at: null }).eq('id', id))
+    sync((db) => db.from('people').update({ deleted_at: null }).eq('id', id))
   }
 
   // Permanent, irreversible delete (the soft delete above is "archive"; this
@@ -497,10 +539,10 @@ export function useData(session) {
             { created_at: now(), updated_at: now(), key_contacts: [], ...fields, id: rowId },
           ],
     )
-    sync(() =>
+    sync((db) =>
       id
-        ? supabase.from('organizations').update(fields).eq('id', id)
-        : supabase.from('organizations').insert(stamp({ ...fields, id: rowId })),
+        ? db.from('organizations').update(fields).eq('id', id)
+        : db.from('organizations').insert(stamp({ ...fields, id: rowId })),
     )
   }
 
@@ -510,7 +552,7 @@ export function useData(session) {
   const deleteOrg = (id) => {
     setOrgs((prev) => prev.filter((o) => o.id !== id))
     setAffiliations((prev) => prev.filter((a) => a.organization_id !== id))
-    sync(() => supabase.from('organizations').delete().eq('id', id))
+    sync((db) => db.from('organizations').delete().eq('id', id))
   }
 
   // Find an org by name (case-insensitive, trimmed) or create one, returning the
@@ -529,7 +571,7 @@ export function useData(session) {
       id: uuid(),
     })
     setOrgs((prev) => [...prev, row])
-    sync(() => supabase.from('organizations').insert(stamp({ name: trimmed, id: row.id })))
+    sync((db) => db.from('organizations').insert(stamp({ name: trimmed, id: row.id })))
     return row
   }
 
@@ -578,39 +620,39 @@ export function useData(session) {
     const removed = existing.filter((a) => !seen.has(a.organization_id)).map((a) => a.id)
 
     setAffiliations((prev) => [...prev.filter((a) => a.person_id !== personId), ...next])
-    sync(async () => {
-      if (removed.length) must(await supabase.from('affiliations').delete().in('id', removed))
-      if (next.length) must(await supabase.from('affiliations').upsert(next.map(stamp)))
+    sync(async (db) => {
+      if (removed.length) must(await db.from('affiliations').delete().in('id', removed))
+      if (next.length) must(await db.from('affiliations').upsert(next.map(stamp)))
     })
   }
 
   const addRelationship = (fields) => {
     const rowId = uuid()
     setRelationships((prev) => [...prev, stamp({ ...fields, id: rowId, created_at: now() })])
-    sync(() => supabase.from('relationships').insert(stamp({ ...fields, id: rowId })))
+    sync((db) => db.from('relationships').insert(stamp({ ...fields, id: rowId })))
   }
 
   const deleteRelationship = (id) => {
     setRelationships((prev) => prev.filter((r) => r.id !== id))
-    sync(() => supabase.from('relationships').delete().eq('id', id))
+    sync((db) => db.from('relationships').delete().eq('id', id))
   }
 
   const addInteraction = (fields) => {
     const rowId = uuid()
     setInteractions((prev) => [stamp({ ...fields, id: rowId, created_at: now() }), ...prev])
-    sync(() => supabase.from('interactions').insert(stamp({ ...fields, id: rowId })))
+    sync((db) => db.from('interactions').insert(stamp({ ...fields, id: rowId })))
   }
 
   const deleteInteraction = (id) => {
     const gone = interactions.find((i) => i.id === id)
     setInteractions((prev) => prev.filter((i) => i.id !== id))
-    sync(() => supabase.from('interactions').delete().eq('id', id))
+    sync((db) => db.from('interactions').delete().eq('id', id))
     if (!gone) return
     showToast('Touchpoint deleted', {
       actionLabel: 'Undo',
       onAction: () => {
         setInteractions((prev) => [gone, ...prev])
-        sync(() => supabase.from('interactions').upsert(gone))
+        sync((db) => db.from('interactions').upsert(gone))
       },
     })
   }
@@ -636,8 +678,8 @@ export function useData(session) {
         id: rowId,
       }),
     ])
-    sync(() =>
-      supabase
+    sync((db) =>
+      db
         .from('tasks')
         .insert(stamp({ ...fields, id: rowId, assignee: dbAssignee(fields.assignee) })),
     )
@@ -648,7 +690,7 @@ export function useData(session) {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...fields, updated_at: now() } : t)))
     const dbFields =
       'assignee' in fields ? { ...fields, assignee: dbAssignee(fields.assignee) } : fields
-    sync(() => supabase.from('tasks').update(dbFields).eq('id', id))
+    sync((db) => db.from('tasks').update(dbFields).eq('id', id))
   }
 
   // Persist a manual ordering: [{ id, sort_order }, ...]. Local apply is one
@@ -657,9 +699,9 @@ export function useData(session) {
   const reorderTasks = (updates) => {
     const byId = new Map(updates.map((u) => [u.id, u.sort_order]))
     setTasks((prev) => prev.map((t) => (byId.has(t.id) ? { ...t, sort_order: byId.get(t.id) } : t)))
-    sync(async () => {
+    sync(async (db) => {
       for (const u of updates) {
-        must(await supabase.from('tasks').update({ sort_order: u.sort_order }).eq('id', u.id))
+        must(await db.from('tasks').update({ sort_order: u.sort_order }).eq('id', u.id))
       }
     })
   }
@@ -669,9 +711,9 @@ export function useData(session) {
     setListItems((prev) =>
       prev.map((it) => (byId.has(it.id) ? { ...it, sort_order: byId.get(it.id) } : it)),
     )
-    sync(async () => {
+    sync(async (db) => {
       for (const u of updates) {
-        must(await supabase.from('list_items').update({ sort_order: u.sort_order }).eq('id', u.id))
+        must(await db.from('list_items').update({ sort_order: u.sort_order }).eq('id', u.id))
       }
     })
   }
@@ -687,21 +729,21 @@ export function useData(session) {
     setTasks((prev) => prev.filter((t) => !goneIds.has(t.id)))
     setCompletions((prev) => prev.filter((c) => !goneIds.has(c.task_id)))
     setTaskLinks((prev) => prev.filter((tl) => !goneIds.has(tl.task_id)))
-    sync(() => supabase.from('tasks').delete().eq('id', id))
+    sync((db) => db.from('tasks').delete().eq('id', id))
     showToast(target ? `Deleted “${target.title}”` : 'Task deleted', {
       actionLabel: 'Undo',
       onAction: () => {
         setTasks((prev) => [...prev, ...goneTasks])
         setCompletions((prev) => [...goneCompletions, ...prev])
         setTaskLinks((prev) => [...prev, ...goneLinks])
-        sync(async () => {
+        sync(async (db) => {
           // parent before children (self-referencing FK)
-          must(await supabase.from('tasks').upsert(goneTasks.filter((t) => t.id === id)))
+          must(await db.from('tasks').upsert(goneTasks.filter((t) => t.id === id)))
           const children = goneTasks.filter((t) => t.id !== id)
-          if (children.length) must(await supabase.from('tasks').upsert(children))
+          if (children.length) must(await db.from('tasks').upsert(children))
           if (goneCompletions.length)
-            must(await supabase.from('task_completions').upsert(goneCompletions))
-          if (goneLinks.length) must(await supabase.from('task_links').upsert(goneLinks))
+            must(await db.from('task_completions').upsert(goneCompletions))
+          if (goneLinks.length) must(await db.from('task_links').upsert(goneLinks))
         })
       },
     })
@@ -722,12 +764,12 @@ export function useData(session) {
       ...prev,
       stamp({ role: null, ...fields, id: rowId, created_at: now() }),
     ])
-    sync(() => supabase.from('task_links').insert(stamp({ ...fields, id: rowId })))
+    sync((db) => db.from('task_links').insert(stamp({ ...fields, id: rowId })))
   }
 
   const deleteTaskLink = (id) => {
     setTaskLinks((prev) => prev.filter((tl) => tl.id !== id))
-    sync(() => supabase.from('task_links').delete().eq('id', id))
+    sync((db) => db.from('task_links').delete().eq('id', id))
   }
 
   // Check a task off (or un-check a one-off). Rolls recurring tasks forward and,
@@ -751,7 +793,14 @@ export function useData(session) {
         }),
         ...prev,
       ])
-    } else if (log && !done) {
+    }
+    // Which completion an un-check drops, decided HERE rather than by asking the
+    // server for it. `completions` is already ordered newest-first, so this is
+    // the same row the optimistic update below removes — and picking it locally
+    // is what lets the write be queued: a mutation that has to read from the
+    // network mid-flight cannot be replayed from an outbox after a reload.
+    const undone = log && !done ? completions.find((c) => c.task_id === task.id) : null
+    if (log && !done) {
       // undo a one-off: drop its most recent completion
       setCompletions((prev) => {
         const idx = prev.findIndex((c) => c.task_id === task.id)
@@ -761,11 +810,11 @@ export function useData(session) {
         return copy
       })
     }
-    sync(async () => {
-      must(await supabase.from('tasks').update(fields).eq('id', task.id))
+    sync(async (db) => {
+      must(await db.from('tasks').update(fields).eq('id', task.id))
       if (log && done) {
         must(
-          await supabase.from('task_completions').insert(
+          await db.from('task_completions').insert(
             stamp({
               id: completionId,
               task_id: task.id,
@@ -774,15 +823,8 @@ export function useData(session) {
             }),
           ),
         )
-      } else if (log && !done) {
-        const { data, error } = await supabase
-          .from('task_completions')
-          .select('id')
-          .eq('task_id', task.id)
-          .order('completed_at', { ascending: false })
-          .limit(1)
-        if (error) throw error
-        if (data?.[0]) must(await supabase.from('task_completions').delete().eq('id', data[0].id))
+      } else if (undone) {
+        must(await db.from('task_completions').delete().eq('id', undone.id))
       }
     })
 
@@ -808,14 +850,14 @@ export function useData(session) {
             ),
           )
           if (log) setCompletions((prev) => prev.filter((c) => c.id !== completionId))
-          sync(async () => {
+          sync(async (db) => {
             must(
-              await supabase
+              await db
                 .from('tasks')
                 .update({ due_date: task.due_date, completed_at: task.completed_at })
                 .eq('id', task.id),
             )
-            if (log) must(await supabase.from('task_completions').delete().eq('id', completionId))
+            if (log) must(await db.from('task_completions').delete().eq('id', completionId))
           })
         },
       })
@@ -831,7 +873,7 @@ export function useData(session) {
     setTasks((prev) =>
       prev.map((t) => (t.id === task.id ? { ...t, ...fields, updated_at: now() } : t)),
     )
-    sync(() => supabase.from('tasks').update(fields).eq('id', task.id))
+    sync((db) => db.from('tasks').update(fields).eq('id', task.id))
     showToast(`Skipped this one · “${task.title}”`, {
       actionLabel: 'Undo',
       onAction: () => {
@@ -843,7 +885,7 @@ export function useData(session) {
         setTasks((prev) =>
           prev.map((t) => (t.id === task.id ? { ...t, ...revert, updated_at: now() } : t)),
         )
-        sync(() => supabase.from('tasks').update(revert).eq('id', task.id))
+        sync((db) => db.from('tasks').update(revert).eq('id', task.id))
       },
     })
   }
@@ -865,10 +907,10 @@ export function useData(session) {
             }),
           ],
     )
-    sync(() =>
+    sync((db) =>
       id
-        ? supabase.from('lists').update(fields).eq('id', id)
-        : supabase.from('lists').insert(stamp({ ...fields, id: rowId })),
+        ? db.from('lists').update(fields).eq('id', id)
+        : db.from('lists').insert(stamp({ ...fields, id: rowId })),
     )
   }
 
@@ -877,15 +919,15 @@ export function useData(session) {
     const goneItems = listItems.filter((it) => it.list_id === id)
     setLists((prev) => prev.filter((l) => l.id !== id))
     setListItems((prev) => prev.filter((it) => it.list_id !== id))
-    sync(() => supabase.from('lists').delete().eq('id', id))
+    sync((db) => db.from('lists').delete().eq('id', id))
     showToast(goneList ? `Deleted “${goneList.name}”` : 'List deleted', {
       actionLabel: 'Undo',
       onAction: () => {
         if (goneList) setLists((prev) => [...prev, goneList])
         setListItems((prev) => [...prev, ...goneItems])
-        sync(async () => {
-          if (goneList) must(await supabase.from('lists').upsert(goneList))
-          if (goneItems.length) must(await supabase.from('list_items').upsert(goneItems))
+        sync(async (db) => {
+          if (goneList) must(await db.from('lists').upsert(goneList))
+          if (goneItems.length) must(await db.from('list_items').upsert(goneItems))
         })
       },
     })
@@ -936,9 +978,7 @@ export function useData(session) {
       ...prev,
       stamp({ ...row, is_heading: false, checked_at: null, sort_order: null, created_at: now() }),
     ])
-    sync(() =>
-      supabase.from('list_items').insert(stamp({ ...row, assignee: dbAssignee(assignee) })),
-    )
+    sync((db) => db.from('list_items').insert(stamp({ ...row, assignee: dbAssignee(assignee) })))
     if (list) recordCatalog(list, text, category)
   }
 
@@ -957,8 +997,8 @@ export function useData(session) {
     })
     setListCatalog(next)
     const entry = next.find((e) => e.norm === catalogKey(text))
-    sync(() =>
-      supabase.from('list_catalog').upsert(
+    sync((db) =>
+      db.from('list_catalog').upsert(
         {
           household_id: householdId,
           text: entry.text,
@@ -988,13 +1028,13 @@ export function useData(session) {
         created_at: now(),
       }),
     ])
-    sync(() => supabase.from('list_items').insert(stamp(row)))
+    sync((db) => db.from('list_items').insert(stamp(row)))
   }
 
   const toggleListItem = (item) => {
     const checked_at = item.checked_at ? null : new Date().toISOString()
     setListItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, checked_at } : it)))
-    sync(() => supabase.from('list_items').update({ checked_at }).eq('id', item.id))
+    sync((db) => db.from('list_items').update({ checked_at }).eq('id', item.id))
   }
 
   // Inline edits to an item (text, note, qty, aisle, assignee) — tap-to-edit in
@@ -1004,19 +1044,19 @@ export function useData(session) {
     setListItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...fields } : it)))
     const dbFields =
       'assignee' in fields ? { ...fields, assignee: dbAssignee(fields.assignee) } : fields
-    sync(() => supabase.from('list_items').update(dbFields).eq('id', id))
+    sync((db) => db.from('list_items').update(dbFields).eq('id', id))
   }
 
   const deleteListItem = (id) => {
     const gone = listItems.find((it) => it.id === id)
     setListItems((prev) => prev.filter((it) => it.id !== id))
-    sync(() => supabase.from('list_items').delete().eq('id', id))
+    sync((db) => db.from('list_items').delete().eq('id', id))
     if (!gone) return
     showToast(`Deleted “${gone.text}”`, {
       actionLabel: 'Undo',
       onAction: () => {
         setListItems((prev) => [...prev, gone])
-        sync(() => supabase.from('list_items').upsert(gone))
+        sync((db) => db.from('list_items').upsert(gone))
       },
     })
   }
@@ -1031,12 +1071,12 @@ export function useData(session) {
     // list". A housemate checking something off between this snapshot and the
     // request would otherwise have their item deleted too — and Undo, which
     // only knows about `gone`, could not bring it back.
-    sync(() => supabase.from('list_items').delete().in('id', goneIds))
+    sync((db) => db.from('list_items').delete().in('id', goneIds))
     showToast(`Cleared ${gone.length} ${gone.length === 1 ? 'item' : 'items'}`, {
       actionLabel: 'Undo',
       onAction: () => {
         setListItems((prev) => [...prev, ...gone])
-        sync(() => supabase.from('list_items').upsert(gone))
+        sync((db) => db.from('list_items').upsert(gone))
       },
     })
   }
@@ -1063,7 +1103,7 @@ export function useData(session) {
       }),
       ...prev,
     ])
-    sync(() => supabase.from('notes').insert(stamp({ ...fields, id: rowId })))
+    sync((db) => db.from('notes').insert(stamp({ ...fields, id: rowId })))
     return rowId
   }
 
@@ -1073,7 +1113,7 @@ export function useData(session) {
   const updateNote = (id, fields) => {
     const patch = { ...fields, updated_by: memberId }
     setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch, updated_at: now() } : n)))
-    sync(() => supabase.from('notes').update(patch).eq('id', id))
+    sync((db) => db.from('notes').update(patch).eq('id', id))
   }
 
   const togglePinNote = (id) => {
@@ -1084,7 +1124,7 @@ export function useData(session) {
 
   const restoreNote = (id) => {
     setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, deleted_at: null } : n)))
-    sync(() => supabase.from('notes').update({ deleted_at: null }).eq('id', id))
+    sync((db) => db.from('notes').update({ deleted_at: null }).eq('id', id))
   }
 
   // Soft delete: move the note to Recently Deleted (reversible), à la Apple
@@ -1092,7 +1132,7 @@ export function useData(session) {
   const deleteNote = (id) => {
     const gone = notes.find((n) => n.id === id)
     setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, deleted_at: now() } : n)))
-    sync(() => supabase.from('notes').update({ deleted_at: new Date().toISOString() }).eq('id', id))
+    sync((db) => db.from('notes').update({ deleted_at: new Date().toISOString() }).eq('id', id))
     if (!gone) return
     showToast(gone.title ? `Deleted “${gone.title}”` : 'Note deleted', {
       actionLabel: 'Undo',
@@ -1104,13 +1144,13 @@ export function useData(session) {
   const purgeNote = (id) => {
     const gone = notes.find((n) => n.id === id)
     setNotes((prev) => prev.filter((n) => n.id !== id))
-    sync(() => supabase.from('notes').delete().eq('id', id))
+    sync((db) => db.from('notes').delete().eq('id', id))
     if (!gone) return
     showToast('Note deleted for good', {
       actionLabel: 'Undo',
       onAction: () => {
         setNotes((prev) => [gone, ...prev])
-        sync(() => supabase.from('notes').upsert(gone))
+        sync((db) => db.from('notes').upsert(gone))
       },
     })
   }
@@ -1119,7 +1159,7 @@ export function useData(session) {
   // trash, no toast (it never became real content).
   const discardNote = (id) => {
     setNotes((prev) => prev.filter((n) => n.id !== id))
-    sync(() => supabase.from('notes').delete().eq('id', id))
+    sync((db) => db.from('notes').delete().eq('id', id))
   }
 
   // Contact family units ("The Parks"). saveFamily returns the saved row so
@@ -1129,10 +1169,10 @@ export function useData(session) {
       ? { ...(families.find((f) => f.id === id) || {}), ...fields, id, updated_at: now() }
       : stamp({ created_at: now(), updated_at: now(), ...fields, id: uuid() })
     setFamilies((prev) => (id ? prev.map((f) => (f.id === id ? row : f)) : [...prev, row]))
-    sync(() =>
+    sync((db) =>
       id
-        ? supabase.from('families').update(fields).eq('id', id)
-        : supabase.from('families').insert(stamp({ ...fields, id: row.id })),
+        ? db.from('families').update(fields).eq('id', id)
+        : db.from('families').insert(stamp({ ...fields, id: row.id })),
     )
     return row
   }
@@ -1142,18 +1182,18 @@ export function useData(session) {
   const deleteFamily = (id) => {
     setFamilies((prev) => prev.filter((f) => f.id !== id))
     setPeople((prev) => prev.map((p) => (p.family_id === id ? { ...p, family_id: null } : p)))
-    sync(() => supabase.from('families').delete().eq('id', id))
+    sync((db) => db.from('families').delete().eq('id', id))
   }
 
   const addKeyDate = (fields) => {
     const rowId = uuid()
     setKeyDates((prev) => [...prev, { annual: true, ...fields, id: rowId, created_at: now() }])
-    sync(() => supabase.from('key_dates').insert(stamp({ ...fields, id: rowId })))
+    sync((db) => db.from('key_dates').insert(stamp({ ...fields, id: rowId })))
   }
 
   const deleteKeyDate = (id) => {
     setKeyDates((prev) => prev.filter((kd) => kd.id !== id))
-    sync(() => supabase.from('key_dates').delete().eq('id', id))
+    sync((db) => db.from('key_dates').delete().eq('id', id))
   }
 
   // Quiet an attention item for the current member only (their partner still
@@ -1165,8 +1205,8 @@ export function useData(session) {
       ...prev.filter((s) => !(s.member_id === memberId && s.target_key === target_key)),
       { id: uuid(), member_id: memberId, kind, target_key, until, created_at: now() },
     ])
-    sync(() =>
-      supabase
+    sync((db) =>
+      db
         .from('reminder_snoozes')
         .upsert(
           { member_id: memberId, kind, target_key, until },
@@ -1182,16 +1222,16 @@ export function useData(session) {
         ? prev.map((g) => (g.id === id ? { ...g, ...fields, updated_at: now() } : g))
         : [...prev, stamp({ created_at: now(), updated_at: now(), ...fields, id: rowId })],
     )
-    sync(() =>
+    sync((db) =>
       id
-        ? supabase.from('groups').update(fields).eq('id', id)
-        : supabase.from('groups').insert(stamp({ ...fields, id: rowId })),
+        ? db.from('groups').update(fields).eq('id', id)
+        : db.from('groups').insert(stamp({ ...fields, id: rowId })),
     )
   }
 
   const deleteGroup = (id) => {
     setGroups((prev) => prev.filter((g) => g.id !== id))
-    sync(() => supabase.from('groups').delete().eq('id', id))
+    sync((db) => db.from('groups').delete().eq('id', id))
   }
 
   // Habits are personal (owned by the current member). Create stamps member_id;
@@ -1207,13 +1247,13 @@ export function useData(session) {
       member_id: memberId,
     })
     setHabits((prev) => [...prev, row])
-    sync(() => supabase.from('habits').insert(stamp({ ...fields, id: rowId, member_id: memberId })))
+    sync((db) => db.from('habits').insert(stamp({ ...fields, id: rowId, member_id: memberId })))
     return rowId
   }
 
   const updateHabit = (id, fields) => {
     setHabits((prev) => prev.map((h) => (h.id === id ? { ...h, ...fields, updated_at: now() } : h)))
-    sync(() => supabase.from('habits').update(fields).eq('id', id))
+    sync((db) => db.from('habits').update(fields).eq('id', id))
   }
 
   const archiveHabit = (id, archived = true) =>
@@ -1222,7 +1262,7 @@ export function useData(session) {
   const deleteHabit = (id) => {
     setHabits((prev) => prev.filter((h) => h.id !== id))
     setHabitEntries((prev) => prev.filter((e) => e.habit_id !== id))
-    sync(() => supabase.from('habits').delete().eq('id', id))
+    sync((db) => db.from('habits').delete().eq('id', id))
   }
 
   // Log (or change) a habit's value for one day. One row per (habit_id, date):
@@ -1242,8 +1282,8 @@ export function useData(session) {
     }
     const next = [...habitEntries.filter((e) => e !== existing), row]
     setHabitEntries(next)
-    sync(() =>
-      supabase
+    sync((db) =>
+      db
         .from('habit_entries')
         .upsert(stamp({ habit_id: habitId, date, value, skipped, note: noteVal }), {
           onConflict: 'habit_id,date',
@@ -1273,9 +1313,9 @@ export function useData(session) {
     setHabits((prev) =>
       prev.map((h) => (byId.has(h.id) ? { ...h, sort_order: byId.get(h.id) } : h)),
     )
-    sync(async () => {
+    sync(async (db) => {
       for (const u of updates) {
-        must(await supabase.from('habits').update({ sort_order: u.sort_order }).eq('id', u.id))
+        must(await db.from('habits').update({ sort_order: u.sort_order }).eq('id', u.id))
       }
     })
   }
@@ -1318,8 +1358,8 @@ export function useData(session) {
       ...prev.filter((e) => !(e.habit_id === habitId && dates.has(e.date))),
       ...rows,
     ])
-    sync(() =>
-      supabase.from('habit_entries').upsert(
+    sync((db) =>
+      db.from('habit_entries').upsert(
         rows.map((r) => stamp(r)),
         { onConflict: 'habit_id,date' },
       ),
@@ -1344,8 +1384,8 @@ export function useData(session) {
     if (!gone.length) return
     const ids = new Set(gone.map((e) => e.id))
     setHabitEntries((prev) => prev.filter((e) => !ids.has(e.id)))
-    sync(() =>
-      supabase
+    sync((db) =>
+      db
         .from('habit_entries')
         .delete()
         .in('id', [...ids]),

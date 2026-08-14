@@ -16,17 +16,11 @@
   max-width: 680px;
 }
 
-.legal-doc h1 {
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.4px;
-  margin: 4px 0 2px;
-}
-
+/* Sits directly under the nav bar's large title, which is the doc's heading. */
 .legal-date {
   color: var(--text-2);
   font-size: 13px;
-  margin-bottom: 22px;
+  margin: 2px 0 22px;
 }
 
 .legal-doc h2 {

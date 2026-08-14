@@ -13,7 +13,14 @@ export default function LegalView({ doc, onBack }) {
   const Body = doc === 'terms' ? Terms : Privacy
   return (
     <div className="legal">
-      <NavBar backLabel="Back" onBack={onBack} title={doc === 'privacy' ? 'Privacy' : 'Terms'} />
+      {/* The bar's large title is the document's only heading — the docs used
+          to open with an <h1> of their own right underneath it, which said the
+          same thing twice. */}
+      <NavBar
+        backLabel="Back"
+        onBack={onBack}
+        title={doc === 'terms' ? 'Terms of Use' : 'Privacy Policy'}
+      />
       <Body />
       <p className="legal-meta">
         DOOT is operated by {OPERATOR}. Questions? Email <a href={`mailto:${CONTACT}`}>{CONTACT}</a>
@@ -26,7 +33,6 @@ export default function LegalView({ doc, onBack }) {
 function Privacy() {
   return (
     <article className="legal-doc">
-      <h1>Privacy Policy</h1>
       <p className="legal-date">Last updated {EFFECTIVE_DATE}</p>
 
       <p>
@@ -151,7 +157,6 @@ function Privacy() {
 function Terms() {
   return (
     <article className="legal-doc">
-      <h1>Terms of Use</h1>
       <p className="legal-date">Last updated {EFFECTIVE_DATE}</p>
 
       <p>
