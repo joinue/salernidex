@@ -437,3 +437,23 @@
   color: var(--text);
   font-size: 15px;
 }
+
+/* A collection has no checkbox, so its rows would otherwise start at the very
+   edge where every other list indents past the circle. Match the inset so a
+   household with both kinds doesn't look like two different apps. */
+.list-row.no-check {
+  padding-left: 14px;
+}
+
+/* On every other list the note is a detail ("the oat one") and one clipped
+   line is right. On a collection it's the entire reason the row is there —
+   "book two weeks out", "go before 11" — so let it wrap. Two lines, not
+   unbounded: the list still has to be scannable. */
+.list-row.no-check .list-item-note {
+  white-space: normal;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}

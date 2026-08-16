@@ -13,6 +13,7 @@ import { useEdgeBack } from './hooks/useEdgeBack'
 import { currentMemberId, clearHousehold, normalizeAssignee } from './lib/household'
 import { clearSnapshots } from './lib/offlineCache'
 import { areaNames, taskTags, isProject } from './lib/tasks'
+import { isOpenItem } from './lib/listKinds'
 import { setAppPrefs } from './lib/appPrefs'
 import { buildProjectRows } from './lib/projectTemplates'
 import { scrollToTop } from './lib/scroller'
@@ -552,7 +553,11 @@ function Shell({ session, onLogout, household }) {
     applied?.catch?.(() => {})
   }, [badge])
 
-  // Quiet sidebar counts: open top-level tasks, unchecked list items.
+  // An item only knows its list_id, and whether it counts depends on the
+  // list's kind — so the badge needs the lists to hand.
+  const listById = useMemo(() => new Map(data.lists.map((l) => [l.id, l])), [data.lists])
+
+  // Quiet sidebar counts: open top-level tasks, outstanding list items.
   const navCounts = useMemo(
     () => ({
       tasks: data.tasks.filter(
@@ -561,9 +566,12 @@ function Shell({ session, onLogout, household }) {
       projects: data.tasks.filter(
         (t) => t.is_project && !t.completed_at && t.project_status !== 'someday',
       ).length,
-      lists: data.listItems.filter((it) => !it.checked_at).length,
+      // Not just "unchecked": headings aren't items, and a collection's rows
+      // are never outstanding work — a 40-restaurant list would otherwise park
+      // a permanent 40 here that nothing could ever clear.
+      lists: data.listItems.filter((it) => isOpenItem(it, listById.get(it.list_id))).length,
     }),
-    [data.tasks, data.listItems],
+    [data.tasks, data.listItems, listById],
   )
 
   const activeNav =

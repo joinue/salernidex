@@ -13,12 +13,13 @@
 // of here, so a board left running past midnight just re-derives with a new
 // `todayIso` and is correct.
 
-export const MEAL_PLAN = 'meal_plan'
+// The kind constant and its predicate live in listKinds.js with the other
+// three; re-exported here so existing callers (useData, board) keep importing
+// them from the module that owns the rest of meal-plan logic.
+export { MEAL_PLAN, isMealPlan } from './listKinds'
 
 // How many days the plan shows at once, today inclusive.
 export const PLAN_DAYS = 7
-
-export const isMealPlan = (list) => list?.kind === MEAL_PLAN
 
 // 'YYYY-MM-DD' → Date at local midnight. Parsing the string by hand rather
 // than through `new Date(iso)`, which reads a bare date as UTC and lands on

@@ -1279,8 +1279,67 @@ export const demoLists = [
     created_at: now,
     updated_at: now,
   },
+  {
+    id: 'l-spots',
+    name: 'Favorite restaurants',
+    icon: '⭐',
+    kind: 'collection', // kept, not checked off (0038)
+    privacy_level: 'family_shared',
+    created_at: now,
+    updated_at: now,
+  },
 ]
 export const demoListItems = [
+  // A collection: nothing here is ever checked off, and the note is the whole
+  // point — sectioned the way you'd actually keep it.
+  {
+    id: 'ls0',
+    list_id: 'l-spots',
+    text: 'Date night',
+    is_heading: true,
+    sort_order: 1,
+    created_at: daysAgo(30),
+  },
+  {
+    id: 'ls1',
+    list_id: 'l-spots',
+    text: 'Cafe Monarch',
+    note: 'Four-course prix fixe, patio in spring. Book two weeks out.',
+    sort_order: 2,
+    created_at: daysAgo(30),
+  },
+  {
+    id: 'ls2',
+    list_id: 'l-spots',
+    text: 'Binkley’s',
+    note: 'Anniversary spot. The tasting menu is the only order.',
+    sort_order: 3,
+    created_at: daysAgo(28),
+  },
+  {
+    id: 'ls3',
+    list_id: 'l-spots',
+    text: 'Weeknight',
+    is_heading: true,
+    sort_order: 4,
+    created_at: daysAgo(30),
+  },
+  {
+    id: 'ls4',
+    list_id: 'l-spots',
+    text: 'Little Miss BBQ',
+    note: 'Go before 11 or the brisket is gone.',
+    sort_order: 5,
+    created_at: daysAgo(20),
+  },
+  {
+    id: 'ls5',
+    list_id: 'l-spots',
+    text: 'Pizzeria Bianco',
+    note: 'The Wiseguy. Street parking on 7th.',
+    sort_order: 6,
+    created_at: daysAgo(14),
+  },
   // The week's dinners. Dated relative to today so the plan always straddles
   // the window, with one empty day in the middle — a full week reads as
   // finished, and the gap is what the surface is for. Notes are ingredient

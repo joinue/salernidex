@@ -9,23 +9,12 @@ import { isoDateIn } from '../../lib/tasks'
 import IconPicker from '../../components/ui/IconPicker'
 import ColorPicker from '../../components/ui/ColorPicker'
 import { COLORS } from '../../lib/colors'
+import { LIST_KINDS, isDueable, kindOf } from '../../lib/listKinds'
 
-const KIND_OPTIONS = [
-  { value: 'standard', label: 'Standard' },
-  { value: 'grocery', label: 'Grocery' },
-  { value: 'meal_plan', label: 'Meals' },
-]
-
-// The icon each type defaults to, and the one-line explanation under the
-// picker. Kept together so adding a fourth kind is one entry, not three edits.
-const KIND_ICONS = { standard: '📝', grocery: '🛒', meal_plan: '🍽️' }
-const KIND_HINTS = {
-  standard: 'A plain checklist you can split into sections.',
-  grocery: 'Items sort into aisles automatically.',
-  meal_plan:
-    "Meals laid out by day. Write the ingredients in a meal's note and send them to a grocery list.",
-}
-const DEFAULT_ICONS = Object.values(KIND_ICONS)
+// Every kind, its icon and its one-line explanation come from the one table
+// in lib/listKinds — adding a fifth is an entry there, not an edit here.
+const KIND_OPTIONS = LIST_KINDS.map((k) => ({ value: k.value, label: k.label }))
+const DEFAULT_ICONS = LIST_KINDS.map((k) => k.icon)
 
 // Create or edit a list (name + an emoji icon for quick recognition). An
 // optional due date puts the list on Today; an optional reminder time fires a
@@ -35,7 +24,7 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
   const [kind, setKind] = useState(list?.kind || 'standard')
   // Default to the icon that matches the type, not always the cart — a new
   // standard list ("Packing") was shipping with a grocery trolley on it.
-  const [icon, setIcon] = useState(list?.icon || KIND_ICONS[list?.kind] || KIND_ICONS.standard)
+  const [icon, setIcon] = useState(list?.icon || kindOf(list).icon)
   const [color, setColor] = useState(list?.color || COLORS[0])
   const [privacy, setPrivacy] = useState(
     list?.privacy_level || (isSolo() ? PRIVATE_LEVEL : defaultPrivacy),
@@ -47,6 +36,7 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
   )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const dueable = isDueable({ kind })
 
   const submit = async (e) => {
     e.preventDefault()
@@ -61,7 +51,7 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
     setError(null)
     try {
       // A reminder needs a date to fire on; drop it if the date was cleared.
-      const remind = !!dueDate && reminderEnabled
+      const remind = dueable && !!dueDate && reminderEnabled
       await onSave(
         {
           name: cleanName,
@@ -71,7 +61,7 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
           // without re-filing every item, so we only send it on a new list.
           ...(list ? {} : { kind }),
           privacy_level: privacy,
-          due_date: dueDate || null,
+          due_date: (dueable && dueDate) || null,
           reminder_enabled: remind,
           reminder_time: remind ? reminderTime : null,
         },
@@ -111,11 +101,11 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
                 setKind(v)
                 // Follow the type, but never overwrite an icon the user picked
                 // themselves — only one still sitting on a type's default.
-                if (DEFAULT_ICONS.includes(icon)) setIcon(KIND_ICONS[v])
+                if (DEFAULT_ICONS.includes(icon)) setIcon(kindOf({ kind: v }).icon)
               }}
             />
             <p className="muted" style={{ fontSize: 13, margin: '6px 2px 0' }}>
-              {KIND_HINTS[kind]}
+              {kindOf({ kind: kind }).hint}
             </p>
           </div>
         )}
@@ -129,64 +119,84 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
           <ColorPicker value={color} onChange={setColor} />
         </div>
 
-        <div className="field">
-          <label className="label">Due date</label>
-          <div className="due-row">
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              aria-label="Due date (optional)"
-            />
-          </div>
-          <div className="chips" style={{ marginTop: 8 }}>
-            <button type="button" className="chip accent" onClick={() => setDueDate(isoDateIn(0))}>
-              Today
-            </button>
-            <button type="button" className="chip accent" onClick={() => setDueDate(isoDateIn(1))}>
-              Tomorrow
-            </button>
-            <button type="button" className="chip accent" onClick={() => setDueDate(isoDateIn(7))}>
-              Next week
-            </button>
-            {dueDate && (
-              <button type="button" className="chip" onClick={() => setDueDate('')}>
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
-
-        {dueDate && (
+        {/* A due date is "get this whole list done by then", which is
+            meaningless on a meal plan (seven separate days) and on a
+            collection (never done). Hidden rather than disabled — an input you
+            can see but can't use is a worse answer than one that isn't there. */}
+        {dueable && (
           <>
-            <div className="field toggle-field">
-              <div>
-                <label className="label" style={{ marginBottom: 2 }}>
-                  Reminder
-                </label>
-                <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-                  A push on the due date.
-                </p>
-              </div>
-              <button
-                type="button"
-                className={`switch ${reminderEnabled ? 'on' : ''}`}
-                role="switch"
-                aria-checked={reminderEnabled}
-                onClick={() => setReminderEnabled(!reminderEnabled)}
-              >
-                <span className="knob" />
-              </button>
-            </div>
-            {reminderEnabled && (
-              <div className="field">
+            <div className="field">
+              <label className="label">Due date</label>
+              <div className="due-row">
                 <input
-                  type="time"
-                  value={reminderTime}
-                  onChange={(e) => setReminderTime(e.target.value)}
-                  aria-label="Reminder time"
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  aria-label="Due date (optional)"
                 />
               </div>
+              <div className="chips" style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="chip accent"
+                  onClick={() => setDueDate(isoDateIn(0))}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  className="chip accent"
+                  onClick={() => setDueDate(isoDateIn(1))}
+                >
+                  Tomorrow
+                </button>
+                <button
+                  type="button"
+                  className="chip accent"
+                  onClick={() => setDueDate(isoDateIn(7))}
+                >
+                  Next week
+                </button>
+                {dueDate && (
+                  <button type="button" className="chip" onClick={() => setDueDate('')}>
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {dueDate && (
+              <>
+                <div className="field toggle-field">
+                  <div>
+                    <label className="label" style={{ marginBottom: 2 }}>
+                      Reminder
+                    </label>
+                    <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+                      A push on the due date.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className={`switch ${reminderEnabled ? 'on' : ''}`}
+                    role="switch"
+                    aria-checked={reminderEnabled}
+                    onClick={() => setReminderEnabled(!reminderEnabled)}
+                  >
+                    <span className="knob" />
+                  </button>
+                </div>
+                {reminderEnabled && (
+                  <div className="field">
+                    <input
+                      type="time"
+                      value={reminderTime}
+                      onChange={(e) => setReminderTime(e.target.value)}
+                      aria-label="Reminder time"
+                    />
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

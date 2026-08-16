@@ -10,13 +10,13 @@ import { stepQty, qtyLabel, parseQty } from '../../lib/listItems'
 import {
   dayChipLabel,
   dayLabel,
-  isMealPlan,
   parseIngredients,
   planWindow,
   suggestedDay,
   toISO,
   windowDays,
 } from '../../lib/mealPlan'
+import { isCheckable, isGrocery, isMealPlan, kindOf, listIcon } from '../../lib/listKinds'
 import { assigneeOptions, assigneeLabel, isSolo } from '../../lib/household'
 import { showToast } from '../../lib/toast'
 import haptics from '../../lib/haptics'
@@ -35,7 +35,7 @@ import NoteBacklinks from '../../components/ui/NoteBacklinks'
 // delete. A heading row (standard-list section) has no checkbox and edits text
 // only. Editing state is local so a parent re-render (realtime sync, a sibling
 // toggle) can't yank focus mid-edit — hence a top-level component.
-function ListItemRow({ it, grocery, meal, onToggle, onDelete, onSave, onShop }) {
+function ListItemRow({ it, grocery, meal, checkable = true, onToggle, onDelete, onSave, onShop }) {
   const heading = it.is_heading
   const solo = isSolo()
   const [editing, setEditing] = useState(false)
@@ -142,8 +142,16 @@ function ListItemRow({ it, grocery, meal, onToggle, onDelete, onSave, onShop }) 
               onChange={(e) => setNote(e.target.value)}
               onKeyDown={onKey}
               // On a meal the note IS the ingredient line — say so, because
-              // that's what "Add to groceries" reads back out of it.
-              placeholder={meal ? 'Ingredients, comma separated…' : 'Add a note…'}
+              // that's what "Add to groceries" reads back out of it. On a
+              // collection it's the reason the entry is on the list at all,
+              // which is most of the value of keeping one.
+              placeholder={
+                meal
+                  ? 'Ingredients, comma separated…'
+                  : checkable
+                    ? 'Add a note…'
+                    : 'What you want to remember…'
+              }
               aria-label={meal ? 'Ingredients' : 'Item note'}
             />
           )}
@@ -168,7 +176,10 @@ function ListItemRow({ it, grocery, meal, onToggle, onDelete, onSave, onShop }) 
               )}
             </div>
           )}
-          {!heading && !meal && (
+          {/* Quantity is about acquiring something, so it belongs to the two
+              kinds you shop or cook from — not to a dinner (never ×2) and not
+              to a restaurant you like. */}
+          {!heading && !meal && checkable && (
             <Stepper
               label="quantity"
               onMouseDown={keepFocus}
@@ -197,7 +208,9 @@ function ListItemRow({ it, grocery, meal, onToggle, onDelete, onSave, onShop }) 
               options={AISLES.map((a) => ({ value: a, label: a }))}
             />
           )}
-          {!solo && !heading && (
+          {/* "Who's grabbing it" needs someone to be grabbing something. On a
+              collection nobody is. */}
+          {!solo && !heading && checkable && (
             <div className="chips assignee-edit-chips">
               {assigneeOptions().map((o) => (
                 <button
@@ -253,22 +266,25 @@ function ListItemRow({ it, grocery, meal, onToggle, onDelete, onSave, onShop }) 
       ]}
       onClick={open}
     >
-      <div className="list-row">
+      <div className={`list-row ${checkable ? '' : 'no-check'}`}>
         {/* Every checkbox on the list used to announce itself as "Toggle", so a
             screen-reader user heard the same word N times with no item and no
-            state. A checkbox role carries the state; the name carries which. */}
-        <button
-          className={`task-check ${it.checked_at ? 'done' : ''}`}
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggle(it)
-          }}
-          role="checkbox"
-          aria-checked={!!it.checked_at}
-          aria-label={it.text}
-        >
-          <Check size={15} />
-        </button>
+            state. A checkbox role carries the state; the name carries which.
+            A collection has none at all — there's nothing to complete. */}
+        {checkable && (
+          <button
+            className={`task-check ${it.checked_at ? 'done' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggle(it)
+            }}
+            role="checkbox"
+            aria-checked={!!it.checked_at}
+            aria-label={it.text}
+          >
+            <Check size={15} />
+          </button>
+        )}
         <div className="row-body">
           <div className={`row-title ${it.checked_at ? 'task-done' : ''}`}>
             {badge && <span className="qty-badge">{badge}</span>}
@@ -306,8 +322,12 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
     reorderListItems,
   } = data
   const list = lists.find((l) => l.id === listId)
-  const grocery = list?.kind === 'grocery'
+  const grocery = isGrocery(list)
   const meal = isMealPlan(list)
+  // A collection is the one kind with nothing to complete: no checkboxes, no
+  // "Got it" section, no quantity or assignee. Everything else about a list
+  // still applies — sections, drag order, notes.
+  const checkable = isCheckable(list)
   // A list scoped to a project (project_id, set from ProjectDetail) used to say
   // nothing about it here — you could open the packing list off Today with no
   // sign it belonged to the trip, and no way to get there. The link is one line
@@ -453,6 +473,7 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
       it={it}
       grocery={grocery}
       meal={meal}
+      checkable={checkable}
       onToggle={toggle}
       onDelete={deleteListItem}
       onSave={updateListItem}
@@ -460,7 +481,9 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
     />
   )
 
-  const doneSection = items.done.length > 0 && (
+  // Nothing on a collection can be checked, so it has no "Got it" pile — and
+  // any legacy rows carrying a checked_at just render inline with the rest.
+  const doneSection = checkable && items.done.length > 0 && (
     <>
       <SectionLabel>Got it · {items.done.length}</SectionLabel>
       <div className="list">{items.done.map(row)}</div>
@@ -475,7 +498,7 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
             className="list-emoji lg"
             style={list.color ? { background: list.color } : undefined}
           >
-            {list.icon || (grocery ? '🛒' : meal ? '🍽️' : '📝')}
+            {listIcon(list)}
           </span>
           <h1 className="person-name">{list.name}</h1>
           <div className="head-actions">
@@ -484,14 +507,14 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
           </div>
         </div>
       </NavBar>
-      {(showProject || items.done.length > 0) && (
+      {(showProject || (checkable && items.done.length > 0)) && (
         <div className="profile-actions" style={{ justifyContent: 'flex-start', marginTop: 12 }}>
           {showProject && (
             <button className="pill-btn neutral" onClick={() => onOpenProject(project.id)}>
               <Folder size={13} /> {project.title}
             </button>
           )}
-          {items.done.length > 0 && (
+          {checkable && items.done.length > 0 && (
             <button className="pill-btn neutral" onClick={() => clearCheckedItems(listId)}>
               {meal ? 'Clear made' : 'Clear checked'}
             </button>
@@ -501,7 +524,11 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
 
       <div className="list-detail-body">
         {items.open.length === 0 && items.done.length === 0 && !meal ? (
-          <EmptyState>Nothing here yet. Add the first item above.</EmptyState>
+          <EmptyState>
+            {checkable
+              ? 'Nothing here yet. Add the first item above.'
+              : 'Nothing kept yet. Add the first one above.'}
+          </EmptyState>
         ) : meal ? (
           <>
             {/* Days are the sections, and an empty one still renders — the
@@ -624,9 +651,11 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder={
-              meal ? `What's for ${dayLabel(addDay, todayISO).toLowerCase()}?` : 'Add an item…'
+              meal
+                ? `What's for ${dayLabel(addDay, todayISO).toLowerCase()}?`
+                : kindOf(list).addPlaceholder
             }
-            aria-label={meal ? `Add a meal to ${list.name}` : `Add an item to ${list.name}`}
+            aria-label={`${kindOf(list).addPlaceholder.replace(/…$/, '')} to ${list.name}`}
             enterKeyHint="done"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {

@@ -29,6 +29,7 @@ import { relativeTime } from '../../lib/contact'
 import { assigneeLabel, normalizeAssignee } from '../../lib/household'
 import { describeRecurrence } from '../../lib/recurrence'
 import { byOrder, moveUpdates } from '../../lib/order'
+import { listIcon } from '../../lib/listKinds'
 import { personSummary } from '../../lib/orgs'
 import {
   extractMentions,
@@ -625,7 +626,7 @@ export default function ProjectDetail({
             >
               <div className="list-row project-list-row">
                 <span className="list-emoji" style={l.color ? { background: l.color } : undefined}>
-                  {l.icon || (l.kind === 'grocery' ? '🛒' : '📝')}
+                  {listIcon(l)}
                 </span>
                 <div className="row-body">
                   <div className="row-title">{l.name}</div>
@@ -785,7 +786,7 @@ export default function ProjectDetail({
                       className="list-emoji"
                       style={l.color ? { background: l.color } : undefined}
                     >
-                      {l.icon || (l.kind === 'grocery' ? '🛒' : '📝')}
+                      {listIcon(l)}
                     </span>
                     <div className="row-body">
                       <div className="row-title">{l.name}</div>

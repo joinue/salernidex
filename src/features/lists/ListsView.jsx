@@ -4,6 +4,7 @@ import PageHeader from '../../components/shell/PageHeader'
 import SharedDot from '../../components/ui/SharedDot'
 import { dueLabel, dueState } from '../../lib/tasks'
 import { openCountsByList } from '../../lib/listItems'
+import { isCollection, listIcon } from '../../lib/listKinds'
 import EmptyState from '../../components/ui/EmptyState'
 import SwipeRow from '../../components/ui/SwipeRow'
 
@@ -62,7 +63,7 @@ export default function ListsView({ data, onOpenList, onEditList, onAdd, onSearc
                     className="list-emoji"
                     style={l.color ? { background: l.color } : undefined}
                   >
-                    {l.icon || (l.kind === 'grocery' ? '🛒' : l.kind === 'meal_plan' ? '🍽️' : '📝')}
+                    {listIcon(l)}
                   </span>
                   <div className="row-body">
                     <div className="row-titleline">
@@ -70,7 +71,13 @@ export default function ListsView({ data, onOpenList, onEditList, onAdd, onSearc
                       <SharedDot item={l} />
                     </div>
                     <div className="row-sub">
-                      {open ? `${open} item${open === 1 ? '' : 's'} left` : 'All done'}
+                      {/* "3 items left" and "All done" both assume the list
+                          is work. A collection is a total. */}
+                      {isCollection(l)
+                        ? `${open} item${open === 1 ? '' : 's'}`
+                        : open
+                          ? `${open} item${open === 1 ? '' : 's'} left`
+                          : 'All done'}
                       {l.project_id && projectName.has(l.project_id) && (
                         <span className="chip" style={{ marginLeft: 8 }}>
                           for {projectName.get(l.project_id)}

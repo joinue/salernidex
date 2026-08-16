@@ -236,8 +236,8 @@ create table public.lists (
   name          text not null,
   icon          text,                               -- emoji, e.g. 🛒
   color         text,                               -- optional accent tint for the emoji tile (0031)
-  kind          text not null default 'standard'    -- 'standard' | 'grocery' (aisle-grouped, 0019) | 'meal_plan' (day-indexed, 0037); see groups.kind
-    check (kind in ('standard', 'grocery', 'meal_plan')),
+  kind          text not null default 'standard'    -- 'standard' | 'grocery' (aisle-grouped, 0019) | 'meal_plan' (day-indexed, 0037) | 'collection' (no check-off, 0038); behaviour table in src/lib/listKinds.js
+    check (kind in ('standard', 'grocery', 'meal_plan', 'collection')),
   privacy_level privacy_level not null default 'family_shared',
   due_date         date,                            -- optional "get it by" date; surfaces on Today (0016)
   reminder_time    time,                            -- local HH:MM nudge; null = none (0016)

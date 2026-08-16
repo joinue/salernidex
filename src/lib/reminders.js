@@ -22,6 +22,7 @@
 // push-only (6b) — in-app, the Recent activity section already covers them.
 import { taskBucket, byDue, dueState, slackDays } from './tasks'
 import { followUp, lastInteraction, upcomingDates } from './contact'
+import { isDueable } from './listKinds'
 import { entryMap, habitsDueToday } from './habits'
 import { DEFAULT_PREFS } from './notifyPrefs'
 
@@ -114,6 +115,10 @@ export function buildAttention(
   // rides alongside tasks instead of duplicating into one.
   if (prefs.lists) {
     for (const l of lists) {
+      // A kind that can't carry a due date can't be due. The form hides the
+      // field, but a row written before 0037/0038 — or by an older client —
+      // could still hold one, and a collection nagging you is nonsense.
+      if (!isDueable(l)) continue
       const bucket = dueState(l.due_date)
       if (bucket !== 'overdue' && bucket !== 'today') continue
       items.push({ kind: 'list', key: `list:${l.id}`, urgency: bucket, list: l })
