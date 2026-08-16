@@ -65,7 +65,13 @@ const findings = new Map()
 // label's own smaller type.
 const CONTROL_CLASSES = [
   'backfill-note',
+  // All three inline list editors, not just the note. `list-edit-heading` sat
+  // at 13px and this pass reported clean because only its sibling was listed —
+  // and the runtime pass never reached it, since opening a section editor takes
+  // a tap on a heading row that the crawler doesn't make.
   'list-edit-note',
+  'list-edit-text',
+  'list-edit-heading',
   'qty-input',
   'project-notes-edit',
   'rec-select',

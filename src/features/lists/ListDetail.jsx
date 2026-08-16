@@ -35,7 +35,17 @@ import NoteBacklinks from '../../components/ui/NoteBacklinks'
 // delete. A heading row (standard-list section) has no checkbox and edits text
 // only. Editing state is local so a parent re-render (realtime sync, a sibling
 // toggle) can't yank focus mid-edit — hence a top-level component.
-function ListItemRow({ it, grocery, meal, checkable = true, onToggle, onDelete, onSave, onShop }) {
+function ListItemRow({
+  it,
+  grocery,
+  meal,
+  checkable = true,
+  autoOpen = false,
+  onToggle,
+  onDelete,
+  onSave,
+  onShop,
+}) {
   const heading = it.is_heading
   const solo = isSolo()
   const [editing, setEditing] = useState(false)
@@ -58,16 +68,27 @@ function ListItemRow({ it, grocery, meal, checkable = true, onToggle, onDelete, 
     setEditing(true)
   }
 
+  // A section created from the dock opens straight into its editor, scrolled
+  // into view by the effect below — so "Add section" visibly lands somewhere
+  // instead of appending a row called "Section" below the fold.
+  useEffect(() => {
+    if (autoOpen) open()
+    // Only on the row that was just created; `open` is stable enough for this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpen])
+
   useEffect(() => {
     if (!editing) return
     textRef.current?.focus()
+    // Seeded names ("Section") should be replaced by typing, not edited around.
+    if (autoOpen) textRef.current?.select()
     // Focusing the text field only guarantees the *top* of the editor is
     // visible. On a small phone the rest of it opened underneath the add dock
     // with no way to scroll it back. `nearest` isn't enough either: the dock is
     // a sticky overlay, so the browser counts the band behind it as visible and
     // scrolls 11px short. Centering clears it on every size.
     editorRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  }, [editing])
+  }, [editing, autoOpen])
 
   const commit = () => {
     const t = text.trim()
@@ -242,6 +263,11 @@ function ListItemRow({ it, grocery, meal, checkable = true, onToggle, onDelete, 
       >
         <div className="list-row heading-row">
           <div className="list-heading">{it.text}</div>
+          {/* Nothing about an uppercase label says "tap me to rename". The
+              pencil is the only thing here that does, so it's always drawn
+              rather than revealed on hover — half these lists are only ever
+              seen on a phone, where there is no hover to reveal it. */}
+          <Edit2 size={13} className="list-heading-edit" aria-hidden="true" />
         </div>
       </SwipeRow>
     )
@@ -345,6 +371,8 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
   const [pickedDay, setPickedDay] = useState(null)
   // Meals waiting on a choice of grocery list (only when there's more than one).
   const [shopping, setShopping] = useState(null)
+  // The section just created from the dock, so its row can open itself.
+  const [newHeadingId, setNewHeadingId] = useState(null)
 
   const items = useMemo(() => {
     const mine = listItems.filter((it) => it.list_id === listId)
@@ -412,9 +440,12 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
   }
 
   const addSection = () => {
-    addListHeading(listId, draft.trim() || 'Section')
+    const id = addListHeading(listId, draft.trim() || 'Section')
     setDraft('')
-    inputRef.current?.focus()
+    // Don't pull focus back to the dock — the new section's own editor is
+    // taking it, and two focus grabs in one tick leaves the keyboard up over
+    // a field nobody is typing in.
+    setNewHeadingId(id)
   }
 
   // Tapping an empty day aims the add dock at it and opens the keyboard — the
@@ -474,6 +505,7 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
       grocery={grocery}
       meal={meal}
       checkable={checkable}
+      autoOpen={it.id === newHeadingId}
       onToggle={toggle}
       onDelete={deleteListItem}
       onSave={updateListItem}

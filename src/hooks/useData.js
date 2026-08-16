@@ -1043,6 +1043,10 @@ export function useData(session) {
       }),
     ])
     sync((db) => db.from('list_items').insert(stamp(row)))
+    // Returned so the caller can open the new section for renaming straight
+    // away — it lands at the bottom of the list (sort_order null sorts last),
+    // which on a long list is off-screen and looked like nothing happened.
+    return rowId
   }
 
   const toggleListItem = (item) => {

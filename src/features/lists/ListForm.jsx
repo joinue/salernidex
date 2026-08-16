@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ChevronRight } from 'react-feather'
 import Modal from '../../components/ui/Modal'
 import PrivacyField from '../../components/ui/PrivacyField'
 import Segmented from '../../components/ui/Segmented'
@@ -37,6 +38,13 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const dueable = isDueable({ kind })
+  // Everything below the name is decoration on the way to "Add list", and all
+  // of it together made this sheet 848px of content. With a keyboard up a phone
+  // leaves about 340px, so the common case — type a name, pick a type, commit —
+  // meant scrolling 508px through a porthole. Editing opens expanded, because
+  // then you came here deliberately to change one of these. Same rule TaskForm
+  // uses for its own options.
+  const [more, setMore] = useState(!!list)
 
   const submit = async (e) => {
     e.preventDefault()
@@ -109,99 +117,111 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
             </p>
           </div>
         )}
-        <div className="field">
-          <label className="label">Icon</label>
-          <IconPicker value={icon} onChange={setIcon} />
-        </div>
+        {!more ? (
+          <button type="button" className="form-more-btn" onClick={() => setMore(true)}>
+            <ChevronRight size={15} />
+            More options
+            <span className="form-more-hint">
+              icon · color{dueable ? ' · due date' : ''} · visibility
+            </span>
+          </button>
+        ) : (
+          <>
+            <div className="field">
+              <label className="label">Icon</label>
+              <IconPicker value={icon} onChange={setIcon} />
+            </div>
 
-        <div className="field">
-          <label className="label">Color</label>
-          <ColorPicker value={color} onChange={setColor} />
-        </div>
+            <div className="field">
+              <label className="label">Color</label>
+              <ColorPicker value={color} onChange={setColor} />
+            </div>
 
-        {/* A due date is "get this whole list done by then", which is
+            {/* A due date is "get this whole list done by then", which is
             meaningless on a meal plan (seven separate days) and on a
             collection (never done). Hidden rather than disabled — an input you
             can see but can't use is a worse answer than one that isn't there. */}
-        {dueable && (
-          <>
-            <div className="field">
-              <label className="label">Due date</label>
-              <div className="due-row">
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  aria-label="Due date (optional)"
-                />
-              </div>
-              <div className="chips" style={{ marginTop: 8 }}>
-                <button
-                  type="button"
-                  className="chip accent"
-                  onClick={() => setDueDate(isoDateIn(0))}
-                >
-                  Today
-                </button>
-                <button
-                  type="button"
-                  className="chip accent"
-                  onClick={() => setDueDate(isoDateIn(1))}
-                >
-                  Tomorrow
-                </button>
-                <button
-                  type="button"
-                  className="chip accent"
-                  onClick={() => setDueDate(isoDateIn(7))}
-                >
-                  Next week
-                </button>
-                {dueDate && (
-                  <button type="button" className="chip" onClick={() => setDueDate('')}>
-                    Clear
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {dueDate && (
+            {dueable && (
               <>
-                <div className="field toggle-field">
-                  <div>
-                    <label className="label" style={{ marginBottom: 2 }}>
-                      Reminder
-                    </label>
-                    <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-                      A push on the due date.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className={`switch ${reminderEnabled ? 'on' : ''}`}
-                    role="switch"
-                    aria-checked={reminderEnabled}
-                    onClick={() => setReminderEnabled(!reminderEnabled)}
-                  >
-                    <span className="knob" />
-                  </button>
-                </div>
-                {reminderEnabled && (
-                  <div className="field">
+                <div className="field">
+                  <label className="label">Due date</label>
+                  <div className="due-row">
                     <input
-                      type="time"
-                      value={reminderTime}
-                      onChange={(e) => setReminderTime(e.target.value)}
-                      aria-label="Reminder time"
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      aria-label="Due date (optional)"
                     />
                   </div>
+                  <div className="chips" style={{ marginTop: 8 }}>
+                    <button
+                      type="button"
+                      className="chip accent"
+                      onClick={() => setDueDate(isoDateIn(0))}
+                    >
+                      Today
+                    </button>
+                    <button
+                      type="button"
+                      className="chip accent"
+                      onClick={() => setDueDate(isoDateIn(1))}
+                    >
+                      Tomorrow
+                    </button>
+                    <button
+                      type="button"
+                      className="chip accent"
+                      onClick={() => setDueDate(isoDateIn(7))}
+                    >
+                      Next week
+                    </button>
+                    {dueDate && (
+                      <button type="button" className="chip" onClick={() => setDueDate('')}>
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {dueDate && (
+                  <>
+                    <div className="field toggle-field">
+                      <div>
+                        <label className="label" style={{ marginBottom: 2 }}>
+                          Reminder
+                        </label>
+                        <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+                          A push on the due date.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className={`switch ${reminderEnabled ? 'on' : ''}`}
+                        role="switch"
+                        aria-checked={reminderEnabled}
+                        onClick={() => setReminderEnabled(!reminderEnabled)}
+                      >
+                        <span className="knob" />
+                      </button>
+                    </div>
+                    {reminderEnabled && (
+                      <div className="field">
+                        <input
+                          type="time"
+                          value={reminderTime}
+                          onChange={(e) => setReminderTime(e.target.value)}
+                          aria-label="Reminder time"
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
+
+            <PrivacyField value={privacy} onChange={setPrivacy} />
           </>
         )}
-
-        <PrivacyField value={privacy} onChange={setPrivacy} />
         <button className="btn-primary" disabled={busy}>
           {busy ? <span className="dots">Saving</span> : list ? 'Save changes' : 'Add list'}
         </button>

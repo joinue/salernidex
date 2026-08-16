@@ -285,9 +285,14 @@
   border: none;
   outline: none;
   padding: 2px 0;
-  font-size: 13px;
+  /* 16px or iOS zooms the page the moment this takes focus and never zooms
+     back — the same rule .list-edit-note carries. It was 13px to match the
+     uppercase label it replaces, but the label's size is not what makes it
+     read as a section: the caps, the tracking and the weight are, and all
+     three survive at 16. */
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
   color: var(--text-2);
 }
@@ -297,19 +302,41 @@
   margin-top: 8px;
 }
 
-/* Standard-list section header (an is_heading row), rendered as an inset
-   divider that the items below it visually belong to. */
+/* Standard-list section header (an is_heading row).
+
+   It used to be a row like any other — same white card, same inset — which
+   made it read as an item that happened to be shouting, and gave no clue which
+   items belonged to it. Painting it in the page background instead cuts the
+   card in two, so a section visibly owns everything under it down to the next
+   one. That's the grouped-list shape the rest of the app already uses for
+   aisles and meal days; this is the same idea inside a single flat list, which
+   is what the drag-to-reorder model requires. */
 .list-row.heading-row {
-  padding-top: 16px;
-  padding-bottom: 6px;
+  padding-top: 20px;
+  padding-bottom: 8px;
+  background: var(--bg);
   cursor: pointer;
 }
+
 .list-heading {
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.4px;
   text-transform: uppercase;
   color: var(--text-2);
+}
+
+/* The only mark that says this label can be renamed. Quiet enough to ignore
+   while reading the list, present enough to find when you want it. */
+.list-heading-edit {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--text-3);
+  opacity: 0.55;
+}
+
+.heading-row:active .list-heading-edit {
+  opacity: 1;
 }
 
 /* "Add section" affordance under the add-item row on standard lists. */
@@ -435,7 +462,10 @@
   border: none;
   border-radius: var(--radius-sm);
   color: var(--text);
-  font-size: 15px;
+  /* 16px like every other focusable control — a date input takes focus, and
+     Safari zooms on focus regardless of whether it then shows a wheel instead
+     of a keyboard. */
+  font-size: 16px;
 }
 
 /* A collection has no checkbox, so its rows would otherwise start at the very
