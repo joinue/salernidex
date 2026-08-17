@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { supabase } from './lib/supabase'
 import { demoMode } from './lib/demo'
-import { buildAttention, badgeCount } from './lib/reminders'
+import { buildAttention, badgeCount } from './lib/attention'
 import { useData } from './hooks/useData'
 import { useHousehold, ACTIVE_HOUSEHOLD_KEY } from './hooks/useHousehold'
 import { useMediaQuery } from './hooks/useMediaQuery'
@@ -31,6 +31,7 @@ import PullToRefresh from './components/ui/PullToRefresh'
 import SearchView from './features/people/SearchView'
 import TasksView from './features/tasks/TasksView'
 import ProjectsView from './features/tasks/ProjectsView'
+import RemindersView from './features/reminders/RemindersView'
 import ListsView from './features/lists/ListsView'
 import ListDetail from './features/lists/ListDetail'
 import NotesView from './features/notes/NotesView'
@@ -69,6 +70,7 @@ import OrgForm from './features/people/OrgForm'
 import GroupForm from './features/people/GroupForm'
 import HabitForm from './features/habits/HabitForm'
 import RelationshipForm from './features/people/RelationshipForm'
+import ReminderForm from './features/reminders/ReminderForm'
 import { EMPTY_PEOPLE_FILTERS } from './lib/search'
 import { isEditableTarget } from './lib/keys'
 import { DETAIL_ROUTES, KNOWN_ROUTES, NO_FAB_ROUTES, NO_TABBAR_ROUTES } from './lib/nav'
@@ -100,6 +102,7 @@ const HUB_OPTIONS = [
 const WORK_OPTIONS = [
   { id: 'tasks', label: 'Tasks' },
   { id: 'projects', label: 'Projects' },
+  { id: 'reminders', label: 'Reminders' },
 ]
 
 export default function App() {
@@ -239,6 +242,7 @@ function Shell({ session, onLogout, household }) {
   const [pickingProject, setPickingProject] = useState(false) // template "new project" sheet
   const [projectSeedName, setProjectSeedName] = useState('') // title carried from the task form
   const [editingList, setEditingList] = useState(null) // null | 'new' | list
+  const [editingReminder, setEditingReminder] = useState(null) // null | 'new' | reminder
   const [relationshipFrom, setRelationshipFrom] = useState(null) // null | 'new' | person
   const [quickFind, setQuickFind] = useState(false)
   const [confirmLogout, setConfirmLogout] = useState(false)
@@ -544,8 +548,12 @@ function Shell({ session, onLogout, household }) {
       // are never outstanding work — a 40-restaurant list would otherwise park
       // a permanent 40 here that nothing could ever clear.
       lists: data.listItems.filter((it) => isOpenItem(it, listById.get(it.list_id))).length,
+      // Unacknowledged only. Derived dates (birthdays) are deliberately not
+      // counted: they arrive on their own and can't be cleared, so they would
+      // park a number here that nothing you did would ever move.
+      reminders: data.reminders.filter((r) => !r.completed_at).length,
     }),
-    [data.tasks, data.listItems, listById],
+    [data.tasks, data.reminders, data.listItems, listById],
   )
 
   const activeNav =
@@ -576,6 +584,7 @@ function Shell({ session, onLogout, household }) {
     onAddProject: () => openProjectPicker(),
     onAddNote: () => createNote(),
     onAddList: () => setEditingList('new'),
+    onAddReminder: () => setEditingReminder('new'),
     onAddOrg: () => setEditingOrg('new'),
     onAddGroup: () => setEditingGroup('new'),
     onAddHabit: () => setPickingHabit(true),
@@ -636,6 +645,7 @@ function Shell({ session, onLogout, household }) {
                 onOpenHabits={() => go('habits')}
                 onOpenHabit={openHabit}
                 onOpenNotes={() => go('notes')}
+                onOpenReminders={() => go('reminders')}
                 onOpenNote={openNote}
               />
             )}
@@ -673,6 +683,17 @@ function Shell({ session, onLogout, household }) {
                 onBack={backTo('tasks')}
                 onEdit={(t) => setEditingTask(t)}
                 onOpenNote={openNote}
+              />
+            )}
+            {route.name === 'reminders' && (
+              <RemindersView
+                data={data}
+                onAdd={() => setEditingReminder('new')}
+                onEdit={(r) => setEditingReminder(r)}
+                onOpenPerson={openPerson}
+                onSearch={isMobile ? () => setQuickFind(true) : undefined}
+                hub={workNav('reminders')}
+                onNavigate={go}
               />
             )}
             {route.name === 'projects' && (
@@ -1009,6 +1030,31 @@ function Shell({ session, onLogout, household }) {
           onSave={data.saveList}
           onClose={() => setEditingList(null)}
           defaultPrivacy={appPrefs.listPrivacy}
+        />
+      )}
+      {editingReminder && (
+        <ReminderForm
+          reminder={editingReminder === 'new' ? null : editingReminder}
+          people={data.people.filter((p) => !p.deleted_at)}
+          defaultPrivacy={appPrefs.taskPrivacy}
+          onSave={(fields) => {
+            if (editingReminder === 'new') data.addTask(fields)
+            else data.updateTask(editingReminder.id, fields)
+            setEditingReminder(null)
+          }}
+          onClose={() => setEditingReminder(null)}
+          // "Save this on Ada instead?" — hand the whole thing to her contact,
+          // where a date about a person can live exactly once. The person form
+          // opens seeded, so the reminder is never written at all rather than
+          // written and then migrated.
+          onFileOnContact={({ person, kind }, form) => {
+            setEditingReminder(null)
+            setEditingPerson(
+              kind === 'birthday' && form.due_date
+                ? { ...person, birthday: form.due_date }
+                : person,
+            )
+          }}
         />
       )}
       {relationshipFrom && (

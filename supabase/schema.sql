@@ -185,6 +185,13 @@ create table public.tasks (
   project_status text not null default 'active'      -- project lifecycle (0028): 'active' | 'someday'. 'done' is NOT stored here — done = completed_at is not null. Ignored on plain tasks
     check (project_status in ('active', 'someday')),
   is_heading    boolean not null default false,     -- Things-style section row inside a project; groups the subtasks that follow it in manual order
+  is_reminder   boolean not null default false,     -- nothing to do, just be told (0039): a date you want surfaced, not a chore. Acknowledging = completed_at, worded "Got it". Excluded from data.tasks at the data layer, never per-view
+  -- Three booleans describe eight states and only four mean anything. A single
+  -- `kind` column is the better model; converting the two that predate 0039 was
+  -- not worth touching every call site for, so the database refuses the
+  -- combinations the enum would have made unrepresentable instead. A fourth kind
+  -- is the signal to do the conversion.
+  constraint tasks_one_kind check (is_project::int + is_heading::int + is_reminder::int <= 1),
   sort_order    double precision,                   -- manual drag order (fractional ranks, lib/order.js); null = never placed, sorts after ranked rows by created_at
   privacy_level privacy_level not null default 'shared',
   completed_at  timestamptz,                         -- null = open
@@ -415,6 +422,7 @@ create unique index relationships_pair_idx on public.relationships
 create index interactions_person_idx on public.interactions (person_id, occurred_at desc);
 create index tasks_due_idx on public.tasks (due_date) where completed_at is null;
 create index tasks_parent_idx on public.tasks (parent_id);
+create index tasks_reminder_idx on public.tasks (due_date) where is_reminder;
 create index task_completions_task_idx on public.task_completions (task_id, completed_at desc);
 create index task_links_task_idx on public.task_links (task_id);
 create index list_items_list_idx on public.list_items (list_id, created_at);

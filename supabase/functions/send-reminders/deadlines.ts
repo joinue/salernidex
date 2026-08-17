@@ -1,5 +1,5 @@
 // Server-side port of the deadline ("do it by X") head start in
-// src/lib/reminders.js, used by send-reminders to give a push the same warning
+// src/lib/attention.js, used by send-reminders to give a push the same warning
 // the in-app Today screen gives.
 //
 // Why a port and not an import: this runs on Deno inside a bundled Edge
@@ -15,9 +15,9 @@
 //
 // It never becomes an individual ping. A deadline with days left has not earned
 // an interruption; the same call the client makes by keeping it out of the
-// badge (see badgeCount in src/lib/reminders.js).
+// badge (see badgeCount in src/lib/attention.js).
 
-// Must match ANYTIME_DAYS in src/lib/reminders.js — the parity test pins this.
+// Must match ANYTIME_DAYS in src/lib/attention.js — the parity test pins this.
 export const ANYTIME_DAYS = 7
 
 export type DeadlineTask = {

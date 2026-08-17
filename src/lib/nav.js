@@ -28,7 +28,7 @@ export const DESTINATIONS = [
   // Calendar, not Bell: reminders are date-anchored (a birthday, an occasion),
   // and Bell belongs to notifications, which is a different thing arriving in
   // the top right. Two bells would be a coin flip every time.
-  { id: 'reminders', label: 'Reminders', icon: 'Calendar', pending: true },
+  { id: 'reminders', label: 'Reminders', icon: 'Calendar', count: 'reminders' },
   { id: 'lists', label: 'Lists', icon: 'List', count: 'lists' },
   { id: 'habits', label: 'Habits', icon: 'Activity' },
   { id: 'notes', label: 'Notes', icon: 'FileText' },
@@ -157,6 +157,7 @@ export const KNOWN_ROUTES = [
   'task',
   'projects',
   'project',
+  'reminders',
   'lists',
   'list',
   'notes',

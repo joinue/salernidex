@@ -1,184 +1,177 @@
-// The attention engine: ONE pure function that decides what needs you today.
-// Today's sections, the tab/app badges, and (in 6b) the server-side push
-// sender all read from this, so the surfaces can never disagree.
+// Reminders: the things you want said out loud on a day, with nothing to do
+// about them. "Bins go out Thursday." "Mum's birthday." "Insurance renews."
 //
-// Returns [{ kind, key, urgency, ...payload }]:
-//   kind 'task'  — top-level open task due today or overdue        (payload: task)
-//                  …or a 'by' deadline landing inside ANYTIME_DAYS (payload: task)
-//   kind 'nudge' — someone you meant to stay close to, drifting    (payload: person, state, lastIso)
-//                  (internal name; the UI says "check in" — never "nudge"/"follow up")
-//   kind 'date'  — birthday or key date inside the lead window     (payload: entry from upcomingDates)
-//   kind 'list'  — a list with a due_date that's due today/overdue  (payload: list)
-//   kind 'habit' — a habit scheduled today that isn't done yet      (payload: habit)
-//   urgency: 'overdue' | 'today' | 'anytime' | 'upcoming' | 'soft'
-//     'soft' is the ambient tier (relationship check-ins): shown in Today, but
-//     kept out of the red count badge so it can't perpetually inflate it.
-//     'anytime' is the same deal for deadlines that haven't arrived yet — a
-//     heads-up while you still have room to plan, not something due now.
-//   key: stable id, doubles as reminder_snoozes.target_key
+// Two kinds arrive here from different places and the page shows them as one
+// list, because the difference is ours, not the user's:
 //
-// Per-member snoozes hide items: until=null means dismissed for good,
-// otherwise hidden through that timestamp. FYI items (partner activity) are
-// push-only (6b) — in-app, the Recent activity section already covers them.
-import { taskBucket, byDue, dueState, slackDays } from './tasks'
-import { followUp, lastInteraction, upcomingDates } from './contact'
-import { isDueable } from './listKinds'
-import { entryMap, habitsDueToday } from './habits'
-import { DEFAULT_PREFS } from './notifyPrefs'
+//   stored   — a task row with is_reminder set (migration 0039). Editable,
+//              assignable, snoozable, recurring, exactly like a task.
+//   derived  — a birthday or key date computed from a contact, via
+//              upcomingDates(). NOT stored as a reminder row, and that's the
+//              point: people.birthday is the one place a birthday lives, so it
+//              can't drift from the contact it belongs to, and editing it means
+//              editing the person.
+//
+// Everything below is pure, and reads "today" through lib/tasks' helpers — so
+// the tests pin the clock with fake timers, the way tasks.test.js does, rather
+// than threading a `now` argument nothing else in the date layer takes.
+import { upcomingDates } from './contact'
+import { daysUntilDue, dueLabel, shortDate } from './tasks'
 
-// How far ahead a deadline ('by') task reaches onto Today. A week is the span
-// you can actually plan across — far enough to slot the task into a free
-// evening, near enough that it isn't just noise. Beyond it the task waits in
-// the Tasks page's Anytime section.
-export const ANYTIME_DAYS = 7
+// How far ahead the page looks by default. A month is the horizon a date is
+// useful at — long enough to buy a present, short enough that the list is still
+// a list rather than a calendar.
+export const HORIZON_DAYS = 30
 
-// Is this task mine to worry about today? A task assigned to someone else in
-// the household is theirs — surfacing it here (and in the tab badge, the app
-// icon badge and the push notification) is how a shared dashboard becomes
-// everyone's noise. Unassigned ("anyone") work still belongs to everybody, so
-// it stays. `taskScope: 'all'` opts back into seeing the whole household.
-//
-// `normalize` is injected rather than imported: stored assignees can still be
-// the legacy labels ('me' / 'partner' / 'either') that predate member ids, and
-// only lib/household knows how to map those — but this module is pure and is
-// also ported server-side in the reminders Edge Function, which has no such
-// list. Callers in the app pass household.normalizeAssignee; the default is a
-// pass-through, which is correct for uuid-only data. Getting this wrong is not
-// subtle: an unmapped 'me' matches nothing and Today comes up empty.
-function assignedToMe(task, memberId, scope, normalize) {
-  if (scope === 'all' || !memberId) return true
-  const a = normalize(task.assignee)
-  return !a || a === 'anyone' || a === normalize(memberId)
+// Is this row a reminder rather than a task? Kept here so a caller never has to
+// know the column name, and so the one place that can change is this one.
+export function isReminder(task) {
+  return !!task?.is_reminder
 }
 
-export function buildAttention(
-  data,
-  prefs = DEFAULT_PREFS,
-  snoozes = [],
-  memberId = null,
-  now = Date.now(),
-  { taskScope = 'mine', normalizeAssignee = (v) => v } = {},
+// The fields a new reminder starts with. Assignable and shareable like any task
+// — "bins go out" is somebody's turn, and a birthday is the household's. What
+// it never gets: subtasks, headings, a project flag, or a deadline sense of a
+// due date (a reminder happens ON its day; `by` would mean it has slack, which
+// is a claim about work).
+export function newReminderFields({ due_date = '', privacy_level = 'shared' } = {}) {
+  return {
+    title: '',
+    due_date,
+    due_time: '',
+    recurrence: null,
+    assignee: 'anyone',
+    privacy_level,
+    notes: '',
+    is_reminder: true,
+    due_kind: 'on',
+  }
+}
+
+// One shape for both kinds, so the view renders a single list:
+//   { key, kind, title, sub, dateIso, daysUntil, done, source }
+// `source` carries the row (stored) or the derived entry, for the caller that
+// needs to open the right editor.
+function fromStored(r) {
+  const daysUntil = daysUntilDue(r.due_date)
+  return {
+    key: `r-${r.id}`,
+    kind: 'stored',
+    title: r.title,
+    sub: r.notes || '',
+    dateIso: r.due_date || null,
+    daysUntil,
+    done: !!r.completed_at,
+    source: r,
+  }
+}
+
+function fromDerived(entry) {
+  const who = entry.person?.name || ''
+  // "Ada turns 40" reads like the thing you're being reminded of; "Birthday ·
+  // Ada Lovelace" reads like a database row about her.
+  const title =
+    entry.kind === 'birthday'
+      ? entry.turning
+        ? `${who} turns ${entry.turning}`
+        : `${who}'s birthday`
+      : `${who} · ${entry.label}`
+  return {
+    key: entry.kind === 'birthday' ? `b-${entry.person.id}` : `k-${entry.keyDate.id}`,
+    kind: 'derived',
+    title,
+    sub: entry.years ? `${entry.years} years` : '',
+    dateIso: null, // upcomingDates works in days, not ISO — daysUntil is the truth here
+    daysUntil: entry.daysUntil,
+    done: false,
+    source: entry,
+  }
+}
+
+// Everything worth telling you about, soonest first. Stored reminders that are
+// done, or dated beyond the horizon, drop out; overdue ones stay, because an
+// unacknowledged reminder is the one case where the past still matters.
+export function upcomingReminders(
+  { reminders = [], people = [], keyDates = [] } = {},
+  { withinDays = HORIZON_DAYS, includeDone = false } = {},
 ) {
-  const {
-    people = [],
-    tasks = [],
-    interactions = [],
-    keyDates = [],
-    lists = [],
-    habits = [],
-    habitEntries = [],
-  } = data
-  const active = people.filter((p) => !p.deleted_at)
+  const stored = reminders
+    .filter((r) => includeDone || !r.completed_at)
+    .map(fromStored)
+    // An undated reminder has nothing to be soonest about — it waits in its own
+    // section rather than jumping the queue with daysUntil null.
+    .filter((r) => r.daysUntil === null || r.daysUntil <= withinDays)
 
-  const hidden = new Set(
-    snoozes
-      .filter((s) => !memberId || s.member_id === memberId)
-      .filter((s) => s.until === null || new Date(s.until).getTime() > now)
-      .map((s) => s.target_key),
-  )
+  const derived = upcomingDates(people, keyDates, withinDays).map(fromDerived)
 
-  const items = []
-
-  if (prefs.tasks) {
-    const byId = new Map(tasks.map((t) => [t.id, t]))
-    for (const t of tasks) {
-      if (t.completed_at || t.is_heading) continue
-      // A project lives in the Projects index, not the To-do list — but its
-      // dated steps should still nudge you on the right day. So we skip the
-      // project container itself and instead surface a subtask when its parent
-      // is a project AND it carries its own due date (loose subtasks of a plain
-      // task stay checklist detail, never Today rows). Top-level non-project
-      // tasks behave exactly as before.
-      if (t.is_project) continue
-      const parent = t.parent_id ? byId.get(t.parent_id) : null
-      if (t.parent_id && !(parent && parent.is_project && t.due_date)) continue
-      // A project's step inherits the project's owner when it has none of its
-      // own — otherwise every subtask of someone else's project would still
-      // read as unassigned and land on your dashboard.
-      if (!assignedToMe(t.assignee ? t : parent || t, memberId, taskScope, normalizeAssignee))
-        continue
-      const bucket = taskBucket(t)
-      // A deadline earns a spot once it's close enough to plan around. Without
-      // this it would stay invisible until the morning it was due — the one day
-      // it is no longer flexible, which is precisely backwards.
-      if (bucket === 'anytime' && slackDays(t) > ANYTIME_DAYS) continue
-      if (bucket !== 'overdue' && bucket !== 'today' && bucket !== 'anytime') continue
-      const project = parent && parent.is_project ? parent : null
-      items.push({ kind: 'task', key: `task:${t.id}`, urgency: bucket, task: t, project })
-    }
-    // Soonest first, then earliest time of day, then higher priority (byDue).
-    items.sort((a, b) => byDue(a.task, b.task))
-  }
-
-  // A list with a due_date that's reached today (or slipped past) earns a spot —
-  // the whole list is the actionable thing ("get the groceries by Fri"), so it
-  // rides alongside tasks instead of duplicating into one.
-  if (prefs.lists) {
-    for (const l of lists) {
-      // A kind that can't carry a due date can't be due. The form hides the
-      // field, but a row written before 0037/0038 — or by an older client —
-      // could still hold one, and a collection nagging you is nonsense.
-      if (!isDueable(l)) continue
-      const bucket = dueState(l.due_date)
-      if (bucket !== 'overdue' && bucket !== 'today') continue
-      items.push({ kind: 'list', key: `list:${l.id}`, urgency: bucket, list: l })
-    }
-  }
-
-  // A habit scheduled today that you haven't done yet. Ambient like a check-in,
-  // so it rides the 'soft' tier: it belongs to today, but a daily ritual you
-  // already know about must not sit in the red count every morning until you
-  // log it — that's exactly the badge-never-reaches-zero failure 'soft' exists
-  // to prevent. The key matches the Edge Function's `habit:<id>` targetKey, so
-  // snoozing one here also silences its push.
-  if (prefs.habits) {
-    const map = entryMap(habitEntries)
-    for (const h of habitsDueToday(habits, map, new Date(now))) {
-      items.push({ kind: 'habit', key: `habit:${h.id}`, urgency: 'soft', habit: h })
-    }
-  }
-
-  if (prefs.nudges) {
-    const checkIns = []
-    for (const p of active) {
-      const last = lastInteraction(p.id, interactions)
-      const f = followUp(p, last?.occurred_at)
-      if (!f || f.state === 'ok') continue
-      checkIns.push({
-        kind: 'nudge',
-        key: `nudge:${p.id}`,
-        // Ambient, never-expiring relationship nudge — soft, not a deadline, so
-        // it stays out of the red badge (see badgeCount) while still showing here.
-        urgency: 'soft',
-        person: p,
-        state: f.state,
-        lastIso: last?.occurred_at || null,
-      })
-    }
-    // people you've never caught up with first, then longest-quiet first
-    checkIns.sort((a, b) => ((a.lastIso || '') < (b.lastIso || '') ? -1 : 1))
-    items.push(...checkIns)
-  }
-
-  if (prefs.dates) {
-    for (const entry of upcomingDates(active, keyDates, prefs.dates_lead_days)) {
-      const key =
-        entry.kind === 'birthday' ? `date:b-${entry.person.id}` : `date:${entry.keyDate.id}`
-      items.push({
-        kind: 'date',
-        key,
-        urgency: entry.daysUntil === 0 ? 'today' : 'upcoming',
-        entry,
-      })
-    }
-  }
-
-  return items.filter((i) => !hidden.has(i.key))
+  return [...stored, ...derived].sort((a, b) => {
+    if (a.daysUntil === null) return 1
+    if (b.daysUntil === null) return -1
+    return a.daysUntil - b.daysUntil
+  })
 }
 
-// Tab + app-icon badge: only what's actionable right now. Soft items (ambient
-// relationship check-ins) are deliberately excluded — a count badge that never
-// drops to zero loses its meaning and trains the eye to ignore it.
-export function badgeCount(items) {
-  return items.filter((i) => i.urgency === 'overdue' || i.urgency === 'today').length
+// Reminders with no date at all — kept, because "renew the passport" is a real
+// thing to be reminded of before you know when.
+export function undatedReminders(reminders = []) {
+  return reminders.filter((r) => !r.completed_at && !r.due_date)
+}
+
+// The chip under a reminder: 'Today', 'in 3d', 'Jun 20', '2d ago'. Reads as
+// when, never as how overdue — nothing is late, because there was never
+// anything to do.
+export function reminderWhen(item) {
+  const d = item?.daysUntil
+  if (d === null || d === undefined) return 'No date'
+  if (d < 0) return `${-d}d ago`
+  // A stored reminder has a real date, so dueLabel gives the nicer phrasing
+  // (including 'Jun 20' once a relative one stops helping).
+  const label = item.dateIso ? dueLabel(item.dateIso) : null
+  if (label) return label
+  // Derived entries carry days rather than an ISO date.
+  if (d === 0) return 'Today'
+  if (d === 1) return 'Tomorrow'
+  return `in ${d}d`
+}
+
+// Does this reminder look like it belongs to somebody? Drives the nudge to file
+// it on the contact instead, where a date about a person can only live once.
+// Deliberately conservative: a name has to appear as a whole word, and there has
+// to be date-shaped language around it, or every reminder mentioning a housemate
+// starts asking to be moved.
+const DATE_WORDS = /\b(birthday|bday|anniversary|wedding|graduat|retire)/i
+export function suggestsContactDate(title, people = []) {
+  const text = (title || '').trim()
+  if (!text || !DATE_WORDS.test(text)) return null
+  for (const p of people) {
+    if (p.deleted_at) continue
+    const first = (p.name || '').split(/\s+/)[0]
+    // Two is the floor, not three: Bo, Jo, Al and Li are names, and requiring
+    // three excluded them entirely. The date-word test above is what keeps a
+    // short name from matching prose.
+    if (!first || first.length < 2) continue
+    if (new RegExp(`\\b${first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text)) {
+      return { person: p, kind: /birthday|bday/i.test(text) ? 'birthday' : 'keydate' }
+    }
+  }
+  return null
+}
+
+// Group the list into the sections the page shows. Overdue first (you haven't
+// said "got it" yet), then today, then the horizon, then the undated tail.
+export function groupReminders(items) {
+  const groups = { overdue: [], today: [], soon: [], later: [], undated: [] }
+  for (const item of items) {
+    if (item.daysUntil === null) groups.undated.push(item)
+    else if (item.daysUntil < 0) groups.overdue.push(item)
+    else if (item.daysUntil === 0) groups.today.push(item)
+    else if (item.daysUntil <= 7) groups.soon.push(item)
+    else groups.later.push(item)
+  }
+  return groups
+}
+
+// Calendar-date label for a stored reminder's own row (the editor's summary).
+export function reminderDateLabel(r) {
+  return r?.due_date ? shortDate(r.due_date) : null
 }

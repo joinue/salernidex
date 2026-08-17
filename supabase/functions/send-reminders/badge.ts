@@ -1,4 +1,4 @@
-// Server port of `badgeCount(buildAttention(...))` from src/lib/reminders.js —
+// Server port of `badgeCount(buildAttention(...))` from src/lib/attention.js —
 // the number on the app icon.
 //
 // Why the server has to compute this at all: the Badging API can only be driven

@@ -668,6 +668,7 @@ export function useData(session) {
         parent_id: null,
         is_project: false,
         is_heading: false,
+        is_reminder: false,
         sort_order: null,
         completed_at: null,
         privacy_level: 'shared',
@@ -1681,7 +1682,14 @@ export function useData(session) {
   // it. The all* arrays bypass the filter for the lossless JSON backup only.
   const visiblePeople = filterVisible(people, userId)
   const visibleOrgs = filterVisible(orgs, userId)
-  const visibleTasks = filterVisible(tasks, userId)
+  // Reminders share the tasks table (migration 0039) and are split off HERE,
+  // once, rather than filtered out by each of the eleven files that read
+  // `data.tasks`. A reminder that leaks through one of those doesn't look like a
+  // bug, it looks like a birthday you're failing to tick off — and the miss
+  // would be in whichever view was written next, not in this one.
+  const allVisibleTasks = filterVisible(tasks, userId)
+  const visibleTasks = allVisibleTasks.filter((t) => !t.is_reminder)
+  const visibleReminders = allVisibleTasks.filter((t) => t.is_reminder)
   // Live notebook vs Recently Deleted, each privacy-filtered for the viewer.
   const visibleNotes = filterVisible(
     notes.filter((n) => !n.deleted_at),
@@ -1718,6 +1726,7 @@ export function useData(session) {
     interactions,
     groups,
     tasks: visibleTasks,
+    reminders: visibleReminders,
     completions,
     taskLinks,
     lists: visibleLists,

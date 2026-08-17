@@ -1237,6 +1237,43 @@ export const demoTasks = [
     parent_id: 't-kitchen',
     sort_order: 1,
   },
+
+  // Reminders (0039): same table, is_reminder set, so they're split out of
+  // `tasks` by useData and never appear as chores. One of each shape the page
+  // has a section for — dated, recurring, and undated.
+  {
+    ...taskBase,
+    id: 'r-bins',
+    title: 'Bins go out tonight',
+    assignee: 'anyone',
+    due_date: dateIn(0),
+    is_reminder: true,
+    recurrence: { freq: 'weekly', interval: 1, weekdays: [3] },
+    parent_id: null,
+    notes: 'Green bin this week, blue the next.',
+  },
+  {
+    ...taskBase,
+    id: 'r-insurance',
+    title: 'Car insurance renews',
+    assignee: 'm-1',
+    due_date: dateIn(9),
+    is_reminder: true,
+    recurrence: null,
+    parent_id: null,
+    notes: 'Policy 88-4412 — worth re-shopping before it auto-renews.',
+  },
+  {
+    ...taskBase,
+    id: 'r-passport',
+    title: 'Passport expires next spring',
+    assignee: 'anyone',
+    due_date: null, // the undated tail: real, but not yet a date
+    is_reminder: true,
+    recurrence: null,
+    parent_id: null,
+    notes: '',
+  },
 ]
 
 // Shared household lists.

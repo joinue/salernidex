@@ -1,0 +1,89 @@
+/* ── Reminders ─────────────────────────────────────────────────────────────
+   Things to be told, not things to do. The rows reuse .list-row wholesale;
+   these add the marker that stands in for a checkbox (there is nothing to
+   check), the "file it on the contact instead" offer in the form, and the
+   footnote explaining where the derived half comes from. */
+
+/* Stands where a task's checkbox would, and deliberately isn't one: a circle
+   you could tap would promise this is work. */
+.reminder-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* The offer to store a person's date on the person. A tinted row rather than a
+   banner — it's a suggestion sitting under the field that prompted it, and
+   ignoring it has to be the easiest thing to do. */
+.reminder-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: -4px 0 16px;
+  padding: 10px 12px;
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+
+.reminder-suggestion-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  line-height: 1.35;
+}
+
+.reminder-suggestion-text .muted {
+  display: block;
+  font-weight: 400;
+  color: var(--text-2);
+}
+
+.reminder-suggestion svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+/* Date and time side by side: a reminder is one moment, so splitting them over
+   two rows made it read like two questions. */
+.reminder-when {
+  display: flex;
+  gap: 8px;
+}
+
+.reminder-when input[type='date'] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.reminder-when input[type='time'] {
+  flex: 0 0 auto;
+}
+
+.reminder-quick-dates {
+  gap: 16px;
+  margin: -8px 0 18px;
+}
+
+.reminders-footnote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 4px 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
+.reminders-footnote svg {
+  flex-shrink: 0;
+}

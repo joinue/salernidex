@@ -2,14 +2,14 @@
 // and asserts they arrive at the same number.
 //
 // badge.ts is a hand port of badgeCount(buildAttention(...)) in
-// src/lib/reminders.js, because the Edge Function can't import the browser app's
+// src/lib/attention.js, because the Edge Function can't import the browser app's
 // modules. This is the port most worth pinning: the badge is a bare number on a
 // home screen with no list under it to contradict it, so a silent drift doesn't
 // look like a bug — it looks like the app lying about how much you have to do.
 // Vitest only: Deno never loads test files, so the deployed bundle is unaffected.
 
 import { describe, it, expect } from 'vitest'
-import { buildAttention, badgeCount as clientBadge } from '../../../src/lib/reminders.js'
+import { buildAttention, badgeCount as clientBadge } from '../../../src/lib/attention.js'
 import { isoDateIn } from '../../../src/lib/tasks.js'
 import { badgeCount } from './badge.ts'
 

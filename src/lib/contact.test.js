@@ -118,4 +118,14 @@ describe('upcomingDates', () => {
     const out = upcomingDates(people, keyDates, 30)
     expect(out.some((e) => e.label === 'Past one-off')).toBe(false)
   })
+  // The key-date loop always checked this; the birthday loop didn't, so an
+  // archived contact kept having a birthday — on Today, in the badge, and in the
+  // push built from the same list.
+  it('drops a deleted contact, birthday as well as key date', () => {
+    const archived = [{ id: 'p3', birthday: '1990-06-18', deleted_at: '2026-01-01' }]
+    const theirs = [
+      { id: 'k9', person_id: 'p3', date: '2015-06-17', annual: true, label: 'Anniversary' },
+    ]
+    expect(upcomingDates(archived, theirs, 30)).toEqual([])
+  })
 })

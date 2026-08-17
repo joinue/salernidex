@@ -209,7 +209,7 @@ export function weekProgress(habit, map, today = new Date()) {
 
 // ---- "what does today ask of me" ---------------------------------------
 // The two predicates below are the ONE definition of a habit's claim on today.
-// Today's Habits section and the attention engine (lib/reminders) both read
+// Today's Habits section and the attention engine (lib/attention) both read
 // them, so the dashboard and the badge/push can't drift the way they used to
 // when Today re-derived this inline.
 

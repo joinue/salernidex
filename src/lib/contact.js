@@ -59,6 +59,11 @@ export function upcomingDates(people, keyDates = [], withinDays = 30) {
   const out = []
 
   for (const p of people) {
+    // Deleted contacts don't have birthdays any more. The key-date loop below
+    // has always checked this; the birthday loop never did, so archiving someone
+    // left their birthday arriving on Today, in the attention badge, and in the
+    // push the sender builds from the same list — every year.
+    if (p.deleted_at) continue
     const b = upcomingBirthday(p, withinDays)
     if (b)
       out.push({

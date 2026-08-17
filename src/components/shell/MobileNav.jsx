@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+  Bell,
   Home,
   User as PeopleIcon,
   CheckSquare,
@@ -39,6 +40,7 @@ export default function MobileNav({
     onAddProject,
     onAddNote,
     onAddList,
+    onAddReminder,
     onAddHabit,
     onAddOrg,
     onAddGroup,
@@ -65,6 +67,7 @@ export default function MobileNav({
     people: onAddPerson,
     tasks: onAddTask,
     projects: onAddProject,
+    reminders: onAddReminder,
     notes: onAddNote,
     lists: onAddList,
     habits: onAddHabit,
@@ -153,6 +156,9 @@ export default function MobileNav({
           </button>
           <button className="sheet-item" onClick={pick(onAddList)}>
             <List size={20} /> List
+          </button>
+          <button className="sheet-item" onClick={pick(onAddReminder)}>
+            <Bell size={20} /> Reminder
           </button>
           <button className="sheet-item" onClick={pick(onAddHabit)}>
             <Activity size={20} /> Habit

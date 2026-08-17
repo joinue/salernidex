@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  Bell,
   Gift,
   Calendar,
   ChevronRight,
@@ -12,8 +13,9 @@ import {
   Search,
 } from 'react-feather'
 import { relativeTime } from '../../lib/contact'
-import { dueLabel } from '../../lib/tasks'
-import { buildAttention } from '../../lib/reminders'
+import { dueLabel, daysUntilDue } from '../../lib/tasks'
+import { buildAttention } from '../../lib/attention'
+import { reminderWhen } from '../../lib/reminders'
 import { normalizeAssignee } from '../../lib/household'
 import { buildActivityFeed } from '../../lib/activity'
 import { personActions } from '../../lib/personActions'
@@ -65,6 +67,14 @@ function dateWhen(entry) {
   return `in ${entry.daysUntil}d`
 }
 
+// How many days off an item in the Upcoming section is, whichever kind it is:
+// a derived date carries `daysUntil`, a reminder carries a due_date. Lets the
+// two sort against each other instead of clumping by kind.
+function whenDays(item) {
+  if (item.kind === 'reminder') return daysUntilDue(item.reminder.due_date) ?? 9999
+  return item.entry.daysUntil
+}
+
 // "Turns 36" / "Wedding anniversary · 9 years" / "Retirement party"
 function dateSub(entry) {
   if (entry.kind === 'birthday') return entry.turning ? `Turns ${entry.turning}` : 'Birthday'
@@ -94,6 +104,7 @@ export default function TodayView({
   onOpenHabit,
   onOpenNotes,
   onOpenNote,
+  onOpenReminders,
   household,
 }) {
   const {
@@ -157,7 +168,13 @@ export default function TodayView({
   const anytimeTasks = attention.filter((i) => i.kind === 'task' && i.urgency === 'anytime')
   const dueLists = attention.filter((i) => i.kind === 'list')
   const checkIns = attention.filter((i) => i.kind === 'nudge')
-  const dates = attention.filter((i) => i.kind === 'date')
+  // Dates read off contacts and reminders you wrote are one section, not two:
+  // "what's coming up" is a single question, and the difference between a
+  // birthday derived from a contact and a reminder you typed is ours, not
+  // yours. Sorted together so the soonest thing is the top row either way.
+  const dates = attention
+    .filter((i) => i.kind === 'date' || i.kind === 'reminder')
+    .sort((a, b) => whenDays(a) - whenDays(b))
 
   const toggleTask = (t) => {
     if (!t.completed_at) haptics.success()
@@ -465,9 +482,50 @@ export default function TodayView({
 
         {dates.length > 0 && (
           <section className="today-section">
-            <SectionLabel>Dates</SectionLabel>
+            {/* Was "Dates" — the section absorbed reminders rather than Today
+                growing a tenth one. Nine sections was already the most any
+                screen here carries. */}
+            <SectionLabel>Coming up</SectionLabel>
             <div className="list">
               {dates.map((item) => {
+                // A reminder you wrote: nothing to open, nothing to do, so the
+                // row's whole job is to say it and let you say "Got it".
+                if (item.kind === 'reminder') {
+                  const r = item.reminder
+                  return (
+                    <SwipeRow
+                      key={item.key}
+                      label={r.title}
+                      actions={[
+                        {
+                          label: 'Got it',
+                          icon: Check,
+                          onClick: () => completeTask(r, true),
+                        },
+                        later(item),
+                      ]}
+                      onClick={() => onOpenReminders?.()}
+                    >
+                      <div className="list-row">
+                        <span className="reminder-dot" aria-hidden="true">
+                          <Bell size={15} />
+                        </span>
+                        <div className="row-body">
+                          <div className="row-title">{r.title}</div>
+                          <div className="row-sub">{r.notes || 'Just a heads-up'}</div>
+                        </div>
+                        <div className="row-meta">
+                          <span className={`row-time ${item.urgency === 'today' ? 'warn' : ''}`}>
+                            {reminderWhen({
+                              daysUntil: whenDays(item),
+                              dateIso: r.due_date,
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    </SwipeRow>
+                  )
+                }
                 const entry = item.entry
                 const Icon = entry.kind === 'birthday' ? Gift : Calendar
                 return (

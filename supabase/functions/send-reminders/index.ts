@@ -2,7 +2,7 @@
 // deploys at Supabase go-live; untested against a live project until then).
 //
 // Invoked by pg_cron every 15 minutes (see the Phase 6 section of
-// supabase/schema.sql). Server-side port of src/lib/reminders.js: recomputes
+// supabase/schema.sql). Server-side port of src/lib/attention.js: recomputes
 // attention per member, applies prefs + snoozes, dedupes via
 // notification_log, and web-pushes to each member's devices.
 //
@@ -84,7 +84,7 @@ function fmtTime(t: string) {
   return m ? `${h12}:${String(m).padStart(2, '0')} ${ampm}` : `${h12} ${ampm}`
 }
 
-// ---- attention rules (server port of src/lib/reminders.js) -------------
+// ---- attention rules (server port of src/lib/attention.js) -------------
 function dueTasksToday(tasks: any[], memberId: string, today: string, time: string): Item[] {
   const nowMin = minutesOf(time)
   return (
@@ -93,7 +93,7 @@ function dueTasksToday(tasks: any[], memberId: string, today: string, time: stri
       // deferred tasks (start_date in the future) stay parked until their day
       .filter((t) => !t.start_date || t.start_date <= today)
       // Yours, or open to anyone. This matches assignedToMe() in
-      // src/lib/reminders.js, which the Today view and the badges now use too.
+      // src/lib/attention.js, which the Today view and the badges now use too.
       //
       // Deliberately NOT wired to the client's `todayScope` preference: setting
       // Today to "Everyone's" widens a dashboard you chose to look at, whereas

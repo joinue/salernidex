@@ -1,7 +1,7 @@
 // Anti-drift guard: runs the server port and the client original side by side
 // and asserts they pick the same deadlines.
 //
-// deadlines.ts is a hand port of the 'anytime' half of src/lib/reminders.js,
+// deadlines.ts is a hand port of the 'anytime' half of src/lib/attention.js,
 // because the Edge Function can't import the browser app's modules. Ports rot
 // silently, and this one shares a constant (ANYTIME_DAYS) with the client — if
 // somebody widens the in-app head start to ten days and the push still stops at
@@ -11,7 +11,7 @@
 // unaffected.
 
 import { describe, it, expect } from 'vitest'
-import { buildAttention, ANYTIME_DAYS as CLIENT_DAYS } from '../../../src/lib/reminders.js'
+import { buildAttention, ANYTIME_DAYS as CLIENT_DAYS } from '../../../src/lib/attention.js'
 import { isoDateIn } from '../../../src/lib/tasks.js'
 import { deadlinesAhead, isoPlusDays, ANYTIME_DAYS } from './deadlines.ts'
 
