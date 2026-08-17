@@ -167,6 +167,12 @@ drills into a list, so the options are always the topmost surface. A plain
 
 ## Testing
 
+- **Node 22+** (`.node-version`, `engines`). `push.test.js` and
+  `timezone.test.js` reach `lib/supabase.js`, which builds a client at import
+  time whenever a `.env` is present — and `@supabase/realtime-js` wants the
+  global `WebSocket` that landed in Node 22. Below that those two suites don't
+  fail, they fail to *load*, and `npm test` reports 54 of 56 green while eleven
+  tests silently never run. Installing `ws` is not a fix: nothing auto-loads it.
 - Vitest. `npm test`. Logic and utilities live in `src/lib/` with colocated
   `*.test.js`; primitives with real behavior have `*.test.jsx` beside them in
   `components/ui/`.
