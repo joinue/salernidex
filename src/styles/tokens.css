@@ -70,7 +70,6 @@
   --z-sticky: 10; /* sticky search bars, letter heads */
   --z-dock: 30; /* in-page docked composers */
   --z-chrome: 40; /* tab bar */
-  --z-fab: 41;
   --z-popover: 50; /* title menus, info popovers, dropdowns */
   --z-overlay: 60; /* modals, sheets */
   --z-toast: 70;
@@ -78,7 +77,7 @@
 
   /* Floating mobile chrome. These are the source of truth for both the chrome
      itself and the padding content needs to clear it — see --content-bottom.
-     Never hardcode a bottom offset against the tab bar or the FAB. */
+     Never hardcode a bottom offset against the bar. */
   --safe-b: env(safe-area-inset-bottom, 0px);
   --tabbar-h: 58px;
   /* Gap between the pill and the screen edge. The home-indicator inset IS the
@@ -86,19 +85,15 @@
      to do) leaves the pill floating visibly high. 16px is the fallback for the
      no-inset case: Safari with its toolbar showing, Android, desktop. */
   --tabbar-inset: max(16px, var(--safe-b));
-  --fab-size: 54px;
-  --fab-gap: 12px; /* gap between the pill and the FAB */
   /* Top edge of the tab pill, measured from the viewport bottom. */
   --chrome-bottom: calc(var(--tabbar-inset) + var(--tabbar-h));
-  --fab-bottom: calc(var(--chrome-bottom) + var(--fab-gap));
-  /* What a scroll container must reserve so its last row clears the FAB. */
-  --content-bottom: calc(var(--fab-bottom) + var(--fab-size) + 20px);
-  /* Where transient chrome (the toast pill) parks: clear of the FAB's top edge,
-     not level with it. A toast is centered and can grow to the full gutter
-     width, so "beside the FAB" is only true for the shortest messages — at
-     ~20 characters the pill starts cutting through the button. Derived, because
-     the literal this replaced (98px) put every longer toast straight over it. */
-  --toast-bottom: calc(var(--fab-bottom) + var(--fab-size) + 12px);
+  /* What a scroll container must reserve so its last row clears the bar. Both
+     of these used to be measured from the floating FAB, which was the tallest
+     thing down here; the create button lives inside the pill now, so the pill
+     is the whole of the bottom chrome and these shrink by a FAB's height. */
+  --content-bottom: calc(var(--chrome-bottom) + 20px);
+  /* Where transient chrome (the toast pill) parks. */
+  --toast-bottom: calc(var(--chrome-bottom) + 12px);
 
   /* Top chrome. The height of the sticky bar `NavBar` paints, measured from the
      scrollport's top edge (the bar's own top padding cancels .main's, so this

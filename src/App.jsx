@@ -73,7 +73,7 @@ import RelationshipForm from './features/people/RelationshipForm'
 import ReminderForm from './features/reminders/ReminderForm'
 import { EMPTY_PEOPLE_FILTERS } from './lib/search'
 import { isEditableTarget } from './lib/keys'
-import { DETAIL_ROUTES, KNOWN_ROUTES, NO_FAB_ROUTES, NO_TABBAR_ROUTES } from './lib/nav'
+import { DETAIL_ROUTES, KNOWN_ROUTES } from './lib/nav'
 import EmptyState from './components/ui/EmptyState'
 
 // Routing and the chrome's shape both come from lib/nav.js — see the comment at
@@ -911,13 +911,12 @@ function Shell({ session, onLogout, household }) {
 
       {isMobile && (
         <MobileNav
+          route={route.name}
           active={activeNav}
           adds={adds}
           badge={badge}
-          scrollRef={mainRef}
-          hideFab={NO_FAB_ROUTES.includes(route.name)}
-          hideTabs={NO_TABBAR_ROUTES.includes(route.name)}
-          forceMenu={DETAIL_ROUTES.includes(route.name) && route.name !== 'list'}
+          counts={navCounts}
+          onLogout={requestLogout}
         />
       )}
 

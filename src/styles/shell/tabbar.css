@@ -56,38 +56,31 @@
   opacity: 0.5;
 }
 
-/* Floating action button — page-aware ➕, sits above the floating tab pill.
-   It's fixed, so at any scroll offset it covers a 54px square of whatever row
-   is under it. Scrolling down therefore tucks it away (see useHideOnScroll);
-   it comes back the moment you stop or scroll up, which is how iOS handles the
-   same collision. */
-.fab {
-  position: fixed;
-  right: 18px;
-  bottom: var(--fab-bottom);
-  z-index: var(--z-fab);
+/* The create button, in the bar's middle slot — this was the floating FAB.
+   Floating, it was fixed over the content and covered a 54px square of whatever
+   row sat under it, so it had to hide itself on scroll and come back when you
+   stopped. In the pill it never overlaps anything, so all of that goes away.
+
+   It keeps the FAB's weight (filled accent circle) because it is still the
+   page's primary action; it just no longer competes with the page for space.
+   Sized to overflow the pill's height slightly, the way a center action button
+   reads on iOS — hence the negative margin rather than a taller bar. */
+.bar-action {
+  flex: 0 0 auto;
+  align-self: center;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--fab-size);
-  height: var(--fab-size);
+  width: 46px;
+  height: 46px;
+  margin: 0 4px;
   border-radius: 50%;
   background: var(--accent);
   color: #fff;
-  box-shadow: 0 6px 20px rgba(0, 122, 255, 0.42);
-  transition:
-    transform var(--dur-3) var(--ease-ios),
-    opacity var(--dur-2) ease;
+  box-shadow: 0 4px 14px rgba(0, 122, 255, 0.38);
+  transition: transform var(--dur-2) var(--ease-ios);
 }
 
-.fab:active {
+.bar-action:active {
   transform: scale(0.92);
-}
-
-.fab.tucked {
-  opacity: 0;
-  pointer-events: none;
-  /* Slide it past the tab pill rather than fading in place, so it reads as
-     "put away" instead of "broken". */
-  transform: translateY(calc(var(--fab-size) + var(--fab-gap) + var(--tabbar-h)));
 }

@@ -195,8 +195,8 @@ for (const deviceName of VIEWPORTS) {
   // forms are reached through each view's own "New …" button. Asking only for
   // the FAB would skip every form at precisely the widths this sweep exists to
   // cover — and would do it by crashing, which is at least honest.
-  if (await page.locator('.fab').count()) {
-    await page.click('.fab')
+  if (await page.locator('.bar-action').count()) {
+    await page.click('.bar-action')
     await page.waitForTimeout(500)
     const names = await page.$$eval('.sheet-item', (els) => els.map((e) => e.textContent.trim()))
     // Escape rather than a tap at fixed coordinates: the sheet is bottom-anchored
@@ -211,8 +211,8 @@ for (const deviceName of VIEWPORTS) {
       await page.goto(`${BASE}/#/`)
       await page.reload({ waitUntil: 'networkidle' })
       await demoIn()
-      await page.waitForSelector('.fab', { timeout: 10000 }).catch(() => {})
-      await page.click('.fab')
+      await page.waitForSelector('.bar-action', { timeout: 10000 }).catch(() => {})
+      await page.click('.bar-action')
       await page.waitForTimeout(400)
       const item = page.locator('.sheet-item').nth(i)
       if (!(await item.count())) continue

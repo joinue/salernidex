@@ -32,7 +32,8 @@ const ROUTES = [
 ]
 // Chrome that floats over content, and is therefore allowed to overlap only
 // non-interactive things.
-const CHROME = ['.tabbar', '.fab', '.list-add-dock']
+// (.bar-action lives inside .tabbar now — the FAB that used to float here is gone.)
+const CHROME = ['.tabbar', '.list-add-dock']
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true })
 const ctx = await browser.newContext({ ...devices['iPhone 14 Pro'] })
@@ -173,8 +174,6 @@ const settleAtBottom = async () => {
     window.scrollTo({ top: document.scrollingElement.scrollHeight, behavior: 'instant' })
   })
   await page.waitForTimeout(400)
-  await page.evaluate(() => document.querySelector('.fab')?.classList.remove('tucked'))
-  await page.waitForTimeout(300)
 }
 
 for (const r of ROUTES) {

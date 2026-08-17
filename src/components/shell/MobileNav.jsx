@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import {
   Bell,
-  Home,
-  User as PeopleIcon,
   CheckSquare,
   Folder,
   List,
   Plus,
+  Menu,
   Activity,
   Share2,
   Briefcase,
@@ -15,24 +14,42 @@ import {
   FileText,
 } from 'react-feather'
 import Sheet from '../ui/Sheet'
+import NavSheet from './NavSheet'
 import { useLongPress } from '../../hooks/useLongPress'
-import { useHideOnScroll } from '../../hooks/useHideOnScroll'
 import { useKeyboardOpen } from '../../hooks/useKeyboardOpen'
+import { ACTION, MENU, INSIGHTS, DESTINATIONS, barFor } from '../../lib/nav'
+import NAV_ICONS from './navIcons'
 
-// Bottom bar: Today · People · Habits · Tasks · Lists, with a floating ➕ above
-// the pill. The FAB is page-aware — a tap creates the obvious thing for the
-// current tab; a long-press opens the full add menu so you can cross-create
-// from anywhere. (The ➕ used to sit in the bar's center, but adding Habits
-// needed that slot, so it floats now.)
-export default function MobileNav({
-  active,
-  adds,
-  badge = 0,
-  hideFab = false,
-  hideTabs = false,
-  forceMenu = false,
-  scrollRef,
-}) {
+// The bottom bar, five slots on every page:
+//
+//   [ Today ] [ sibling ] [ ＋ ] [ neighbour ] [ ☰ ]
+//
+// It is a toolbar, not a tab bar, and the difference matters. A tab bar tells you
+// where you are; this offers where you'd go next *from here*, so its contents
+// change per page (see BAR in lib/nav.js). What doesn't change is position: slots
+// 1, 3 and 5 are fixed, and the two that vary hold any given destination in the
+// same slot everywhere it appears — Lists is always the fourth thing. Without
+// that rule you'd have to read the bar before every tap, which is most of what
+// the old fixed bar was buying.
+//
+// Slot 1 is Today even on Today, where it marks where you are rather than
+// linking anywhere: it keeps the row from having a hole in it, and it's the one
+// honest "you are here" a contextual bar can offer.
+//
+// The ＋ replaces the floating FAB. Being fixed, the FAB sat on top of whatever
+// row was under it and had to tuck itself away on scroll to compensate; in the
+// bar that problem doesn't exist. A tap still creates the obvious thing for this
+// page and a long-press still opens the full menu, so cross-creating survives.
+//
+// Pages that deliberately have no bar (detail screens, Settings, the legal
+// pages) render nothing at all — see BARLESS_ROUTES.
+const DEST_BY_ID = new Map(DESTINATIONS.map((d) => [d.id, d]))
+
+// habit-insights holds a slot without being a menu destination: you reach it
+// from Habits, not from the drawer.
+const INSIGHTS_ENTRY = { id: INSIGHTS, label: 'Insights', icon: 'BarChart2' }
+
+export default function MobileNav({ route, active, adds, badge = 0, counts = {}, onLogout }) {
   const {
     go,
     onAddPerson,
@@ -47,52 +64,86 @@ export default function MobileNav({
     onAddRelationship,
   } = adds
   const [sheet, setSheet] = useState(false)
-  // Both pieces of chrome stand down while the keyboard is up: it covers the
-  // bottom of the screen anyway, and on iOS a fixed element left behind it
-  // drifts across the page as Safari pans (see useKeyboardOpen). Standing down
-  // also hands the freed height to whatever composer you're typing into — the
-  // same thing iOS does natively.
+  const [menu, setMenu] = useState(false)
+  // The bar stands down while the software keyboard is up: it covers the bottom
+  // of the screen anyway, and on iOS a fixed element left behind it drifts across
+  // the page as Safari pans (see useKeyboardOpen). Standing down also hands the
+  // freed height to whatever composer you're typing into.
   const keyboardOpen = useKeyboardOpen()
-  // Tuck the FAB while scrolling down — it's fixed, so otherwise it sits on top
-  // of whatever row happens to be under it. Never while the add sheet is open.
-  const tucked = useHideOnScroll(scrollRef, !hideFab && !sheet) || keyboardOpen
   const close = () => setSheet(false)
   const pick = (fn) => () => {
     close()
     fn()
   }
 
-  // tap → the primary create for this tab; ambiguous tabs open the menu
+  const slots = barFor(route)
+
+  // What ＋ makes here. Today is the one page with no single obvious answer — it's
+  // the whole household at a glance — so there it opens the menu of everything,
+  // which is what the FAB did on Today before.
   const primary = {
-    people: onAddPerson,
     tasks: onAddTask,
     projects: onAddProject,
     reminders: onAddReminder,
     notes: onAddNote,
     lists: onAddList,
     habits: onAddHabit,
+    people: onAddPerson,
     orgs: onAddOrg,
     groups: onAddGroup,
     relationships: onAddRelationship,
-  }[active]
-  // On an entity detail page the tab's "primary" create would make a sibling
-  // (another person while viewing one), so fall back to the cross-create menu —
-  // the FAB stays a quick-capture button without the misleading default.
-  const onFab = () => (primary && !forceMenu ? primary() : setSheet(true))
+  }[route]
+  const onAdd = () => (primary ? primary() : setSheet(true))
   const longPress = useLongPress(() => setSheet(true))
 
-  const Tab = ({ id, icon: Icon, text, count = 0 }) => {
-    const current = active === id
+  if (!slots) return null
+
+  const slot = (id, i) => {
+    if (id === ACTION) {
+      return (
+        <button
+          key="action"
+          className="bar-action"
+          onClick={onAdd}
+          aria-label={primary ? 'Add' : 'Add something'}
+          {...longPress}
+        >
+          <Plus size={24} aria-hidden="true" />
+        </button>
+      )
+    }
+    if (id === MENU) {
+      return (
+        <button
+          key="menu"
+          className="tab"
+          onClick={() => setMenu(true)}
+          aria-label="All destinations"
+          aria-haspopup="dialog"
+        >
+          <Menu size={22} aria-hidden="true" />
+          <span>More</span>
+        </button>
+      )
+    }
+    const d = id === INSIGHTS ? INSIGHTS_ENTRY : DEST_BY_ID.get(id)
+    // Can't happen while nav.test.js passes — it asserts every slot names a real
+    // destination — but a hole is better than a crash if it ever does.
+    if (!d) return <span key={`gap-${i}`} className="tab" aria-hidden="true" />
+    const Icon = NAV_ICONS[d.icon]
+    const current = id === route
+    const count = d.badge ? badge : 0
     return (
       <button
+        key={d.id}
         className={`tab ${current ? 'active' : ''}`}
-        // aria-current is what tells a screen reader which destination it's on;
-        // the blue tint alone says nothing.
+        // Only ever true of slot 1 on Today. Everywhere else these are onward
+        // links, not a claim about where you are.
         aria-current={current ? 'page' : undefined}
-        onClick={() => go(id === 'today' ? '' : id)}
+        onClick={() => go(d.id === 'today' ? '' : d.id)}
       >
         <Icon size={22} aria-hidden="true" />
-        <span>{text}</span>
+        <span>{d.label}</span>
         {count > 0 && (
           <span className="tab-badge" aria-label={`${count} needing attention`}>
             {count}
@@ -104,40 +155,28 @@ export default function MobileNav({
 
   return (
     <>
-      {/* The list detail screen hides the FAB outright — its add-item dock owns
-          creation. Other detail pages keep it (see forceMenu above) so global
-          quick-capture stays one tap away. */}
-      {!hideFab && (
-        <button
-          className={`fab ${tucked ? 'tucked' : ''}`}
-          onClick={onFab}
-          aria-label="Add"
-          aria-hidden={tucked || undefined}
-          tabIndex={tucked ? -1 : undefined}
-          {...longPress}
-        >
-          <Plus size={26} aria-hidden="true" />
-        </button>
-      )}
+      <nav
+        className={`tabbar ${keyboardOpen ? 'tucked' : ''}`}
+        // "Main" would overclaim: this is the way onward from this page, and the
+        // complete list of destinations lives behind ☰.
+        aria-label="Page navigation"
+        // Hidden chrome must leave the a11y tree and the focus order too, or an
+        // iPad hardware keyboard tabs into five invisible destinations. `inert`
+        // does both; React 18 needs it as an empty string rather than a bool.
+        inert={keyboardOpen ? '' : undefined}
+      >
+        {slots.map(slot)}
+      </nav>
 
-      {/* An immersive screen (the note composer) drops the bar outright rather
-          than tucking it: `tucked` is a temporary stand-down that comes back on
-          its own, and there's nothing here to come back for. */}
-      {!hideTabs && (
-        <nav
-          className={`tabbar ${keyboardOpen ? 'tucked' : ''}`}
-          aria-label="Main"
-          // Hidden chrome must leave the a11y tree and the focus order too, or an
-          // iPad hardware keyboard tabs into five invisible destinations. `inert`
-          // does both; React 18 needs it as an empty string rather than a bool.
-          inert={keyboardOpen ? '' : undefined}
-        >
-          <Tab id="today" icon={Home} text="Today" count={badge} />
-          <Tab id="people" icon={PeopleIcon} text="People" />
-          <Tab id="habits" icon={Activity} text="Habits" />
-          <Tab id="tasks" icon={CheckSquare} text="Tasks" />
-          <Tab id="lists" icon={List} text="Lists" />
-        </nav>
+      {menu && (
+        <NavSheet
+          active={active}
+          go={go}
+          badge={badge}
+          counts={counts}
+          onLogout={onLogout}
+          onClose={() => setMenu(false)}
+        />
       )}
 
       {sheet && (
@@ -151,14 +190,14 @@ export default function MobileNav({
           <button className="sheet-item" onClick={pick(onAddProject)}>
             <Folder size={20} /> Project
           </button>
+          <button className="sheet-item" onClick={pick(onAddReminder)}>
+            <Bell size={20} /> Reminder
+          </button>
           <button className="sheet-item" onClick={pick(onAddNote)}>
             <FileText size={20} /> Note
           </button>
           <button className="sheet-item" onClick={pick(onAddList)}>
             <List size={20} /> List
-          </button>
-          <button className="sheet-item" onClick={pick(onAddReminder)}>
-            <Bell size={20} /> Reminder
           </button>
           <button className="sheet-item" onClick={pick(onAddHabit)}>
             <Activity size={20} /> Habit

@@ -138,15 +138,11 @@ export const DETAIL_ROUTES = [
   'terms',
 ]
 
-// Screens where a floating ➕ would be noise: either they have their own docked
-// composer (List detail), or "add" means nothing here (Settings, Activity,
-// Import, the legal pages). A quick-capture button that creates something
-// unrelated to what you're looking at isn't a shortcut, it's a trap.
-export const NO_FAB_ROUTES = ['list', 'note', 'settings', 'activity', 'import', 'privacy', 'terms']
-
-// Screens that hide the bottom bar as well. An open note is a full-screen
-// composer, not a destination you browse from.
-export const NO_TABBAR_ROUTES = ['note']
+// NO_FAB_ROUTES and NO_TABBAR_ROUTES used to live here. Both are gone, and
+// their absence is the point: the create button moved into the bar's middle
+// slot, so "has a bar" and "has a create" became the same question, and
+// BARLESS_ROUTES answers it once. Two lists that had to agree with a third are
+// two lists that can disagree.
 
 // Stale bookmarks / typo'd hashes land on Today, not a blank screen.
 export const KNOWN_ROUTES = [

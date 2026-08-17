@@ -152,23 +152,33 @@
   padding: 6px 12px 10px;
 }
 
-/* Pushed to the foot of the panel by the margin, not by position: fixed — it
-   scrolls with a menu long enough to need it, and rests at the bottom of one
-   that doesn't. */
+/* Sticky, not merely last. The whole reason this button exists is to be under
+   the thumb that opened the drawer — and twelve destinations plus the theme
+   switch overflow a phone, so `margin-top: auto` alone left it below the fold
+   and reachable only by scrolling first. Sticky keeps it parked at the foot of
+   the panel whatever the list is doing behind it.
+
+   The negative bottom margin cancels the panel's own bottom padding so the
+   button reaches the true edge; the matching padding on the button puts the safe
+   area back inside it, where it belongs on a device with a home indicator. */
 .sheet-close {
+  position: sticky;
+  bottom: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   width: 100%;
   min-height: 48px;
-  margin-top: auto;
-  padding: 0 12px;
+  margin: auto 0 calc(-1 * (10px + env(safe-area-inset-bottom))) 0;
+  padding: 0 12px calc(env(safe-area-inset-bottom));
   background: var(--fill);
   color: var(--text-2);
   border-radius: 12px;
   font-size: 15px;
   font-weight: 600;
+  /* Rows scrolling underneath must not show through it. */
+  box-shadow: 0 -8px 12px -6px var(--surface);
 }
 
 .sheet-close:active {
@@ -182,4 +192,36 @@
   to {
     transform: translateX(0);
   }
+}
+
+/* A group heading inside the nav drawer, mirroring the sidebar's .nav-group. */
+.sheet-group {
+  padding: 12px 12px 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+/* The label takes the slack so counts and the current-page tick sit at the
+   right edge, however long the destination's name is. */
+.sheet-item-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.sheet-item.current {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.sheet-item.current svg {
+  color: var(--accent);
+}
+
+/* The theme switch isn't a destination, so it sits below the divider with the
+   same inset as the rows rather than pretending to be one. */
+.sheet-theme {
+  padding: 4px 12px 6px;
 }

@@ -68,7 +68,7 @@ try {
   console.log('mobile tabs:', tabs.join(' · '))
   // Cross-create sheet: the floating ➕ is the one add affordance on mobile
   // (the header's duplicate ➕ is desktop-only now).
-  await m.locator('.fab').click()
+  await m.locator('.bar-action').click()
   await m.waitForSelector('.sheet-item')
   const more = await m.$$eval('.sheet-item', (els) => els.map((e) => e.textContent.trim()))
   console.log('Add sheet:', more.join(' | '))

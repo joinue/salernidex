@@ -8,8 +8,6 @@ import {
   INSIGHTS,
   KNOWN_ROUTES,
   MENU,
-  NO_FAB_ROUTES,
-  NO_TABBAR_ROUTES,
   barFor,
   destinationGroups,
 } from './nav'
@@ -133,12 +131,17 @@ describe('icons', () => {
 
 describe('route lists', () => {
   it('only names known routes', () => {
-    for (const list of [DETAIL_ROUTES, NO_FAB_ROUTES, NO_TABBAR_ROUTES, BARLESS_ROUTES]) {
+    for (const list of [DETAIL_ROUTES, BARLESS_ROUTES]) {
       for (const route of list) expect(KNOWN_ROUTES).toContain(route)
     }
   })
 
-  it('hides the bar wherever it hides the tabs', () => {
-    for (const route of NO_TABBAR_ROUTES) expect(BARLESS_ROUTES).toContain(route)
+  // A barless page has no create either, since the create lives in the bar. So
+  // every one of them needs its own way out — a NavBar back, or its own button.
+  // Nothing here may be a top-level browsing screen.
+  it('never leaves a barless page without a route out', () => {
+    for (const route of BARLESS_ROUTES) {
+      expect(BAR, `${route} has both a bar and an exemption`).not.toHaveProperty(route)
+    }
   })
 })

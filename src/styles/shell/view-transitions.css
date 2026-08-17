@@ -20,12 +20,7 @@
   view-transition-name: tabbar;
 }
 
-.fab {
-  view-transition-name: fab;
-}
-
-::view-transition-group(tabbar),
-::view-transition-group(fab) {
+::view-transition-group(tabbar) {
   animation: none;
 }
 
