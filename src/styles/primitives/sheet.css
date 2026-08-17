@@ -120,3 +120,66 @@
     transform: translateY(0);
   }
 }
+
+/* ---------- the right-hand drawer (<Sheet side="right">) ---------- */
+
+/* Same overlay, rotated a quarter turn: the panel packs to the right edge and
+   takes the full height instead of the full width. */
+.sheet-overlay.side-right {
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: stretch;
+}
+
+.sheet.side-right {
+  width: min(310px, 84vw);
+  max-height: none;
+  /* Its own scroller, and the close button parks at the bottom of it — so the
+     panel is a column, not the plain block a bottom sheet is. */
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px 0 0 16px;
+  padding: calc(8px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom));
+  animation: drawer-in 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  /* Vertical panning belongs to the browser here; Sheet.jsx picks the sideways
+     drag out itself by requiring the gesture to be more horizontal than
+     vertical. A blanket touch-action:none would make a tall menu unscrollable. */
+  touch-action: pan-y;
+  overflow-y: auto;
+}
+
+.sheet.side-right .sheet-title {
+  padding: 6px 12px 10px;
+}
+
+/* Pushed to the foot of the panel by the margin, not by position: fixed — it
+   scrolls with a menu long enough to need it, and rests at the bottom of one
+   that doesn't. */
+.sheet-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  margin-top: auto;
+  padding: 0 12px;
+  background: var(--fill);
+  color: var(--text-2);
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.sheet-close:active {
+  background: var(--fill-2);
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}

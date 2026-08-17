@@ -71,76 +71,18 @@ import HabitForm from './features/habits/HabitForm'
 import RelationshipForm from './features/people/RelationshipForm'
 import { EMPTY_PEOPLE_FILTERS } from './lib/search'
 import { isEditableTarget } from './lib/keys'
+import { DETAIL_ROUTES, KNOWN_ROUTES, NO_FAB_ROUTES, NO_TABBAR_ROUTES } from './lib/nav'
 import EmptyState from './components/ui/EmptyState'
 
-// Hash routing: #/ (today), #/activity, #/people, #/person/<id>, #/tasks,
-// #/task/<id>, #/project/<id>, #/lists, #/list/<id>, #/orgs, #/org/<id>,
-// #/groups, #/group/<id>, #/relationships, #/import. Quick Find can append an
-// id to the Tasks page (#/tasks/<id>) to land with that row expanded; #/task/
-// <id> is the singular — that one task on a page of its own.
+// Routing and the chrome's shape both come from lib/nav.js — see the comment at
+// the top of it for why they stopped living here.
 function parseHash() {
   const [name, id] = window.location.hash.replace(/^#\/?/, '').split('/')
   return { name: name || 'today', id }
 }
 
-// Detail pages get iOS-style edge-swipe back (mobile). Module-scoped so the
-// array identity is stable across renders.
-const DETAIL_ROUTES = [
-  'person',
-  'org',
-  'group',
-  'task',
-  'project',
-  'list',
-  'note',
-  'habit',
-  'habit-insights',
-  'activity',
-  'settings',
-  'privacy',
-  'terms',
-]
-// Screens where a floating ➕ would be noise: either they have their own docked
-// composer (List detail), or "add" means nothing here (Settings, Activity,
-// Import, the legal pages). A quick-capture button that creates something
-// unrelated to what you're looking at isn't a shortcut, it's a trap.
-const NO_FAB_ROUTES = ['list', 'note', 'settings', 'activity', 'import', 'privacy', 'terms']
-// Screens that hide the bottom bar as well. An open note is a full-screen
-// composer, not a destination you browse from: the ➕ there would create a
-// person or a task on top of the sentence you're writing, and five tab
-// destinations sit under your thumb for the whole time you're typing. Back is
-// the way out, the way it is in Notes itself. (The pair already stood down
-// while the keyboard was up — this is the other 50% of the time.)
-const NO_TABBAR_ROUTES = ['note']
-// Stale bookmarks / typo'd hashes land on Today, not a blank screen.
-const KNOWN_ROUTES = [
-  'today',
-  'board',
-  'activity',
-  'tasks',
-  'task',
-  'projects',
-  'project',
-  'lists',
-  'list',
-  'notes',
-  'note',
-  'people',
-  'person',
-  'orgs',
-  'org',
-  'groups',
-  'group',
-  'relationships',
-  'habits',
-  'habit',
-  'habit-insights',
-  'import',
-  'settings',
-  'privacy',
-  'terms',
-  ...(import.meta.env.DEV ? ['kitchen-sink'] : []),
-]
+// Dev-only, so it can't sit in the shared table: the kitchen sink's route.
+const ROUTES = [...KNOWN_ROUTES, ...(import.meta.env.DEV ? ['kitchen-sink'] : [])]
 
 // The "Network" hub: People and the three views that are really groupings of
 // people. On mobile these collapse behind the People title dropdown instead of
@@ -281,6 +223,9 @@ function HouseholdGate({ session, onLogout }) {
 function Shell({ session, onLogout, household }) {
   const data = useData(session)
   const [route, setRoute] = useState(parseHash)
+  // Set by go() just before it changes the hash; consumed by the hashchange
+  // handler, which is the first moment the new history entry exists to stamp.
+  const pushedByUs = useRef(false)
   const [query, setQuery] = useState('') // lifted so Back returns to the same results
   // People-page filters, lifted for the same reason: leaving and coming back
   // keeps the applied filter (resets on full reload, like the search query).
@@ -313,6 +258,19 @@ function Shell({ session, onLogout, household }) {
     // (flushSync so the new view is painted inside the transition frame).
     // Reduced-motion users and other browsers get the plain instant swap.
     const onHash = () => {
+      // Mark the entry we just pushed as ours (see `go` below). Stamped here
+      // rather than in `go` because the entry doesn't exist yet at that point,
+      // and only when the change came from us — the browser walking its own
+      // history fires this too, and stamping then would relabel the entry the
+      // user originally arrived on.
+      if (pushedByUs.current) {
+        pushedByUs.current = false
+        try {
+          window.history.replaceState({ ...(window.history.state || {}), appNav: true }, '')
+        } catch {
+          /* Safari's replaceState rate limit — Back just falls back to an index */
+        }
+      }
       const apply = () => setRoute(parseHash())
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       // document.hidden: a hidden tab gets no animation frames, so a started
@@ -335,8 +293,22 @@ function Shell({ session, onLogout, household }) {
   }, [route.name, route.id])
 
   const go = (path) => {
+    // Only when the hash will actually change: assigning the same value pushes
+    // nothing and fires nothing, and the flag would then be sitting armed for
+    // whichever browser-driven navigation came next.
+    if (window.location.hash !== '#/' + path) pushedByUs.current = true
     window.location.hash = '/' + path
   }
+
+  // Is the entry under us one of ours to pop? `history.state` rides along with
+  // its entry, so this stays right through browser back/forward — unlike
+  // `history.length > 1`, which is what these call sites used to ask. That
+  // number counts the whole tab's history, so following a link into the app and
+  // pressing Back sent you back out of it, and every "deep link falls to the
+  // index" fallback was dead code that never ran.
+  const canPopOurs = () => !!window.history.state?.appNav
+  const goBack = (fallback) => (canPopOurs() ? window.history.back() : go(fallback))
+  const backTo = (fallback) => () => goBack(fallback)
   // Title-dropdown config for the People hub (people/groups/orgs/network).
   // Mobile only — desktop keeps these broken out in the sidebar.
   const hubNav = (active) =>
@@ -366,10 +338,12 @@ function Shell({ session, onLogout, household }) {
   }
 
   // iOS-style edge-swipe back on detail pages (mobile only).
-  useEdgeBack(mainRef, isMobile && DETAIL_ROUTES.includes(route.name), () => window.history.back())
+  useEdgeBack(mainRef, isMobile && DETAIL_ROUTES.includes(route.name), () => goBack('today'))
 
   useEffect(() => {
-    if (!KNOWN_ROUTES.includes(route.name)) window.location.hash = '/'
+    // ROUTES, not KNOWN_ROUTES: #/kitchen-sink is real in dev and would
+    // otherwise bounce straight to Today.
+    if (!ROUTES.includes(route.name)) window.location.hash = '/'
   }, [route.name])
 
   // Window/tab title follows the page (history + tab switcher readability).
@@ -613,12 +587,7 @@ function Shell({ session, onLogout, household }) {
   // it returns above the layout rather than rendering inside it. Still inside
   // Shell because it reads the same `data` everything else does.
   if (route.name === 'board') {
-    return (
-      <BoardView
-        data={data}
-        onExit={() => (window.history.length > 1 ? window.history.back() : go('today'))}
-      />
-    )
+    return <BoardView data={data} onExit={() => goBack('today')} />
   }
 
   return (
@@ -701,7 +670,7 @@ function Shell({ session, onLogout, household }) {
                 // Reached from the Tasks list, Quick Find, or a bookmark, so
                 // back means where you came from. Deep-linked with no history
                 // → the Tasks list.
-                onBack={() => (window.history.length > 1 ? window.history.back() : go('tasks'))}
+                onBack={backTo('tasks')}
                 onEdit={(t) => setEditingTask(t)}
                 onOpenNote={openNote}
               />
@@ -721,7 +690,7 @@ function Shell({ session, onLogout, household }) {
               <ProjectDetail
                 data={data}
                 taskId={route.id}
-                onBack={() => window.history.back()}
+                onBack={backTo('projects')}
                 onEdit={(t) => setEditingTask(t)}
                 onOpenPerson={openPerson}
                 onOpenOrg={openOrg}
@@ -749,7 +718,7 @@ function Shell({ session, onLogout, household }) {
                 // pushed this route, so it can't loop (unlike re-pushing a fixed
                 // hash, which stacks duplicates that the OS back button then
                 // walks through). Deep-linked with no history → fall to Lists.
-                onBack={() => (window.history.length > 1 ? window.history.back() : go('lists'))}
+                onBack={backTo('lists')}
                 onEdit={(l) => setEditingList(l)}
                 onOpenNote={openNote}
                 onOpenProject={openProject}
@@ -772,10 +741,8 @@ function Shell({ session, onLogout, household }) {
                 sort={appPrefs.notesSort}
                 onSort={(v) => setAppPrefs(meId, { notesSort: v })}
                 onSearch={isMobile ? () => setQuickFind(true) : undefined}
-                onCloseNote={() =>
-                  window.history.length > 1 ? window.history.back() : go('notes')
-                }
-                onBack={() => (window.history.length > 1 ? window.history.back() : go('today'))}
+                onCloseNote={() => goBack('notes')}
+                onBack={backTo('today')}
               />
             )}
             {route.name === 'people' && (
@@ -802,7 +769,7 @@ function Shell({ session, onLogout, household }) {
                 onOpenOrg={openOrg}
                 onOpenTask={openTask}
                 onOpenNote={openNote}
-                onBack={() => window.history.back()}
+                onBack={backTo('people')}
                 onEdit={(p) => setEditingPerson(p)}
                 onConnect={(p) => setRelationshipFrom(p)}
                 isDemo={isDemo}
@@ -826,7 +793,7 @@ function Shell({ session, onLogout, household }) {
                 // Seeds the add-person form with this org, so an empty
                 // organization offers the thing that fills it.
                 onAddPerson={(o) => setEditingPerson({ organization_id: o.id })}
-                onBack={() => window.history.back()}
+                onBack={backTo('orgs')}
                 onEdit={(o) => setEditingOrg(o)}
                 isDemo={isDemo}
               />
@@ -846,7 +813,7 @@ function Shell({ session, onLogout, household }) {
                 onOpenPerson={openPerson}
                 onOpenTask={openTask}
                 onOpenNote={openNote}
-                onBack={() => window.history.back()}
+                onBack={backTo('groups')}
                 onEdit={(g) => setEditingGroup(g)}
                 isDemo={isDemo}
               />
@@ -883,7 +850,7 @@ function Shell({ session, onLogout, household }) {
                 // Quick Find, so "back" has to mean where you came from — a
                 // fixed hop to the Habits index would strand you somewhere you
                 // never were. Deep-linked with no history → Habits.
-                onBack={() => (window.history.length > 1 ? window.history.back() : go('habits'))}
+                onBack={backTo('habits')}
                 onEdit={(h) => setEditingHabit(h)}
                 onOpenNote={openNote}
               />
@@ -900,11 +867,7 @@ function Shell({ session, onLogout, household }) {
                 isDemo={!!(demoMode || session?.demo)}
                 onLogout={requestLogout}
                 session={session}
-                onBack={
-                  isMobile
-                    ? () => (window.history.length > 1 ? window.history.back() : go('today'))
-                    : undefined
-                }
+                onBack={isMobile ? backTo('today') : undefined}
               />
             )}
             {route.name === 'kitchen-sink' && KitchenSink && (
@@ -913,10 +876,7 @@ function Shell({ session, onLogout, household }) {
               </Suspense>
             )}
             {(route.name === 'privacy' || route.name === 'terms') && (
-              <LegalView
-                doc={route.name}
-                onBack={() => (window.history.length > 1 ? window.history.back() : go('today'))}
-              />
+              <LegalView doc={route.name} onBack={backTo('today')} />
             )}
           </div>
         </PullToRefresh>

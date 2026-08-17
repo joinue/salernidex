@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { X } from 'react-feather'
 import { useScrollLock } from '../../hooks/useScrollLock'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { useVisualViewport } from '../../hooks/useVisualViewport'
@@ -13,10 +14,24 @@ import haptics from '../../lib/haptics'
 // dragging inside a scrolled list still scrolls. Release past a distance or
 // velocity threshold to dismiss, else it springs back; tapping the backdrop
 // also dismisses. (The editing Modal has its own mobile drag handling.)
+//
+// `side="right"` makes it a full-height drawer instead — the nav menu, opened
+// from ☰ in the bottom bar's last slot. Same sheet, one axis over: it slides in
+// from the right and you flick it back out the way it came.
+//
+// Right, not left, for two reasons. The button that opens it is at the bottom
+// right, and a panel should come from the edge its control sits on. And the LEFT
+// edge already belongs to useEdgeBack — a left drawer opened by an edge swipe
+// would be fighting the back gesture for the same pixels.
+//
+// The drawer also carries an explicit close button, parked at the bottom right
+// where the thumb that opened it already is. A grip at the top of a full-height
+// panel is the one place a thumb can't reach.
 const DISMISS_PX = 110 // travel before a release dismisses
-const DISMISS_VY = 0.5 // …or a downward flick this fast (px/ms)
+const DISMISS_V = 0.5 // …or a flick this fast, away from the anchored edge (px/ms)
 
-export default function Sheet({ title, onClose, children }) {
+export default function Sheet({ title, onClose, children, side = 'bottom' }) {
+  const drawer = side === 'right'
   const sheetRef = useRef(null)
   const drag = useRef(null)
   const backdropDown = useRef(false)
@@ -54,11 +69,17 @@ export default function Sheet({ title, onClose, children }) {
     return () => window.removeEventListener('resize', measure)
   }, [children])
 
+  // Travel along the sheet's own axis: down for a bottom sheet, right for the
+  // drawer. Everything below is written once in terms of "away from the edge
+  // it's anchored to".
+  const along = (e) => (drawer ? e.clientX : e.clientY)
+  const span = () => (drawer ? window.innerWidth : window.innerHeight)
+
   const dismiss = () => {
     if (closing) return
     setClosing(true)
     haptics.light()
-    setY(window.innerHeight)
+    setY(span())
     setTimeout(onClose, 220)
   }
 
@@ -70,10 +91,11 @@ export default function Sheet({ title, onClose, children }) {
     // sheet down and past 110px throws the note away.
     if (e.target.closest?.(DRAG_EXEMPT_SELECTOR)) return
     drag.current = {
-      y0: e.clientY,
-      lastY: e.clientY,
+      p0: along(e),
+      cross0: drawer ? e.clientY : e.clientX,
+      last: along(e),
       lastT: e.timeStamp,
-      vy: 0,
+      v: 0,
       active: false,
       pointerId: e.pointerId,
     }
@@ -82,11 +104,17 @@ export default function Sheet({ title, onClose, children }) {
   const onPointerMove = (e) => {
     const d = drag.current
     if (!d || d.pointerId !== e.pointerId) return
-    const dy = e.clientY - d.y0
+    const dp = along(e) - d.p0
     if (!d.active) {
-      // Engage only on a downward pull that begins at the top of the sheet's
-      // scroll — otherwise it's a normal scroll, so leave it to the browser.
-      if (dy > DRAG_SLOP_PX && (sheetRef.current?.scrollTop ?? 0) <= 0) {
+      // A drawer scrolls vertically, so the thing that must not be hijacked is
+      // the scroll, not the drag: engage only once the gesture is clearly more
+      // sideways than up-down. A bottom sheet has the mirror problem and uses
+      // the scroll position instead — a downward pull that starts mid-list is
+      // someone scrolling back to the top.
+      const crossed = drawer
+        ? dp > DRAG_SLOP_PX && dp > Math.abs(e.clientY - d.cross0)
+        : dp > DRAG_SLOP_PX && (sheetRef.current?.scrollTop ?? 0) <= 0
+      if (crossed) {
         d.active = true
         setDragging(true)
         try {
@@ -99,10 +127,10 @@ export default function Sheet({ title, onClose, children }) {
       }
     }
     const dt = e.timeStamp - d.lastT || 16
-    d.vy = (e.clientY - d.lastY) / dt
-    d.lastY = e.clientY
+    d.v = (along(e) - d.last) / dt
+    d.last = along(e)
     d.lastT = e.timeStamp
-    setY(Math.max(0, dy))
+    setY(Math.max(0, dp))
   }
 
   const onPointerUp = (e) => {
@@ -113,8 +141,8 @@ export default function Sheet({ title, onClose, children }) {
     setDragging(false)
     // A pull that lands on a tappable row mustn't also fire its click.
     swallowNextClick()
-    const dy = e.clientY - d.y0
-    if (dy > DISMISS_PX || d.vy > DISMISS_VY) dismiss()
+    const dp = along(e) - d.p0
+    if (dp > DISMISS_PX || d.v > DISMISS_V) dismiss()
     else setY(0)
   }
 
@@ -123,10 +151,10 @@ export default function Sheet({ title, onClose, children }) {
   // behind the bottom tab bar.
   return createPortal(
     <div
-      className="sheet-overlay"
+      className={`sheet-overlay ${drawer ? 'side-right' : ''}`}
       style={{
         ...(viewport || {}),
-        background: `rgba(0, 0, 0, ${0.4 * Math.max(0, 1 - y / (window.innerHeight * 0.6))})`,
+        background: `rgba(0, 0, 0, ${0.4 * Math.max(0, 1 - y / (span() * 0.6))})`,
       }}
       // Dismiss on tap *release*, not on touch-down: a press that turns into a
       // drag shouldn't close the sheet out from under the finger. One pointer
@@ -141,12 +169,12 @@ export default function Sheet({ title, onClose, children }) {
     >
       <div
         ref={sheetRef}
-        className={`sheet ${scrollable ? 'scrollable' : ''}`}
+        className={`sheet ${scrollable ? 'scrollable' : ''} ${drawer ? 'side-right' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
         style={{
-          transform: `translateY(${y}px)`,
+          transform: drawer ? `translateX(${y}px)` : `translateY(${y}px)`,
           transition: dragging ? 'none' : 'transform 260ms cubic-bezier(0.32,0.72,0,1)',
         }}
         onPointerDown={onPointerDown}
@@ -154,11 +182,25 @@ export default function Sheet({ title, onClose, children }) {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        <div className="sheet-grip">
-          <div className="sheet-handle" />
-          {title && <div className="sheet-title">{title}</div>}
-        </div>
+        {drawer ? (
+          title && <div className="sheet-title">{title}</div>
+        ) : (
+          <div className="sheet-grip">
+            <div className="sheet-handle" />
+            {title && <div className="sheet-title">{title}</div>}
+          </div>
+        )}
         {children}
+        {/* Last child, and pinned to the foot of the panel by CSS: it has to be
+            reachable by the thumb that opened the drawer, and it has to be the
+            last thing in the tab order rather than the first thing a screen
+            reader meets. */}
+        {drawer && (
+          <button className="sheet-close" onClick={dismiss}>
+            <X size={18} aria-hidden="true" />
+            Close menu
+          </button>
+        )}
       </div>
     </div>,
     document.body,

@@ -29,6 +29,7 @@ export default function KitchenSink() {
   const [seg, setSeg] = useState('a')
   const [count, setCount] = useState(3)
   const [sheet, setSheet] = useState(false)
+  const [drawer, setDrawer] = useState(false)
   const [tier, setTier] = useState('')
   const [modal, setModal] = useState(false)
   const confirm = useConfirm()
@@ -198,6 +199,9 @@ export default function KitchenSink() {
           <Button variant="pill" onClick={() => setSheet(true)}>
             Sheet
           </Button>
+          <Button variant="pill" onClick={() => setDrawer(true)}>
+            Sheet side=right
+          </Button>
           <Button variant="pill" onClick={() => setModal(true)}>
             Modal
           </Button>
@@ -233,6 +237,20 @@ export default function KitchenSink() {
           </button>
           <button className="sheet-item danger" onClick={() => setSheet(false)}>
             <Trash2 size={20} /> A destructive item
+          </button>
+        </Sheet>
+      )}
+
+      {/* The drawer variant, which the mobile nav menu is built on: full height
+          against the right edge, flick right to dismiss, and its own Close at
+          the foot where the thumb that opened it already is. */}
+      {drawer && (
+        <Sheet side="right" title="A drawer" onClose={() => setDrawer(false)}>
+          <button className="sheet-item" onClick={() => setDrawer(false)}>
+            <Star size={20} /> A destination
+          </button>
+          <button className="sheet-item" onClick={() => setDrawer(false)}>
+            <Star size={20} /> Another one
           </button>
         </Sheet>
       )}

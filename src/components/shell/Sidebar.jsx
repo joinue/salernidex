@@ -1,25 +1,10 @@
-import { useEffect, useState } from 'react'
-import {
-  Home,
-  User as PeopleIcon,
-  CheckSquare,
-  Folder,
-  List,
-  Activity,
-  FileText,
-  Briefcase,
-  Users,
-  Share2,
-  DownloadCloud,
-  Settings,
-  LogOut,
-  Search,
-  ChevronsLeft,
-  ChevronsRight,
-} from 'react-feather'
+import { Fragment, useEffect, useState } from 'react'
+import { LogOut, Search, ChevronsLeft, ChevronsRight } from 'react-feather'
 import ThemeToggle from '../ui/ThemeToggle'
 import Wordmark from '../ui/Wordmark'
 import { isEditableTarget } from '../../lib/keys'
+import { destinationGroups } from '../../lib/nav'
+import NAV_ICONS from './navIcons'
 
 const isMac = /Mac/.test(navigator.platform)
 const COLLAPSE_KEY = 'salernidex-sidebar-collapsed'
@@ -97,22 +82,30 @@ export default function Sidebar({ active, go, onSearch, onLogout, badge = 0, cou
         <span className="nav-kbd">{isMac ? '⌘K' : 'Ctrl K'}</span>
       </button>
 
-      <Item id="today" icon={Home} text="Today" count={badge} />
-      <Item id="tasks" icon={CheckSquare} text="Tasks" count={counts.tasks} quiet />
-      <Item id="projects" icon={Folder} text="Projects" count={counts.projects} quiet />
-      <Item id="lists" icon={List} text="Lists" count={counts.lists} quiet />
-      <Item id="habits" icon={Activity} text="Habits" />
-      <Item id="notes" icon={FileText} text="Notes" />
-
-      <div className="nav-group">Contacts</div>
-      <Item id="people" icon={PeopleIcon} text="People" />
-      <Item id="relationships" icon={Share2} text="Relationships" />
-      <Item id="orgs" icon={Briefcase} text="Organizations" />
-      <Item id="groups" icon={Users} text="Groups" />
-
-      <div className="nav-group">System</div>
-      <Item id="import" icon={DownloadCloud} text="Import / Export" />
-      <Item id="settings" icon={Settings} text="Settings" />
+      {/* Destinations come from lib/nav.js, which the mobile drawer reads too —
+          they were two hand-maintained lists, and that is how Notes ended up
+          with a sidebar entry and no route into it on a phone. A destination
+          still pending its route stays out of both. */}
+      {/* Fragments, not wrappers: `.sidebar` is a flex column and these buttons
+          are its direct children — nesting them a level down would hand the
+          spacing to normal flow. */}
+      {destinationGroups().map((group) => (
+        <Fragment key={group.label || 'main'}>
+          {group.label && <div className="nav-group">{group.label}</div>}
+          {group.items
+            .filter((d) => !d.pending)
+            .map((d) => (
+              <Item
+                key={d.id}
+                id={d.id}
+                icon={NAV_ICONS[d.icon]}
+                text={d.label}
+                count={d.badge ? badge : counts[d.count] || 0}
+                quiet={!d.badge}
+              />
+            ))}
+        </Fragment>
+      ))}
 
       <div className="spacer" />
       <ThemeToggle />
