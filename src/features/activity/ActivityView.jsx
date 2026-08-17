@@ -28,6 +28,7 @@ export default function ActivityView({
   onOpenList,
   onOpenTasks,
   onOpenHabit,
+  onOpenChange,
 }) {
   const [filter, setFilter] = useState('all')
   const [actionPerson, setActionPerson] = useState(null)
@@ -64,6 +65,7 @@ export default function ActivityView({
                   onOpenList={onOpenList}
                   onOpenTasks={onOpenTasks}
                   onOpenHabit={onOpenHabit}
+                  onOpenChange={onOpenChange}
                   onPersonLongPress={setActionPerson}
                 />
               ))}

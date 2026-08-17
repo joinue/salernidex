@@ -644,3 +644,17 @@ a.value-row {
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
 }
+
+/* The activity feed's "made or edited" marker. Quieter than .feed-check: a
+   completion is an achievement, a change is just news. */
+.feed-change {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--text-2);
+}

@@ -103,7 +103,9 @@ export default function TodayView({
   onOpenNotes,
   onOpenNote,
   onOpenReminders,
+  onOpenChange,
   household,
+  area,
 }) {
   const {
     addInteraction,
@@ -140,6 +142,11 @@ export default function TodayView({
         taskScope,
         // Legacy 'me'/'partner'/'either' assignees only resolve through here.
         normalizeAssignee,
+        // The lens. Today is the sharpest version of the problem areas exist to
+        // solve — a work task with a date landing on the dashboard on a Saturday
+        // morning — so this is the one that matters most. The badge deliberately
+        // does NOT get it; see buildAttention's own note.
+        areaId: area,
       }),
     // Granular deps on purpose: `data` is a fresh object every render; these are
     // the fields buildAttention actually reads.
@@ -156,6 +163,7 @@ export default function TodayView({
       prefs,
       memberId,
       taskScope,
+      area,
       now,
     ],
   )
@@ -592,6 +600,7 @@ export default function TodayView({
                     onOpenList={onOpenList}
                     onOpenTasks={onOpenTasks}
                     onOpenHabit={onOpenHabit}
+                    onOpenChange={onOpenChange}
                     onPersonLongPress={setActionPerson}
                   />
                 ))}

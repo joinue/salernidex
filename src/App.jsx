@@ -13,7 +13,7 @@ import { useEdgeBack } from './hooks/useEdgeBack'
 import { currentMemberId, clearHousehold, memberName, normalizeAssignee } from './lib/household'
 import { clearSnapshots } from './lib/offlineCache'
 import { taskTags, isProject } from './lib/tasks'
-import { visibleAreas } from './lib/areas'
+import { areaCounts, areaForNewItem, resolveAreaId, visibleAreas } from './lib/areas'
 import { isOpenItem } from './lib/listKinds'
 import { setAppPrefs } from './lib/appPrefs'
 import { buildProjectRows } from './lib/projectTemplates'
@@ -77,7 +77,8 @@ import RelationshipForm from './features/people/RelationshipForm'
 import ReminderForm from './features/reminders/ReminderForm'
 import { EMPTY_PEOPLE_FILTERS } from './lib/search'
 import { isEditableTarget } from './lib/keys'
-import { DETAIL_ROUTES, KNOWN_ROUTES } from './lib/nav'
+import { AREA_SCOPED_ROUTES, DETAIL_ROUTES, KNOWN_ROUTES } from './lib/nav'
+import AreaSwitcher from './components/shell/AreaSwitcher'
 import EmptyState from './components/ui/EmptyState'
 
 // Routing and the chrome's shape both come from lib/nav.js — see the comment at
@@ -262,6 +263,21 @@ function Shell({ session, onLogout, household }) {
   const meId = isDemo ? currentMemberId() : household?.memberId
   const [appPrefs] = useAppPrefs(meId)
 
+  // The area lens, resolved once here so every scoped view reads the same
+  // answer. resolveAreaId guards a stale selection — the lens persists across
+  // launches, so the area it names can be deleted, archived or un-shared by a
+  // co-member while you're away, and a filter pointing at a missing row would
+  // show an empty app with no explanation.
+  const areaId = resolveAreaId(data.areas, appPrefs.area, data.userId)
+  const setArea = (v) => setAppPrefs(meId, { area: v })
+  // Open work per area, for the switcher's quiet counts. Tasks only: it's the
+  // number you'd act on, and summing five entity types would make "Home 43"
+  // mean nothing in particular.
+  const areaCountsByOpenTask = useMemo(
+    () => areaCounts(data.tasks.filter((t) => !t.completed_at && !t.parent_id)),
+    [data.tasks],
+  )
+
   useEffect(() => {
     // Route changes cross-fade via the View Transitions API where available
     // (flushSync so the new view is painted inside the transition frame).
@@ -399,7 +415,11 @@ function Shell({ session, onLogout, household }) {
   // into the editor — Apple Notes-style, no intermediate form. `fields` lets the
   // notebook seed it (with the tag you're filtered to, so the note you just made
   // doesn't fall straight out of the list you're looking at).
-  const createNote = (fields) => openNote(data.addNote(fields || {}))
+  // area_id from the active lens, so a note written while scoped to Work is a
+  // Work note without being asked. An explicit area in `fields` still wins —
+  // a note created from inside a project inherits the project's.
+  const createNote = (fields) =>
+    openNote(data.addNote({ area_id: areaForNewItem(areaId), ...(fields || {}) }))
   const openProject = (id) => go(`project/${id}`)
   // A plain task's own page, opened from the ⤢ on its row in the Tasks list.
   // Distinct from openTask below, which is the "follow a link to this task"
@@ -595,6 +615,24 @@ function Shell({ session, onLogout, household }) {
     onLogout: requestLogout,
   }
 
+  // Where a "made or edited" row in the activity feed takes you: to the thing
+  // itself. One router rather than five props threaded into both feeds.
+  const openChange = (e) => {
+    // A collapsed burst has no single thing to open, so it goes to the index.
+    if (!e.id) {
+      return go(
+        { note: 'notes', list: 'lists', project: 'projects', reminder: 'reminders' }[e.entity] ||
+          'tasks',
+      )
+    }
+    if (e.entity === 'note') return openNote(e.id)
+    if (e.entity === 'list') return openList(e.id)
+    if (e.entity === 'project') return openProject(e.id)
+    if (e.entity === 'reminder') return go('reminders')
+    const t = data.tasks.find((x) => x.id === e.id)
+    return t ? openTask(t) : go('tasks')
+  }
+
   const adds = {
     go,
     onAddPerson: () => setEditingPerson('new'),
@@ -629,6 +667,17 @@ function Shell({ session, onLogout, household }) {
             onSearch={() => setQuickFind(true)}
             badge={badge}
             counts={navCounts}
+            areaSwitcher={
+              <AreaSwitcher
+                variant="rail"
+                areas={data.areas}
+                userId={data.userId}
+                value={areaId}
+                onChange={setArea}
+                counts={areaCountsByOpenTask}
+                onManage={() => go('areas')}
+              />
+            }
           />
         )}
         <main className="main" ref={mainRef}>
@@ -650,10 +699,27 @@ function Shell({ session, onLogout, household }) {
                 </p>
               )}
               {data.error && <p className="error-text">{data.error}</p>}
+              {/* The lens, on a phone. Charged once here rather than at the top
+                  of seven routes — and it deliberately does NOT render on the
+                  contacts pages or any detail screen, because the lens doesn't
+                  scope those (AREA_SCOPED_ROUTES). Desktop gets the same control
+                  in the sidebar instead. */}
+              {isMobile && AREA_SCOPED_ROUTES.includes(route.name) && (
+                <AreaSwitcher
+                  variant="bar"
+                  areas={data.areas}
+                  userId={data.userId}
+                  value={areaId}
+                  onChange={setArea}
+                  counts={areaCountsByOpenTask}
+                  onManage={() => go('areas')}
+                />
+              )}
               {route.name === 'today' && (
                 <TodayView
                   data={data}
                   taskScope={appPrefs.todayScope}
+                  area={areaId}
                   household={household}
                   onOpenPerson={openPerson}
                   onOpenList={openList}
@@ -665,6 +731,7 @@ function Shell({ session, onLogout, household }) {
                   onOpenHabit={openHabit}
                   onOpenNotes={() => go('notes')}
                   onOpenReminders={() => go('reminders')}
+                  onOpenChange={openChange}
                   onOpenNote={openNote}
                 />
               )}
@@ -676,6 +743,7 @@ function Shell({ session, onLogout, household }) {
                   onOpenList={openList}
                   onOpenTasks={() => go('tasks')}
                   onOpenHabit={openHabit}
+                  onOpenChange={openChange}
                 />
               )}
               {route.name === 'tasks' && (
@@ -690,11 +758,10 @@ function Shell({ session, onLogout, household }) {
                   defaultFilter={appPrefs.taskFilter}
                   defaultShowCompleted={appPrefs.showCompleted}
                   defaultPrivacy={appPrefs.taskPrivacy}
-                  // The lens lives in appPrefs so it survives a cold launch, and
-                  // it's owned here rather than by the page because phase 2 puts
-                  // the same value behind a switcher in the shell.
-                  area={appPrefs.area}
-                  onAreaChange={(v) => setAppPrefs(meId, { area: v })}
+                  // Read-only: the switcher in the shell sets it, so every
+                  // scoped page narrows from one pick. Already resolved against
+                  // a stale selection above.
+                  area={areaId}
                 />
               )}
               {route.name === 'task' && (
@@ -718,6 +785,7 @@ function Shell({ session, onLogout, household }) {
                   onSearch={isMobile ? () => setQuickFind(true) : undefined}
                   hub={workNav('reminders')}
                   onNavigate={go}
+                  area={areaId}
                 />
               )}
               {route.name === 'projects' && (
@@ -727,6 +795,7 @@ function Shell({ session, onLogout, household }) {
                   onAdd={() => openProjectPicker()}
                   onSearch={isMobile ? () => setQuickFind(true) : undefined}
                   hub={workNav('projects')}
+                  area={areaId}
                   sort={appPrefs.projectsSort}
                   onSort={(v) => setAppPrefs(meId, { projectsSort: v })}
                 />
@@ -749,6 +818,7 @@ function Shell({ session, onLogout, household }) {
                 <ListsView
                   data={data}
                   onOpenList={openList}
+                  area={areaId}
                   onEditList={(l) => setEditingList(l)}
                   onAdd={() => setEditingList('new')}
                   onSearch={isMobile ? () => setQuickFind(true) : undefined}
@@ -783,6 +853,7 @@ function Shell({ session, onLogout, household }) {
                   onOpenNote={openNote}
                   onAdd={createNote}
                   onOpenMention={openMention}
+                  area={areaId}
                   sort={appPrefs.notesSort}
                   onSort={(v) => setAppPrefs(meId, { notesSort: v })}
                   onSearch={isMobile ? () => setQuickFind(true) : undefined}
@@ -1074,6 +1145,8 @@ function Shell({ session, onLogout, household }) {
             onSave={data.saveList}
             onClose={() => setEditingList(null)}
             defaultPrivacy={appPrefs.listPrivacy}
+            areas={visibleAreas(data.areas, data.userId)}
+            defaultAreaId={areaForNewItem(areaId)}
           />
         )}
         {editingReminder && (
