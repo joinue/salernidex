@@ -191,15 +191,23 @@ export default function Sheet({ title, onClose, children, side = 'bottom' }) {
           </div>
         )}
         {children}
-        {/* Last child, and pinned to the foot of the panel by CSS: it has to be
-            reachable by the thumb that opened the drawer, and it has to be the
-            last thing in the tab order rather than the first thing a screen
-            reader meets. */}
+        {/* A footer band, not a floating button. It has to stay under the thumb
+            that opened the drawer, which means sticking to the bottom of a
+            panel whose list scrolls — and a translucent pill doing that let the
+            rows pass underneath it. When the row in question is a red Logout,
+            half-visible behind the button you're reaching for, "did I just
+            press that?" is a fair question to have. So the band is opaque and
+            content ends at its edge.
+
+            Last in the DOM as well as in the layout: it's the final tab stop,
+            not the first thing a screen reader meets. */}
         {drawer && (
-          <button className="sheet-close" onClick={dismiss}>
-            <X size={18} aria-hidden="true" />
-            Close menu
-          </button>
+          <div className="sheet-foot">
+            <button className="sheet-close" onClick={dismiss}>
+              <X size={18} aria-hidden="true" />
+              Close menu
+            </button>
+          </div>
         )}
       </div>
     </div>,

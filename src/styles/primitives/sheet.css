@@ -152,33 +152,40 @@
   padding: 6px 12px 10px;
 }
 
-/* Sticky, not merely last. The whole reason this button exists is to be under
-   the thumb that opened the drawer — and twelve destinations plus the theme
-   switch overflow a phone, so `margin-top: auto` alone left it below the fold
-   and reachable only by scrolling first. Sticky keeps it parked at the foot of
-   the panel whatever the list is doing behind it.
+/* The drawer's footer. Sticky, because the button's whole purpose is to be
+   under the thumb that opened the drawer, and twelve destinations plus the theme
+   switch overflow a phone — at the end of the flow it sat below the fold.
 
-   The negative bottom margin cancels the panel's own bottom padding so the
-   button reaches the true edge; the matching padding on the button puts the safe
-   area back inside it, where it belongs on a device with a home indicator. */
-.sheet-close {
+   Opaque, because the first version was a translucent pill with a soft shadow
+   and the list showed through it. The last row of that list is a red Logout, so
+   what you saw was a destructive action half-hidden behind the button you were
+   reaching for. A soft mask isn't good enough there; the content has to stop.
+
+   Full-bleed: the negative side margins cancel the panel's padding so the band
+   reaches all three edges, and the bottom pair does the same for the safe area,
+   putting it back as padding *inside* the band where a home indicator wants it. */
+.sheet-foot {
   position: sticky;
-  bottom: 0;
+  bottom: calc(-1 * (10px + env(safe-area-inset-bottom)));
+  margin: auto -10px calc(-1 * (10px + env(safe-area-inset-bottom)));
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-top: 0.5px solid var(--separator);
+}
+
+.sheet-close {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   width: 100%;
   min-height: 48px;
-  margin: auto 0 calc(-1 * (10px + env(safe-area-inset-bottom))) 0;
-  padding: 0 12px calc(env(safe-area-inset-bottom));
+  padding: 0 12px;
   background: var(--fill);
   color: var(--text-2);
   border-radius: 12px;
   font-size: 15px;
   font-weight: 600;
-  /* Rows scrolling underneath must not show through it. */
-  box-shadow: 0 -8px 12px -6px var(--surface);
 }
 
 .sheet-close:active {
