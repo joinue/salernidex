@@ -56,7 +56,7 @@ const DEFAULT_PREFS = {
 }
 
 type Item = {
-  kind: 'task' | 'list' | 'nudge' | 'date' | 'habit'
+  kind: 'task' | 'list' | 'nudge' | 'date' | 'habit' | 'reminder'
   targetKey: string
   title: string
   body: string
@@ -90,6 +90,11 @@ function dueTasksToday(tasks: any[], memberId: string, today: string, time: stri
   return (
     tasks
       .filter((t) => !t.parent_id && !t.completed_at && t.due_date && t.due_date <= today)
+      // Reminders live in this table too (0039) and are NOT tasks. Left in, they
+      // pushed as one: titled "Overdue" — for a thing that was never late and
+      // had nothing to do — and deep-linked to /#/tasks, a page they don't
+      // appear on. See reminderPings() below.
+      .filter((t) => !t.is_reminder)
       // deferred tasks (start_date in the future) stay parked until their day
       .filter((t) => !t.start_date || t.start_date <= today)
       // Yours, or open to anyone. This matches assignedToMe() in
@@ -116,6 +121,36 @@ function dueTasksToday(tasks: any[], memberId: string, today: string, time: stri
       })
       .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))
   ) // highest-priority leads the digest
+}
+
+// Reminders (0039): a date you asked to be told about, with nothing to do.
+//
+// The copy carries no urgency verb — no "Overdue", no "Due today" — because
+// nothing here can be late. What it says is the reminder, and when it was for.
+// The link goes to the Reminders page, where the thing actually is.
+//
+// Gated on prefs.dates, matching buildAttention: a reminder is date-shaped, not
+// work-shaped. (Arguably it deserves a toggle of its own — see the note in
+// docs/next-steps.md — but the client and the server must agree above all, and
+// today they agree on this one.)
+function reminderPings(tasks: any[], memberId: string, today: string): Item[] {
+  return tasks
+    .filter((t) => t.is_reminder && !t.completed_at && t.due_date && t.due_date <= today)
+    .filter((t) => !t.assignee || t.assignee === 'anyone' || t.assignee === memberId)
+    .map((t) => ({
+      kind: 'reminder' as const,
+      // Matches the client's key exactly, or dismissing one in the app wouldn't
+      // silence its push.
+      targetKey: `reminder:${t.id}`,
+      title: t.title,
+      body:
+        t.due_date < today
+          ? 'A heads-up you have not marked as seen'
+          : t.due_time
+            ? `Today · ${fmtTime(t.due_time)}`
+            : 'Today',
+      url: '/#/reminders',
+    }))
 }
 
 // A list with a due_date + reminder fires at its own reminder_time (±7 min of a
@@ -459,6 +494,7 @@ Deno.serve(async (req) => {
       ...(prefs.tasks ? dueTasksToday(tasks, member.id, today, time) : []),
       ...(prefs.nudges ? checkIns(people, interactions, member.id) : []),
       ...(prefs.dates ? dateReminders(people, keyDates, today, prefs.dates_lead_days ?? 7) : []),
+      ...(prefs.dates ? reminderPings(tasks, member.id, today) : []),
     ].filter((i) => !hidden.has(i.targetKey))
 
     // Deadlines with days still on the clock. Kept out of `items` on purpose:

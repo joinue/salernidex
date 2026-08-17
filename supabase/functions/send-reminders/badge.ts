@@ -17,6 +17,7 @@
 //
 // The rule, straight from badgeCount: only what is actionable *now*.
 //   • tasks due today or overdue
+//   • reminders dated today or earlier and not yet acknowledged
 //   • lists whose due date has arrived or passed
 //   • birthdays and key dates falling today
 // Deliberately excluded, because a count that never reaches zero stops being
@@ -75,6 +76,12 @@ export function badgeCount(
     const byId = new Map(tasks.map((t: any) => [t.id, t]))
     for (const t of tasks) {
       if (t.completed_at || t.is_heading || t.is_project) continue
+      // Reminders share this table (0039) and are counted below, under dates —
+      // where the client counts them. Left in here they'd be counted as tasks,
+      // which is the wrong pref gate and, worse, the wrong snooze key: the app
+      // writes `reminder:<id>` when you dismiss one, so a `task:<id>` check
+      // never sees it and a dismissed reminder keeps badging the home screen.
+      if (t.is_reminder) continue
       // A project's dated step counts; loose subtasks of a plain task are
       // checklist detail and never reach Today.
       const parent = t.parent_id ? byId.get(t.parent_id) : null
@@ -103,6 +110,17 @@ export function badgeCount(
   // Day-of only. A birthday a week out is a heads-up in the app ('upcoming'),
   // never part of the count.
   if (prefs.dates) {
+    // Reminders you wrote, alongside the dates read off contacts — the same
+    // grouping buildAttention uses. Overdue counts too: nothing is late (there
+    // was never anything to do), but an unacknowledged one still wants saying.
+    for (const t of tasks) {
+      if (!t.is_reminder || t.completed_at || !t.due_date) continue
+      if (t.due_date > today) continue
+      if (!assignedToMe(t, null, memberId)) continue
+      if (hidden.has(`reminder:${t.id}`)) continue
+      n++
+    }
+
     const td = monthDay(today)
     const alive = new Map(people.filter((p: any) => !p.deleted_at).map((p: any) => [p.id, p]))
     for (const p of alive.values()) {

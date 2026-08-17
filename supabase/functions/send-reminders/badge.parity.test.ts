@@ -14,7 +14,18 @@ import { isoDateIn } from '../../../src/lib/tasks.js'
 import { badgeCount } from './badge.ts'
 
 const PREFS = { tasks: true, lists: true, nudges: true, dates: true, dates_lead_days: 7 }
-const base = { people: [], tasks: [], interactions: [], keyDates: [], lists: [] }
+const base = { people: [], tasks: [], reminders: [], interactions: [], keyDates: [], lists: [] }
+
+const reminder = (over: Record<string, unknown> = {}) => ({
+  id: 'r',
+  title: 'Bins go out',
+  assignee: 'anyone',
+  is_reminder: true,
+  due_kind: 'on',
+  parent_id: null,
+  completed_at: null,
+  ...over,
+})
 
 const task = (over: Record<string, unknown> = {}) => ({
   id: 't',
@@ -31,12 +42,17 @@ const task = (over: Record<string, unknown> = {}) => ({
 // "today", so fixtures are built relative to it.
 const both = (data: Record<string, any>, prefs = PREFS, snoozes: any[] = []) => {
   const full = { ...base, ...data }
+  // The shape difference that matters: useData hands the client `tasks` and
+  // `reminders` already separated, while the Edge Function selects one table and
+  // gets both kinds of row in `tasks`. Feeding each side its real shape is the
+  // whole point — pass reminders to the server inside tasks, as Postgres would.
+  const serverTasks = [...(full.tasks || []), ...(full.reminders || [])]
   const today = isoDateIn(0)
   const hidden = new Set(snoozes.filter((s) => s.until === null).map((s) => s.target_key))
   return {
     client: clientBadge(buildAttention(full, prefs, snoozes, 'm1')),
     server: badgeCount(
-      { tasks: full.tasks, lists: full.lists, people: full.people, keyDates: full.keyDates },
+      { tasks: serverTasks, lists: full.lists, people: full.people, keyDates: full.keyDates },
       'm1',
       today,
       prefs,
@@ -286,5 +302,50 @@ describe('parity with the client attention engine', () => {
       'habit:h2',
     ])
     expect(items.filter((i) => i.kind === 'habit').every((i) => i.urgency === 'soft')).toBe(true)
+  })
+})
+
+// Reminders (0039) share the tasks table, which is exactly why they need pinning
+// here: before this, the server counted them in the tasks block while the client
+// counted them under dates, so the two agreed on the number by luck and
+// disagreed on everything else.
+describe('badgeCount — reminders', () => {
+  it('counts one dated today, once, on both sides', () => {
+    agree({ reminders: [reminder({ due_date: isoDateIn(0) })] }, 1)
+  })
+
+  it('counts an unacknowledged one from the past — nothing is late, but it still wants saying', () => {
+    agree({ reminders: [reminder({ due_date: isoDateIn(-2) })] }, 1)
+  })
+
+  it('drops it once acknowledged, and never counts one still ahead', () => {
+    agree(
+      {
+        reminders: [
+          reminder({ id: 'done', due_date: isoDateIn(0), completed_at: '2026-01-01T00:00:00Z' }),
+          reminder({ id: 'later', due_date: isoDateIn(3) }),
+        ],
+      },
+      0,
+    )
+  })
+
+  // The bug this whole port exists to fix. The app writes `reminder:<id>` when
+  // you dismiss one; the server used to look for `task:<id>`, so a dismissed
+  // reminder kept badging the home screen and kept pushing.
+  it('goes quiet on both sides when you dismiss it', () => {
+    agree({ reminders: [reminder({ id: 'r1', due_date: isoDateIn(0) })] }, 0, PREFS, [
+      { target_key: 'reminder:r1', until: null, member_id: 'm1' },
+    ])
+  })
+
+  it('rides the dates toggle, not the tasks one', () => {
+    const data = { reminders: [reminder({ due_date: isoDateIn(0) })] }
+    agree(data, 1, { ...PREFS, tasks: false })
+    agree(data, 0, { ...PREFS, dates: false })
+  })
+
+  it('stays out of the count when it belongs to someone else', () => {
+    agree({ reminders: [reminder({ due_date: isoDateIn(0), assignee: 'm2' })] }, 0)
   })
 })
