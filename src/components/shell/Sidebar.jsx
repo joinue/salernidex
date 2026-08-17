@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
-import { LogOut, Search, ChevronsLeft, ChevronsRight } from 'react-feather'
-import ThemeToggle from '../ui/ThemeToggle'
+import { Search, ChevronsLeft, ChevronsRight } from 'react-feather'
 import Wordmark from '../ui/Wordmark'
 import { isEditableTarget } from '../../lib/keys'
 import { destinationGroups } from '../../lib/nav'
@@ -18,7 +17,7 @@ const COLLAPSE_KEY = 'salernidex-sidebar-collapsed'
 // red attention badge rides the icon, and every button keeps its title tooltip
 // so the destination is still nameable. The choice sticks per device
 // (localStorage) and toggles with ⌘B / Ctrl+B.
-export default function Sidebar({ active, go, onSearch, onLogout, badge = 0, counts = {} }) {
+export default function Sidebar({ active, go, onSearch, badge = 0, counts = {} }) {
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem(COLLAPSE_KEY) === '1'
@@ -107,9 +106,11 @@ export default function Sidebar({ active, go, onSearch, onLogout, badge = 0, cou
         </Fragment>
       ))}
 
+      {/* The theme switch and Logout used to end this list. They're in the
+          account menu now, top right — one home for account actions on both
+          form factors, rather than a sidebar foot and a drawer foot that have to
+          agree with each other. */}
       <div className="spacer" />
-      <ThemeToggle />
-      <Item id="logout" icon={LogOut} text="Logout" onClick={onLogout} />
     </nav>
   )
 }

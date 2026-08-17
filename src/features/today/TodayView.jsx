@@ -5,7 +5,6 @@ import {
   Calendar,
   ChevronRight,
   Sun,
-  Settings,
   FileText,
   MessageCircle,
   Clock,
@@ -84,7 +83,7 @@ function dateSub(entry) {
 // Warm, human phrasing — this is staying close to people, not working a
 // pipeline. Never "overdue", never "cadence".
 function checkInSub(item) {
-  if (item.state === 'never') return 'No catch-ups logged yet — say hi'
+  if (item.state === 'never') return 'No catch-ups logged yet · say hi'
   return `It's been a while · last catch-up ${relativeTime(item.lastIso)}`
 }
 
@@ -98,7 +97,6 @@ export default function TodayView({
   onOpenTasks,
   onOpenProject,
   onOpenActivity,
-  onSettings,
   onSearch,
   onOpenHabits,
   onOpenHabit,
@@ -240,18 +238,21 @@ export default function TodayView({
 
   return (
     <div>
+      {/* One trailing button, not three. Settings moved into the account menu
+          the avatar opens (it's account business, not a place your household's
+          things live), and with the avatar arriving on the right this header had
+          a gear, a notes icon, an avatar — and a greeting wrapping onto two
+          lines to make room for them. Notes stays: it's the one destination
+          Today's bottom bar has no slot for. */}
       <PageHeader
         title={greeting()}
         subtitle={longDate()}
-        action={onSettings}
-        actionIcon={Settings}
-        actionLabel="Settings"
-        // Both trailing buttons here are destinations, not this page's primary
-        // action — that's the FAB. Neither should wear the accent circle.
+        action={onOpenNotes}
+        actionIcon={FileText}
+        actionLabel="Notes"
+        // A destination, not this page's primary action — so it doesn't wear the
+        // accent circle.
         actionQuiet
-        secondaryAction={onOpenNotes}
-        secondaryActionIcon={FileText}
-        secondaryActionLabel="Notes"
       />
 
       {/* iOS-style search bar under the large title — opens Quick Find.

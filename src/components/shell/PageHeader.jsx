@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { Plus, Search, ChevronDown, Check, Info } from 'react-feather'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import IconButton from '../ui/IconButton'
+import AccountMenu from './AccountMenu'
+import { useAccount } from './accountContext'
 
 // iOS-style large title with up to two trailing round action buttons. The
 // `secondaryAction` (if any) sits to the left of the primary `action`.
@@ -44,6 +46,10 @@ export default function PageHeader({
   info,
   infoTitle,
 }) {
+  // Read, not passed: fifteen call sites construct a PageHeader, and threading
+  // one more prop through all of them is a rule the next screen breaks. Every
+  // top-level page gets the account menu by virtue of having a header.
+  const account = useAccount()
   const [menuOpen, setMenuOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
   const [infoTop, setInfoTop] = useState(0)
@@ -146,7 +152,7 @@ export default function PageHeader({
         </div>
         {subtitle && <p className="page-subtitle">{subtitle}</p>}
       </div>
-      {(primary || secondaryAction || onSearch) && (
+      {(primary || secondaryAction || onSearch || account) && (
         <div className="header-actions">
           {onSearch && (
             <IconButton
@@ -176,6 +182,10 @@ export default function PageHeader({
               label={actionLabel || 'Add'}
             />
           )}
+          {/* Furthest right, past the page's own actions: this one is about you,
+              not about the page. Rare and destructive things live in the corner
+              that's hardest to reach by accident. */}
+          {account && <AccountMenu {...account} />}
         </div>
       )}
     </header>

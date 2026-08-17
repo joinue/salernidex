@@ -240,3 +240,107 @@
   letter-spacing: -0.6px;
   margin-bottom: 18px;
 }
+
+/* ---------- the account menu (you, top right) ---------- */
+
+/* Deliberately the hardest corner to reach with a thumb. Settings, Import /
+   Export, the theme and Logout used to sit at the bottom of the nav drawer,
+   which put the four least-used items — one of them destructive — in the
+   easiest place on the screen to hit by accident. */
+.account-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.account-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  /* The avatar paints at 30px; the hit area comes from .tap-target in base.css,
+     like every other icon-sized control. */
+  padding: 0;
+}
+
+.account-btn:active {
+  opacity: 0.7;
+}
+
+/* Anchored to the button, NOT a bottom sheet. A sheet would slide these four
+   back into the thumb zone and undo the whole reason they moved. */
+.account-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 51;
+  min-width: 224px;
+  padding: 6px;
+  background: var(--surface);
+  border: 0.5px solid var(--separator);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  transform-origin: top right;
+  /* Its own keyframes, not info-pop-in's: those carry a translate(-50%) for a
+     viewport-centred popover and would slide this one sideways as it opened. */
+  animation: account-pop-in 140ms var(--ease-ios);
+}
+
+.account-who {
+  padding: 8px 10px 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 15px;
+  color: var(--text);
+  text-align: left;
+}
+
+.account-item svg {
+  flex-shrink: 0;
+  color: var(--text-2);
+}
+
+.account-item:active {
+  background: var(--fill);
+}
+
+@media (hover: hover) {
+  .account-item:hover {
+    background: var(--fill);
+  }
+}
+
+.account-item.danger,
+.account-item.danger svg {
+  color: var(--danger);
+}
+
+.account-divider {
+  height: 1px;
+  margin: 5px 8px;
+  background: var(--separator);
+}
+
+@keyframes account-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}

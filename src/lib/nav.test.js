@@ -30,13 +30,25 @@ describe('destinations', () => {
     }
   })
 
+  // Settings and Import / Export are routes but not destinations: they sit
+  // behind the account avatar, top right, with the theme and Logout. Rare and
+  // destructive things belong in the corner hardest to reach by accident — at the
+  // foot of the drawer they had the easiest spot on the screen instead.
+  it('leaves account business out of the destination list', () => {
+    expect([...ids]).not.toContain('settings')
+    expect([...ids]).not.toContain('import')
+    // Still routes, though — the menu navigates to them.
+    expect(KNOWN_ROUTES).toContain('settings')
+    expect(KNOWN_ROUTES).toContain('import')
+  })
+
   it('gives the red attention badge to exactly one destination', () => {
     expect(DESTINATIONS.filter((d) => d.badge).map((d) => d.id)).toEqual(['today'])
   })
 
   it('groups every destination, in sidebar order, losing none', () => {
     const groups = destinationGroups()
-    expect(groups.map((g) => g.label)).toEqual([null, 'Contacts', 'System'])
+    expect(groups.map((g) => g.label)).toEqual([null, 'Contacts'])
     expect(groups.flatMap((g) => g.items)).toEqual(DESTINATIONS)
   })
 })

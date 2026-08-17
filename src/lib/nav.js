@@ -36,8 +36,11 @@ export const DESTINATIONS = [
   { id: 'relationships', label: 'Relationships', icon: 'Share2', group: 'Contacts' },
   { id: 'orgs', label: 'Organizations', icon: 'Briefcase', group: 'Contacts' },
   { id: 'groups', label: 'Groups', icon: 'Users', group: 'Contacts' },
-  { id: 'import', label: 'Import / Export', icon: 'DownloadCloud', group: 'System' },
-  { id: 'settings', label: 'Settings', icon: 'Settings', group: 'System' },
+  // Settings and Import / Export are NOT here, and they're still routes. They
+  // live behind the account avatar in the top right, with the theme and Logout —
+  // account business rather than places your household's things live. In the
+  // drawer they sat at the bottom, which handed the four least-used items (one
+  // of them destructive, in red) the easiest spot on the screen to hit.
 ]
 
 // Reached from Habits rather than the menu, but it needs a bar slot of its own
@@ -110,6 +113,8 @@ export const BARLESS_ROUTES = [
   'activity',
   'import',
   'settings',
+  // Its own back is the NavBar in AreasView, per the rule above.
+  'areas',
   'privacy',
   'terms',
 ]
@@ -134,6 +139,7 @@ export const DETAIL_ROUTES = [
   'habit-insights',
   'activity',
   'settings',
+  'areas',
   'privacy',
   'terms',
 ]
@@ -170,6 +176,10 @@ export const KNOWN_ROUTES = [
   'habit-insights',
   'import',
   'settings',
+  // Managing the lens (0040). Reachable but deliberately not a DESTINATION
+  // above: you come here to tidy areas up, not to work in one. Its front door
+  // is Settings — and, once the switcher lands, that switcher's overflow.
+  'areas',
   'privacy',
   'terms',
 ]

@@ -1,7 +1,6 @@
 import { Fragment } from 'react'
-import { Check, LogOut } from 'react-feather'
+import { Check } from 'react-feather'
 import Sheet from '../ui/Sheet'
-import ThemeToggle from '../ui/ThemeToggle'
 import { destinationGroups } from '../../lib/nav'
 import NAV_ICONS from './navIcons'
 
@@ -13,7 +12,13 @@ import NAV_ICONS from './navIcons'
 // Right-anchored (see Sheet's `side`), because ☰ is the bar's last slot, at the
 // bottom right, and a panel should arrive from the edge its control sits on. Its
 // Close sits at the foot for the same reason: that's where the thumb already is.
-export default function NavSheet({ active, go, onClose, onLogout, badge = 0, counts = {} }) {
+//
+// Destinations ONLY. Settings, Import / Export, the theme and Logout were the
+// last four rows here, which meant the nearest thing to the thumb that opened
+// this was a red Logout. They're behind the account avatar now, in the top-right
+// corner — the hardest one to reach by accident, which is where rare and
+// damaging things belong.
+export default function NavSheet({ active, go, onClose, badge = 0, counts = {} }) {
   const pick = (id) => () => {
     onClose()
     go(id === 'today' ? '' : id)
@@ -51,23 +56,6 @@ export default function NavSheet({ active, go, onClose, onLogout, badge = 0, cou
             })}
         </Fragment>
       ))}
-
-      {/* Not destinations, so they sit after a divider rather than in the list —
-          matching the sidebar's foot, which carries the same two. */}
-      <div className="sheet-divider" />
-      <div className="sheet-theme">
-        <ThemeToggle />
-      </div>
-      <button
-        className="sheet-item danger"
-        onClick={() => {
-          onClose()
-          onLogout()
-        }}
-      >
-        <LogOut size={20} aria-hidden="true" />
-        <span className="sheet-item-label">Logout</span>
-      </button>
     </Sheet>
   )
 }

@@ -226,9 +226,3 @@
 .sheet-item.current svg {
   color: var(--accent);
 }
-
-/* The theme switch isn't a destination, so it sits below the divider with the
-   same inset as the rows rather than pretending to be one. */
-.sheet-theme {
-  padding: 4px 12px 6px;
-}

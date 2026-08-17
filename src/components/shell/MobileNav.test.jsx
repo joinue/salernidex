@@ -81,10 +81,15 @@ describe('MobileNav', () => {
     const a = setup('tasks')
     await user.click(within(bar()).getByLabelText('All destinations'))
     const drawer = await screen.findByRole('dialog', { name: 'Go to' })
-    // Relationships and Import / Export hold no bar slot anywhere — the drawer
-    // is the whole reason taking their slots away was safe.
-    for (const label of ['Relationships', 'Import / Export', 'Settings', 'Notes']) {
+    // Relationships holds no bar slot anywhere — the drawer is the whole reason
+    // taking its slot away was safe.
+    for (const label of ['Relationships', 'Notes', 'Habits', 'Projects']) {
       expect(within(drawer).getByText(label)).toBeInTheDocument()
+    }
+    // …and account business is NOT here any more: it's behind the avatar, out of
+    // the thumb's way. Logout sitting one row above Close was the problem.
+    for (const label of ['Settings', 'Import / Export', 'Logout']) {
+      expect(within(drawer).queryByText(label)).toBeNull()
     }
     await user.click(within(drawer).getByText('Notes'))
     expect(a.go).toHaveBeenCalledWith('notes')
