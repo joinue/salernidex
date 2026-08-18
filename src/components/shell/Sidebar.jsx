@@ -94,8 +94,8 @@ export default function Sidebar({
 
       {/* Above the destinations, not among them: an area is not a place you go,
           it's which slice of every place you're looking at. Hidden while the
-          rail is collapsed — the pills are names, and a 64px rail has nowhere to
-          put them. */}
+          rail is collapsed — the control is a name plus a chevron, and a 64px
+          rail has nowhere to put either. */}
       {!collapsed && areaSwitcher}
 
       {/* Destinations come from lib/nav.js, which the mobile drawer reads too —

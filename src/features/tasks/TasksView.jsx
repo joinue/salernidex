@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ChevronRight,
-  Plus,
-  CheckSquare,
   Calendar,
+  Check,
+  CheckSquare,
+  ChevronRight,
   Clock,
+  Copy,
   Maximize2,
+  Plus,
   Repeat as RepeatIcon,
+  Trash2,
   User,
   X,
 } from 'react-feather'
@@ -39,7 +42,9 @@ import {
 } from '../../lib/household'
 import { byOrder, moveUpdates } from '../../lib/order'
 import haptics from '../../lib/haptics'
+import { showToast } from '../../lib/toast'
 import { useConfirm } from '../../hooks/useConfirm'
+import useFocusRow from '../../hooks/useFocusRow'
 import PageHeader from '../../components/shell/PageHeader'
 import MenuSelect from '../../components/ui/MenuSelect'
 import TaskRow from './TaskRow'
@@ -47,7 +52,10 @@ import SharedDot from '../../components/ui/SharedDot'
 import ReorderableList from '../../components/ui/ReorderableList'
 import PressableRow from '../../components/ui/PressableRow'
 import AddToCalendar from '../../components/ui/AddToCalendar'
-import { Check } from 'react-feather'
+import SelectionBar from '../../components/ui/SelectionBar'
+import { useSelection } from '../../hooks/useSelection'
+import { longPressOwner } from '../../lib/gestures'
+import { copyText, countLabel, toMarkdown } from '../../lib/bulk'
 import SectionLabel from '../../components/ui/SectionLabel'
 import EmptyState from '../../components/ui/EmptyState'
 import IconButton from '../../components/ui/IconButton'
@@ -91,6 +99,7 @@ export default function TasksView({
     addTask,
     updateTask,
     deleteTask,
+    deleteTasks,
     completeTask,
     skipTaskOccurrence,
     reorderTasks,
@@ -124,6 +133,8 @@ export default function TasksView({
   // Recurring chores in Upcoming start folded — see upcomingParts.
   const [showRecurring, setShowRecurring] = useState(() => readSession().showRecurring ?? false)
   const [showAllDone, setShowAllDone] = useState(false)
+  // The Done logbook's own "No area" fold — see unfiledLog.
+  const [showUnfiledDone, setShowUnfiledDone] = useState(false)
   // Keyed by task id: with several rows open at once, one shared draft would put
   // what you type under one task into the box under every other one too.
   const [subDrafts, setSubDrafts] = useState({})
@@ -138,12 +149,47 @@ export default function TasksView({
     [quickDraft],
   )
 
-  // Deep link from Quick Find (#/tasks/<id>): land with that task expanded.
-  // Added to whatever is already open rather than replacing it — arriving here
-  // shouldn't shut the rows you left open.
+  // Deep link from Today, the activity feed or Quick Find (#/tasks/<id>): land
+  // with that task expanded. Added to whatever is already open rather than
+  // replacing it — arriving here shouldn't shut the rows you left open.
   useEffect(() => {
     if (expandId) setExpanded((prev) => new Set(prev).add(expandId))
   }, [expandId])
+
+  // …and make sure there's a row there to land on. This page keeps filters for
+  // the session, so you can arrive from a task you just tapped on Today into a
+  // list narrowed to someone else, or to a tag that task doesn't carry — and the
+  // row you asked for simply isn't drawn. Following a link to a specific thing
+  // is an unambiguous statement about what you want to see, so the filters that
+  // would hide it give way. Only the ones that would: a lens/tag you set is left
+  // alone whenever the target passes it anyway.
+  //
+  // The area lens is NOT touched — it's the shell's, shared by every page, and
+  // silently switching areas under someone is a much bigger move than dropping a
+  // per-page filter. Unfiled targets are handled by opening the "No area"
+  // section instead, and a target filed elsewhere can't be reached from Today
+  // (both pages read the same lens), only from a stale bookmark.
+  const relaxedFor = useRef(null)
+  useEffect(() => {
+    if (!expandId || relaxedFor.current === expandId) return
+    const t = tasks.find((x) => x.id === expandId)
+    if (!t) return // not loaded yet, or gone — try again when tasks arrive
+    relaxedFor.current = expandId
+    const who = normalizeAssignee(t.assignee)
+    setFilter((f) => (f === 'all' || who === f || who === 'anyone' ? f : 'all'))
+    setTagFilter((tag) => (tag === 'all' || (t.tags || []).includes(tag) ? tag : 'all'))
+    // A task checked off between the link being drawn and being followed lives
+    // in the logbook now. Opening Done is the honest landing: the row is there,
+    // struck through, which is the answer to what happened to it. Both folds,
+    // because the logbook has its own "No area" nested inside.
+    if (t.completed_at) {
+      setShowDone(true)
+      if (!t.area_id) setShowUnfiledDone(true)
+    }
+  }, [expandId, tasks])
+
+  // Scroll the linked row into view and mark it for a moment — see useFocusRow.
+  const focusRow = useFocusRow(expandId)
 
   // Mirror the active filters into sessionStorage so a remount (stepping into a
   // task/project and back) restores them; naturally cleared when the PWA closes.
@@ -166,15 +212,32 @@ export default function TasksView({
     ...members().map((m) => ({ value: m.id, label: m.name })),
   ]
 
-  const tagList = useMemo(
-    () => taskTags(tasks.filter((t) => !t.parent_id && !t.completed_at)),
-    [tasks],
-  )
-  // Guard against a stale selection. For areas that means one deleted, archived
-  // or un-shared while you were away (resolveAreaId); for tags, the last task
-  // carrying it being finished. Either way, fall back to All rather than
-  // showing an empty list with no explanation.
+  // Guard against a stale area selection — one deleted, archived or un-shared
+  // while you were away. resolveAreaId falls back to All rather than leaving you
+  // on an empty page with no explanation.
   const activeArea = resolveAreaId(data.areas, area, data.userId)
+
+  // The pills describe the lens you're standing in, not the whole account —
+  // offering #groceries while you're looking at Work is offering a filter whose
+  // only outcome is an empty page. Unfiled tasks are deliberately left out: they
+  // sit outside the lens in their own collapsed section, so their labels aren't
+  // part of what this area is about.
+  const tagList = useMemo(
+    () =>
+      taskTags(
+        tasks.filter(
+          (t) =>
+            !t.parent_id &&
+            !t.completed_at &&
+            (activeArea === ALL_AREAS || t.area_id === activeArea),
+        ),
+      ),
+    [tasks, activeArea],
+  )
+  // Same guard for tags: the tag can go stale because the last task carrying it
+  // was finished, or because you switched to a lens where nothing uses it. The
+  // saved choice is kept in session either way, so coming back to the lens that
+  // does use it restores the narrowing instead of quietly dropping it.
   const activeTag = tagList.includes(tagFilter) ? tagFilter : 'all'
 
   // The dot on a row. Suppressed while a lens is active: every row on screen is
@@ -241,6 +304,58 @@ export default function TasksView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tasks, filter, activeArea, activeTag],
   )
+  // Whether the row we were sent to is one of the unfiled ones, so the "No area"
+  // fold can open itself for it — a link that lands you on a page and leaves the
+  // row behind a collapsed section didn't land you anywhere.
+  const unfiledTarget = expandId && unfiled.some((t) => t.id === expandId) ? expandId : null
+  // The same rescue the open list gets, for check-offs. `matches` drops a task
+  // with no area of its own the moment a lens is on, and the logbook had no
+  // equivalent of the "No area" section below — so a completed unfiled task
+  // didn't read as filtered out, it read as gone. Uncapped, unlike the main log:
+  // it sits behind two taps already, and a rescue section that hides part of
+  // what it rescued is the same failure one level down.
+  const unfiledLog = useMemo(
+    () => completionLog(tasks, completions, (t) => matchesUnfiled(t) && !isProject(t)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tasks, completions, filter, activeArea, activeTag],
+  )
+  const unfiledLogCount = useMemo(
+    () => unfiledLog.reduce((n, g) => n + g.events.length, 0),
+    [unfiledLog],
+  )
+  // Counted together because they're rendered together: the fold below holds
+  // both, so its header would be lying if it only counted one of them.
+  const doneCount = logCount + unfiledLogCount
+
+  // Which Done rows have a live check. A row can only undo something if it's the
+  // task's CURRENT closed state. A recurring task that rolled forward carries no
+  // completed_at — its rows are history, and an un-check there means nothing, so
+  // the check stays a static marker.
+  //
+  // But a series that has ENDED — `until` passed, count spent, every remaining
+  // date skipped — closes with a real completed_at, exactly like a one-off, and
+  // still carries its rule. The old test here was `!task.recurrence`, which
+  // greyed those out along with the history and left them with no way back at
+  // all: once a task is done it's out of the list and out of Quick Find, so the
+  // page that has a Reopen button is unreachable and this check is the only
+  // control there is.
+  //
+  // Only the newest row per task goes live. completeTask drops the most recent
+  // completion, so an older row would quietly undo a different day than the one
+  // you tapped. Both logs are walked because they're disjoint by task — a task
+  // is in the lens or unfiled, never both — and each is already newest-first.
+  const liveChecks = useMemo(() => {
+    const live = new Set()
+    const seen = new Set()
+    for (const g of [...log, ...unfiledLog]) {
+      for (const e of g.events) {
+        if (seen.has(e.task.id)) continue
+        seen.add(e.task.id)
+        if (e.task.completed_at) live.add(e.id)
+      }
+    }
+    return live
+  }, [log, unfiledLog])
   // Inline view is capped to the last 2 weeks / 30 check-offs (whichever bites
   // first) so the list can't run away; "Show N earlier" reveals the rest in place.
   const { groups: cappedLog, omitted } = useMemo(() => capCompletionLog(log), [log])
@@ -273,6 +388,13 @@ export default function TasksView({
     return { oneOff: grouped.upcoming.filter((t) => !t.recurrence), recurring }
   }, [grouped.upcoming])
 
+  // The rota fold makes the same promise the "No area" one does, and breaks it
+  // the same way: a link to a chore that happens to repeat would land on a page
+  // with the row counted but not drawn.
+  useEffect(() => {
+    if (expandId && upcomingParts.recurring.some((t) => t.id === expandId)) setShowRecurring(true)
+  }, [expandId, upcomingParts.recurring])
+
   // Today splits in two: clock-anchored tasks lead in time order (a 9 AM
   // commitment shouldn't sink under untimed to-dos), then untimed tasks keep the
   // user's manual order below. All Today tasks share today's date, so byDue here
@@ -282,6 +404,69 @@ export default function TasksView({
     const untimed = grouped.today.filter((t) => !t.due_time)
     return { timed, untimed }
   }, [grouped.today])
+
+  // Every open task on the page, in the order it is drawn — the buckets in
+  // BUCKETS order, with the two that split internally (Upcoming's one-offs
+  // before its recurring rota, Today's timed before its untimed) split the same
+  // way here, then Unfiled. Copying a selection has to come out in the order
+  // you saw it, and a bulk delete's toast has to count what you actually chose.
+  //
+  // Done tasks are deliberately absent: the log is a record of what happened,
+  // and the actions this offers (complete, delete) either mean nothing there or
+  // mean something the logbook's own controls already say better.
+  const selectable = useMemo(() => {
+    const out = []
+    for (const b of BUCKETS) {
+      if (b.id === 'upcoming') out.push(...upcomingParts.oneOff, ...upcomingParts.recurring)
+      else if (b.id === 'today') out.push(...todayParts.timed, ...todayParts.untimed)
+      else out.push(...grouped[b.id])
+    }
+    out.push(...unfiled)
+    return out
+  }, [grouped, upcomingParts, todayParts, unfiled])
+  const selectableIds = useMemo(() => selectable.map((t) => t.id), [selectable])
+  const sel = useSelection(selectableIds)
+
+  // Most buckets here are hand-orderable, so reorder keeps the long press and
+  // Select is reached from the header button. lib/gestures owns the rule.
+  const pressOwner = longPressOwner({ reorderable: true, selecting: sel.selecting })
+
+  const bulkActions = [
+    {
+      label: 'Done',
+      icon: CheckSquare,
+      // One at a time through completeTask, deliberately: it is the only thing
+      // that knows how to roll a recurring task forward and log who did it, and
+      // a bulk path that wrote completed_at directly would quietly break every
+      // repeating task in the selection.
+      onClick: () =>
+        sel.run((ids) => {
+          const rows = selectable.filter((t) => ids.includes(t.id))
+          for (const t of rows) if (!t.completed_at) completeTask(t, true)
+          showToast(`Checked off ${countLabel(rows.length, 'task')}`)
+        }),
+    },
+    {
+      label: 'Copy',
+      icon: Copy,
+      onClick: () =>
+        sel.run(async (ids) => {
+          const rows = selectable.filter((t) => ids.includes(t.id))
+          const ok = await copyText(toMarkdown(rows))
+          showToast(ok ? `Copied ${countLabel(rows.length, 'task')}` : 'Could not copy that', {
+            variant: ok ? undefined : 'error',
+          })
+        }),
+    },
+    {
+      label: 'Delete',
+      icon: Trash2,
+      variant: 'danger',
+      // deleteTasks raises one Undo toast covering all of them, so no confirm —
+      // same reasoning the single-row swipe delete already follows.
+      onClick: () => sel.run((ids) => deleteTasks(ids)),
+    },
+  ]
 
   // Sorted the way ProjectDetail sorts a project's steps: manual order first,
   // creation order for whatever was never dragged. The sort isn't cosmetic —
@@ -369,10 +554,38 @@ export default function TasksView({
     // row rendered here expands inline.
     const isOpen = expanded.has(task.id)
     const history = completionsFor(task.id, completions)
+
+    // While selecting, the row is a checkbox with a task on it: no expand, no
+    // open-full-screen, no completion circle. Its own branch, because "this row
+    // means something else now" is what a mode is.
+    if (sel.selecting) {
+      const picked = sel.isSelected(task.id)
+      return (
+        <div key={task.id} {...focusRow(task.id)}>
+          <PressableRow
+            className={`list-row ${picked ? 'is-selected' : ''}`}
+            onClick={() => sel.toggle(task.id)}
+            label={task.title}
+          >
+            <span
+              className={`select-tick tap-target ${picked ? 'on' : ''}`}
+              role="checkbox"
+              aria-checked={picked}
+              aria-label={task.title}
+            >
+              <Check size={14} />
+            </span>
+            <TaskRow task={task} progress={progress} area={rowArea(task)} />
+          </PressableRow>
+        </div>
+      )
+    }
+
     return (
-      <div key={task.id}>
+      <div key={task.id} {...focusRow(task.id)}>
         <PressableRow
           onClick={() => toggleExpanded(task.id)}
+          onLongPress={pressOwner === 'selection' ? () => sel.enter(task.id) : undefined}
           label={`${task.title}, ${isOpen ? 'collapse' : 'expand'} details`}
         >
           <TaskRow task={task} onToggle={toggle} progress={progress} area={rowArea(task)} />
@@ -503,22 +716,34 @@ export default function TasksView({
   }
 
   // One row in the Done logbook. Reads "done" (filled check, struck title) with a
-  // right-aligned time-of-day stamp. One-offs keep their un-check (tap the check
-  // to reopen); recurring occurrences are historical events, so their check is a
-  // static marker — tap the row to open the live task.
+  // right-aligned time-of-day stamp. A row that is the task's current closed
+  // state keeps its un-check (tap the check to reopen); a past occurrence of a
+  // still-running recurring task is a historical event, so its check is a static
+  // marker — see liveChecks.
+  //
+  // The row itself opens the task's page rather than its edit form. The form
+  // offers title/date/area and no way to reopen, so landing there from the one
+  // place completed tasks are listed was a dead end with the wrong fields in it;
+  // the page carries a labelled Reopen, which is what you came here for. Edit is
+  // one tap further on, where it isn't the only thing on offer.
   const renderLogEvent = (event) => {
     const { task } = event
-    const oneOff = !task.recurrence
+    const canReopen = liveChecks.has(event.id)
     return (
-      <PressableRow key={event.id} onClick={() => onEdit(task)} label={`Edit ${task.title}`}>
+      <PressableRow
+        key={event.id}
+        onClick={() => (onOpenTask ? onOpenTask(task.id) : onEdit(task))}
+        label={`${onOpenTask ? 'Open' : 'Edit'} ${task.title}`}
+        focus={focusRow(task.id)}
+      >
         <button
           className="task-check done"
           onClick={(e) => {
             e.stopPropagation()
-            if (oneOff) toggle(task)
+            if (canReopen) toggle(task)
           }}
-          aria-label={oneOff ? 'Mark not done' : 'Completed'}
-          disabled={!oneOff}
+          aria-label={canReopen ? 'Mark not done' : 'Completed'}
+          disabled={!canReopen}
         >
           <Check size={15} />
         </button>
@@ -545,7 +770,7 @@ export default function TasksView({
   }
 
   return (
-    <div>
+    <div className={sel.selecting ? 'selecting' : undefined}>
       <PageHeader
         title="Tasks"
         navOptions={hub?.options}
@@ -553,6 +778,12 @@ export default function TasksView({
         onNavigate={hub?.onNavigate}
         createAction={onAdd}
         actionLabel="New task"
+        // Selection's guaranteed front door. Every bucket here is
+        // hand-orderable, so the long press belongs to reorder and this button
+        // is the only way in — see longPressOwner.
+        secondaryAction={selectable.length && !sel.selecting ? () => sel.enter() : undefined}
+        secondaryActionIcon={CheckSquare}
+        secondaryActionLabel="Select tasks"
         onSearch={onSearch}
         // Whose tasks, up on the title row — the only page in the app with a
         // per-person view, and the one filter that decides what "Tasks" means.
@@ -696,12 +927,21 @@ export default function TasksView({
                   {todayParts.timed.length > 0 && (
                     <div className="list">{todayParts.timed.map(renderTask)}</div>
                   )}
-                  <ReorderableList
-                    items={todayParts.untimed}
-                    onMove={(from, to) => reorderTasks(moveUpdates(todayParts.untimed, from, to))}
-                    renderItem={renderTask}
-                  />
+                  {/* Selecting drops the reorder wrapper rather than disabling
+                      it: a lift under a finger that meant to tick one more row
+                      would scatter the bucket. */}
+                  {sel.selecting ? (
+                    <div className="list">{todayParts.untimed.map(renderTask)}</div>
+                  ) : (
+                    <ReorderableList
+                      items={todayParts.untimed}
+                      onMove={(from, to) => reorderTasks(moveUpdates(todayParts.untimed, from, to))}
+                      renderItem={renderTask}
+                    />
+                  )}
                 </>
+              ) : sel.selecting ? (
+                <div className="list">{grouped[b.id].map(renderTask)}</div>
               ) : (
                 <ReorderableList
                   items={grouped[b.id]}
@@ -716,14 +956,14 @@ export default function TasksView({
 
       {/* Above Done, below the buckets: what the lens excluded only for having
           no area of its own. Collapsed, so it costs one row until you want it. */}
-      <UnfiledSection count={unfiled.length}>
+      <UnfiledSection count={unfiled.length} openFor={unfiledTarget}>
         <div className="list">{unfiled.map(renderTask)}</div>
       </UnfiledSection>
 
-      {logCount > 0 && (
+      {doneCount > 0 && (
         <>
           <button className="section-label section-toggle" onClick={() => setShowDone((v) => !v)}>
-            Done · {logCount}{' '}
+            Done · {doneCount}{' '}
             <ChevronRight size={13} style={{ transform: showDone ? 'rotate(90deg)' : 'none' }} />
           </button>
           {showDone && (
@@ -739,9 +979,46 @@ export default function TasksView({
                   {showAllDone ? 'Show less' : `Show ${omitted} earlier`}
                 </button>
               )}
+              {/* The same promise UnfiledSection makes on the open list, told
+                  with the nested fold Upcoming's rota already uses: Done is
+                  itself a collapsed section, and a second top-level "No area"
+                  row would sit beside the open list's saying something else. */}
+              {unfiledLogCount > 0 && (
+                <>
+                  <button
+                    className="section-label section-toggle subsection-toggle"
+                    aria-expanded={showUnfiledDone}
+                    onClick={() => setShowUnfiledDone((v) => !v)}
+                  >
+                    No area · {unfiledLogCount}{' '}
+                    <ChevronRight
+                      size={13}
+                      style={{ transform: showUnfiledDone ? 'rotate(90deg)' : 'none' }}
+                    />
+                  </button>
+                  {showUnfiledDone &&
+                    unfiledLog.map((g) => (
+                      <div key={g.day}>
+                        <div className="log-day">{g.label}</div>
+                        <div className="list">{g.events.map(renderLogEvent)}</div>
+                      </div>
+                    ))}
+                </>
+              )}
             </>
           )}
         </>
+      )}
+
+      {sel.selecting && (
+        <SelectionBar
+          count={sel.count}
+          noun="task"
+          allSelected={sel.allSelected}
+          onToggleAll={sel.toggleAll}
+          onCancel={sel.exit}
+          actions={bulkActions}
+        />
       )}
     </div>
   )

@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "audit:mobile": "node scripts/mobile-audit.mjs",
+    "audit:frame": "node scripts/frame-audit.mjs",
     "audit:zoom": "node scripts/ios-zoom-audit.mjs",
     "audit:hover": "node scripts/hover-audit.mjs",
     "audit:notes": "node scripts/notes-keyboard-audit.mjs",

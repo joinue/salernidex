@@ -170,12 +170,29 @@ export default function AreasView({ data, onAdd, onEdit, onBack }) {
                   <div className="row-sub">
                     {countLabel(a.id)}
                     {a.shared && <span className="chip area-chip-shared">Shared</span>}
+                    {a.is_business && <span className="chip area-chip-business">Business</span>}
                   </div>
                 </div>
               </div>
             </SwipeRow>
           )}
         />
+      )}
+
+      {/* The one thing about areas that surprises people, said once, in the
+          place they came to understand areas — per docs/scopes/areas-and-tags.md
+          §3.2, which asked for exactly this line and never got it. Without it,
+          filing a client under Work and finding the People page unchanged reads
+          as a bug rather than as the design.
+          The second sentence is 0042: a business area DOES change a contact —
+          it just adds to the record instead of filtering the list. */}
+      {active.length > 0 && (
+        <p className="field-hint area-contacts-note">
+          Areas filter the things you do, not the people you know — a colleague who becomes a friend
+          shouldn’t disappear when you switch to Home. Use <strong>Groups</strong> to slice your
+          contacts. Marking an area as business adds client and vendor details to the contacts you
+          know through it, and lets their check-ins go quiet with it.
+        </p>
       )}
 
       {archived.length > 0 && (

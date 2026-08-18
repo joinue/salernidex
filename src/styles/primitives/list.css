@@ -131,6 +131,45 @@
   color: var(--danger);
 }
 
+/* The row you followed a link to (see hooks/useFocusRow). Scrolling it into
+   view puts it on screen; this says which one it is. A fading wash rather than
+   a persistent selected state — the mark answers a question you asked one tap
+   ago and then gets out of the way, and a row left highlighted would read as a
+   mode the list is now in.
+
+   Three selectors because the mark lands on whatever wraps the row: the row
+   itself (a plain PressableRow), an expandable wrapper (Tasks), or a swipe
+   wrapper (everything with swipe actions). Direct children throughout — a
+   descendant match would flash the subtasks inside an expanded task too.
+   Drawn on the .list-row rather than the wrapper: .list-row paints its own
+   --surface background, so anything behind it is invisible. */
+.row-focus.lit.list-row,
+.row-focus.lit > .list-row,
+.row-focus.lit > .swipe-content > .list-row {
+  animation: row-focus 2s var(--ease-out);
+}
+
+@keyframes row-focus {
+  0%,
+  50% {
+    background: var(--accent-soft);
+  }
+  100% {
+    background: var(--surface);
+  }
+}
+
+/* Motion is the one thing that can't be quiet here, so with it turned off the
+   wash simply doesn't run — the scroll still lands you on the row. */
+@media (prefers-reduced-motion: reduce) {
+  .row-focus.lit.list-row,
+  .row-focus.lit > .list-row,
+  .row-focus.lit > .swipe-content > .list-row {
+    animation: none;
+    background: var(--accent-soft);
+  }
+}
+
 /* A card holding prose or controls rather than .list-rows, which bring their
    own padding. <Card padded>. */
 .list-padded {

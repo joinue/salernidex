@@ -9,14 +9,16 @@ import AddressFields from '../../components/ui/AddressFields'
 import PrivacyField from '../../components/ui/PrivacyField'
 import ChannelEditor from '../../components/ui/ChannelEditor'
 import {
-  KEEP_IN_TOUCH_OPTIONS,
-  TIERS,
+  cadenceOptionsFor,
+  tiersFor,
+  TIER_LABELS,
   EMAIL_LABELS,
   PHONE_LABELS,
   SOCIAL_PLATFORMS,
   SOCIAL_BY_ID,
   focusOnDesktop,
 } from '../../lib/constants'
+import { contextAreaOptions, isBusinessArea, areaById } from '../../lib/areas'
 import { cleanChannels } from '../../lib/contactChannels'
 import { findDuplicates } from '../../lib/duplicates'
 import { personMatchesGroup, groupJoinTags } from '../../lib/groups'
@@ -53,6 +55,8 @@ export default function PersonForm({
   people = [],
   families = [],
   groups = [],
+  areas = [],
+  userId = null,
   existingTags,
   onSave,
   onSaveAffiliations,
@@ -76,6 +80,7 @@ export default function PersonForm({
     address: person?.address || '',
     tags: person?.tags || [],
     tier: person?.tier || '',
+    context_area_id: person?.context_area_id || '',
     family_id: person?.family_id || '',
     keep_in_touch_days: person?.keep_in_touch_days || 0,
     privacy_level: person?.privacy_level || (isSolo() ? PRIVATE_LEVEL : defaultPrivacy),
@@ -113,6 +118,19 @@ export default function PersonForm({
   })
 
   const sortedOrgs = useMemo(() => [...orgs].sort((a, b) => a.name.localeCompare(b.name)), [orgs])
+
+  // The business half of the form, all derived from ONE answer: is the area this
+  // contact is known through a business one (0042)?
+  //
+  // Additive by construction — every tier and every cadence stays available
+  // whatever the answer, and only the order changes. That is the rule that keeps
+  // §3.2 true: a client who becomes a friend loses nothing by being refiled, and
+  // a friend who starts paying you gains the vocabulary without a migration of
+  // their record.
+  const areaChoices = useMemo(() => contextAreaOptions(areas, userId), [areas, userId])
+  const isBusiness = isBusinessArea(areaById(areas, form.context_area_id))
+  const tierChoices = useMemo(() => tiersFor(isBusiness), [isBusiness])
+  const cadenceChoices = useMemo(() => cadenceOptionsFor(isBusiness), [isBusiness])
 
   const patchAff = (i, patch) =>
     setAffs((prev) => prev.map((a, idx) => (idx === i ? { ...a, ...patch } : a)))
@@ -249,6 +267,8 @@ export default function PersonForm({
             ...form,
             birthday: form.birthday || null,
             tier: form.tier || null,
+            // '' is the "No area" option; the column is a nullable FK.
+            context_area_id: form.context_area_id || null,
             family_id: familyId,
             // people.role is only the standalone descriptor now; with any org
             // linked, the title lives on that link instead.
@@ -506,15 +526,46 @@ export default function PersonForm({
             </div>
           </div>
         )}
+        {/* How you know them (0042). NOT a filter — the People page never scopes
+            to the lens, and a contact filed here stays visible under every one of
+            them. What it does is tell the record which vocabulary to offer, and
+            let this contact's check-ins go quiet when the area does. */}
+        {areaChoices.length > 0 && (
+          <div className="field">
+            <label className="label">How you know them</label>
+            <select value={form.context_area_id} onChange={set('context_area_id')}>
+              <option value="">Personal</option>
+              {areaChoices.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.icon ? `${a.icon} ` : ''}
+                  {a.name}
+                  {a.is_business ? ' · business' : ''}
+                </option>
+              ))}
+            </select>
+            <p className="field-hint">
+              {isBusiness
+                ? 'Their check-ins go quiet when this area does. They still show up everywhere you look for them.'
+                : 'Only changes what this page offers you — never who shows up in your contacts.'}
+            </p>
+          </div>
+        )}
         <div className="field">
           <label className="label">Tier</label>
           <select value={form.tier} onChange={set('tier')}>
             <option value="">Not sorted yet</option>
-            {TIERS.map((t) => (
+            {tierChoices.map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}
               </option>
             ))}
+            {/* A tier they already hold that the current context doesn't list —
+                a client you've since refiled as personal. Kept selectable rather
+                than dropped, because a picker that silently can't represent the
+                stored value blanks it on the next save. */}
+            {form.tier && !tierChoices.some((t) => t.value === form.tier) && (
+              <option value={form.tier}>{TIER_LABELS[form.tier] || form.tier}</option>
+            )}
           </select>
         </div>
         <div className="field">
@@ -540,8 +591,12 @@ export default function PersonForm({
         </div>
         <div className="field">
           <label className="label">Keep in touch</label>
+          {/* Every cadence is offered to everyone; only the ORDER changes with
+              the context, so the one you're most likely to want is nearest the
+              top. A month was the floor before 0042, which is the right shape
+              for a friend and useless for anyone you're working with. */}
           <select value={form.keep_in_touch_days} onChange={set('keep_in_touch_days')}>
-            {KEEP_IN_TOUCH_OPTIONS.map((o) => (
+            {cadenceChoices.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>

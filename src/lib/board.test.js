@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { boardDates, boardHabits, boardMeals, boardShopping, boardTasks, buildBoard } from './board'
+import {
+  boardDates,
+  boardHabits,
+  boardLists,
+  boardMeals,
+  boardReminders,
+  boardTasks,
+  boardUnscheduled,
+  buildBoard,
+} from './board'
 import { isoDateIn } from './tasks'
 
 const task = (over = {}) => ({
@@ -86,8 +95,8 @@ describe('boardMeals', () => {
   })
 })
 
-describe('boardShopping', () => {
-  it('groups open items by grocery list and drops empty ones', () => {
+describe('boardLists', () => {
+  it('groups open items per list and drops the ones with nothing on them', () => {
     const lists = [
       { id: 'g1', kind: 'grocery', name: 'Groceries' },
       { id: 'g2', kind: 'grocery', name: 'Costco' },
@@ -98,15 +107,131 @@ describe('boardShopping', () => {
       { id: '2', list_id: 'g1', text: 'Eggs', checked_at: '2026-08-13' },
       { id: '3', list_id: 's', text: 'Socks' },
     ]
-    const out = boardShopping(lists, items)
-    expect(out).toHaveLength(1)
-    expect(out[0].list.name).toBe('Groceries')
+    const out = boardLists(lists, items)
+    expect(out.map((g) => g.list.name)).toEqual(['Groceries', 'Packing'])
     expect(out[0].items.map((i) => i.text)).toEqual(['Milk'])
   })
 
-  it('drops a private grocery list', () => {
-    const lists = [{ id: 'g', kind: 'grocery', privacy_level: 'private' }]
-    expect(boardShopping(lists, [{ id: '1', list_id: 'g', text: 'Milk' }])).toEqual([])
+  // The gap this function was widened to close: a household checklist that
+  // isn't groceries is still a household checklist.
+  it('includes a standard list, not just grocery', () => {
+    const out = boardLists(
+      [{ id: 's', kind: 'standard', name: 'Hardware store' }],
+      [{ id: '1', list_id: 's', text: 'Hinges' }],
+    )
+    expect(out.map((g) => g.list.name)).toEqual(['Hardware store'])
+  })
+
+  it('excludes a meal plan (Dinner already shows it) and a collection (never done)', () => {
+    const lists = [
+      { id: 'm', kind: 'meal_plan', name: 'This week' },
+      { id: 'c', kind: 'collection', name: 'Favourite restaurants' },
+    ]
+    const items = [
+      { id: '1', list_id: 'm', text: 'Tacos' },
+      { id: '2', list_id: 'c', text: 'The Ivy' },
+    ]
+    expect(boardLists(lists, items)).toEqual([])
+  })
+
+  it('drops headings and a private list', () => {
+    expect(
+      boardLists(
+        [{ id: 'g', kind: 'grocery', privacy_level: 'private' }],
+        [{ id: '1', list_id: 'g', text: 'Milk' }],
+      ),
+    ).toEqual([])
+    expect(
+      boardLists(
+        [{ id: 'g', kind: 'grocery', name: 'Groceries' }],
+        [{ id: '1', list_id: 'g', text: 'Dairy', is_heading: true }],
+      ),
+    ).toEqual([])
+  })
+})
+
+describe('boardUnscheduled', () => {
+  const chore = (over = {}) => ({
+    id: 'u',
+    title: 'Fix the gate',
+    due_date: null,
+    completed_at: null,
+    assignee: 'm-2',
+    ...over,
+  })
+
+  it('keeps undated work that has a name against it', () => {
+    expect(boardUnscheduled([chore()]).map((t) => t.id)).toEqual(['u'])
+  })
+
+  it('drops unassigned undated work — that is a Tasks-page problem', () => {
+    const out = boardUnscheduled([
+      chore({ id: 'mine', assignee: 'm-1' }),
+      chore({ id: 'nobody', assignee: 'anyone' }),
+      chore({ id: 'null', assignee: null }),
+    ])
+    expect(out.map((t) => t.id)).toEqual(['mine'])
+  })
+
+  it('leaves dated work to boardTasks, so nothing appears on two cards', () => {
+    const out = boardUnscheduled([
+      chore({ id: 'today', due_date: isoDateIn(0) }),
+      chore({ id: 'late', due_date: isoDateIn(-2) }),
+      chore({ id: 'undated' }),
+    ])
+    expect(out.map((t) => t.id)).toEqual(['undated'])
+  })
+
+  it('drops deferred, private, completed, headings and containers', () => {
+    const out = boardUnscheduled([
+      chore({ id: 'parked', start_date: isoDateIn(3) }),
+      chore({ id: 'secret', privacy_level: 'private' }),
+      chore({ id: 'done', completed_at: '2026-08-13' }),
+      chore({ id: 'heading', is_heading: true }),
+      chore({ id: 'project', is_project: true }),
+      chore({ id: 'real' }),
+    ])
+    expect(out.map((t) => t.id)).toEqual(['real'])
+  })
+})
+
+describe('boardReminders', () => {
+  const rem = (over = {}) => ({
+    id: 'r',
+    title: 'Bins go out',
+    due_date: isoDateIn(0),
+    completed_at: null,
+    is_reminder: true,
+    ...over,
+  })
+
+  it('shows reminders due today and ones already past, soonest last', () => {
+    const out = boardReminders([
+      rem({ id: 'today', due_date: isoDateIn(0) }),
+      rem({ id: 'late', due_date: isoDateIn(-2) }),
+    ])
+    expect(out.map((r) => r.source.id)).toEqual(['late', 'today'])
+  })
+
+  it('does not look ahead — tomorrow is not the board’s business', () => {
+    expect(boardReminders([rem({ due_date: isoDateIn(1) })])).toEqual([])
+  })
+
+  it('drops done, private and undated reminders', () => {
+    const out = boardReminders([
+      rem({ id: 'done', completed_at: '2026-08-13' }),
+      rem({ id: 'secret', privacy_level: 'private' }),
+      rem({ id: 'someday', due_date: null }),
+      rem({ id: 'real' }),
+    ])
+    expect(out.map((r) => r.source.id)).toEqual(['real'])
+  })
+
+  // Birthdays reach the board through boardDates. If they came through here as
+  // well, every birthday would be on two cards at once.
+  it('carries no derived contact dates', () => {
+    const out = boardReminders([])
+    expect(out).toEqual([])
   })
 })
 

@@ -11,6 +11,29 @@ export function lastInteraction(personId, interactions = []) {
   return latest
 }
 
+// The same, for an organization (0042). A separate function rather than a
+// `subjectId` parameter on the one above: the two ids live in different columns
+// and are never interchangeable, and a single function taking "an id" is exactly
+// how a person id ends up matching an org row the day someone gets the argument
+// order wrong. Two names, no ambiguity.
+export function lastOrgInteraction(orgId, interactions = []) {
+  let latest = null
+  for (const it of interactions) {
+    if (it.organization_id !== orgId) continue
+    if (!latest || it.occurred_at > latest.occurred_at) latest = it
+  }
+  return latest
+}
+
+// Every touchpoint for one subject, newest first — what a profile timeline
+// renders. `kind` is 'person' | 'organization'.
+export function interactionsFor(kind, id, interactions = []) {
+  const key = kind === 'organization' ? 'organization_id' : 'person_id'
+  return interactions
+    .filter((it) => it[key] === id)
+    .sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1))
+}
+
 export function daysSince(iso) {
   if (!iso) return null
   // Calendar days between local midnights — not a rolling 24h window, so a task
@@ -54,6 +77,18 @@ export function upcomingBirthday(person, withinDays = 30) {
 // "Sep 4" once "in 84d" has stopped meaning anything.
 function isoLocal(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// The LOCAL calendar day an ISO timestamp fell on, as yyyy-mm-dd — ready for
+// constants.formatDate, which is what the timeline and the edit sheet both want.
+//
+// Not `iso.slice(0, 10)`, and not `.toISOString().slice(0, 10)`: touchpoints are
+// stored at noon local (InteractionForm), which in a zone far enough east or
+// west is the neighbouring day in UTC. Either shortcut shows the wrong date on
+// the timeline, and the edit sheet then saves that wrong date back.
+export function localDay(iso) {
+  if (!iso) return null
+  return isoLocal(new Date(iso))
 }
 
 // All upcoming dates for the Today hub: birthdays merged with key dates
@@ -117,6 +152,10 @@ export function upcomingDates(people, keyDates = [], withinDays = 30) {
 // Follow-up status for a person given their last-contact date. Returns null
 // when no cadence is set. Otherwise: 'never' (cadence but nothing logged),
 // 'overdue' (past the cadence window), or 'ok' (within it).
+//
+// Takes anything carrying keep_in_touch_days, which since 0042 includes an
+// ORGANIZATION — the argument is still named `person` because renaming it would
+// touch every caller for no gain, and the function has never read anything else.
 export function followUp(person, lastIso) {
   const cadence = person?.keep_in_touch_days
   if (!cadence) return null

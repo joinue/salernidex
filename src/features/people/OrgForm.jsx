@@ -5,7 +5,8 @@ import TagInput from '../../components/ui/TagInput'
 import AvatarUpload from '../../components/ui/AvatarUpload'
 import PrivacyField from '../../components/ui/PrivacyField'
 import AddressFields from '../../components/ui/AddressFields'
-import { focusOnDesktop } from '../../lib/constants'
+import { focusOnDesktop, cadenceOptionsFor } from '../../lib/constants'
+import { contextAreaOptions, isBusinessArea, areaById } from '../../lib/areas'
 import { orgNameTaken, ORG_TYPES, isCounterparty } from '../../lib/orgs'
 import { friendlyError } from '../../lib/errors'
 import { isSolo } from '../../lib/household'
@@ -14,6 +15,8 @@ import { PRIVATE_LEVEL } from '../../lib/privacy'
 export default function OrgForm({
   org,
   orgs = [],
+  areas = [],
+  userId = null,
   onSave,
   onClose,
   isDemo = false,
@@ -29,12 +32,18 @@ export default function OrgForm({
     website: org?.website || '',
     address: org?.address || '',
     tags: org?.tags || [],
+    keep_in_touch_days: org?.keep_in_touch_days || 0,
+    context_area_id: org?.context_area_id || '',
     privacy_level: org?.privacy_level || (isSolo() ? PRIVATE_LEVEL : defaultPrivacy),
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value })
+
+  const areaChoices = contextAreaOptions(areas, userId)
+  const isBusiness = isBusinessArea(areaById(areas, form.context_area_id))
+  const cadenceChoices = cadenceOptionsFor(isBusiness)
 
   const submit = async (e) => {
     e.preventDefault()
@@ -47,7 +56,14 @@ export default function OrgForm({
     setBusy(true)
     setError(null)
     try {
-      await onSave(form, org?.id)
+      await onSave(
+        {
+          ...form,
+          keep_in_touch_days: Number(form.keep_in_touch_days) || null,
+          context_area_id: form.context_area_id || null,
+        },
+        org?.id,
+      )
       onClose()
     } catch (err) {
       setError(friendlyError(err))
@@ -138,6 +154,39 @@ export default function OrgForm({
         <div className="field">
           <label className="label">Tags</label>
           <TagInput tags={form.tags} onChange={(tags) => setForm({ ...form, tags })} />
+        </div>
+        {/* Same pair PersonForm carries, for the same reason (0042): the account
+            is the thing you manage, and its contact person may change twice a
+            year — so the cadence and the history belong to the org, not to
+            whoever happens to be your contact there this quarter. */}
+        {areaChoices.length > 0 && (
+          <div className="field">
+            <label className="label">Part of your life</label>
+            <select value={form.context_area_id} onChange={set('context_area_id')}>
+              <option value="">Personal</option>
+              {areaChoices.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.icon ? `${a.icon} ` : ''}
+                  {a.name}
+                  {a.is_business ? ' · business' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="field">
+          <label className="label">Keep in touch</label>
+          <select value={form.keep_in_touch_days} onChange={set('keep_in_touch_days')}>
+            {cadenceChoices.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <p className="field-hint">
+            Puts the account itself on your check-in list — useful for a client, noise for the
+            plumber.
+          </p>
         </div>
         <PrivacyField
           value={form.privacy_level}

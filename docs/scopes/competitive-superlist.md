@@ -10,6 +10,11 @@
 > **Amended 2026-08-18** — item 12 (live presence) was one decline covering two
 > different features. It has been split: viewer presence stays declined, errand
 > co-presence is now planned. See §5.
+>
+> **Built 2026-08-18** — §3a, §3c and §3e are no longer proposals; they shipped,
+> along with item 15, which turned out to deserve a scope of its own rather than
+> a footnote (see §3f). §3b (attachments) and §3d (calendar) are untouched and
+> still read as written. The per-section notes below say what actually landed.
 
 The ask: *"Superlist is a Things competitor. Besides AI, what do they have that
 we don't?"*
@@ -37,10 +42,10 @@ recognition, not a model.
 
 | # | Superlist has | We have | Verdict |
 |---|---|---|---|
-| 1 | Offline-first sync engine; writes taken offline and reconciled | Tier 1 **read-only** cache; an offline write is silently lost | **Build** — already [next-steps §2c](../next-steps.md) |
+| 1 | Offline-first sync engine; writes taken offline and reconciled | Durable write outbox + staleness guard | **Built** — §3a |
 | 2 | Tasks and notes as **one document** — rich-text blocks with tasks interleaved, infinitely nested | Three surfaces (Tasks / Lists / Notebook) bridged by @-mentions and backlinks | **Decline** — see §5 |
 | 3 | Attachments: images, PDFs, one-tap preview, bulk download/replace | Avatar upload only ([`avatarStorage.js`](../../src/lib/avatarStorage.js)) | **Build** — §3b |
-| 4 | Multi-select + bulk actions (Shift/Cmd-click, long-press on mobile) | None, anywhere | **Build** — §3c |
+| 4 | Multi-select + bulk actions (Shift/Cmd-click, long-press on mobile) | Selection mode on Lists, Tasks, Notes | **Built** — §3c (People, and Shift-click ranges, still open) |
 | 5 | Threaded comments on an item | Activity *log* ([`lib/activity.js`](../../src/lib/activity.js)) — history, no reply | **Open question** — §4a |
 | 6 | Guest / external sharing of a single list | All-or-nothing household membership via join code | **Open question** — §4b |
 | 7 | Calendar events surfaced alongside tasks | `.ics` export + Google/Outlook deep links ([`lib/calendar.js`](../../src/lib/calendar.js)), one-way | **Build** — §3d, already on the roadmap as Things polish |
@@ -48,10 +53,10 @@ recognition, not a model.
 | 9 | MCP server (assistants read/write tasks directly) | None | **Defer** — cheap, but wants a stable public API first |
 | 10 | Native macOS, Windows, iOS, Android + home/lock-screen widgets | PWA; native iOS decided but unstarted | Already [next-steps §3](../next-steps.md) |
 | 11 | User-chosen sort per list (alpha / created / due / priority / assignee) | Fixed policy per bucket + manual drag order ([`TasksView.jsx:187-240`](../../src/features/tasks/TasksView.jsx#L187-L240)) | **Decline** — see §5 |
-| 12 | Live presence — avatars showing who's in a list now | Realtime re-hydration, no presence | **Split** (2026-08-18) — viewer presence declined, errand co-presence **build**; §5 |
+| 12 | Live presence — avatars showing who's in a list now | Errand co-presence on a broadcast channel | **Split** (2026-08-18) — viewer presence declined; errand co-presence **built**, §3e |
 | 13 | Cross-app activity heatmap | Habit insights only ([`HabitInsightsView`](../../src/features/habits/HabitInsightsView.jsx)) | Low value; note it and move on |
 | 14 | Voice capture → task | Natural-language quick-add ([`lib/taskParse.js`](../../src/lib/taskParse.js)), typed | Cheap once native; Web Speech API on iOS Safari is not worth it |
-| 15 | Copy-as-Markdown, copy link to a single item | Hash routing exists; no per-item share affordance | Falls out of §3c for free |
+| 15 | Copy-as-Markdown, copy link to a single item | Both — share sheet on detail screens, copy-as-Markdown in the selection bar | **Built** — §3f. Copy did fall out of §3c; the share sheet earned its own scope |
 
 ---
 
@@ -75,23 +80,53 @@ same errand, which is a data boundary they already share. §5 has the split.
 
 ---
 
-## 3. The five worth building
+## 3. The six worth building
 
 Ranked. Each is scoped the same way: what exists, what changes, where it gets
 hard, what it costs. **3e was added 2026-08-18** out of the item 12 split; it is
-the only one of the five that came from asking what a *household* wants rather
-than from the diff with Superlist, which is also why it's the only one they have
-no version of.
+the only one that came from asking what a *household* wants rather than from the
+diff with Superlist, which is also why it's the only one they have no version of.
+**3f was added the same day**, promoted out of item 15.
 
-### 3a. Durable offline writes — **already the recommended next step**
+Four of the six are built (3a, 3c, 3e, 3f). **3b (attachments) and 3d (calendar)
+are not**, and their sections below are still proposals — 3b because it should
+follow the offline work rather than race it, 3d because it wants either an OAuth
+stack or the native app.
 
-No change to the plan. Recorded here only because Superlist shipping an
-offline-first engine moves this from *nice* to *table stakes*: a competitor in
-the same category treats a lost write as a bug, and so should we.
+### 3a. Durable offline writes — **built**
 
-The existing analysis in [next-steps §2c](../next-steps.md) stands — all 60 write
-paths funnel through [`sync()`](../../src/hooks/useData.js), and the `updated_at`
-guard lands at the same time.
+Recorded here because Superlist shipping an offline-first engine moved this from
+*nice* to *table stakes*: a competitor in the same category treats a lost write
+as a bug, and so should we.
+
+**What landed.** [`lib/mutationQueue.js`](../../src/lib/mutationQueue.js) — an
+ordered IndexedDB outbox, deliberately not a sync engine. `sync()` records each
+write closure against a recorder rather than the live client, so a mutation is
+*data* and survives a reload; the closure form could not. Retryable and
+permanent failures are classified apart, because getting that backwards either
+jams the queue forever or rebuilds the discarded-edit bug the module exists to
+fix.
+
+**The `updated_at` guard, and the trap in it.** The guard may only ever compare
+against a timestamp the SERVER gave us. The obvious implementation — guard with
+the row's `updated_at` out of local state — is wrong and quietly so: every
+optimistic update stamps `updated_at: now()` from the client clock so the row
+sorts correctly on screen, and guarding with that compares a phone's clock
+against a Postgres trigger's. A phone two seconds slow would have its own edits
+rejected as stale, turning a protection against lost work into a cause of it.
+So `createGuardBook` records only what a server read returned, and forgets a row
+the moment one of our writes to it settles. No observation ⇒ no guard ⇒
+last-write-wins, which is the honest answer to "I don't know".
+
+Chained edits get the same care: queueing a second edit to a row already in the
+outbox drops the new guard, because the first one is about to move `updated_at`
+past it and the "somebody else" who won the race would be us.
+
+Guarded: the general edit paths (form saves, `updateTask`, `updateNote`,
+`updateArea`, …). **Not** guarded: archive, delete and check-off — those carry a
+decision rather than a field's contents, so there is nothing in them to lose,
+and *"your delete didn't apply because somebody renamed it"* is a worse answer
+than deleting it.
 
 ### 3b. Attachments
 
@@ -120,24 +155,75 @@ the model number on the back of the dryer.
 **Cost.** One migration, one storage bucket + policies, one reusable component,
 three call sites. Medium — the privacy and backup work is most of it.
 
-### 3c. Multi-select + bulk actions
+### 3c. Multi-select + bulk actions — **built**
 
-**What exists.** Nothing. [`scopes/notes.md`](notes.md) lists multi-select as
-unbuilt for the notebook alone; no other surface has considered it.
+**What landed.** [`useSelection`](../../src/hooks/useSelection.js) holds the
+mode, [`SelectionBar`](../../src/components/ui/SelectionBar.jsx) is the bar, and
+[`lib/bulk.js`](../../src/lib/bulk.js) turns a selection into Markdown. Wired
+into **Lists, Tasks and Notes** (both the list and gallery layouts).
 
-**The change.** A selection mode shared across Tasks, Lists, Notes, and People:
-long-press to enter on touch, Shift/Cmd-click on desktop, then complete, move,
-assign, tag, delete, and copy-as-Markdown across the selection.
+**The gesture collision, resolved centrally** as this section required —
+`longPressOwner` in [`lib/gestures.js`](../../src/lib/gestures.js):
 
-**Where it gets hard.** Gesture collision. [`SwipeRow`](../../src/components/ui/SwipeRow.jsx)
-owns horizontal drag, [`ReorderableList`](../../src/components/ui/ReorderableList.jsx)
-owns long-press-to-reorder — and long-press is exactly the gesture selection
-wants. That conflict is the feature's real cost, and it has to be resolved once,
-centrally, in [`lib/gestures.js`](../../src/lib/gestures.js), not per-view.
-[`CONVENTIONS.md`](../../CONVENTIONS.md) forbids the bespoke one-off here.
+- While selecting, the long press does nothing. You are choosing rows, not
+  arranging them, and a lift mid-selection would scatter the list under a finger
+  that meant to add one more item.
+- On a hand-orderable list, **reorder keeps it** — dragging is the whole point
+  of those lists and has no other affordance.
+- Everywhere else it enters selection.
 
-**Cost.** Low-to-medium, and it buys item 15 for free. This is the gap users
-notice on day three.
+What makes that safe is the second half: selection is *always* reachable from an
+explicit **Select** control, so a list that can't offer the gesture loses a
+convenience rather than a feature. That is also how iOS resolves the same
+collision in Notes, Files and Photos — and it is what keeps the feature reachable
+for anyone who can't perform a long press at all.
+
+**Two things worth recording.** Bulk actions are their own mutations
+(`deleteListItems`, `deleteTasks`, `deleteNotes`, `setListItemsChecked`), not
+loops over the single-row helpers: ten calls to `deleteListItem` raise ten
+toasts, each offering to undo one tenth of what you did, and only the last is
+still on screen when you reach for it. One action is one Undo. And selection is
+pruned against the *visible* ids, so a row a housemate checks off — or the lens
+filters out — leaves the selection with it rather than being silently acted on.
+
+**People is not done.** The three content surfaces are; the rolodex was left
+alone. Its bulk verbs (merge? re-tier? archive?) are a product question this
+scope never answered, and inventing one to finish a checklist is how a feature
+arrives that nobody wanted.
+
+**Not done:** Shift/Cmd-click range selection on desktop. Tap/click-to-toggle
+works everywhere; the range shortcut is additive.
+
+### 3f. Send a link to one thing — **built** (was item 15)
+
+Added 2026-08-18. Item 15 listed "copy link to a single item" as something that
+falls out of §3c for free, which understated it: the household already has a
+text thread, and the fastest way to get your partner to the right screen is a
+message they tap.
+
+**What landed.** [`lib/share.js`](../../src/lib/share.js) +
+[`ShareButton`](../../src/components/ui/ShareButton.jsx) on the task, list and
+note detail screens, handing the OS share sheet a link to the singular detail
+route (`#/list/<id>`), with a clipboard fallback. Building an SMS gateway of our
+own was the alternative and it is the wrong shape.
+
+**Not a sharing permission.** The link is a pointer; the household boundary is
+still the only permission boundary there is. That is why it needed no schema
+change — and why a private row is refused outright: not because the link would
+leak it (RLS and [`lib/privacy`](../../src/lib/privacy.js) see to that) but
+because the recipient would land on "not found", which reads as the app being
+broken rather than the item being yours alone.
+
+**The auth detour** was the real work. Password sign-in keeps the hash, so that
+path already worked; password reset returns to `window.location.origin` and
+Supabase's email links come back on `#access_token=…`, either of which eats the
+destination. `deepLinkPath` in [`lib/nav.js`](../../src/lib/nav.js) recognises a
+link to one specific thing, and App stashes it in `sessionStorage` across sign-in.
+
+**Still true: iOS won't open the installed app.** [`site.webmanifest`](../../public/site.webmanifest)
+scopes the PWA at `/`, so Android can capture the link; iOS opens Safari. "Right
+into the app" needs universal links, which needs the native app — the same
+conclusion §3d reached about calendar reads.
 
 ### 3d. Calendar events inline in Today
 
@@ -152,10 +238,26 @@ anything else in §3. **On iOS, EventKit gives it to us for the price of a
 permission prompt** — which argues for deferring this to the native app rather
 than building an OAuth stack for the web.
 
-### 3e. Errand co-presence — *"Sam is shopping this list now"*
+### 3e. Errand co-presence — *"Sam is shopping this list now"* — **built**
 
-Added 2026-08-18 out of the item 12 split. Not viewer presence; see §5 for the
-line between them, which is load-bearing and easy to erase by accident.
+Added 2026-08-18 out of the item 12 split, and shipped the same day. Not viewer
+presence; see §5 for the line between them, which is load-bearing and easy to
+erase by accident.
+
+**What landed.** [`lib/presence.js`](../../src/lib/presence.js) (pure state and
+rules) + [`usePresence`](../../src/hooks/usePresence.js) (the channel), with the
+banner on the list detail screen. All five constraints below were met, and the
+line against viewer presence is now drawn *in code* rather than only in prose:
+the signal is sent on the **first check-off, never on arrival**, and nothing in
+the module can express "I am here" because there is no event for arriving.
+
+Ephemeral honesty is enforced by construction — a signal carries the wall-clock
+time it was made and every read is relative to a `nowMs` the caller passes in, so
+"gone" is *derived* rather than trusted to arrive as its own event. A phone that
+goes into a tunnel mid-aisle stops beating and the banner is simply gone 45
+seconds later. Leaving the page also says so explicitly, because that is the one
+moment we can be certain, and 45 seconds of a stale banner is 45 seconds of
+somebody in an aisle believing their partner is already on it.
 
 **What exists.** Sync, not collaboration. [`useData`](../../src/hooks/useData.js)
 puts one channel on `postgres_changes` across all of `public`, debounces 250ms,
@@ -216,6 +318,12 @@ The question is whether that conversation belongs **in** the app or in the text
 thread the household already has. Cheapest test: the per-item `note` field
 already exists on list items. If people are using it as a message channel, the
 demand is real. If not, this is team software leaking in.
+
+*Amended 2026-08-18:* §3f leans on the second answer — shipping a share sheet
+says the thread the household already has is where this goes. That was a
+deliberate bet, not a decision this question no longer needs: 3f makes it cheap
+to send a *thing*, and says nothing about discussing one. If the `note` field
+turns out to be in use as a message channel, comments are still open.
 
 ### 4b. Is household membership the only permission boundary?
 

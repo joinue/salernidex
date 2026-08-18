@@ -62,7 +62,10 @@ export default function ActivityRow({
   }
   if (e.kind === 'completion') {
     return (
-      <PressableRow key={e.key} onClick={onOpenTasks}>
+      // Named with its id: "Rita finished the tax return" should take you to the
+      // tax return, not to the Tasks page to go and find it. The handler falls
+      // back to the index if the task is gone.
+      <PressableRow key={e.key} onClick={() => onOpenTasks?.(e.task.id)}>
         <span className="feed-check">
           <CheckCircle size={20} />
         </span>

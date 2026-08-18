@@ -1,7 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Plus, Trash2, Edit2, Folder, ShoppingCart } from 'react-feather'
+import {
+  Check,
+  CheckSquare,
+  Copy,
+  Plus,
+  Square,
+  Trash2,
+  Edit2,
+  Folder,
+  ShoppingCart,
+} from 'react-feather'
 import SwipeRow from '../../components/ui/SwipeRow'
+import PressableRow from '../../components/ui/PressableRow'
 import ReorderableList from '../../components/ui/ReorderableList'
+import SelectionBar from '../../components/ui/SelectionBar'
 import Avatar from '../../components/ui/Avatar'
 import { byOrder, moveUpdates } from '../../lib/order'
 import { groupByAisle, AISLES, OTHER } from '../../lib/aisles'
@@ -20,6 +32,12 @@ import { isCheckable, isGrocery, isMealPlan, kindOf, listIcon } from '../../lib/
 import { assigneeOptions, assigneeLabel, isSolo } from '../../lib/household'
 import { showToast } from '../../lib/toast'
 import haptics from '../../lib/haptics'
+import { shoppersOf, shoppingLabel } from '../../lib/presence'
+import { longPressOwner } from '../../lib/gestures'
+import { copyText, countLabel, toMarkdown } from '../../lib/bulk'
+import { useSelection } from '../../hooks/useSelection'
+import { usePresenceContext } from '../../components/shell/presenceContext'
+import { useNow } from '../../hooks/useNow'
 import NavBar from '../../components/ui/NavBar'
 import SectionLabel from '../../components/ui/SectionLabel'
 import EmptyState from '../../components/ui/EmptyState'
@@ -28,6 +46,7 @@ import SelectRow from '../../components/ui/SelectRow'
 import Stepper from '../../components/ui/Stepper'
 import ActionSheet from '../../components/ui/ActionSheet'
 import NoteBacklinks from '../../components/ui/NoteBacklinks'
+import ShareButton from '../../components/ui/ShareButton'
 
 // One row of a list. Tap the text to edit it inline (text, an optional note, a
 // quantity, plus an aisle picker on grocery items and a "who's grabbing it"
@@ -41,6 +60,10 @@ function ListItemRow({
   meal,
   checkable = true,
   autoOpen = false,
+  selecting = false,
+  selected = false,
+  onSelect,
+  onLongPress,
   onToggle,
   onDelete,
   onSave,
@@ -130,6 +153,49 @@ function ListItemRow({
   // focus from the text field — a blur would commit and unmount the editor
   // before the tap registers.
   const keepFocus = (e) => e.preventDefault()
+
+  // While selecting, the row means something different: it is a checkbox with a
+  // label on it. No swipe actions, no inline editor, no navigation — which is
+  // also how the swipe/long-press collision stops being a collision at all,
+  // since the gestures simply aren't mounted in this mode.
+  //
+  // Its own branch rather than conditionals threaded through the row below,
+  // because "this row means something else now" is what a mode is.
+  if (selecting) {
+    // A section heading is structure, not an item — there is nothing to check
+    // off, copy or delete about it, so it stays inert and untickable.
+    if (heading) {
+      return (
+        <div className="list-row heading-row is-inert">
+          <div className="list-heading">{it.text}</div>
+        </div>
+      )
+    }
+    const badgeText = qtyLabel(it.qty)
+    return (
+      <PressableRow
+        className={`list-row ${selected ? 'is-selected' : ''}`}
+        label={it.text}
+        onClick={() => onSelect?.(it.id)}
+      >
+        <span
+          className={`select-tick tap-target ${selected ? 'on' : ''}`}
+          role="checkbox"
+          aria-checked={selected}
+          aria-label={it.text}
+        >
+          <Check size={14} />
+        </span>
+        <div className="row-body">
+          <div className={`row-title ${it.checked_at ? 'task-done' : ''}`}>
+            {badgeText && <span className="qty-badge">{badgeText}</span>}
+            {it.text}
+          </div>
+          {it.note && <div className="row-sub list-item-note">{it.note}</div>}
+        </div>
+      </PressableRow>
+    )
+  }
 
   if (editing) {
     return (
@@ -291,6 +357,7 @@ function ListItemRow({
         { label: 'Delete', icon: Trash2, variant: 'danger', onClick: () => onDelete(it.id) },
       ]}
       onClick={open}
+      onLongPress={onLongPress}
     >
       <div className={`list-row ${checkable ? '' : 'no-check'}`}>
         {/* Every checkbox on the list used to announce itself as "Toggle", so a
@@ -344,6 +411,8 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
     updateListItem,
     deleteListItem,
     clearCheckedItems,
+    deleteListItems,
+    setListItemsChecked,
     deleteList,
     reorderListItems,
   } = data
@@ -374,6 +443,25 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
   // The section just created from the dock, so its row can open itself.
   const [newHeadingId, setNewHeadingId] = useState(null)
 
+  // Errand co-presence (docs/scopes/competitive-superlist.md §3e). Ticked on a
+  // short cadence rather than the default five minutes because this is the one
+  // thing on the page that has to go stale on its own: a signal has a TTL, and
+  // without a tick to re-read it the banner would sit there until some other
+  // state happened to re-render the page.
+  const presence = usePresenceContext()
+  const presenceNow = useNow(10000)
+  const shoppers = presence
+    ? shoppersOf(presence.presence, listId, presenceNow, { exclude: presence.meId })
+    : []
+  const shoppingNote = shoppingLabel(shoppers)
+
+  // Leaving the page ends the claim. The TTL would get there on its own, but
+  // forty-five seconds of a stale banner is forty-five seconds of somebody in
+  // an aisle believing their partner is already on it — and closing the page is
+  // the one moment we can say so for certain.
+  const stopShopping = presence?.stopShopping
+  useEffect(() => () => stopShopping?.(), [stopShopping, listId])
+
   const items = useMemo(() => {
     const mine = listItems.filter((it) => it.list_id === listId)
     const open = mine.filter((it) => !it.checked_at).sort(byOrder)
@@ -391,6 +479,37 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
     [meal, items, todayISO],
   )
   const addDay = pickedDay ?? (plan ? suggestedDay(items.open, todayISO) : null)
+
+  // Every selectable row, in the order the page actually draws them — each list
+  // kind groups differently, and a copied selection that came out in a
+  // different order than the screen would read as the wrong rows.
+  const ordered = useMemo(() => {
+    const flat =
+      meal && plan
+        ? [
+            ...plan.earlier,
+            ...plan.days.flatMap((d) => d.items),
+            ...plan.later,
+            ...plan.unscheduled,
+            ...plan.done,
+          ]
+        : grocery
+          ? [
+              ...groupByAisle(items.open.filter((it) => !it.is_heading)).flatMap((g) => g.items),
+              ...items.done,
+            ]
+          : [...items.open, ...items.done]
+    // Section headings are structure, never selection targets.
+    return flat.filter((it) => !it.is_heading)
+  }, [meal, plan, grocery, items])
+  const orderedIds = useMemo(() => ordered.map((it) => it.id), [ordered])
+  const sel = useSelection(orderedIds)
+
+  // A standard list is hand-orderable, so its long press belongs to reorder and
+  // Select is reached from the button instead. Decided by lib/gestures so the
+  // rule can't come out differently on the next surface that wants it.
+  const reorderable = !grocery && !meal
+  const pressOwner = longPressOwner({ reorderable, selecting: sel.selecting })
 
   // Every grocery list in the household — where a meal's ingredients can go.
   const groceryLists = useMemo(() => lists.filter((l) => l.kind === 'grocery'), [lists])
@@ -458,6 +577,17 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
   const toggle = (it) => {
     if (!it.checked_at) haptics.light()
     toggleListItem(it)
+    // Checking something off is what makes you present — not opening the page.
+    // That is the whole line between this and the viewer presence §5 declines,
+    // and it lives here because this is the only place that can tell the two
+    // apart. announceShopping applies the privacy gate, so a private list
+    // silently declines to say anything.
+    if (!checkable) return
+    const countable = [...items.open, ...items.done].filter((i) => !i.is_heading)
+    // Count from the row we just flipped rather than from state, which hasn't
+    // re-rendered yet — a beat that lags the screen by one item reads as a bug.
+    const done = countable.filter((i) => !!i.checked_at).length + (it.checked_at ? -1 : 1)
+    presence?.announceShopping(list, { done, total: countable.length })
   }
 
   // No confirm dialog: deleteList raises an Undo toast that restores the list
@@ -498,6 +628,44 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
     }
   }
 
+  // What the bar can do with a selection. Check-off is offered as whichever
+  // direction actually changes something: with anything unchecked picked, the
+  // useful verb is "Check off", and once they're all checked it becomes the
+  // only other thing you'd mean.
+  const selectedItems = ordered.filter((it) => sel.isSelected(it.id))
+  const anyUnchecked = selectedItems.some((it) => !it.checked_at)
+  const bulkActions = [
+    ...(checkable
+      ? [
+          {
+            label: anyUnchecked ? 'Check off' : 'Uncheck',
+            icon: anyUnchecked ? CheckSquare : Square,
+            onClick: () => sel.run((ids) => setListItemsChecked(ids, anyUnchecked)),
+          },
+        ]
+      : []),
+    {
+      label: 'Copy',
+      icon: Copy,
+      onClick: () =>
+        sel.run(async (ids) => {
+          const rows = ordered.filter((it) => ids.includes(it.id))
+          const ok = await copyText(toMarkdown(rows, { checkable, heading: list.name }))
+          showToast(ok ? `Copied ${countLabel(ids.length, 'item')}` : 'Could not copy that', {
+            variant: ok ? undefined : 'error',
+          })
+        }),
+    },
+    {
+      label: 'Delete',
+      icon: Trash2,
+      variant: 'danger',
+      // No confirm: deleteListItems raises one Undo toast that restores all of
+      // them, which is the native pattern and strictly better than a prompt.
+      onClick: () => sel.run((ids) => deleteListItems(ids)),
+    },
+  ]
+
   const row = (it) => (
     <ListItemRow
       key={it.id}
@@ -506,6 +674,10 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
       meal={meal}
       checkable={checkable}
       autoOpen={it.id === newHeadingId}
+      selecting={sel.selecting}
+      selected={sel.isSelected(it.id)}
+      onSelect={sel.toggle}
+      onLongPress={pressOwner === 'selection' ? () => sel.enter(it.id) : undefined}
       onToggle={toggle}
       onDelete={deleteListItem}
       onSave={updateListItem}
@@ -523,7 +695,7 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
   )
 
   return (
-    <div className="detail">
+    <div className={`detail ${sel.selecting ? 'selecting' : ''}`}>
       <NavBar backLabel="Lists" onBack={onBack} title={list.name}>
         <div className="list-detail-head">
           <span
@@ -534,11 +706,34 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
           </span>
           <h1 className="person-name">{list.name}</h1>
           <div className="head-actions">
+            {/* Selection's guaranteed front door. The long press is a shortcut
+                that a hand-orderable list can't offer, so the button is what
+                keeps the feature reachable everywhere — see longPressOwner. */}
+            {ordered.length > 0 && !sel.selecting && (
+              <button className="text-btn" onClick={() => sel.enter()}>
+                Select
+              </button>
+            )}
+            <ShareButton type="list" row={list} label="Send this list" />
             <IconButton icon={Edit2} onClick={() => onEdit(list)} label="Edit list" />
             <IconButton icon={Trash2} variant="danger" onClick={removeList} label="Delete list" />
           </div>
         </div>
       </NavBar>
+      {/* Deliberately a quiet strip and not a Card: this is a hint with a TTL,
+          and the durable "I've got this" surface is the claim chip elsewhere.
+          Drawing ephemeral state with the weight of a stored fact is how people
+          come to trust it more than it deserves. */}
+      {shoppingNote && (
+        <div className="shopping-now" aria-live="polite">
+          <span className="shopping-now-faces">
+            {shoppers.slice(0, 3).map((s) => (
+              <Avatar key={s.memberId} name={s.name || 'Someone'} size={20} />
+            ))}
+          </span>
+          <span className="shopping-now-text">{shoppingNote}</span>
+        </div>
+      )}
       {(showProject || (checkable && items.done.length > 0)) && (
         <div className="profile-actions" style={{ justifyContent: 'flex-start', marginTop: 12 }}>
           {showProject && (
@@ -614,13 +809,20 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
           </>
         ) : (
           <>
-            {items.open.length > 0 && (
-              <ReorderableList
-                items={items.open}
-                onMove={(from, to) => reorderListItems(moveUpdates(items.open, from, to))}
-                renderItem={(it) => row(it)}
-              />
-            )}
+            {/* Selecting drops the reorder wrapper entirely rather than
+                disabling it — you are choosing rows, not arranging them, and a
+                lift under a finger that meant to tick one more would scatter
+                the list. Same rule longPressOwner states. */}
+            {items.open.length > 0 &&
+              (sel.selecting ? (
+                <div className="list">{items.open.map(row)}</div>
+              ) : (
+                <ReorderableList
+                  items={items.open}
+                  onMove={(from, to) => reorderListItems(moveUpdates(items.open, from, to))}
+                  renderItem={(it) => row(it)}
+                />
+              ))}
             {doneSection}
           </>
         )}
@@ -630,8 +832,10 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
 
       {/* Add dock sits at the bottom, within thumb reach while shopping. On
           mobile it sticks just above the tab bar; suggestions grow upward from
-          the input so the field itself never moves. */}
-      <div className="list-add-dock">
+          the input so the field itself never moves.
+          Hidden while selecting: the selection bar occupies that space, and
+          adding a new item is not a thing you're doing mid-selection. */}
+      <div className="list-add-dock" hidden={sel.selecting}>
         {!grocery && !meal && (
           <button className="text-btn add-section-btn" onClick={addSection}>
             <Plus size={14} /> Add section
@@ -705,6 +909,17 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
           </button>
         </div>
       </div>
+
+      {sel.selecting && (
+        <SelectionBar
+          count={sel.count}
+          noun="item"
+          allSelected={sel.allSelected}
+          onToggleAll={sel.toggleAll}
+          onCancel={sel.exit}
+          actions={bulkActions}
+        />
+      )}
 
       {shopping && (
         <ActionSheet

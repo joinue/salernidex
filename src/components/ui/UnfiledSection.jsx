@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import SectionLabel from './SectionLabel'
 
 // "No area · 12" — the collapsed section that holds unfiled items while a lens
@@ -17,8 +17,17 @@ import SectionLabel from './SectionLabel'
 // One component, used by every scoped view, because the section has to look and
 // behave the same on Today as it does on Notes — seven bespoke versions is how
 // it ends up meaning seven slightly different things.
-export default function UnfiledSection({ count, label = 'No area', children }) {
+// `openFor` is an id the page was asked to land on. When it names something in
+// here, the section opens itself: a link that takes you to a row and leaves it
+// behind a fold you have to find is a link that didn't take you anywhere. It
+// stays a value rather than a boolean so re-opening is tied to a NEW target —
+// a `true` that never goes back to false would jam the section open for the
+// rest of the session.
+export default function UnfiledSection({ count, label = 'No area', openFor = null, children }) {
   const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (openFor) setOpen(true)
+  }, [openFor])
   if (!count) return null
   return (
     <>

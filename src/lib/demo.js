@@ -72,8 +72,12 @@ export const demoPeople = [
     ...base,
     created_by: 'm-2', // added by partner — only they can permanently delete
     id: 'p-david',
-    tier: 'network',
-    keep_in_touch_days: 30,
+    // 0042: a business tier and a fortnightly cadence, both of which only exist
+    // because he's filed under Work — which `is_business`. He still shows up
+    // under every lens, which is the whole point of the context being additive.
+    tier: 'client',
+    context_area_id: 'a-work',
+    keep_in_touch_days: 14,
     name: 'David Chen',
     email: 'dchen@summitmaterials.com',
     phone: '(555) 555-0177',
@@ -204,6 +208,10 @@ export const demoOrgs = [
     type: 'Company',
     description: 'Lab instruments and consumables. Home base.',
     key_contacts: [],
+    // The account, followed up with in its own right (0042) — not through
+    // whichever person happens to be the contact there this quarter.
+    context_area_id: 'a-work',
+    keep_in_touch_days: 30,
     tags: ['work'],
   },
   {
@@ -893,6 +901,18 @@ export const demoRelationships = [
 // Touchpoint history. Spread across time so cadence/overdue signals and the
 // activity timelines look real. occurred_at drives "last contacted".
 export const demoInteractions = [
+  // Northwind the ACCOUNT — cadence 30d, last touch ~40d ago → due a check-in
+  // (0042). Logged against the org rather than a person on purpose: this is the
+  // quarterly review with the company, and it stays on the account's timeline
+  // whoever the contact there happens to be next year.
+  {
+    id: 'i-org1',
+    organization_id: 'o-pace',
+    type: 'meeting',
+    occurred_at: daysAgo(40),
+    note: 'Quarterly review. Renewal lands in Q3; they want the consumables bundle quoted separately.',
+    created_at: daysAgo(40),
+  },
   // Elena — cadence 90d, last touch ~20d ago → on track
   {
     id: 'i1',
@@ -1006,6 +1026,11 @@ export const demoAreas = [
     shared: false, // mine alone — it isn't a lens my partner is offered
     default_private: true, // …so everything filed here is private by default
     show_on_today: true,
+    // 0042. The one business area in the demo, so a visitor who opens a contact
+    // filed here sees the client/vendor tiers and the weekly cadences without
+    // having to build an area first — and so the "Areas don't filter contacts"
+    // note under the manager has something to be true about.
+    is_business: true,
     archived_at: null,
     created_by: 'm-1',
     created_at: now,
@@ -1020,6 +1045,7 @@ export const demoAreas = [
     shared: true, // a place we both go
     default_private: false,
     show_on_today: true,
+    is_business: false,
     archived_at: null,
     created_by: 'm-1',
     created_at: now,

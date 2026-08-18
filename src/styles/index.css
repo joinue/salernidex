@@ -49,6 +49,7 @@
 @import './features/relationships.css';
 @import './features/import-export.css';
 @import './shell/tabbar.css';
+@import './primitives/selection.css';
 @import './primitives/sheet.css';
 @import './primitives/select-row.css';
 @import './primitives/icon-picker.css';

@@ -219,7 +219,7 @@ areas offline would show an empty app.
 | Stays out | Why |
 |---|---|
 | `list_items` | Inherits the list. (They do get **tags** — §4.3 — but never an area) |
-| `people` / `organizations` | **See below — this is a deliberate call, not an omission** |
+| `people` / `organizations` | No `area_id`. They get a **`context_area_id`**, which is a different thing — see below and §3.2b |
 | `groups`, `relationships`, `affiliations` | Derived from contacts; they inherit whatever contacts do |
 
 **Contacts don't get areas, and this is the strongest evidence the model is
@@ -233,6 +233,66 @@ contacts with a whole top-level page as its front door.
 So the rule is: **the lens filters the first seven destinations in
 [`nav.js`](../../src/lib/nav.js) and never touches the `Contacts` group.** Say
 it once in the UI ("Areas don't filter contacts — use Groups") and never again.
+*(Shipped with 0042, under the list in `AreasView` — it had been outstanding
+since this section was written, and its absence made filing a client under Work
+and finding the People page unchanged read as a bug rather than as the design.)*
+
+### 3.2b Business areas — what 0042 changed, and what it deliberately didn't
+
+The paragraph above settles one question: **may an area HIDE a contact?** No,
+and that hasn't changed. It was being used to settle a second question it
+doesn't reach: **may work-shaped relationship pressure be scoped?**
+
+Those come apart badly for the case this app now has to serve — one person, one
+household, a personal life and a business. Under the Home lens on a Sunday,
+"check in with a prospect" sat beside "call Mum". Switching Work off Today
+silenced its tasks and its lists while its follow-up pings kept arriving,
+because contacts had no area and the `show_on_today` rule had nothing to read.
+There was no way to say *the business is closed*.
+
+So 0042 adds two columns and one rule:
+
+```sql
+areas.is_business          boolean  -- this lens is a business one
+people.context_area_id     uuid     -- which part of your life you know them through
+organizations.context_area_id
+```
+
+**The rule: a context is ADDITIVE.** It changes what a record *offers* and
+whether that contact's check-in can be *silenced*. It never decides whether the
+contact is *shown*.
+
+| Changes | Doesn't change |
+|---|---|
+| Tier picker offers Client / Prospect / Partner / Vendor / Advisor **on top of** the personal ladder | Every tier stays legal on every contact — refiling can't blank one |
+| Cadence picker leads with 7 / 14 / 21 days | Every cadence is offered to everyone; only the order moves |
+| The contact's check-in and dates follow its area's `show_on_today` | An **unfiled** contact always reaches Today — muting Work can never silence a friend's birthday |
+| `canBeFiled` answers **true** for a check-in that has a context, so the lens scopes it | It still answers **false** without one, so a personal household's birthdays never get swept into "No area" |
+| — | `AREA_SCOPED_ROUTES` is unchanged. `people` is not in it and must never be |
+
+Two naming decisions carry weight here:
+
+- The column is **`context_area_id`, not `area_id`**. Every other `area_id` in
+  the schema means "the lens filters this", so a column called `area_id` on
+  `people` is an invitation for someone — quite possibly its author, months later
+  — to wire it into the People filter, because that is what the name promises.
+  This name makes the wrong change read wrong at the call site.
+- `canBeFiled` is answered **per item, not per kind**. A flat `true` for the
+  `nudge`/`date` kinds would have moved every birthday in a personal household
+  into a collapsed section the moment any lens was picked — the exact failure the
+  comment on that function has always warned about.
+
+Both are pinned by [`businessAreas.test.js`](../../src/lib/businessAreas.test.js),
+including an explicit assertion that `people` never appears in
+`AREA_SCOPED_ROUTES`.
+
+**Organizations also became followable-up-with** in the same migration, which is
+unrelated to areas and long overdue: 0032 made an org a contactable record and
+0033 gave it people, but the touchpoint half never came. So the client company —
+the thing you actually manage, whose contact person may change twice a year —
+could be phoned but not followed up with, and kept no history of its own.
+`interactions.person_id` drops to nullable beside a new `organization_id`, with a
+check constraint saying exactly one is set.
 
 **Habits deserve honesty rather than symmetry.** Nobody has forty habits, and
 the Habits page is not a bloated mess. The *column* is free and belongs in the

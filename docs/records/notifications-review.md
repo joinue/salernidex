@@ -98,8 +98,23 @@ DST-safe UTC-noon date math on the server.
 - **Per-household timezone.** `TZ_NAME` is one global env (`America/Phoenix`, no DST,
   which conveniently masks DST bugs). Move timezone onto the household row and resolve
   per member before multi-tenant. Hard blocker for multi-household.
-- **Household-scope the sender's reads.** The function `select('*')`s every table each
-  tick — O(all data). Fine for one household; must be scoped before multi-tenant.
+- ~~**Household-scope the sender's reads.**~~ **FIXED (0042).** This was filed here as a
+  P2 *scale* item — "O(all data), fine for one household, must be scoped before
+  multi-tenant" — and that triage was wrong twice. Multi-tenant had already shipped
+  (migration `0001`), and the defect was **disclosure, not cost**: the function holds a
+  service-role key, so RLS is bypassed by design, and only `badgeCount` was ever handed
+  household-filtered arrays. The builders that write the notification *text* got the raw
+  ones, so `checkIns` could push a stranger's contact name to any subscribed user
+  ("Say hi to …", deep-linked to a profile they can't open), `dateReminders` did the same
+  for birthdays, and `dueTasksToday` matched every household's `assignee = 'anyone'` task.
+  Nothing applied `privacy_level` at all, so a contact marked "Private, only me" was
+  pushed to the household's other member by name.
+  Fixed in [`scope.ts`](../../supabase/functions/send-reminders/scope.ts): both rules, one
+  place, applied once per member and fed to every builder including the badge — so a
+  builder added later is scoped by construction rather than by remembering. Pinned by
+  `scope.parity.test.ts` against `lib/privacy.js`.
+  *Lesson for triage: "reads more data than it needs" and "tells the wrong person about
+  it" look identical in a diff and are not the same severity.*
 - **`notificationclick` routing** (`sw.js`): uses `WindowClient.navigate`, Chromium-only
   and may not re-route an already-open hash-router client. Consider `postMessage` to the
   client to navigate.

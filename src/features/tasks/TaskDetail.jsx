@@ -36,6 +36,7 @@ import NavBar from '../../components/ui/NavBar'
 import SectionLabel from '../../components/ui/SectionLabel'
 import EmptyState from '../../components/ui/EmptyState'
 import IconButton from '../../components/ui/IconButton'
+import ShareButton from '../../components/ui/ShareButton'
 import NoteBacklinks from '../../components/ui/NoteBacklinks'
 
 // One task, on its own page — the other half of the row's inline expander. The
@@ -186,6 +187,7 @@ export default function TaskDetail({ data, taskId, onBack, onEdit, onOpenNote })
               Edit
             </Button>
             <AddToCalendar task={task} trigger="pill" />
+            <ShareButton type={task.is_project ? 'project' : 'task'} row={task} trigger="pill" />
             {/* The on/by flip, same one-tap retrofit the list offers. Named for
                 the section the task lands in, since that's the visible outcome. */}
             {canFlipDueKind(task) && (

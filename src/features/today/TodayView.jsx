@@ -1,12 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bell, Gift, Calendar, ChevronRight, Sun, MessageCircle, Clock, Check } from 'react-feather'
+import {
+  Bell,
+  Gift,
+  Calendar,
+  ChevronRight,
+  Sun,
+  MessageCircle,
+  Clock,
+  Check,
+  UserPlus,
+  UserMinus,
+  Briefcase,
+} from 'react-feather'
 import { relativeTime } from '../../lib/contact'
 import { dueLabel, daysUntilDue } from '../../lib/tasks'
 import { attentionAreaId, buildAttention, canBeFiled } from '../../lib/attention'
 import { ALL_AREAS, areaById } from '../../lib/areas'
 import UnfiledSection from '../../components/ui/UnfiledSection'
 import { reminderWhen } from '../../lib/reminders'
-import { normalizeAssignee } from '../../lib/household'
+import { isSolo, normalizeAssignee } from '../../lib/household'
 import { buildActivityFeed } from '../../lib/activity'
 import { personActions } from '../../lib/personActions'
 import { noteTitle, noteSnippet } from '../../lib/notes'
@@ -74,7 +86,17 @@ function dateSub(entry) {
 
 // Warm, human phrasing — this is staying close to people, not working a
 // pipeline. Never "overdue", never "cadence".
+//
+// An org gets the same shape in a plainer register (0042): "say hi" to a
+// contracting firm is odd, and the warmth those words carry is for people. It
+// still isn't pipeline-speak — "nothing logged yet" is a fact about your record,
+// not a stage in a funnel.
 function checkInSub(item) {
+  if (item.org) {
+    return item.state === 'never'
+      ? 'Nothing logged yet'
+      : `It's been a while · last contact ${relativeTime(item.lastIso)}`
+  }
   if (item.state === 'never') return 'No catch-ups logged yet · say hi'
   return `It's been a while · last catch-up ${relativeTime(item.lastIso)}`
 }
@@ -85,7 +107,10 @@ export default function TodayView({
   data,
   taskScope = 'mine',
   onOpenPerson,
+  onOpenOrg,
   onOpenList,
+  // One task, on the Tasks page, expanded. onOpenTasks is the whole page.
+  onOpenTask,
   onOpenTasks,
   onOpenProject,
   onOpenActivity,
@@ -104,6 +129,7 @@ export default function TodayView({
     completeTask,
     skipTaskOccurrence,
     snoozeReminder,
+    updateTask,
     memberId,
     habitEntries,
     logHabit,
@@ -124,7 +150,10 @@ export default function TodayView({
   const todayHabits = habitsScheduledToday(data.habits, habitMap, nowDate)
     .filter((h) => h.show_on_today)
     .sort(byOrder)
-  const [logPerson, setLogPerson] = useState(null)
+  // The subject of the "Log a touchpoint" sheet: { row, kind }. An org can have
+  // a cadence of its own since 0042, and its check-in row is the same row — so
+  // the sheet has to be told which column to write rather than assuming person.
+  const [logSubject, setLogSubject] = useState(null)
   const [actionPerson, setActionPerson] = useState(null)
   const [laterItem, setLaterItem] = useState(null) // attention item picking a snooze
 
@@ -140,6 +169,10 @@ export default function TodayView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       data.people,
+      // Orgs carry a cadence of their own since 0042, so they feed check-ins
+      // exactly as people do — and a missing dep here means logging a touchpoint
+      // with an account leaves its row sitting on Today until the next reload.
+      data.orgs,
       data.tasks,
       data.lists,
       data.interactions,
@@ -147,6 +180,10 @@ export default function TodayView({
       data.reminderSnoozes,
       data.habits,
       data.habitEntries,
+      // The area ROWS, not just the selected lens id below: buildAttention reads
+      // show_on_today off them. Missing, flipping an area quiet left Today
+      // unchanged until something else happened to invalidate this memo.
+      data.areas,
       prefs,
       memberId,
       taskScope,
@@ -175,7 +212,9 @@ export default function TodayView({
   const anytimeTasks = scoped.filter((i) => i.kind === 'task' && i.urgency === 'anytime')
   const dueLists = scoped.filter((i) => i.kind === 'list')
   const checkIns = scoped.filter((i) => i.kind === 'nudge')
-  const unfiledTasks = unfiled.filter((i) => i.kind === 'task' || i.kind === 'reminder')
+  // Kept apart, because they draw different rows — see reminderItemRow.
+  const unfiledTasks = unfiled.filter((i) => i.kind === 'task')
+  const unfiledReminders = unfiled.filter((i) => i.kind === 'reminder')
   const unfiledLists = unfiled.filter((i) => i.kind === 'list')
   // Dates read off contacts and reminders you wrote are one section, not two:
   // "what's coming up" is a single question, and the difference between a
@@ -196,12 +235,24 @@ export default function TodayView({
   // has already said it.
   const rowArea = (row) => (lensOn ? null : areaById(data.areas, row?.area_id))
 
+  // Tapping a task goes to the task: a step of a project opens the project it
+  // belongs to (where the step sits among its siblings, which is what you need
+  // to see); anything else opens the Tasks page with that row expanded. Today
+  // deliberately shows a task as one line — no notes, no subtasks, no controls
+  // beyond the check — so "tell me more" has to have somewhere to go, and until
+  // now a plain task's row answered a tap with nothing at all.
+  const openTaskItem = (item) =>
+    item.project ? onOpenProject?.(item.project.id) : onOpenTask?.(item.task.id)
+
+  // Later stays the first action even though claiming is the newer, more
+  // frequent one: it's the shortest swipe on this page today, and moving a
+  // control someone's thumb already knows costs more than the second slot does.
   const taskItemRow = (item) => (
     <SwipeRow
       key={item.key}
       label={item.task.title}
-      actions={[later(item)]}
-      onClick={item.project ? () => onOpenProject?.(item.project.id) : undefined}
+      actions={[later(item), claim(item)].filter(Boolean)}
+      onClick={() => openTaskItem(item)}
     >
       <div className="list-row">
         <TaskRow
@@ -213,6 +264,48 @@ export default function TodayView({
       </div>
     </SwipeRow>
   )
+
+  // A reminder you wrote: nothing to do, so the row's job is to say it, let you
+  // say "Got it", and take you to it on Reminders — where it sits among the rest
+  // of what's coming, with its notes and its repeat rule.
+  //
+  // Extracted from the Coming up section for the same reason the two above were:
+  // the "No area" block below renders reminders too, and it was passing them
+  // through the TASK row — which reads item.task, and a reminder item hasn't got
+  // one. Under a lens, one unfiled reminder took the whole page down.
+  const reminderItemRow = (item) => {
+    const r = item.reminder
+    return (
+      <SwipeRow
+        key={item.key}
+        label={r.title}
+        actions={[
+          { label: 'Got it', icon: Check, onClick: () => completeTask(r, true) },
+          later(item),
+        ]}
+        onClick={() => onOpenReminders?.(r.id)}
+      >
+        <div className="list-row">
+          <span className="reminder-dot" aria-hidden="true">
+            <Bell size={15} />
+          </span>
+          <div className="row-body">
+            <div className="row-titleline">
+              <AreaDot area={rowArea(r)} />
+              <div className="row-title">{r.title}</div>
+            </div>
+            <div className="row-sub">{r.notes || 'Just a heads-up'}</div>
+          </div>
+          <div className="row-meta">
+            <span className={`row-time ${item.urgency === 'today' ? 'warn' : ''}`}>
+              {reminderWhen({ daysUntil: whenDays(item), dateIso: r.due_date })}
+            </span>
+            <ChevronRight size={18} className="row-chevron" />
+          </div>
+        </div>
+      </SwipeRow>
+    )
+  }
 
   const listItemRow = (item) => {
     const l = item.list
@@ -300,6 +393,38 @@ export default function TodayView({
 
   // Swipe action: "Later" → sheet with gentle snooze choices.
   const later = (item) => ({ label: 'Later', icon: Clock, onClick: () => setLaterItem(item) })
+
+  // Swipe action: take an open chore, or hand it back.
+  //
+  // The rows this reaches are a small, deliberate set. defaultAssignee() makes a
+  // task you type YOURS, so "Anyone" isn't the state a shared list rots into —
+  // it's a choice, and it means the rota: the bins, the dishes, whoever gets
+  // there first. Those are exactly the rows two people can both pick up on the
+  // same evening from different rooms, and saying "I've got it" meant opening
+  // the edit form, which nobody does mid-errand.
+  //
+  // No new state backs this. It writes the `assignee` that already exists, so
+  // buildAttention stops nagging the other person, the row grows a name chip on
+  // its own, and realtime carries both to the other phone with no new plumbing.
+  //
+  // Three cases, two of them offer a button: unclaimed offers to take it, yours
+  // offers to put it back (a mis-tap has to be undoable without the form). A
+  // task assigned to someone ELSE gets nothing — taking work off a housemate is
+  // a conversation, not a swipe. Solo households get nothing either, the same
+  // progressive disclosure isSolo() already does for the rest of the sharing UI.
+  const claim = (item) => {
+    if (isSolo() || !memberId) return null
+    const who = normalizeAssignee(item.task.assignee)
+    const me = normalizeAssignee(memberId)
+    const set = (assignee) => () => {
+      haptics.light()
+      updateTask(item.task.id, { assignee })
+    }
+    if (who === 'anyone') return { label: 'Mine', icon: UserPlus, onClick: set(memberId) }
+    if (who === me)
+      return { label: 'Not mine', icon: UserMinus, variant: 'neutral', onClick: set('anyone') }
+    return null
+  }
 
   // "We're caught up, nothing worth logging" — quiets the check-in for one
   // full cadence cycle without inventing a touchpoint.
@@ -436,9 +561,10 @@ export default function TodayView({
             mixed into — so picking Work doesn't quietly lose the errand you
             never filed, and doesn't pad Work with it either. Matches Tasks,
             Projects, Lists, Notes and Reminders. */}
-        <UnfiledSection count={unfiledTasks.length + unfiledLists.length}>
+        <UnfiledSection count={unfiledTasks.length + unfiledReminders.length + unfiledLists.length}>
           <div className="list">
             {unfiledTasks.map(taskItemRow)}
+            {unfiledReminders.map(reminderItemRow)}
             {unfiledLists.map(listItemRow)}
           </div>
         </UnfiledSection>
@@ -447,48 +573,67 @@ export default function TodayView({
           <section className="today-section">
             <SectionLabel>Check in</SectionLabel>
             <div className="list">
-              {checkIns.map((item) => (
-                <SwipeRow
-                  key={item.key}
-                  label={item.person.name}
-                  actions={[
-                    {
-                      label: 'Check in',
-                      icon: MessageCircle,
-                      onClick: () => setLogPerson(item.person),
-                    },
-                    {
-                      label: 'Clear',
-                      icon: Check,
-                      variant: 'neutral',
-                      onClick: () => clearCheckIn(item),
-                    },
-                    later(item),
-                  ]}
-                  onClick={() => onOpenPerson(item.person.id)}
-                  onLongPress={() => setActionPerson(item.person)}
-                >
-                  <div className="list-row">
-                    <Avatar name={item.person.name} src={item.person.avatar_url} size={42} />
-                    <div className="row-body">
-                      <div className="row-title">{item.person.name}</div>
-                      <div className="row-sub">{checkInSub(item)}</div>
-                    </div>
-                    <div className="row-meta">
-                      <IconButton
-                        icon={MessageCircle}
-                        variant="accent"
-                        className="touch-quick"
-                        label={`Check in with ${item.person.name}`}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setLogPerson(item.person)
-                        }}
+              {checkIns.map((item) => {
+                // One row shape for both, because they are the same thing: an
+                // account you meant to stay on top of, drifting. Only the avatar
+                // and the destination differ.
+                const org = item.kind === 'nudge' ? item.org : null
+                const subject = item.person || org
+                const kind = org ? 'organization' : 'person'
+                const open = () => (org ? onOpenOrg?.(org.id) : onOpenPerson(subject.id))
+                return (
+                  <SwipeRow
+                    key={item.key}
+                    label={subject.name}
+                    actions={[
+                      {
+                        label: 'Check in',
+                        icon: MessageCircle,
+                        onClick: () => setLogSubject({ row: subject, kind }),
+                      },
+                      {
+                        label: 'Clear',
+                        icon: Check,
+                        variant: 'neutral',
+                        onClick: () => clearCheckIn(item),
+                      },
+                      later(item),
+                    ]}
+                    onClick={open}
+                    // The long-press menu is personActions — Call, Email, Log —
+                    // and every entry of it reads off a PERSON. An org has its
+                    // own contact fields in different columns, so rather than
+                    // half a menu it gets none, and the row's own tap and swipe
+                    // still do everything.
+                    onLongPress={org ? undefined : () => setActionPerson(item.person)}
+                  >
+                    <div className="list-row">
+                      <Avatar
+                        name={subject.name}
+                        src={subject.avatar_url}
+                        size={42}
+                        {...(org ? { kind: 'org', icon: Briefcase } : {})}
                       />
+                      <div className="row-body">
+                        <div className="row-title">{subject.name}</div>
+                        <div className="row-sub">{checkInSub(item)}</div>
+                      </div>
+                      <div className="row-meta">
+                        <IconButton
+                          icon={MessageCircle}
+                          variant="accent"
+                          className="touch-quick"
+                          label={`Check in with ${subject.name}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setLogSubject({ row: subject, kind })
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                </SwipeRow>
-              ))}
+                  </SwipeRow>
+                )
+              })}
             </div>
           </section>
         )}
@@ -501,44 +646,7 @@ export default function TodayView({
             <SectionLabel>Coming up</SectionLabel>
             <div className="list">
               {dates.map((item) => {
-                // A reminder you wrote: nothing to open, nothing to do, so the
-                // row's whole job is to say it and let you say "Got it".
-                if (item.kind === 'reminder') {
-                  const r = item.reminder
-                  return (
-                    <SwipeRow
-                      key={item.key}
-                      label={r.title}
-                      actions={[
-                        {
-                          label: 'Got it',
-                          icon: Check,
-                          onClick: () => completeTask(r, true),
-                        },
-                        later(item),
-                      ]}
-                      onClick={() => onOpenReminders?.()}
-                    >
-                      <div className="list-row">
-                        <span className="reminder-dot" aria-hidden="true">
-                          <Bell size={15} />
-                        </span>
-                        <div className="row-body">
-                          <div className="row-title">{r.title}</div>
-                          <div className="row-sub">{r.notes || 'Just a heads-up'}</div>
-                        </div>
-                        <div className="row-meta">
-                          <span className={`row-time ${item.urgency === 'today' ? 'warn' : ''}`}>
-                            {reminderWhen({
-                              daysUntil: whenDays(item),
-                              dateIso: r.due_date,
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                    </SwipeRow>
-                  )
-                }
+                if (item.kind === 'reminder') return reminderItemRow(item)
                 const entry = item.entry
                 const Icon = entry.kind === 'birthday' ? Gift : Calendar
                 return (
@@ -619,17 +727,18 @@ export default function TodayView({
           title={actionPerson.name}
           actions={personActions(actionPerson, {
             onOpen: onOpenPerson,
-            onLog: (p) => setLogPerson(p),
+            onLog: (p) => setLogSubject({ row: p, kind: 'person' }),
           })}
           onClose={() => setActionPerson(null)}
         />
       )}
-      {logPerson && (
+      {logSubject && (
         <InteractionForm
-          person={logPerson}
+          subject={logSubject.row}
+          subjectKind={logSubject.kind}
           presetType="call"
           onSave={addInteraction}
-          onClose={() => setLogPerson(null)}
+          onClose={() => setLogSubject(null)}
         />
       )}
       {laterItem && (

@@ -1,0 +1,135 @@
+/* Multi-select: the bar, and what a row looks like while it's being chosen. */
+
+/* Sits OVER the tab bar, not above it. While you're selecting, the bar's
+   destinations aren't where you're going, and stacking the two would push the
+   actions out of a thumb's reach on a phone.
+
+   The offset is derived, never typed (CONVENTIONS "Layout arithmetic"):
+   --tabbar-inset is the gap the tab pill itself leaves, so sharing it puts this
+   bar exactly where the pill was. Same z-layer as the chrome it replaces. */
+.selection-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: var(--tabbar-inset);
+  z-index: var(--z-chrome);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: min(560px, calc(100vw - 24px));
+  min-height: var(--tabbar-h);
+  padding: 6px 8px 6px 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  animation: selection-bar-in var(--dur-2) var(--ease-ios);
+}
+
+.selection-bar-lead {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* Counts up as you tick rows, so it must not shove the actions sideways on
+   the way from 9 to 10. */
+.selection-bar-count {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.selection-bar-actions {
+  display: flex;
+  align-items: center;
+  /* 12px minimum between adjacent hit areas, or the 44px targets overlap and
+     the later sibling wins the hit test — the rule that once made the edge of
+     "Edit list" open "Delete list". */
+  gap: 12px;
+  padding-right: 6px;
+}
+
+.selection-bar-actions .text-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.selection-bar-actions .text-btn.danger {
+  color: var(--danger);
+}
+
+@keyframes selection-bar-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}
+
+/* A selected row. Tinted rather than outlined: these lists already use a 0.5px
+   hairline between siblings, and a border would fight it at every boundary. */
+.is-selected {
+  background: var(--accent-soft);
+}
+
+/* The tick that replaces the row's own affordance while selecting. Painted at
+   22px and tapped at 44 via .tap-target, like every other control. */
+.select-tick {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  margin-right: 10px;
+  border: 1.5px solid var(--text-3);
+  border-radius: 999px;
+  background: none;
+  color: transparent;
+  transition:
+    background var(--dur-1) var(--ease-ios),
+    border-color var(--dur-1) var(--ease-ios);
+}
+
+.select-tick.on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* A gallery card has no leading column to put the tick in, so it corners it.
+   Absolute rather than in flow: the card's title, body and foot are a fixed
+   three-row grid, and adding a fourth child would reflow every card in the
+   gallery the moment selection turned on. */
+.note-card {
+  position: relative;
+}
+.note-card-tick {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  margin-right: 0;
+  background: var(--surface);
+}
+
+/* While selecting, a whole list stops offering its per-row navigation — the
+   text is no longer a link to somewhere, it's a label on a checkbox. */
+.selecting .list-row {
+  cursor: default;
+}
+
+/* A row that can't be picked — a section heading, which is structure rather
+   than an item. Dimmed so the absence of a tick reads as deliberate instead of
+   as a row that failed to render one. */
+.is-inert {
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .selection-bar {
+    animation: none;
+  }
+}

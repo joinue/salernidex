@@ -55,7 +55,13 @@ create table public.people (
   longitude     double precision,
   geocoded_address text,                       -- the `address` string these coords were resolved from; re-geocode when it differs
   tags          text[] not null default '{}',
-  tier          text check (tier in ('family', 'inner', 'close', 'network', 'acquaintance')),  -- relationship tier; null = unsorted. Order (closest→loosest) drives TIER_RANK in lib/constants.js
+  -- Relationship tier; null = unsorted. Two vocabularies in one column (0042):
+  -- the personal closeness ladder, whose order drives TIER_RANK in
+  -- lib/constants.js, then the business roles, which rank after all of it
+  -- because "client" is not closer or further than "close". Every value stays
+  -- legal on every contact — which set is OFFERED is the picker's job
+  -- (constants.tiersFor), so retyping an area can't blank a tier someone chose.
+  tier          text check (tier is null or tier in ('family', 'inner', 'close', 'network', 'acquaintance', 'client', 'prospect', 'partner', 'vendor', 'advisor')),
   family_id     uuid references public.families(id) on delete set null,
   privacy_level privacy_level not null default 'shared',
   notes         text,
@@ -97,6 +103,11 @@ create table public.organizations (
   website       text,
   address       text,
   key_contacts  text[] not null default '{}',
+  -- Cadence + context (0042), same shape and semantics as the person columns.
+  -- The client company is a thing you manage, not a friend, so it earns both.
+  keep_in_touch_days integer check (keep_in_touch_days is null or keep_in_touch_days >= 0),
+  -- context_area_id is added by ALTER at the foot of this file, with people's,
+  -- because it references areas — which is defined down there.
   tags          text[] not null default '{}',
   privacy_level privacy_level not null default 'shared',
   avatar_url    text,                          -- avatars Storage object path (see 0006); null = monogram fallback
@@ -126,14 +137,25 @@ create table public.relationships (
 -- ------------------------------------------------------------
 -- interactions (touchpoint log: the CRM activity history)
 -- ------------------------------------------------------------
+-- Subject is a person OR an organization, never both and never neither (0042).
+-- Orgs got contact details in 0032 and people in 0033; the follow-up half came
+-- late, and until it did the client company — the thing you actually manage,
+-- whose contact person may change twice a year — could be phoned but not
+-- followed up with, and kept no history.
 create table public.interactions (
-  id           uuid primary key default gen_random_uuid(),
-  person_id    uuid not null references public.people(id) on delete cascade,
-  type         text not null default 'note',   -- call, text, meeting, email, note
-  occurred_at  timestamptz not null default now(),
-  note         text,
-  created_by   uuid default auth.uid(),
-  created_at   timestamptz not null default now()
+  id              uuid primary key default gen_random_uuid(),
+  person_id       uuid references public.people(id) on delete cascade,
+  organization_id uuid references public.organizations(id) on delete cascade,
+  type            text not null default 'note',   -- call, text, meeting, email, note
+  occurred_at     timestamptz not null default now(),
+  note            text,
+  created_by      uuid default auth.uid(),
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  constraint interactions_subject_chk check (
+    (person_id is not null and organization_id is null)
+    or (person_id is null and organization_id is not null)
+  )
 );
 
 -- ------------------------------------------------------------
@@ -340,6 +362,8 @@ create trigger families_audit after insert or update or delete on public.familie
   for each row execute function public.write_audit();
 create trigger key_dates_audit after insert or update or delete on public.key_dates
   for each row execute function public.write_audit();
+create trigger interactions_touch before update on public.interactions
+  for each row execute function public.touch_updated_at();
 create trigger interactions_audit after insert or update or delete on public.interactions
   for each row execute function public.write_audit();
 create trigger organizations_audit after insert or update or delete on public.organizations
@@ -421,6 +445,7 @@ create index relationships_b_idx on public.relationships (person_b_id);
 create unique index relationships_pair_idx on public.relationships
   (least(person_a_id, person_b_id), greatest(person_a_id, person_b_id), relationship_type);
 create index interactions_person_idx on public.interactions (person_id, occurred_at desc);
+create index interactions_org_idx on public.interactions (organization_id, occurred_at desc);
 create index tasks_due_idx on public.tasks (due_date) where completed_at is null;
 create index tasks_parent_idx on public.tasks (parent_id);
 create index tasks_reminder_idx on public.tasks (due_date) where is_reminder;
@@ -1101,6 +1126,7 @@ create table public.areas (
   color           text,                            -- lib/colors.js key; tints the chip and the switcher, never the whole app
   sort_order      double precision,                -- manual drag order (fractional ranks, lib/order.js)
   shared          boolean not null default false,  -- does this lens exist for OTHER members. NOT an ACL — item visibility is still privacy_level
+  is_business     boolean not null default false,  -- (0042) this lens is a business one: contacts reached through it are offered business tiers, weekly cadences, and can be muted with it. Additive only — it never hides a contact
   default_private boolean not null default false,  -- pre-fill new items here as private. Only meaningful while shared = false; the app hides the toggle otherwise, and no check constraint enforces it (an old client setting shared would start failing)
   show_on_today   boolean not null default true,   -- off = never reaches Today, the nav/app badges, or the send-reminders push sweep
   archived_at     timestamptz,                     -- hidden from the switcher; its items keep area_id and stay reachable under "All"
@@ -1143,6 +1169,20 @@ create index tasks_area_idx  on public.tasks  (area_id);
 create index lists_area_idx  on public.lists  (area_id);
 create index notes_area_idx  on public.notes  (area_id);
 create index habits_area_idx on public.habits (area_id);
+
+-- Contacts get a CONTEXT area (0042), which is a different thing and is named
+-- differently so it can't be mistaken for one. `area_id` above means "the lens
+-- filters this". `context_area_id` means "this is the part of your life you know
+-- them through" — it unlocks the business field set on the record and lets a
+-- check-in be muted with its area, and it must NEVER filter the People page.
+-- A colleague who becomes a friend does not vanish when you switch to Home;
+-- that rule (docs/scopes/areas-and-tags.md §3.2) is exactly as true as it was,
+-- which is why `people` stays out of AREA_SCOPED_ROUTES in src/lib/nav.js.
+alter table public.people         add column context_area_id uuid references public.areas(id) on delete set null;
+alter table public.organizations  add column context_area_id uuid references public.areas(id) on delete set null;
+
+create index people_context_area_idx on public.people (context_area_id);
+create index orgs_context_area_idx   on public.organizations (context_area_id);
 
 -- Tags on list rows (0040), so a grocery row can appear on a tag page beside a
 -- task and a note — "@errand" pulling the dry cleaning and the milk into one

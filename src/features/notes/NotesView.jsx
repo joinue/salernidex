@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
+  Check,
+  CheckSquare,
+  Copy,
   Plus,
   Trash2,
   Star,
@@ -10,9 +13,15 @@ import {
   Sliders,
   List as ListIcon,
 } from 'react-feather'
+import { showToast } from '../../lib/toast'
 import PageHeader from '../../components/shell/PageHeader'
 import SharedDot from '../../components/ui/SharedDot'
 import SwipeRow from '../../components/ui/SwipeRow'
+import PressableRow from '../../components/ui/PressableRow'
+import SelectionBar from '../../components/ui/SelectionBar'
+import { useSelection } from '../../hooks/useSelection'
+import { longPressOwner } from '../../lib/gestures'
+import { copyText, countLabel, toMarkdown } from '../../lib/bulk'
 import Segmented from '../../components/ui/Segmented'
 import ActionSheet from '../../components/ui/ActionSheet'
 import Sheet from '../../components/ui/Sheet'
@@ -72,7 +81,8 @@ export default function NotesView({
   onBack,
   area,
 }) {
-  const { notes, deletedNotes, deleteNote, togglePinNote, restoreNote, purgeNote } = data
+  const { notes, deletedNotes, deleteNote, deleteNotes, togglePinNote, restoreNote, purgeNote } =
+    data
   const confirm = useConfirm()
   const wide = useMediaQuery(SPLIT_QUERY)
   const phone = useMediaQuery(PHONE_QUERY)
@@ -135,6 +145,55 @@ export default function NotesView({
   // that true: the pinned block is the head of `filtered`, the rest follows it.
   const pinned = filtered.filter((n) => n.pinned)
   const rest = filtered.filter((n) => !n.pinned)
+
+  // `filtered` is already in visual order, so it is also selection order.
+  const selectableIds = useMemo(() => filtered.map((n) => n.id), [filtered])
+  const sel = useSelection(selectableIds)
+  // The notebook has no drag order, so here the long press is selection's —
+  // lib/gestures owns that call so it comes out the same on every surface.
+  const pressOwner = longPressOwner({ reorderable: false, selecting: sel.selecting })
+
+  const bulkActions = [
+    {
+      // Whichever direction actually changes something. With any unpinned note
+      // picked the useful verb is Pin; once they're all pinned it flips.
+      label: filtered.some((n) => sel.isSelected(n.id) && !n.pinned) ? 'Pin' : 'Unpin',
+      icon: Star,
+      onClick: () =>
+        sel.run((ids) => {
+          const rows = filtered.filter((n) => ids.includes(n.id))
+          const pinning = rows.some((n) => !n.pinned)
+          for (const n of rows) if (!!n.pinned !== pinning) togglePinNote(n.id)
+        }),
+    },
+    {
+      label: 'Copy',
+      icon: Copy,
+      onClick: () =>
+        sel.run(async (ids) => {
+          const rows = filtered.filter((n) => ids.includes(n.id))
+          // Plain bullets: a note has no check state, and `- [ ]` on one would
+          // invent a to-do the user never made.
+          const ok = await copyText(
+            toMarkdown(
+              rows.map((n) => ({ title: noteTitle(n) })),
+              { checkable: false },
+            ),
+          )
+          showToast(ok ? `Copied ${countLabel(rows.length, 'note')}` : 'Could not copy that', {
+            variant: ok ? undefined : 'error',
+          })
+        }),
+    },
+    {
+      label: 'Delete',
+      icon: Trash2,
+      variant: 'danger',
+      // Soft delete — they go to Recently Deleted, and deleteNotes raises one
+      // Undo covering all of them.
+      onClick: () => sel.run((ids) => deleteNotes(ids)),
+    },
+  ]
 
   const activeNote = noteId ? notes.find((n) => n.id === noteId) : null
   // Two panes only for the list view; the gallery earns its keep by using the
@@ -261,8 +320,43 @@ export default function NotesView({
 
   const row = (n, idx) => {
     const sub = rowSub(n)
+    // While selecting, the row is a checkbox with a note on it: no swipe
+    // actions, no navigation. Its own branch, like every other surface's.
+    if (sel.selecting) {
+      const picked = sel.isSelected(n.id)
+      return (
+        <PressableRow
+          key={n.id}
+          className={`list-row note-row ${picked ? 'is-selected' : ''}`}
+          label={noteTitle(n)}
+          onClick={() => sel.toggle(n.id)}
+        >
+          <span
+            className={`select-tick tap-target ${picked ? 'on' : ''}`}
+            role="checkbox"
+            aria-checked={picked}
+            aria-label={noteTitle(n)}
+          >
+            <Check size={14} />
+          </span>
+          <div className="row-body">
+            <div className="row-titleline">
+              <div className="row-title">{noteTitle(n)}</div>
+              <SharedDot item={n} />
+            </div>
+            {sub && <div className="row-sub note-row-sub">{sub}</div>}
+          </div>
+        </PressableRow>
+      )
+    }
     return (
-      <SwipeRow key={n.id} label={noteTitle(n)} onClick={() => open(n.id)} actions={rowActions(n)}>
+      <SwipeRow
+        key={n.id}
+        label={noteTitle(n)}
+        onClick={() => open(n.id)}
+        onLongPress={pressOwner === 'selection' ? () => sel.enter(n.id) : undefined}
+        actions={rowActions(n)}
+      >
         <div className={`list-row note-row ${marks(n, idx)}`} {...focusProps(n, idx)}>
           <div className="row-body">
             <div className="row-titleline">
@@ -291,17 +385,30 @@ export default function NotesView({
     return (
       <div
         key={n.id}
-        className={`note-card ${marks(n, idx)}`}
+        className={`note-card ${marks(n, idx)} ${sel.isSelected(n.id) ? 'is-selected' : ''}`}
         {...focusProps(n, idx)}
-        {...cardPress}
-        // Composed rather than spread over: the hook owns the hold timer, and
-        // it can't know which card started it.
+        // While selecting, the card's own long-press menu stands down — the
+        // hold has already been spent entering this mode, and a card that
+        // opened its action sheet mid-selection would be answering a question
+        // nobody asked.
+        {...(sel.selecting ? {} : cardPress)}
         onPointerDown={(e) => {
+          if (sel.selecting) return
           pressedCard.current = n
           cardPress.onPointerDown(e)
         }}
-        onClick={() => open(n.id)}
+        onClick={() => (sel.selecting ? sel.toggle(n.id) : open(n.id))}
       >
+        {sel.selecting && (
+          <span
+            className={`select-tick note-card-tick ${sel.isSelected(n.id) ? 'on' : ''}`}
+            role="checkbox"
+            aria-checked={sel.isSelected(n.id)}
+            aria-label={noteTitle(n)}
+          >
+            <Check size={14} />
+          </span>
+        )}
         <div className="note-card-head">
           {n.pinned && <Star size={13} className="note-card-pin" fill="currentColor" />}
           <div className="note-card-title">{noteTitle(n)}</div>
@@ -442,8 +549,26 @@ export default function NotesView({
   // notebook was spending so much of the screen on controls that exactly one
   // note showed above the fold. Same controls either way, so the sheet reports
   // the current sort and layout rather than making you remember them.
+  // Sort, layout — and Select. Rendered in the toolbar on desktop and inside
+  // the "Sort and layout" sheet on a phone, so putting Select here reaches both
+  // for free, which is what makes it selection's guaranteed front door.
+  //
+  // It deliberately does NOT go in the tag-chip row: that row is a horizontal
+  // scroller, and a button in it clipped the chips' 44px tap-target extension
+  // down to their 24px painted height (caught by audit:mobile).
   const sortControls = (
     <div className="notes-controls">
+      {filtered.length > 0 && !sel.selecting && (
+        <button
+          className="text-btn"
+          onClick={() => {
+            sel.enter()
+            setOptions(false)
+          }}
+        >
+          <CheckSquare size={14} /> Select
+        </button>
+      )}
       <Segmented options={SORTS} value={sort} onChange={onSort} size="sm" />
       <div className="notes-viewtoggle" role="group" aria-label="Layout">
         <button
@@ -524,8 +649,18 @@ export default function NotesView({
     )
 
   const index = (
-    <div className="notes-index" ref={listRef}>
+    <div className={`notes-index ${sel.selecting ? 'selecting' : ''}`} ref={listRef}>
       {controls}
+      {sel.selecting && (
+        <SelectionBar
+          count={sel.count}
+          noun="note"
+          allSelected={sel.allSelected}
+          onToggleAll={sel.toggleAll}
+          onCancel={sel.exit}
+          actions={bulkActions}
+        />
+      )}
       {filtered.length === 0 ? (
         // "No notes match" is an answer to a search. With nothing typed and no
         // tag picked, the only thing that emptied the index is the lens — say

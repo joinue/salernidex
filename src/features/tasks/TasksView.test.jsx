@@ -51,7 +51,7 @@ const area = (over = {}) => ({
 
 const setup = (
   tasks,
-  { confirmAnswer = true, areas = [], activeArea = ALL_AREAS, ...over } = {},
+  { confirmAnswer = true, areas = [], activeArea = ALL_AREAS, expandId, ...over } = {},
 ) => {
   const deleteTask = vi.fn()
   const onOpenTask = vi.fn()
@@ -84,6 +84,7 @@ const setup = (
       <TasksView
         data={data}
         area={active}
+        expandId={expandId}
         onAdd={vi.fn()}
         onEdit={vi.fn()}
         onOpenTask={onOpenTask}
@@ -379,6 +380,120 @@ describe('TasksView — opening one task on its own page', () => {
   })
 })
 
+// #/tasks/<id> — followed from Today, the activity feed and Quick Find, all of
+// which show a task as a single line and need somewhere to send you for the
+// rest of it. The promise is "here is that task", so what these cover is the
+// ways this page could quietly not keep it: a filter it kept from last session,
+// a fold the row happens to sit inside.
+describe('TasksView — landing on one named task', () => {
+  it('arrives with that row already expanded', () => {
+    setup(
+      [
+        task({
+          id: 'a',
+          title: 'Call the plumber',
+          due_date: isoDateIn(0),
+          notes: 'Ask about the boiler',
+        }),
+      ],
+      {
+        expandId: 'a',
+      },
+    )
+    expect(screen.getByText('Ask about the boiler')).toBeInTheDocument()
+  })
+
+  it('leaves the other rows shut', () => {
+    setup(
+      [
+        task({ id: 'a', title: 'Call the plumber', due_date: isoDateIn(0) }),
+        task({ id: 'b', title: 'Book the van', due_date: isoDateIn(0) }),
+      ],
+      { expandId: 'a' },
+    )
+    expect(screen.getAllByPlaceholderText('Add a subtask…')).toHaveLength(1)
+  })
+
+  // The filter persists for the session. Follow a link to Rita's task from a
+  // page that doesn't have one, and the row you asked for simply isn't drawn —
+  // the page keeps its filter and the link silently fails.
+  it('drops a person filter that would have hidden it', () => {
+    sessionStorage.setItem('salernidex-tasks-filters:m-1', JSON.stringify({ filter: 'm-2' }))
+    setup([task({ id: 'a', title: 'Call the plumber', assignee: 'm-1', due_date: isoDateIn(0) })], {
+      expandId: 'a',
+    })
+    expect(screen.getByText('Call the plumber')).toBeInTheDocument()
+  })
+
+  it('leaves the filter alone when the task passes it anyway', () => {
+    sessionStorage.setItem('salernidex-tasks-filters:m-1', JSON.stringify({ filter: 'm-2' }))
+    setup(
+      [
+        task({ id: 'a', title: 'Call the plumber', assignee: 'm-2', due_date: isoDateIn(0) }),
+        task({ id: 'b', title: 'Rita only', assignee: 'm-1', due_date: isoDateIn(0) }),
+      ],
+      { expandId: 'a' },
+    )
+    expect(screen.getByText('Call the plumber')).toBeInTheDocument()
+    expect(screen.queryByText('Rita only')).not.toBeInTheDocument()
+  })
+
+  it('drops a tag filter that would have hidden it', () => {
+    sessionStorage.setItem('salernidex-tasks-filters:m-1', JSON.stringify({ tagFilter: 'errands' }))
+    setup(
+      [
+        task({ id: 'a', title: 'Call the plumber', due_date: isoDateIn(0) }),
+        task({ id: 'b', title: 'Post the parcel', tags: ['errands'], due_date: isoDateIn(0) }),
+      ],
+      { expandId: 'a' },
+    )
+    expect(screen.getByText('Call the plumber')).toBeInTheDocument()
+  })
+
+  // The lens is the shell's, shared by every page, so it isn't touched — the
+  // unfiled row is rescued by opening the section that holds it instead.
+  it('opens the No area section when that is where the row is', () => {
+    setup(
+      [
+        task({ id: 'a', title: 'File expenses', area_id: 'a-work', due_date: isoDateIn(0) }),
+        task({ id: 'b', title: 'Water plants', due_date: isoDateIn(0) }),
+      ],
+      { areas: [area()], activeArea: 'a-work', expandId: 'b' },
+    )
+    expect(screen.getByText('Water plants')).toBeInTheDocument()
+  })
+
+  it('opens the folded rota for a chore that lives in it', () => {
+    const weekly = { freq: 'weekly', interval: 1, weekdays: [1] }
+    setup(
+      [
+        task({ id: 'a', title: 'Bins out', recurrence: weekly, due_date: isoDateIn(3) }),
+        task({ id: 'b', title: 'Hoover', recurrence: weekly, due_date: isoDateIn(4) }),
+        task({ id: 'c', title: 'Water plants', recurrence: weekly, due_date: isoDateIn(5) }),
+      ],
+      { expandId: 'b' },
+    )
+    expect(screen.getByText('Hoover')).toBeInTheDocument()
+  })
+
+  // Checked off between the link being drawn and being followed. The row is in
+  // the logbook now, and saying so is a better answer than an empty page.
+  it('opens Done for a task that has since been completed', () => {
+    setup([task({ id: 'a', title: 'Call the plumber', completed_at: '2026-01-02T10:00:00Z' })], {
+      expandId: 'a',
+      completions: [
+        { id: 'c1', task_id: 'a', completed_at: new Date().toISOString(), completed_by: 'm-1' },
+      ],
+    })
+    expect(screen.getByText('Call the plumber')).toBeInTheDocument()
+  })
+
+  it('does nothing to the page when no task was named', () => {
+    setup([task({ id: 'a', title: 'Call the plumber', due_date: isoDateIn(0) })])
+    expect(screen.queryByPlaceholderText('Add a subtask…')).not.toBeInTheDocument()
+  })
+})
+
 describe('TasksView — deleting states the consequence', () => {
   const withSubtasks = [
     task({ id: 'a', title: 'Move house', due_date: isoDateIn(0) }),
@@ -478,6 +593,41 @@ describe('TasksView — the area lens', () => {
     scoped()
     expect(screen.queryByLabelText('In Work')).not.toBeInTheDocument()
   })
+
+  // A tag pill for work that isn't on this page is a filter whose only outcome
+  // is an empty list. The lens decides which tags are on offer — including
+  // leaving out the ones only unfiled tasks carry, since those sit outside it.
+  const tagged = (activeArea) =>
+    setup(
+      [
+        task({ id: 'a', area_id: 'a-work', tags: ['invoices'], due_date: isoDateIn(0) }),
+        task({ id: 'b', area_id: 'a-home', tags: ['plumbing'], due_date: isoDateIn(0) }),
+        task({ id: 'c', tags: ['someday'], due_date: isoDateIn(0) }),
+      ],
+      { areas: [area()], activeArea },
+    )
+
+  it('offers only the tags used inside the lens', () => {
+    tagged('a-work')
+    expect(screen.getByRole('button', { name: 'invoices' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'plumbing' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'someday' })).not.toBeInTheDocument()
+  })
+
+  it('offers every tag again on All areas', () => {
+    tagged(ALL_AREAS)
+    for (const t of ['invoices', 'plumbing', 'someday']) {
+      expect(screen.getByRole('button', { name: t })).toBeInTheDocument()
+    }
+  })
+
+  it('hides the row entirely when the lens has no tags of its own', () => {
+    setup([task({ id: 'a', area_id: 'a-work', due_date: isoDateIn(0) })], {
+      areas: [area()],
+      activeArea: 'a-work',
+    })
+    expect(screen.queryByRole('group', { name: 'Filter by tag' })).not.toBeInTheDocument()
+  })
 })
 
 describe('TasksView — quick add', () => {
@@ -504,6 +654,9 @@ describe('TasksView — quick add', () => {
 })
 
 describe('TasksView — the Done logbook', () => {
+  const ago = (mins) => new Date(Date.now() - mins * 60000).toISOString()
+  const openDone = async () => userEvent.click(screen.getByRole('button', { name: /Done · \d/ }))
+
   it('lists a check-off under the day it happened', async () => {
     const done = task({ id: 'a', title: 'Bins', completed_at: '2026-06-12T15:00:00Z' })
     setup([done], {
@@ -514,5 +667,102 @@ describe('TasksView — the Done logbook', () => {
     const toggle = screen.getByRole('button', { name: /Done · 1/ })
     await userEvent.click(toggle)
     expect(within(document.querySelector('.list')).getByText('Bins')).toBeInTheDocument()
+  })
+
+  // This logbook holds the only control that can reopen a completed task: the
+  // task page has a Reopen button, but both routes to it (the list, Quick Find)
+  // skip completed tasks. So a row that greys out its check has no way back.
+  it('reopens an ordinary check-off', async () => {
+    const done = task({ id: 'a', title: 'Bins', completed_at: ago(30) })
+    const { data } = setup([done], {
+      completions: [{ id: 'c1', task_id: 'a', completed_at: ago(30), completed_by: 'm-1' }],
+    })
+    await openDone()
+    await userEvent.click(screen.getByRole('button', { name: 'Mark not done' }))
+    expect(data.completeTask).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }), false)
+  })
+
+  // A recurring task that rolled forward carries no completed_at — the row is a
+  // record of a day, and un-ticking it would mean nothing.
+  it('leaves a past occurrence of a running series static', async () => {
+    const chore = task({
+      id: 'a',
+      title: 'Bins',
+      completed_at: null,
+      due_date: isoDateIn(7),
+      recurrence: { freq: 'weekly', interval: 1, weekdays: [1] },
+    })
+    setup([chore], {
+      completions: [{ id: 'c1', task_id: 'a', completed_at: ago(30), completed_by: 'm-1' }],
+    })
+    await openDone()
+    expect(screen.getByRole('button', { name: 'Completed' })).toBeDisabled()
+  })
+
+  // The gap: a series whose `until` has passed, whose count is spent, or whose
+  // remaining dates are all skipped closes with a real completed_at and still
+  // carries its rule. Testing "does it repeat?" greyed these out with the
+  // history above and stranded them done for good.
+  it('reopens a recurring series that has ended', async () => {
+    const spent = task({
+      id: 'a',
+      title: 'Physio, 6 sessions',
+      completed_at: ago(30),
+      recurrence: { freq: 'weekly', interval: 1, count: 6, done_count: 6 },
+    })
+    const { data } = setup([spent], {
+      completions: [{ id: 'c1', task_id: 'a', completed_at: ago(30), completed_by: 'm-1' }],
+    })
+    await openDone()
+    await userEvent.click(screen.getByRole('button', { name: 'Mark not done' }))
+    expect(data.completeTask).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }), false)
+  })
+
+  // completeTask drops the most recent completion, so a live check on an older
+  // row would undo a different day than the one under your finger.
+  it('offers the un-check on the newest row only, not every row for that task', async () => {
+    const spent = task({
+      id: 'a',
+      title: 'Physio',
+      completed_at: ago(30),
+      recurrence: { freq: 'weekly', interval: 1, count: 2, done_count: 2 },
+    })
+    setup([spent], {
+      completions: [
+        { id: 'c2', task_id: 'a', completed_at: ago(30), completed_by: 'm-1' },
+        { id: 'c1', task_id: 'a', completed_at: ago(2000), completed_by: 'm-1' },
+      ],
+    })
+    await openDone()
+    expect(screen.getAllByRole('button', { name: 'Mark not done' })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Completed' })).toBeDisabled()
+  })
+
+  // The row used to open the edit form — title, date, area, and no way to
+  // reopen. The page has the labelled Reopen, and an Edit button besides.
+  it('opens the task page from the row, not the edit form', async () => {
+    const done = task({ id: 'a', title: 'Bins', completed_at: ago(30) })
+    const { onOpenTask } = setup([done], {
+      completions: [{ id: 'c1', task_id: 'a', completed_at: ago(30), completed_by: 'm-1' }],
+    })
+    await openDone()
+    await userEvent.click(screen.getByRole('button', { name: 'Open Bins' }))
+    expect(onOpenTask).toHaveBeenCalledWith('a')
+  })
+
+  // Same call §3.5 makes for the open list: a lens may narrow, but it may never
+  // make something look deleted.
+  it('keeps a completed unfiled task reachable while a lens is on', async () => {
+    const done = task({ id: 'a', title: 'Water plants', completed_at: ago(30) })
+    setup([done], {
+      areas: [area()],
+      activeArea: 'a-work',
+      completions: [{ id: 'c1', task_id: 'a', completed_at: ago(30), completed_by: 'm-1' }],
+    })
+    await openDone()
+    expect(screen.queryByText('Water plants')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /No area · 1/ }))
+    expect(screen.getByText('Water plants')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mark not done' })).toBeEnabled()
   })
 })

@@ -12,6 +12,9 @@
 //   kind 'task'  — top-level open task due today or overdue        (payload: task)
 //                  …or a 'by' deadline landing inside ANYTIME_DAYS (payload: task)
 //   kind 'nudge' — someone you meant to stay close to, drifting    (payload: person, state, lastIso)
+//                  …or an ORG with a cadence of its own (0042)      (payload: org, state, lastIso)
+//                  Exactly one of `person` / `org` is set; read it with the
+//                  helper rather than assuming, since both render the same row.
 //                  (internal name; the UI says "check in" — never "nudge"/"follow up")
 //   kind 'date'  — birthday or key date inside the lead window     (payload: entry from upcomingDates)
 //   kind 'reminder' — a reminder you wrote, dated inside that window (payload: reminder)
@@ -29,11 +32,11 @@
 // otherwise hidden through that timestamp. FYI items (partner activity) are
 // push-only (6b) — in-app, the Recent activity section already covers them.
 import { taskBucket, byDue, daysUntilDue, dueState, slackDays } from './tasks'
-import { followUp, lastInteraction, upcomingDates } from './contact'
+import { followUp, lastInteraction, lastOrgInteraction, upcomingDates } from './contact'
 import { isDueable } from './listKinds'
 import { entryMap, habitsDueToday } from './habits'
 import { DEFAULT_PREFS } from './notifyPrefs'
-import { mutedAreaIds, reachesToday } from './areas'
+import { mutedAreaIds, reachesToday, contactReachesToday } from './areas'
 
 // How far ahead a deadline ('by') task reaches onto Today. A week is the span
 // you can actually plan across — far enough to slot the task into a free
@@ -75,6 +78,7 @@ export function buildAttention(
 ) {
   const {
     people = [],
+    orgs = [],
     tasks = [],
     interactions = [],
     keyDates = [],
@@ -84,7 +88,15 @@ export function buildAttention(
     habitEntries = [],
     areas = [],
   } = data
-  const active = people.filter((p) => !p.deleted_at)
+  // Muted areas are needed before the loops now, not just at the filter below:
+  // a contact known through a silenced area drops out here, at the source, so
+  // its check-in and its dates go with it. Doing it in the tail filter would
+  // work for the item but not for the ORDER — checkIns sorts longest-quiet
+  // first, and a silenced contact leading that sort would push a real one down.
+  const muted = mutedAreaIds(areas)
+  const active = people.filter((p) => !p.deleted_at && contactReachesToday(p, muted))
+  // Orgs hard-delete rather than soft-delete, so there's no deleted_at to test.
+  const activeOrgs = orgs.filter((o) => contactReachesToday(o, muted))
 
   const hidden = new Set(
     snoozes
@@ -171,6 +183,26 @@ export function buildAttention(
         lastIso: last?.occurred_at || null,
       })
     }
+    // Organizations with a cadence of their own (0042). The client company is
+    // the thing you actually manage, and its contact person may change twice a
+    // year — so the account has to be followable-up with, not just whoever
+    // happens to be your contact there this quarter.
+    //
+    // Same kind and same 'soft' tier as a person's, because it IS the same
+    // thing; the key is namespaced so a snooze on one can't silence the other.
+    for (const o of activeOrgs) {
+      const last = lastOrgInteraction(o.id, interactions)
+      const f = followUp(o, last?.occurred_at)
+      if (!f || f.state === 'ok') continue
+      checkIns.push({
+        kind: 'nudge',
+        key: `nudge:org:${o.id}`,
+        urgency: 'soft',
+        org: o,
+        state: f.state,
+        lastIso: last?.occurred_at || null,
+      })
+    }
     // people you've never caught up with first, then longest-quiet first
     checkIns.sort((a, b) => ((a.lastIso || '') < (b.lastIso || '') ? -1 : 1))
     items.push(...checkIns)
@@ -213,18 +245,27 @@ export function buildAttention(
   // badge and the push sweep. STANDING — "this part of my life doesn't belong
   // on a Saturday" — as opposed to the lens, which is momentary and belongs to
   // whoever is doing the looking. It has to run here, or work you deliberately
-  // silenced still buzzes the phone.
+  // silenced still buzzes the phone. Since 0042 that includes the check-ins and
+  // dates of contacts you know through a silenced area (applied at `active`).
   //
   // The LENS is deliberately NOT applied here. It was, and that was wrong: a
   // caller scoping to an area also needs the items it EXCLUDED, to offer them
   // in a "No area" section — and a filter that has already dropped them can't
   // hand them back. TodayView partitions with canBeFiled/attentionAreaId below.
-  const muted = mutedAreaIds(areas)
+  //
+  // (Contact-derived items were already dropped at `active` above, since their
+  // area lives on the contact rather than on the item.)
   return items.filter((i) => !hidden.has(i.key) && reachesToday(itemRow(i), muted))
 }
 
 // Which area an attention item belongs to, or null.
+//
+// Contact-derived items (`nudge`, `date`) read the CONTACT's context area
+// (0042), which lives on context_area_id rather than area_id — see lib/areas.js
+// for why the two are named apart.
 export function attentionAreaId(item) {
+  const contact = itemContact(item)
+  if (contact) return contact.context_area_id ?? null
   return itemRow(item)?.area_id ?? null
 }
 
@@ -232,22 +273,42 @@ export function attentionAreaId(item) {
 //
 // The distinction is unfiled vs UNFILEABLE, and it decides what a "No area"
 // section may hide. A task with no area is unfiled — you could file it, and a
-// nudge to do so is useful. A birthday is unfileable: it's read off a contact,
-// and contacts deliberately have no area (§3.2). Habits are unfileable in
-// practice too — the column exists but nothing sets it, which is why `habits`
-// is absent from AREA_SCOPED_ROUTES.
+// nudge to do so is useful. Habits are unfileable in practice — the column
+// exists but nothing sets it, which is why `habits` is absent from
+// AREA_SCOPED_ROUTES.
 //
-// Getting this backwards would be loud: every birthday and every habit would
-// vanish into a collapsed section the moment you picked a lens.
+// Contact-derived items are the interesting case, and they are answered PER
+// ITEM rather than per kind. Before 0042 the answer was a flat no, because
+// contacts had no area and a birthday genuinely couldn't be filed. Now a contact
+// may name a context, so:
+//
+//   • contact WITH a context  → fileable; the lens scopes it like anything else,
+//     which is what lets a client's follow-up stay out of Home
+//   • contact WITHOUT one     → unfileable, exactly as before: it shows under
+//     every lens, and never gets swept into the "No area" section
+//
+// The second half is load-bearing. Answering `true` for the whole kind would
+// have moved every birthday in a personal household — none of which has a
+// context, and none of which ever will — into a collapsed section the moment the
+// user picked any lens. Same failure this comment has always warned about; the
+// change is that the answer now depends on the data instead of the kind.
 export function canBeFiled(item) {
-  return item.kind === 'task' || item.kind === 'list' || item.kind === 'reminder'
+  if (item.kind === 'task' || item.kind === 'list' || item.kind === 'reminder') return true
+  return !!itemContact(item)?.context_area_id
 }
 
-// Which area an attention item belongs to, or null for the ones that can't have
-// one. Tasks, reminders (tasks too) and lists carry area_id; habits carry the
-// column but nothing sets it yet. `nudge` and `date` come from CONTACTS, which
-// deliberately have no area at all — a colleague who becomes a friend is not
-// 40% work — so a birthday is unfiled by construction rather than by omission.
+// The contact an item was read off, for the two kinds that have one. A nudge
+// carries its person — or, since 0042, its org — directly; a date carries the
+// entry that upcomingDates built.
+function itemContact(item) {
+  if (item.kind === 'nudge') return item.person || item.org || null
+  if (item.kind === 'date') return item.entry?.person || null
+  return null
+}
+
+// Which row an item's own area_id lives on, for the kinds that carry one. Tasks,
+// reminders (tasks too) and lists have it; habits have the column but nothing
+// sets it yet.
 function itemRow(item) {
   return item.task || item.reminder || item.list || item.habit || null
 }

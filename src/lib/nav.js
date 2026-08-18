@@ -122,9 +122,12 @@ export const BARLESS_ROUTES = [
 // ── Routes ───────────────────────────────────────────────────────────────────
 // Hash routing: #/ (today), #/activity, #/people, #/person/<id>, #/tasks,
 // #/task/<id>, #/project/<id>, #/lists, #/list/<id>, #/orgs, #/org/<id>,
-// #/groups, #/group/<id>, #/relationships, #/import. Quick Find can append an
-// id to the Tasks page (#/tasks/<id>) to land with that row expanded; #/task/
-// <id> is the singular — that one task on a page of its own.
+// #/groups, #/group/<id>, #/relationships, #/import. An index page can take an
+// id to say which row you came for: #/tasks/<id> lands with that row expanded
+// and scrolled to, #/reminders/<id> with that reminder marked. Followed from
+// Today, the activity feed and Quick Find — the pages that show a thing as one
+// line and need somewhere to send you for the rest of it. #/task/<id> is the
+// singular, and a different destination: that one task on a page of its own.
 
 // Detail pages get iOS-style edge-swipe back (mobile).
 export const DETAIL_ROUTES = [
@@ -153,6 +156,12 @@ export const DETAIL_ROUTES = [
 // and Groups, which the app already has a whole page for. Search is absent for
 // a different reason — searching MEANS you don't know where the thing is, so
 // scoping it is how a search returns nothing and the data looks lost.
+//
+// 0042 gave contacts a `context_area_id` and did NOT change this list, which is
+// the whole design rather than an oversight. A context is additive: it unlocks
+// the business field set on a record and lets that contact's check-in be muted
+// with its area. It never decides whether the contact appears. If `people` ever
+// shows up in this array, the sentence above stopped being true.
 //
 // See docs/scopes/areas-and-tags.md §3.2.
 export const AREA_SCOPED_ROUTES = ['today', 'tasks', 'projects', 'reminders', 'lists', 'notes']
@@ -203,6 +212,34 @@ export const KNOWN_ROUTES = [
   'privacy',
   'terms',
 ]
+
+// ── Surviving the auth detour ────────────────────────────────────────────────
+// A link texted between household members points at one thing — #/list/<id> —
+// and the person tapping it may not have a session on that device yet.
+//
+// Signing in with a password keeps the hash, so that path already worked. The
+// one that doesn't is any flow that RETURNS to the app on a URL of its own:
+// password reset redirects to `window.location.origin`, and Supabase's own
+// email links come back with `#access_token=…`. Either way the destination is
+// gone by the time there's a session to show it with, and the person who tapped
+// a link to the grocery list lands on Today with no idea what they missed.
+//
+// So the destination is stashed before it can be lost and restored after. This
+// is the pure half — "is this hash a link to one specific thing?" — with the
+// stashing in App, which is where the session actually changes.
+//
+// An id is required, and that is the whole test: a link to a *thing* is worth
+// restoring, while a bare route is not worth overriding wherever sign-in would
+// otherwise have landed you.
+export function deepLinkPath(hash) {
+  const raw = String(hash || '').replace(/^#\/?/, '')
+  // Auth tokens arrive as a query-ish fragment (`access_token=…&type=recovery`).
+  // Never a route, and splitting one on '/' would produce nonsense.
+  if (!raw || raw.includes('=')) return null
+  const [name, id] = raw.split('/')
+  if (!id || !KNOWN_ROUTES.includes(name)) return null
+  return `${name}/${id}`
+}
 
 // The sidebar's groups, in order, with their destinations. Derived rather than
 // listed so a new destination can't be added to the model and then quietly

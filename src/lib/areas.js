@@ -112,6 +112,49 @@ export function privacyForNewItem(area, fallback) {
   return isDefaultPrivate(area) ? PRIVATE_LEVEL : fallback
 }
 
+// ── Business areas, and the context a contact is known through ───────────────
+//
+// An area can be marked business-related (0042). A contact can name one as its
+// CONTEXT — which part of your life you know them through.
+//
+// The rule that makes this safe, and the only rule that matters here: a context
+// area is ADDITIVE. It changes what a contact's record OFFERS (business tiers,
+// weekly cadences, renewal-shaped key dates) and lets that contact's check-in be
+// muted along with the rest of its area. It must never decide whether the
+// contact is SHOWN. §3.2's argument is untouched — a colleague who becomes a
+// friend is still both, permanently, and still visible under every lens.
+//
+// The column is `context_area_id`, never `area_id`, so that the wrong change
+// reads wrong at the call site. If you find yourself passing a contact to
+// scopeToArea(), that is the mistake this naming exists to catch.
+
+export function isBusinessArea(area) {
+  return !!area?.is_business
+}
+
+// The context area of a contact (person or org), or null. Resolves through the
+// full `areas` list rather than visibleAreas: a co-member's unshared area still
+// has to render its name on a record you can see, exactly as §3.3 concluded for
+// item chips.
+export function contextAreaFor(contact, areas = []) {
+  const id = contact?.context_area_id
+  if (!id) return null
+  return areas.find((a) => a.id === id) || null
+}
+
+// Does this contact's record get the business field set? False for an unfiled
+// contact, and false for one filed under a personal area — which is the common
+// case and the one that must stay unchanged.
+export function isBusinessContact(contact, areas = []) {
+  return isBusinessArea(contextAreaFor(contact, areas))
+}
+
+// The areas offered as a context. Same visibility rule as the lens switcher —
+// you can only file someone under a lens you actually have.
+export function contextAreaOptions(areas = [], userId) {
+  return visibleAreas(areas, userId)
+}
+
 // ── Quiet areas ──────────────────────────────────────────────────────────────
 // An area with show_on_today off never reaches Today, the nav or app-icon
 // badges, or the push sweep. This is the half of the feature that actually
@@ -142,6 +185,21 @@ export function reachesToday(row, muted) {
   if (!muted || muted.size === 0) return true
   const id = row?.area_id
   return !id || !muted.has(id)
+}
+
+// The same question for a CONTACT, whose area lives on context_area_id.
+//
+// This is the half of the business-area feature that actually earns it: before
+// 0042 there was no way to say "the business is closed". Switching Work off
+// Today silenced its tasks and its lists, and its follow-up pings kept arriving
+// on a Saturday, because contacts had no area at all and the rule had nothing to
+// read. Now a contact you know through Work goes quiet with Work.
+//
+// A contact with no context — every personal one, and every contact that existed
+// before this migration — always reaches Today. Muting Work can never silence a
+// friend's birthday, which is the property §3.2 was protecting.
+export function contactReachesToday(contact, muted) {
+  return reachesToday({ area_id: contact?.context_area_id }, muted)
 }
 
 // How many rows sit in each area, for the switcher's quiet counts. The caller

@@ -143,16 +143,22 @@ export default function TaskRow({
 
   return (
     <>
-      <button
-        className={`task-check ${size === 'sm' ? 'sm' : ''} ${done ? 'done' : ''}`}
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggle(task)
-        }}
-        aria-label={done ? 'Mark not done' : 'Mark done'}
-      >
-        <Check size={size === 'sm' ? 12 : 15} />
-      </button>
+      {/* No onToggle means the row isn't offering completion — the caller has
+          put something else in the circle's place. Multi-select does exactly
+          that: while selecting, the leading control is the selection tick, and
+          two checkboxes on one row would be a coin flip every time. */}
+      {onToggle && (
+        <button
+          className={`task-check ${size === 'sm' ? 'sm' : ''} ${done ? 'done' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggle(task)
+          }}
+          aria-label={done ? 'Mark not done' : 'Mark done'}
+        >
+          <Check size={size === 'sm' ? 12 : 15} />
+        </button>
+      )}
       <div className="row-body">
         <div className="row-titleline">
           {/* Out of the chip budget and onto the title line. As a chip it ranked

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { swallowNextClick, DRAG_EXEMPT_SELECTOR } from './gestures'
+import { longPressOwner, swallowNextClick, DRAG_EXEMPT_SELECTOR } from './gestures'
 
 describe('swallowNextClick', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -63,5 +63,24 @@ describe('DRAG_EXEMPT_SELECTOR', () => {
   it('does not exempt an ordinary row', () => {
     document.body.innerHTML = `<div class="list-row" id="r"></div>`
     expect(document.getElementById('r').closest(DRAG_EXEMPT_SELECTOR)).toBeNull()
+  })
+})
+
+describe('longPressOwner', () => {
+  it('gives the press to selection on an ordinary list', () => {
+    expect(longPressOwner({})).toBe('selection')
+  })
+
+  it('gives it to reorder where dragging is the whole point', () => {
+    // A hand-orderable list has no other affordance for the drag; selection
+    // always has the explicit Select control to fall back on.
+    expect(longPressOwner({ reorderable: true })).toBe('reorder')
+  })
+
+  it('gives it to nobody while selecting', () => {
+    // A lift mid-selection would scatter the list under a finger that meant to
+    // add one more row.
+    expect(longPressOwner({ selecting: true })).toBe(null)
+    expect(longPressOwner({ reorderable: true, selecting: true })).toBe(null)
   })
 })

@@ -9,6 +9,7 @@ import { getAllPrefs, setAllPrefs } from '../../lib/notifyPrefs'
 import { getAllAppPrefs, setAllAppPrefs } from '../../lib/appPrefs'
 import { downloadVcf, parseVcf } from '../../lib/vcard'
 import { leadAffiliation } from '../../lib/orgs'
+import { localDay } from '../../lib/contact'
 import { findDuplicates } from '../../lib/duplicates'
 import SectionLabel from '../../components/ui/SectionLabel'
 
@@ -40,7 +41,15 @@ import SectionLabel from '../../components/ui/SectionLabel'
 //     written here, so every backup taken in that range silently dropped the
 //     entire notebook. Those backups cannot be recovered from — the data was
 //     never in the file — but from v11 the notebook round-trips.
-const BACKUP_VERSION = 11
+// v12: contacts and orgs carry `context_area_id`, areas carry `is_business`, and
+//     `interactions` may name an organization instead of a person (migration
+//     0042). Every one of those is a column on a row this file already copies
+//     wholesale, so nothing here changed except the number — the version exists
+//     to tell a v11 reader that an interaction with a null person_id is expected
+//     rather than corrupt. Restoring a v<=11 backup is unaffected: its contacts
+//     have no context and its touchpoints all name a person, which is exactly
+//     what they meant.
+const BACKUP_VERSION = 12
 
 const SCHEMA_FIELDS = [
   '',
@@ -139,6 +148,7 @@ export default function ImportExport({ data }) {
     areas,
     importPeople,
     restoreBackup,
+    fetchFullTable,
   } = data
   // Backup is lossless on purpose: it uses the unfiltered all* arrays, so
   // "Private — only me" rows survive the round-trip. CSV/vCard exports use
@@ -167,7 +177,14 @@ export default function ImportExport({ data }) {
   const roleName = (p) => leadFor(p)?.role || p.role || ''
 
   // ---- Full backup (everything, round-trippable) ----
-  const exportBackup = () => {
+  // Async because of task_completions: the app reads only a recent window of it
+  // (RECENT_LOG_DAYS in lib/tables.js — the check-off log is the one table with
+  // no natural ceiling), and a backup that carried only that window would
+  // silently drop years of history. So the export pulls that table in full
+  // first, and falls back to the in-memory window if the read fails — a backup
+  // missing old completions still beats no backup at all.
+  const exportBackup = async () => {
+    const fullCompletions = (await fetchFullTable?.('completions')) || completions
     const backup = {
       app: 'doot',
       backup_version: BACKUP_VERSION,
@@ -181,7 +198,7 @@ export default function ImportExport({ data }) {
       key_dates: keyDates,
       groups,
       tasks: allTasks,
-      task_completions: completions,
+      task_completions: fullCompletions,
       task_links: taskLinks,
       lists: allLists,
       list_items: allListItems,
@@ -296,6 +313,31 @@ export default function ImportExport({ data }) {
       })),
     )
     download('doot-people.csv', csv, 'text/csv')
+  }
+
+  // The history, as its own file. The people CSV is one row per contact and has
+  // nowhere to put a log; until 0042 that meant touchpoints left the app only
+  // inside the JSON backup, which is the right format for restoring the app and
+  // the wrong one for handing a year of client contact to an accountant.
+  //
+  // One row per touchpoint, with the subject named rather than referenced —
+  // a uuid is meaningless in a spreadsheet. Archived contacts are included:
+  // this is a record of what happened, and it happened.
+  const exportInteractionsCsv = () => {
+    const nameOf = (it) => {
+      if (it.organization_id) return orgsById.get(it.organization_id)?.name || ''
+      return allPeople.find((p) => p.id === it.person_id)?.name || ''
+    }
+    const rows = [...interactions]
+      .sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1))
+      .map((it) => ({
+        date: csvSafe(localDay(it.occurred_at) || ''),
+        who: csvSafe(nameOf(it)),
+        kind: csvSafe(it.organization_id ? 'organization' : 'person'),
+        type: csvSafe(it.type || ''),
+        note: csvSafe(it.note || ''),
+      }))
+    download('doot-touchpoints.csv', Papa.unparse(rows), 'text/csv')
   }
 
   const onCsvFile = (e) => {
@@ -520,6 +562,23 @@ export default function ImportExport({ data }) {
           </div>
           <Download size={18} className="row-chevron" />
         </button>
+        {/* Export only — there is deliberately no matching import. A touchpoint
+            is a claim about something that happened on a date, and a CSV of them
+            with no ids would have to guess which contact each row meant. Getting
+            that wrong writes false history and moves cadence clocks, so the way
+            back in is the JSON backup, which carries the ids. */}
+        {interactions.length > 0 && (
+          <button className="list-row" onClick={exportInteractionsCsv}>
+            <span className="activity-icon">
+              <FileText size={16} />
+            </span>
+            <div className="row-body">
+              <div className="row-title">Export touchpoints to CSV</div>
+              <div className="row-sub">{interactions.length} logged, with dates and notes.</div>
+            </div>
+            <Download size={18} className="row-chevron" />
+          </button>
+        )}
         <button className="list-row" onClick={() => csvRef.current?.click()}>
           <span className="activity-icon">
             <Upload size={16} />

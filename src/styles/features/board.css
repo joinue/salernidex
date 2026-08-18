@@ -210,6 +210,27 @@
   font-weight: 600;
 }
 
+/* ---- reminders ---- */
+
+/* Same two-column row as a task, because it's the same glance: what, and then
+   the one qualifier. Only the qualifier differs — a when, never a lateness. */
+.board-reminders li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: clamp(15px, 1.75vw, 21px);
+  line-height: 1.3;
+}
+
+.board-when-chip {
+  flex: 0 0 auto;
+  font-size: 0.76em;
+  font-weight: 600;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
 /* ---- shopping / habits / dates ---- */
 
 .board-shopping li,

@@ -3,8 +3,10 @@ import {
   applyMutation,
   classifyError,
   record,
+  createGuardBook,
   createMutationQueue,
   memoryStore,
+  targetKey,
   GUARDED_TABLES,
   MAX_ATTEMPTS,
 } from './mutationQueue'
@@ -344,5 +346,170 @@ describe('drain', () => {
     const { builder, calls } = fakeClient()
     expect(await q.drain(builder)).toMatchObject({ sent: 0, dropped: 0, remaining: 0 })
     expect(calls).toHaveLength(0)
+  })
+
+  it('tells the caller which rows settled, so their guards can be retired', async () => {
+    await q.enqueue({
+      table: 'tasks',
+      op: 'update',
+      values: { title: 'x' },
+      where: [['eq', 'id', 't1']],
+    })
+    const onSettled = vi.fn()
+    await q.drain(fakeClient().builder, { onSettled })
+    expect(onSettled).toHaveBeenCalledTimes(1)
+    expect(targetKey(onSettled.mock.calls[0][0])).toBe('tasks:t1')
+  })
+
+  it('does not retire a guard for a write that has not settled', async () => {
+    // Still queued, still going to land — the row on the server is untouched,
+    // so the observation we were guarding it with is still good.
+    await q.enqueue({
+      table: 'tasks',
+      op: 'update',
+      values: { title: 'x' },
+      where: [['eq', 'id', 't1']],
+    })
+    const onSettled = vi.fn()
+    await q.drain(
+      fakeClient(() => {
+        throw new TypeError('Failed to fetch')
+      }).builder,
+      { onSettled },
+    )
+    expect(onSettled).not.toHaveBeenCalled()
+  })
+})
+
+describe('the recorder captures a guard', () => {
+  it('records what was chained onto the update', async () => {
+    const ops = await record((db) =>
+      db.from('tasks').update({ title: 'x' }).eq('id', 't1').guard('2026-08-18T10:00:00Z'),
+    )
+    expect(ops[0].guard).toBe('2026-08-18T10:00:00Z')
+  })
+
+  it('is a no-op when the call site has no server observation to offer', async () => {
+    // The degrade has to be to today's last-write-wins. A guard of `null` that
+    // reached applyMutation would be falsy and skipped anyway, but leaving the
+    // key off keeps "unguarded" a single representation.
+    const ops = await record((db) =>
+      db.from('tasks').update({ title: 'x' }).eq('id', 't1').guard(null),
+    )
+    expect(ops[0]).not.toHaveProperty('guard')
+  })
+})
+
+describe('targetKey', () => {
+  it('names the single row an update addresses', () => {
+    expect(targetKey({ table: 'tasks', where: [['eq', 'id', 't1']] })).toBe('tasks:t1')
+  })
+
+  it('declines anything that is not exactly one row by id', () => {
+    // A bulk update has no single row to chain against, so it must never look
+    // like one — otherwise two unrelated writes could be treated as a chain.
+    expect(targetKey({ table: 'tasks', where: [['in', 'id', ['a', 'b']]] })).toBe(null)
+    expect(targetKey({ table: 'tasks', where: [['eq', 'area_id', 'a1']] })).toBe(null)
+    expect(
+      targetKey({
+        table: 'tasks',
+        where: [
+          ['eq', 'id', 't1'],
+          ['eq', 'area_id', 'a1'],
+        ],
+      }),
+    ).toBe(null)
+    expect(targetKey({})).toBe(null)
+  })
+})
+
+describe('chained edits to the same row', () => {
+  let q
+  beforeEach(() => {
+    q = createMutationQueue(memoryStore())
+  })
+
+  const edit = (title, guard) => ({
+    table: 'tasks',
+    op: 'update',
+    values: { title },
+    where: [['eq', 'id', 't1']],
+    guard,
+  })
+
+  it('drops the guard on a second edit to a row already in the outbox', async () => {
+    // The bug this prevents: offline, edit twice, both composed against the
+    // same observation. The first lands and the trigger moves updated_at past
+    // it, so the second — guarded against a value its own predecessor just
+    // invalidated — would be thrown away as somebody else's win. Ordering
+    // already makes the second the later intent.
+    await q.enqueue(edit('first', '2026-08-18T10:00:00Z'))
+    await q.enqueue(edit('second', '2026-08-18T10:00:00Z'))
+
+    const pending = await q.pending()
+    expect(pending[0].guard).toBe('2026-08-18T10:00:00Z')
+    expect(pending[1]).not.toHaveProperty('guard')
+  })
+
+  it('keeps the guard on an edit to a different row', async () => {
+    await q.enqueue(edit('first', '2026-08-18T10:00:00Z'))
+    await q.enqueue({
+      table: 'tasks',
+      op: 'update',
+      values: { title: 'other' },
+      where: [['eq', 'id', 't2']],
+      guard: '2026-08-18T10:00:00Z',
+    })
+    expect((await q.pending())[1].guard).toBe('2026-08-18T10:00:00Z')
+  })
+
+  it('guards again once the outbox has drained', async () => {
+    await q.enqueue(edit('first', '2026-08-18T10:00:00Z'))
+    await q.drain(fakeClient().builder)
+    await q.enqueue(edit('later', '2026-08-18T11:00:00Z'))
+    expect((await q.pending())[0].guard).toBe('2026-08-18T11:00:00Z')
+  })
+})
+
+describe('createGuardBook', () => {
+  let book
+  beforeEach(() => {
+    book = createGuardBook()
+  })
+
+  it('offers back what a server read showed it', () => {
+    book.observe('tasks', [{ id: 't1', updated_at: '2026-08-18T10:00:00Z' }])
+    expect(book.guardFor('tasks', 't1')).toBe('2026-08-18T10:00:00Z')
+  })
+
+  it('has nothing to say about a row it has never seen', () => {
+    expect(book.guardFor('tasks', 'nope')).toBe(null)
+  })
+
+  it('ignores tables whose updated_at no trigger maintains', () => {
+    // list_items rows carry no updated_at at all; anything remembered for one
+    // could only ever be a value some client made up.
+    book.observe('list_items', [{ id: 'i1', updated_at: '2026-08-18T10:00:00Z' }])
+    expect(book.guardFor('list_items', 'i1')).toBe(null)
+  })
+
+  it('forgets a row once one of our writes to it settles', () => {
+    // The window this closes: our write lands, the trigger moves updated_at,
+    // and the next edit would otherwise be guarded against the value we just
+    // invalidated — losing the user's own second edit.
+    book.observe('tasks', [{ id: 't1', updated_at: '2026-08-18T10:00:00Z' }])
+    book.forgetTarget({ table: 'tasks', where: [['eq', 'id', 't1']] })
+    expect(book.guardFor('tasks', 't1')).toBe(null)
+  })
+
+  it('takes the newer observation when a row is read again', () => {
+    book.observe('tasks', [{ id: 't1', updated_at: '2026-08-18T10:00:00Z' }])
+    book.observe('tasks', [{ id: 't1', updated_at: '2026-08-18T11:00:00Z' }])
+    expect(book.guardFor('tasks', 't1')).toBe('2026-08-18T11:00:00Z')
+  })
+
+  it('skips rows a read returned without a timestamp', () => {
+    book.observe('tasks', [{ id: 't1' }, null])
+    expect(book.guardFor('tasks', 't1')).toBe(null)
   })
 })

@@ -35,12 +35,19 @@ export const MAX_ATTEMPTS = 10
 //
 // Everything else stays last-write-wins, exactly as it is today. That is a real
 // limitation, and it is better stated than quietly assumed.
+//
+// This list IS the trigger list in schema.sql, and drifting from it fails in
+// whichever direction the drift goes: a table here without the trigger guards
+// against a timestamp clients write themselves (meaningless), and a table with
+// the trigger left out silently gives up a protection it could have had.
 export const GUARDED_TABLES = new Set([
   'affiliations',
+  'areas',
   'families',
   'groups',
   'habit_entries',
   'habits',
+  'interactions',
   'lists',
   'member_preferences',
   'notes',
@@ -49,6 +56,68 @@ export const GUARDED_TABLES = new Set([
   'people',
   'tasks',
 ])
+
+// Which single row a mutation targets, or null if it isn't addressing exactly
+// one by id (a bulk `.in()`, a filter on some other column). Used by enqueue
+// below to spot a second edit to a row already waiting in the outbox.
+export function targetKey(m) {
+  if (!m?.table) return null
+  const where = m.where || []
+  if (where.length !== 1) return null
+  const [fn, column, value] = where[0]
+  if (fn !== 'eq' || column !== 'id') return null
+  return `${m.table}:${value}`
+}
+
+// ---- what we may guard against -----------------------------------------
+
+// The guard's one hard rule: it may only ever compare against a timestamp the
+// SERVER gave us.
+//
+// The obvious implementation — guard with the row's `updated_at` out of local
+// state — is wrong, and quietly so. Every optimistic update in useData stamps
+// `updated_at: now()` from the client clock so the row sorts and reads
+// correctly on screen. That value never came from the database. Guarding with
+// it compares a phone's clock against a Postgres trigger's, and a phone two
+// seconds slow would have its own edits rejected as stale — turning a
+// protection against lost work into a cause of it.
+//
+// So the book records only what a server read actually returned, and forgets a
+// row the moment one of our writes to it settles: from then until the next read
+// we have no server observation, and no observation means no guard. Degrading
+// to today's last-write-wins is the correct answer to "I don't know" — a guard
+// invented from a value nobody promised is not.
+export function createGuardBook() {
+  const seen = new Map()
+  const key = (table, id) => `${table}:${id}`
+  return {
+    // A table's rows, straight off a server read.
+    observe(table, rows) {
+      if (!GUARDED_TABLES.has(table)) return
+      for (const row of rows || []) {
+        if (row?.id && row.updated_at) seen.set(key(table, row.id), row.updated_at)
+      }
+    },
+    forget(table, id) {
+      seen.delete(key(table, id))
+    },
+    // Whatever a mutation just settled as — the row may have moved, so our
+    // observation of it is spent.
+    forgetTarget(m) {
+      const t = targetKey(m)
+      if (t) seen.delete(t)
+    },
+    guardFor(table, id) {
+      return seen.get(key(table, id)) || null
+    },
+    clear() {
+      seen.clear()
+    },
+    get size() {
+      return seen.size
+    },
+  }
+}
 
 // ---- stores ------------------------------------------------------------
 // Interface: add(record) → seq, getAll() → records, put(record), remove(seq),
@@ -275,6 +344,17 @@ export function createRecorder() {
       current.where.push(['in', column, value])
       return this
     },
+    // "Only if nobody has touched this row since I last saw it." Chained after
+    // the filter, and a no-op given null/undefined so a call site can pass
+    // whatever it knows without branching — an unknown timestamp must degrade
+    // to today's last-write-wins, never to a guard against nothing.
+    //
+    // Exists only on the recorder. applyMutation rebuilds the real PostgREST
+    // call from `guard` as data, so the live client never sees this method.
+    guard(updatedAt) {
+      if (updatedAt) current.guard = updatedAt
+      return this
+    },
     // Awaiting the chain is what commits it to the list — that ordering is why
     // a `for` loop of awaited updates records as N mutations in loop order.
     then(resolve, reject) {
@@ -317,12 +397,33 @@ export async function record(op) {
 // ---- the queue ---------------------------------------------------------
 
 export function createMutationQueue(store = indexedDBStore()) {
-  const enqueue = async (mutation) =>
-    store.add({
-      ...mutation,
-      queuedAt: mutation.queuedAt || new Date().toISOString(),
+  // Queueing a second edit to a row that already has one waiting DROPS the new
+  // guard, and this is the case that makes the whole feature safe to turn on.
+  //
+  // Offline, editing the same task twice queues A then B, both composed against
+  // the same server timestamp. A lands and the trigger moves updated_at past
+  // it — so B, guarded against a value its own predecessor just invalidated,
+  // would be discarded as "somebody else got there first". The somebody was us.
+  //
+  // The guard exists to lose races against OTHER members, never against our own
+  // earlier writes, and ordering already settles those: the outbox is replayed
+  // in sequence, so B is the later intent by construction.
+  const enqueue = async (mutation) => {
+    let m = mutation
+    if (m.guard) {
+      const key = targetKey(m)
+      const queued = await store.getAll()
+      if (key && queued.some((q) => q.op === 'update' && targetKey(q) === key)) {
+        const { guard: _dropped, ...rest } = m
+        m = rest
+      }
+    }
+    return store.add({
+      ...m,
+      queuedAt: m.queuedAt || new Date().toISOString(),
       attempts: 0,
     })
+  }
 
   const pending = async (householdId = null) => {
     const all = await store.getAll()
@@ -336,7 +437,7 @@ export function createMutationQueue(store = indexedDBStore()) {
   // a write that might still land must not be overtaken by later writes to the
   // same row, whereas one that can never land would otherwise freeze the device
   // forever — a worse failure than a gap a refetch repairs.
-  const drain = async (client, { householdId = null, onDrop } = {}) => {
+  const drain = async (client, { householdId = null, onDrop, onSettled } = {}) => {
     const queued = await pending(householdId)
     let sent = 0
     let dropped = 0
@@ -349,6 +450,12 @@ export function createMutationQueue(store = indexedDBStore()) {
       } catch (err) {
         outcome = { status: classifyError(err), error: err }
       }
+
+      // Any settled outcome means the row on the server may no longer match
+      // what we last read, so whatever timestamp we were guarding it with is
+      // spent. Told to the caller rather than tracked here: the queue doesn't
+      // read, so it has no business holding read state.
+      if (outcome.status !== 'retry') onSettled?.(m)
 
       if (outcome.status === 'ok') {
         await store.remove(m.seq)

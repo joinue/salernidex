@@ -487,3 +487,54 @@
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
+
+/* Errand co-presence — "Sam is shopping this now · 3 of 12".
+   Quiet by design: this is a hint with a forty-five second TTL, not a stored
+   fact, so it gets a tinted strip rather than a Card. Anything heavier and it
+   would read as durable truth, which is exactly what it isn't. */
+.shopping-now {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 13px;
+  animation: shopping-now-in var(--dur-2) var(--ease-ios);
+}
+
+/* Overlapped, the way a household reads a group of people at a glance. */
+.shopping-now-faces {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.shopping-now-faces > * + * {
+  margin-left: -6px;
+}
+
+/* The count ticks as items get checked off, so it must not reflow the line
+   around it every time a digit changes width. */
+.shopping-now-text {
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes shopping-now-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+/* It appears without being asked for, so a reduced-motion setting should get
+   it plainly rather than sliding it in. */
+@media (prefers-reduced-motion: reduce) {
+  .shopping-now {
+    animation: none;
+  }
+}

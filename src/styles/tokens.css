@@ -28,6 +28,11 @@
   --accent-soft: rgba(0, 122, 255, 0.12);
   --green: #34c759;
   --orange: #ff9500;
+  /* iOS system indigo. Added for the business tier chips (0042): the other
+     accents are all spoken for (blue = interactive, green = done, orange =
+     family, red = danger), and a business ROLE needed a hue carrying no status
+     meaning of its own. */
+  --indigo: #5856d6;
   --danger: #ff3b30;
   --danger-soft: rgba(255, 59, 48, 0.12);
 
@@ -121,6 +126,7 @@
   --accent-soft: rgba(10, 132, 255, 0.22);
   --green: #30d158;
   --orange: #ff9f0a;
+  --indigo: #7d7aff;
   --danger: #ff453a;
   --danger-soft: rgba(255, 69, 58, 0.22);
   --separator: rgba(84, 84, 88, 0.5);
@@ -147,6 +153,7 @@
     --accent-soft: rgba(10, 132, 255, 0.22);
     --green: #30d158;
     --orange: #ff9f0a;
+    --indigo: #7d7aff;
     --danger: #ff453a;
     --danger-soft: rgba(255, 69, 58, 0.22);
     --separator: rgba(84, 84, 88, 0.5);

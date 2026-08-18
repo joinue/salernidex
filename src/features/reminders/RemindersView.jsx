@@ -19,6 +19,7 @@ import {
 import { describeRecurrence } from '../../lib/recurrence'
 import { assigneeLabel, normalizeAssignee } from '../../lib/household'
 import haptics from '../../lib/haptics'
+import useFocusRow from '../../hooks/useFocusRow'
 
 // Things to be told, not things to do. The list is deliberately mixed: reminders
 // you wrote sit beside birthdays and key dates computed from your contacts,
@@ -52,6 +53,10 @@ const ROSTER_PREVIEW = 5
 
 export default function RemindersView({
   data,
+  // Deep link from Today (#/reminders/<id>): the reminder you tapped, scrolled
+  // to and marked. Not opened into its edit form — you came to read it, and a
+  // form is what you'd get if you'd wanted to change it.
+  focusId,
   onAdd,
   onEdit,
   onOpenPerson,
@@ -104,6 +109,10 @@ export default function RemindersView({
   const roster = useMemo(() => onFile.filter((i) => i.daysUntil > HORIZON_DAYS), [onFile])
   const [allDates, setAllDates] = useState(false)
   const shownDates = allDates ? roster : roster.slice(0, ROSTER_PREVIEW)
+  const focusRow = useFocusRow(focusId)
+  // A reminder with no area of its own falls to the "No area" fold under a lens.
+  // Tell the fold, so following a link to it opens the section holding it.
+  const unfiledTarget = focusId && lens.unfiled.some((r) => r.id === focusId) ? focusId : null
 
   const total = SECTIONS.reduce((n, s) => n + groups[s.key].length, 0)
   const unfiledTotal = unfiled ? SECTIONS.reduce((n, s) => n + unfiled[s.key].length, 0) : 0
@@ -150,6 +159,7 @@ export default function RemindersView({
       <SwipeRow
         key={item.key}
         label={item.title}
+        focus={focusRow(r.id)}
         onClick={() => onEdit?.(r)}
         actions={[
           { label: 'Got it', icon: Check, onClick: () => acknowledge(r) },
@@ -245,7 +255,7 @@ export default function RemindersView({
         )
       )}
 
-      <UnfiledSection count={unfiledTotal}>
+      <UnfiledSection count={unfiledTotal} openFor={unfiledTarget}>
         {SECTIONS.map(({ key, label }) =>
           !unfiled || unfiled[key].length === 0 ? null : (
             <div key={key}>

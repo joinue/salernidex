@@ -31,7 +31,15 @@ import {
   SOCIAL_BY_ID,
   formatDate,
 } from '../../lib/constants'
-import { followUp, followUpLabel, lastInteraction, relativeTime } from '../../lib/contact'
+import {
+  followUp,
+  followUpLabel,
+  lastInteraction,
+  relativeTime,
+  interactionsFor,
+  localDay as dayOf,
+} from '../../lib/contact'
+import { contextAreaFor, isBusinessArea } from '../../lib/areas'
 import {
   personSummary,
   currentAffiliations,
@@ -47,6 +55,7 @@ import AvatarUpload from '../../components/ui/AvatarUpload'
 import Button from '../../components/ui/Button'
 import Chip from '../../components/ui/Chip'
 import PressableRow from '../../components/ui/PressableRow'
+import SwipeRow from '../../components/ui/SwipeRow'
 import TaskRow from '../tasks/TaskRow'
 import InteractionForm from './InteractionForm'
 import KeyDateForm from './KeyDateForm'
@@ -81,6 +90,7 @@ export default function PersonPage({
     tasks,
     taskLinks,
     notes,
+    areas,
     completeTask,
     addTask,
     addTaskLink,
@@ -92,6 +102,7 @@ export default function PersonPage({
     deleteRelationship,
     addInteraction,
     deleteInteraction,
+    saveInteraction,
     addKeyDate,
     deleteKeyDate,
   } = data
@@ -100,6 +111,7 @@ export default function PersonPage({
   const orgsById = useMemo(() => new Map(orgs.map((o) => [o.id, o])), [orgs])
   const summary = (p) => personSummary(p, affiliations, orgsById)
   const [logType, setLogType] = useState(null) // null | type id → opens InteractionForm
+  const [editingInteraction, setEditingInteraction] = useState(null) // row → opens it in edit mode
   const [addingDate, setAddingDate] = useState(false)
   const [linkingTask, setLinkingTask] = useState(false)
   const [confirmPurge, setConfirmPurge] = useState(false) // permanent-delete confirmation
@@ -123,10 +135,7 @@ export default function PersonPage({
   }
 
   const timeline = useMemo(
-    () =>
-      (interactions || [])
-        .filter((i) => i.person_id === personId)
-        .sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1)),
+    () => interactionsFor('person', personId, interactions || []),
     [interactions, personId],
   )
 
@@ -162,6 +171,12 @@ export default function PersonPage({
   // fact readable but stops offering the edits (log a touchpoint, add a date,
   // link a task, change the photo) that only made sense while they were active.
   const archived = !!person.deleted_at
+  // How you know them (0042). Shown as a chip rather than tucked into Details:
+  // it's the fact that explains why this record reads the way it does — why the
+  // tier says "Client", why the cadence can be weekly — so hiding it at the foot
+  // would leave the rest of the page unexplained.
+  const contextArea = contextAreaFor(person, areas)
+  const isBusiness = isBusinessArea(contextArea)
   const last = lastInteraction(person.id, interactions)
   // The cadence the user set, stated as a live status rather than as a setting
   // buried in Details — "Overdue by 12 days", not "every 30 days" plus mental
@@ -217,6 +232,18 @@ export default function PersonPage({
 
           <div className="chips profile-chips">
             {archived && <Chip>Archived</Chip>}
+            {contextArea && (
+              <Chip
+                title={
+                  isBusiness
+                    ? `Known through ${contextArea.name} — a business area`
+                    : `Known through ${contextArea.name}`
+                }
+              >
+                {contextArea.icon ? `${contextArea.icon} ` : ''}
+                {contextArea.name}
+              </Chip>
+            )}
             {person.tier && (
               <Chip className={`tier-${person.tier}`}>{TIER_LABELS[person.tier]}</Chip>
             )}
@@ -503,7 +530,13 @@ export default function PersonPage({
 
       {/* Activity timeline. No empty state: the quick-log row at the top of the
           page is the invitation to start one, so an empty "no touchpoints yet"
-          card underneath it just says the same thing twice. */}
+          card underneath it just says the same thing twice.
+
+          A row is now a record rather than a tick (0042): it says WHEN in words
+          you could put in an invoice, and it can be corrected. "3w ago" alone
+          was fine for "have I called Mum lately" and useless the moment money is
+          involved — and the only way to fix a mistyped entry was to destroy it,
+          which also moved the cadence clock you were trying not to disturb. */}
       {timeline.length > 0 && (
         <>
           <SectionLabel>Activity</SectionLabel>
@@ -511,7 +544,7 @@ export default function PersonPage({
             {timeline.map((it) => {
               const meta = INTERACTION_BY_ID[it.type] || INTERACTION_BY_ID.note
               const Icon = meta.icon
-              return (
+              const row = (
                 <div className="activity-row" key={it.id}>
                   <span className="activity-icon">
                     <Icon size={16} />
@@ -519,19 +552,37 @@ export default function PersonPage({
                   <div className="row-body">
                     <div className="activity-head">
                       <span className="activity-label">{meta.label}</span>
-                      <span className="activity-time">{relativeTime(it.occurred_at)}</span>
+                      {/* Both, not one: the exact day is the fact, and "3w ago"
+                          is the one you can read without doing arithmetic. */}
+                      <span className="activity-time" title={formatDate(dayOf(it.occurred_at))}>
+                        {formatDate(dayOf(it.occurred_at))}
+                        <span className="muted"> · {relativeTime(it.occurred_at)}</span>
+                      </span>
                     </div>
                     {it.note && <div className="activity-note">{it.note}</div>}
                   </div>
-                  {!archived && (
-                    <IconButton
-                      icon={X}
-                      variant="danger"
-                      label="Delete entry"
-                      onClick={() => deleteInteraction(it.id)}
-                    />
-                  )}
                 </div>
+              )
+              // Archived contacts keep every fact readable and stop offering the
+              // edits, exactly as the rest of this page does.
+              if (archived) return row
+              return (
+                <SwipeRow
+                  key={it.id}
+                  label={`${meta.label} · ${formatDate(dayOf(it.occurred_at))}`}
+                  onClick={() => setEditingInteraction(it)}
+                  actions={[
+                    { label: 'Edit', icon: Edit2, onClick: () => setEditingInteraction(it) },
+                    {
+                      label: 'Delete',
+                      icon: Trash2,
+                      variant: 'danger',
+                      onClick: () => deleteInteraction(it.id),
+                    },
+                  ]}
+                >
+                  {row}
+                </SwipeRow>
               )
             })}
           </div>
@@ -626,10 +677,19 @@ export default function PersonPage({
 
       {logType && (
         <InteractionForm
-          person={person}
+          subject={person}
           presetType={logType}
           onSave={addInteraction}
           onClose={() => setLogType(null)}
+        />
+      )}
+
+      {editingInteraction && (
+        <InteractionForm
+          subject={person}
+          interaction={editingInteraction}
+          onSave={saveInteraction}
+          onClose={() => setEditingInteraction(null)}
         />
       )}
 

@@ -26,6 +26,8 @@ import { isOpenItem } from './lib/listKinds'
 import { setAppPrefs } from './lib/appPrefs'
 import { buildProjectRows } from './lib/projectTemplates'
 import { scrollToTop, scrollToY, scrollTop } from './lib/scroller'
+// Eager: the shell itself, and the two screens you can arrive on cold — the
+// sign-in wall and Today. Everything else is code-split below.
 import InstallHint from './components/shell/InstallHint'
 import AuthScreen from './features/auth/AuthScreen'
 import Onboarding from './features/auth/Onboarding'
@@ -36,58 +38,109 @@ import ConfirmDialog from './components/ui/ConfirmDialog'
 import { ConfirmProvider } from './components/ui/ConfirmProvider'
 import QuickFind from './components/shell/QuickFind'
 import TodayView from './features/today/TodayView'
-import ActivityView from './features/activity/ActivityView'
 import PullToRefresh from './components/ui/PullToRefresh'
-import SearchView from './features/people/SearchView'
-import TasksView from './features/tasks/TasksView'
-import ProjectsView from './features/tasks/ProjectsView'
-import RemindersView from './features/reminders/RemindersView'
-import ListsView from './features/lists/ListsView'
-import ListDetail from './features/lists/ListDetail'
-import NotesView from './features/notes/NotesView'
-import ProjectDetail from './features/tasks/ProjectDetail'
-import TaskDetail from './features/tasks/TaskDetail'
-import PersonPage from './features/people/PersonPage'
-import OrgsView from './features/people/OrgsView'
-import OrgPage from './features/people/OrgPage'
-import GroupsView from './features/people/GroupsView'
-import GroupPage from './features/people/GroupPage'
-import HabitsView from './features/habits/HabitsView'
-import HabitDetail from './features/habits/HabitDetail'
-import HabitInsightsView from './features/habits/HabitInsightsView'
-import HabitTemplatePicker from './features/habits/HabitTemplatePicker'
-import RelationshipsView from './features/people/RelationshipsView'
-import SettingsView from './features/settings/SettingsView'
-import LegalView from './features/settings/LegalView'
-import BoardView from './features/board/BoardView'
 import ErrorBoundary from './components/shell/ErrorBoundary'
 import Toasts from './components/shell/Toasts'
 
-// Lazy: Import/Export carries the CSV parser — no reason to ship it on
-// every app open when it's visited once a month.
+// ---- Code-split routes and sheets ---------------------------------------
+//
+// Every screen below is reached by a tap, never on first paint, so none of it
+// belongs in the bundle that has to arrive before the app can draw anything.
+// Statically imported, they made one 532 kB chunk: someone who opened Today and
+// closed the app still downloaded the whole of People, Settings, Habits and the
+// notebook.
+//
+// The routes were already conditionally rendered — only one is ever mounted —
+// so this is the same shape it always had, declared honestly. warmRoutes()
+// below then pulls the common destinations in once the app is idle, so the
+// split costs a round trip only on a navigation that beats the prefetch.
+const ActivityView = lazy(() => import('./features/activity/ActivityView'))
+const SearchView = lazy(() => import('./features/people/SearchView'))
+const TasksView = lazy(() => import('./features/tasks/TasksView'))
+const ProjectsView = lazy(() => import('./features/tasks/ProjectsView'))
+const RemindersView = lazy(() => import('./features/reminders/RemindersView'))
+const ListsView = lazy(() => import('./features/lists/ListsView'))
+const ListDetail = lazy(() => import('./features/lists/ListDetail'))
+const NotesView = lazy(() => import('./features/notes/NotesView'))
+const ProjectDetail = lazy(() => import('./features/tasks/ProjectDetail'))
+const TaskDetail = lazy(() => import('./features/tasks/TaskDetail'))
+const PersonPage = lazy(() => import('./features/people/PersonPage'))
+const OrgsView = lazy(() => import('./features/people/OrgsView'))
+const OrgPage = lazy(() => import('./features/people/OrgPage'))
+const GroupsView = lazy(() => import('./features/people/GroupsView'))
+const GroupPage = lazy(() => import('./features/people/GroupPage'))
+const HabitsView = lazy(() => import('./features/habits/HabitsView'))
+const HabitDetail = lazy(() => import('./features/habits/HabitDetail'))
+const HabitInsightsView = lazy(() => import('./features/habits/HabitInsightsView'))
+const RelationshipsView = lazy(() => import('./features/people/RelationshipsView'))
+const SettingsView = lazy(() => import('./features/settings/SettingsView'))
+const LegalView = lazy(() => import('./features/settings/LegalView'))
+const BoardView = lazy(() => import('./features/board/BoardView'))
+const AreasView = lazy(() => import('./features/areas/AreasView'))
+// Import/Export carries the CSV parser — no reason to ship it on every app open
+// when it's visited once a month.
 const ImportExport = lazy(() => import('./features/settings/ImportExport'))
+
+// The sheets. Same reasoning: each opens on a tap, and the forms are among the
+// heaviest modules in the app (PersonForm alone pulls the address and channel
+// editors).
+const PersonForm = lazy(() => import('./features/people/PersonForm'))
+const TaskForm = lazy(() => import('./features/tasks/TaskForm'))
+const ProjectTemplatePicker = lazy(() => import('./features/tasks/ProjectTemplatePicker'))
+const ListForm = lazy(() => import('./features/lists/ListForm'))
+const OrgForm = lazy(() => import('./features/people/OrgForm'))
+const GroupForm = lazy(() => import('./features/people/GroupForm'))
+const HabitForm = lazy(() => import('./features/habits/HabitForm'))
+const HabitTemplatePicker = lazy(() => import('./features/habits/HabitTemplatePicker'))
+const AreaForm = lazy(() => import('./features/areas/AreaForm'))
+const RelationshipForm = lazy(() => import('./features/people/RelationshipForm'))
+const ReminderForm = lazy(() => import('./features/reminders/ReminderForm'))
+
 // Dev-only reference page for the ui/ primitives (#/kitchen-sink).
 // import.meta.env.DEV is a build-time constant, so the whole module — and its
 // route — drop out of a production bundle.
 const KitchenSink = import.meta.env.DEV
   ? lazy(() => import('./features/kitchen-sink/KitchenSink'))
   : null
-import PersonForm from './features/people/PersonForm'
-import TaskForm from './features/tasks/TaskForm'
-import ProjectTemplatePicker from './features/tasks/ProjectTemplatePicker'
-import ListForm from './features/lists/ListForm'
-import OrgForm from './features/people/OrgForm'
-import GroupForm from './features/people/GroupForm'
-import HabitForm from './features/habits/HabitForm'
-import AreasView from './features/areas/AreasView'
-import AreaForm from './features/areas/AreaForm'
-import RelationshipForm from './features/people/RelationshipForm'
-import ReminderForm from './features/reminders/ReminderForm'
+
+// Every destination reachable from the nav, plus the detail screens and sheets
+// those lead to, pulled once the app has gone quiet.
+//
+// This is what keeps the split invisible. A route that hasn't loaded yet
+// suspends inside the view transition, and the browser answers that by skipping
+// the transition — so the cross-fade the app is careful about becomes a jump to
+// a spinner. Warming them costs about 40 kB gzipped on an idle connection after
+// first paint, and buys back the instant navigation the eager bundle had.
+//
+// Fire-and-forget: a failure here just means that route loads on demand, which
+// is the un-prefetched behaviour.
+function warmRoutes() {
+  for (const load of [
+    () => import('./features/tasks/TasksView'),
+    () => import('./features/tasks/TaskForm'),
+    () => import('./features/tasks/TaskDetail'),
+    () => import('./features/tasks/ProjectsView'),
+    () => import('./features/tasks/ProjectDetail'),
+    () => import('./features/lists/ListsView'),
+    () => import('./features/lists/ListDetail'),
+    () => import('./features/notes/NotesView'),
+    () => import('./features/people/SearchView'),
+    () => import('./features/people/PersonPage'),
+    () => import('./features/habits/HabitsView'),
+    () => import('./features/reminders/RemindersView'),
+    () => import('./features/activity/ActivityView'),
+  ]) {
+    load().catch(() => {})
+  }
+}
+
 import { EMPTY_PEOPLE_FILTERS } from './lib/search'
 import { isEditableTarget } from './lib/keys'
-import { AREA_SCOPED_ROUTES, DETAIL_ROUTES, KNOWN_ROUTES } from './lib/nav'
+import { AREA_SCOPED_ROUTES, DETAIL_ROUTES, KNOWN_ROUTES, deepLinkPath } from './lib/nav'
 import AreaSwitcher from './components/shell/AreaSwitcher'
 import { AreaLensContext } from './components/shell/areaLensContext'
+import { PresenceContext } from './components/shell/presenceContext'
+import { usePresence } from './hooks/usePresence'
 import EmptyState from './components/ui/EmptyState'
 
 // Routing and the chrome's shape both come from lib/nav.js — see the comment at
@@ -104,6 +157,9 @@ const routeKey = (r) => `${r.name}/${r.id || ''}`
 // ids of every note you opened would otherwise accumulate for as long as the
 // tab lives. Oldest out first (Map keeps insertion order).
 const SCROLL_MEMORY_MAX = 40
+
+// Where a texted link waits while its recipient signs in.
+const PENDING_LINK_KEY = 'doot-pending-link'
 
 // Dev-only, so it can't sit in the shared table: the kitchen sink's route.
 const ROUTES = [...KNOWN_ROUTES, ...(import.meta.env.DEV ? ['kitchen-sink'] : [])]
@@ -176,6 +232,38 @@ function AuthedApp({ onDemo }) {
     return () => sub.subscription.unsubscribe()
   }, [])
 
+  // A link somebody was texted, held across sign-in. See deepLinkPath for the
+  // flows that would otherwise eat it. sessionStorage rather than localStorage
+  // deliberately: a destination is only interesting to the tab that was opened
+  // on it, and one left behind by an abandoned sign-in must not hijack a launch
+  // days later.
+  useEffect(() => {
+    if (session) return
+    const target = deepLinkPath(window.location.hash)
+    if (target) {
+      try {
+        sessionStorage.setItem(PENDING_LINK_KEY, target)
+      } catch {
+        /* private mode — the password path still keeps the hash on its own */
+      }
+    }
+  }, [session, route])
+
+  // ...and put it back once there's a session to show it with. Only when the
+  // hash isn't already pointing somewhere specific, so a sign-in that kept its
+  // destination is left alone rather than overridden by an older one.
+  useEffect(() => {
+    if (!session) return
+    let target = null
+    try {
+      target = sessionStorage.getItem(PENDING_LINK_KEY)
+      sessionStorage.removeItem(PENDING_LINK_KEY)
+    } catch {
+      /* ignore */
+    }
+    if (target && !deepLinkPath(window.location.hash)) window.location.hash = `/${target}`
+  }, [session])
+
   // Track the hash so the legal pages are reachable without a session — they
   // need to render before auth (App-store / privacy-link requirement), so we
   // intercept them here, ahead of the loading and sign-in branches.
@@ -191,12 +279,14 @@ function AuthedApp({ onDemo }) {
     return (
       <main className="main legal-standalone">
         <div className="content">
-          <LegalView
-            doc={route.name}
-            onBack={() => {
-              window.location.hash = '/'
-            }}
-          />
+          <Suspense fallback={<EmptyState loading>Loading</EmptyState>}>
+            <LegalView
+              doc={route.name}
+              onBack={() => {
+                window.location.hash = '/'
+              }}
+            />
+          </Suspense>
         </div>
       </main>
     )
@@ -288,6 +378,11 @@ function Shell({ session, onLogout, household }) {
   const meId = isDemo ? currentMemberId() : household?.memberId
   const [appPrefs] = useAppPrefs(meId)
 
+  // Errand co-presence. One socket for the whole app, held here rather than in
+  // ListDetail so the Lists index can mark a list somebody is already working
+  // without mounting a second channel to find out.
+  const presence = usePresence(household?.id, { demo: isDemo })
+
   // The area lens, resolved once here so every scoped view reads the same
   // answer. resolveAreaId guards a stale selection — the lens persists across
   // launches, so the area it names can be deleted, archived or un-shared by a
@@ -377,7 +472,15 @@ function Shell({ session, onLogout, household }) {
       // document.hidden: a hidden tab gets no animation frames, so a started
       // transition would never finish and its overlay would eat all input.
       if (document.startViewTransition && !reduceMotion && !document.hidden) {
-        document.startViewTransition(() => flushSync(apply))
+        // A route whose chunk hasn't arrived yet suspends inside the callback,
+        // and the browser answers that by skipping the transition — which
+        // rejects `ready` and `finished`. That is the ordinary outcome of a
+        // code-split navigation, not a failure, but left alone it surfaces as
+        // an unhandled rejection in the console (and in any error reporter
+        // watching for them). warmRoutes() makes it rare; this makes it quiet.
+        const transition = document.startViewTransition(() => flushSync(apply))
+        transition?.ready?.catch(() => {})
+        transition?.finished?.catch(() => {})
       } else {
         apply()
       }
@@ -464,6 +567,15 @@ function Shell({ session, onLogout, household }) {
     if (!ROUTES.includes(route.name)) window.location.hash = '/'
   }, [route.name])
 
+  // Pull the tab-bar destinations once the app has gone quiet, so code-splitting
+  // costs a visible wait only on a navigation that beats the prefetch. Idle, not
+  // on mount: first paint is the one moment the network is genuinely contended.
+  useEffect(() => {
+    const idle = window.requestIdleCallback
+    const id = idle ? idle(warmRoutes) : setTimeout(warmRoutes, 2000)
+    return () => (idle ? window.cancelIdleCallback(id) : clearTimeout(id))
+  }, [])
+
   // Window/tab title follows the page (history + tab switcher readability).
   useEffect(() => {
     const named =
@@ -524,6 +636,15 @@ function Shell({ session, onLogout, household }) {
     )
   }
   const openProject = (id) => go(`project/${id}`)
+  // Follow a link to one task, from a page that only had room for its title:
+  // Today, the activity feed, Quick Find. Lands on the Tasks list with that row
+  // expanded and scrolled to — the list, rather than the task's own page,
+  // because these are all "what am I doing today" surfaces and the answer is
+  // worth seeing in the company of the rest of the list. The ⤢ on the row is
+  // one tap further for the full page.
+  const openTaskInList = (id) => go(`tasks/${id}`)
+  // The same for a reminder, on its own page (#/reminders/<id>).
+  const openReminder = (id) => go(id ? `reminders/${id}` : 'reminders')
   // A plain task's own page, opened from the ⤢ on its row in the Tasks list.
   // Distinct from openTask below, which is the "follow a link to this task"
   // entry other screens use.
@@ -583,7 +704,7 @@ function Shell({ session, onLogout, household }) {
     if (entry.type === 'person') openPerson(entry.id)
     else if (entry.type === 'project') openProject(entry.id)
     else if (entry.type === 'task')
-      entry.parentId ? openProject(entry.parentId) : go(`tasks/${entry.id}`)
+      entry.parentId ? openProject(entry.parentId) : openTaskInList(entry.id)
     else if (entry.type === 'list') openList(entry.id)
     else if (entry.type === 'note') openNote(entry.id)
     else if (entry.type === 'habit') openHabit(entry.id)
@@ -731,9 +852,24 @@ function Shell({ session, onLogout, household }) {
     if (e.entity === 'note') return openNote(e.id)
     if (e.entity === 'list') return openList(e.id)
     if (e.entity === 'project') return openProject(e.id)
-    if (e.entity === 'reminder') return go('reminders')
+    if (e.entity === 'reminder') return openReminder(e.id)
     const t = data.tasks.find((x) => x.id === e.id)
-    return t ? openTask(t) : go('tasks')
+    if (!t) return go('tasks')
+    // The list with the row open, not the edit form. "Added a task" is news to
+    // read, and answering it with a form asking you to change the thing you just
+    // heard about is answering a different question — every other entity here
+    // opens the thing itself, and this one now does too.
+    return isProject(t) ? openProject(t.id) : openTaskInList(t.id)
+  }
+
+  // A completion in the activity feed. Its own page rather than the list: it's
+  // done, so there's no open row waiting for it, and the page is where Reopen
+  // lives — the same landing the Done logbook's own rows use. Falls back to the
+  // index for a task since deleted, or a row from before ids were recorded.
+  const openCompleted = (id) => {
+    const t = id && data.tasks.find((x) => x.id === id)
+    if (!t) return go('tasks')
+    return isProject(t) ? openProject(t.id) : openTaskPage(t.id)
   }
 
   const adds = {
@@ -755,7 +891,11 @@ function Shell({ session, onLogout, household }) {
   // it returns above the layout rather than rendering inside it. Still inside
   // Shell because it reads the same `data` everything else does.
   if (route.name === 'board') {
-    return <BoardView data={data} onExit={() => goBack('today')} />
+    return (
+      <Suspense fallback={<EmptyState loading>Loading</EmptyState>}>
+        <BoardView data={data} onExit={() => goBack('today')} />
+      </Suspense>
+    )
   }
 
   return (
@@ -768,537 +908,556 @@ function Shell({ session, onLogout, household }) {
           sidebar, which is genuinely persistent chrome. A page it doesn't apply
           to gets nothing by having nothing provided, rather than by opting out. */}
       <AreaLensContext.Provider value={mobileAreaLens}>
-        <div className="layout">
-          {!isMobile && (
-            <Sidebar
-              active={activeNav}
-              go={go}
-              onSearch={() => setQuickFind(true)}
-              badge={badge}
-              counts={navCounts}
-              areaSwitcher={
-                <AreaSwitcher variant="rail" counts={areaCountsByOpenTask} {...areaSwitcherProps} />
-              }
-            />
-          )}
-          <main className="main" ref={mainRef}>
-            <PullToRefresh onRefresh={data.refresh}>
-              <div className="content">
-                {/* Both of these are app-level status, not page content, so they are
+        <PresenceContext.Provider value={presence}>
+          <div className="layout">
+            {!isMobile && (
+              <Sidebar
+                active={activeNav}
+                go={go}
+                onSearch={() => setQuickFind(true)}
+                badge={badge}
+                counts={navCounts}
+                areaSwitcher={
+                  <AreaSwitcher
+                    variant="rail"
+                    counts={areaCountsByOpenTask}
+                    {...areaSwitcherProps}
+                  />
+                }
+              />
+            )}
+            <main className="main" ref={mainRef}>
+              <PullToRefresh onRefresh={data.refresh}>
+                <div className="content">
+                  {/* Both of these are app-level status, not page content, so they are
                 charged once rather than re-paid at the top of all 15 routes.
                 Together they used to eat 155px of a 660px phone screen (300 of
                 667 on an SE, where the copy wrapped to three lines) — enough to
                 push the first task on /tasks below the fold. */}
-                {route.name === 'today' && <InstallHint />}
-                {/* self-gates: Install button on Chrome/Edge, Add-to-Home-Screen on iOS */}
-                {/* Mirror useData's demo condition exactly so the notice can never
+                  {route.name === 'today' && <InstallHint />}
+                  {/* self-gates: Install button on Chrome/Edge, Add-to-Home-Screen on iOS */}
+                  {/* Mirror useData's demo condition exactly so the notice can never
               drift from the data: shown for runtime demo AND build-time demo,
               never for a real signed-in session. */}
-                {(demoMode || session?.demo) && (
-                  <p className="demo-banner">
-                    <strong>Demo</strong> Sample data, nothing is saved.
-                  </p>
-                )}
-                {data.error && <p className="error-text">{data.error}</p>}
-                {route.name === 'today' && (
-                  <TodayView
-                    data={data}
-                    taskScope={appPrefs.todayScope}
-                    area={areaId}
-                    household={household}
-                    onOpenPerson={openPerson}
-                    onOpenList={openList}
-                    onOpenTasks={() => go('tasks')}
-                    onOpenProject={openProject}
-                    onOpenActivity={() => go('activity')}
-                    onSearch={isMobile ? () => setQuickFind(true) : undefined}
-                    onOpenHabits={() => go('habits')}
-                    onOpenHabit={openHabit}
-                    onOpenNotes={() => go('notes')}
-                    onOpenReminders={() => go('reminders')}
-                    onOpenChange={openChange}
-                    onOpenNote={openNote}
-                  />
-                )}
-                {route.name === 'activity' && (
-                  <ActivityView
-                    data={data}
-                    onBack={() => go('today')}
-                    onOpenPerson={openPerson}
-                    onOpenList={openList}
-                    onOpenTasks={() => go('tasks')}
-                    onOpenHabit={openHabit}
-                    onOpenChange={openChange}
-                  />
-                )}
-                {route.name === 'tasks' && (
-                  <TasksView
-                    data={data}
-                    expandId={route.id}
-                    onAdd={() => setEditingTask('new')}
-                    onEdit={(t) => setEditingTask(t)}
-                    onOpenTask={openTaskPage}
-                    onSearch={isMobile ? () => setQuickFind(true) : undefined}
-                    hub={workNav('tasks')}
-                    defaultFilter={appPrefs.taskFilter}
-                    defaultShowCompleted={appPrefs.showCompleted}
-                    defaultPrivacy={appPrefs.taskPrivacy}
-                    // Read-only: the switcher in the shell sets it, so every
-                    // scoped page narrows from one pick. Already resolved against
-                    // a stale selection above.
-                    area={areaId}
-                  />
-                )}
-                {route.name === 'task' && (
-                  <TaskDetail
-                    data={data}
-                    taskId={route.id}
-                    // Reached from the Tasks list, Quick Find, or a bookmark, so
-                    // back means where you came from. Deep-linked with no history
-                    // → the Tasks list.
-                    onBack={backTo('tasks')}
-                    onEdit={(t) => setEditingTask(t)}
-                    onOpenNote={openNote}
-                  />
-                )}
-                {route.name === 'reminders' && (
-                  <RemindersView
-                    data={data}
-                    onAdd={() => setEditingReminder('new')}
-                    onEdit={(r) => setEditingReminder(r)}
-                    onOpenPerson={openPerson}
-                    onSearch={isMobile ? () => setQuickFind(true) : undefined}
-                    hub={workNav('reminders')}
-                    onNavigate={go}
-                    area={areaId}
-                  />
-                )}
-                {route.name === 'projects' && (
-                  <ProjectsView
-                    data={data}
-                    onOpenProject={openProject}
-                    onAdd={() => openProjectPicker()}
-                    onSearch={isMobile ? () => setQuickFind(true) : undefined}
-                    hub={workNav('projects')}
-                    area={areaId}
-                    sort={appPrefs.projectsSort}
-                    onSort={(v) => setAppPrefs(meId, { projectsSort: v })}
-                  />
-                )}
-                {route.name === 'project' && (
-                  <ProjectDetail
-                    data={data}
-                    taskId={route.id}
-                    onBack={backTo('projects')}
-                    onEdit={(t) => setEditingTask(t)}
-                    onOpenPerson={openPerson}
-                    onOpenOrg={openOrg}
-                    onOpenGroup={openGroup}
-                    onOpenList={openList}
-                    onOpenNote={openNote}
-                    onAddNote={createNote}
-                  />
-                )}
-                {route.name === 'lists' && (
-                  <ListsView
-                    data={data}
-                    onOpenList={openList}
-                    area={areaId}
-                    onEditList={(l) => setEditingList(l)}
-                    onAdd={() => setEditingList('new')}
-                    onSearch={isMobile ? () => setQuickFind(true) : undefined}
-                  />
-                )}
-                {route.name === 'list' && (
-                  <ListDetail
-                    data={data}
-                    listId={route.id}
-                    // Go back to wherever the list was opened from — the Lists tab,
-                    // a project, Today, etc. history.back() pops the entry that
-                    // pushed this route, so it can't loop (unlike re-pushing a fixed
-                    // hash, which stacks duplicates that the OS back button then
-                    // walks through). Deep-linked with no history → fall to Lists.
-                    onBack={backTo('lists')}
-                    onEdit={(l) => setEditingList(l)}
-                    onOpenNote={openNote}
-                    onOpenProject={openProject}
-                  />
-                )}
-                {/* One component owns both notes routes: on a wide screen the index
+                  {(demoMode || session?.demo) && (
+                    <p className="demo-banner">
+                      <strong>Demo</strong> Sample data, nothing is saved.
+                    </p>
+                  )}
+                  {data.error && <p className="error-text">{data.error}</p>}
+                  {/* One boundary for every route below. They are mutually
+                    exclusive — exactly one renders — so a single fallback here
+                    is the whole story, and it sits INSIDE .content so the page
+                    keeps its frame while a chunk arrives. */}
+                  <Suspense fallback={<EmptyState loading>Loading</EmptyState>}>
+                    {route.name === 'today' && (
+                      <TodayView
+                        data={data}
+                        taskScope={appPrefs.todayScope}
+                        area={areaId}
+                        household={household}
+                        onOpenPerson={openPerson}
+                        onOpenOrg={openOrg}
+                        onOpenList={openList}
+                        onOpenTask={openTaskInList}
+                        onOpenTasks={openCompleted}
+                        onOpenProject={openProject}
+                        onOpenActivity={() => go('activity')}
+                        onSearch={isMobile ? () => setQuickFind(true) : undefined}
+                        onOpenHabits={() => go('habits')}
+                        onOpenHabit={openHabit}
+                        onOpenNotes={() => go('notes')}
+                        onOpenReminders={openReminder}
+                        onOpenChange={openChange}
+                        onOpenNote={openNote}
+                      />
+                    )}
+                    {route.name === 'activity' && (
+                      <ActivityView
+                        data={data}
+                        onBack={() => go('today')}
+                        onOpenPerson={openPerson}
+                        onOpenList={openList}
+                        onOpenTasks={openCompleted}
+                        onOpenHabit={openHabit}
+                        onOpenChange={openChange}
+                      />
+                    )}
+                    {route.name === 'tasks' && (
+                      <TasksView
+                        data={data}
+                        expandId={route.id}
+                        onAdd={() => setEditingTask('new')}
+                        onEdit={(t) => setEditingTask(t)}
+                        onOpenTask={openTaskPage}
+                        onSearch={isMobile ? () => setQuickFind(true) : undefined}
+                        hub={workNav('tasks')}
+                        defaultFilter={appPrefs.taskFilter}
+                        defaultShowCompleted={appPrefs.showCompleted}
+                        defaultPrivacy={appPrefs.taskPrivacy}
+                        // Read-only: the switcher in the shell sets it, so every
+                        // scoped page narrows from one pick. Already resolved against
+                        // a stale selection above.
+                        area={areaId}
+                      />
+                    )}
+                    {route.name === 'task' && (
+                      <TaskDetail
+                        data={data}
+                        taskId={route.id}
+                        // Reached from the Tasks list, Quick Find, or a bookmark, so
+                        // back means where you came from. Deep-linked with no history
+                        // → the Tasks list.
+                        onBack={backTo('tasks')}
+                        onEdit={(t) => setEditingTask(t)}
+                        onOpenNote={openNote}
+                      />
+                    )}
+                    {route.name === 'reminders' && (
+                      <RemindersView
+                        data={data}
+                        focusId={route.id}
+                        onAdd={() => setEditingReminder('new')}
+                        onEdit={(r) => setEditingReminder(r)}
+                        onOpenPerson={openPerson}
+                        onSearch={isMobile ? () => setQuickFind(true) : undefined}
+                        hub={workNav('reminders')}
+                        onNavigate={go}
+                        area={areaId}
+                      />
+                    )}
+                    {route.name === 'projects' && (
+                      <ProjectsView
+                        data={data}
+                        onOpenProject={openProject}
+                        onAdd={() => openProjectPicker()}
+                        onSearch={isMobile ? () => setQuickFind(true) : undefined}
+                        hub={workNav('projects')}
+                        area={areaId}
+                        sort={appPrefs.projectsSort}
+                        onSort={(v) => setAppPrefs(meId, { projectsSort: v })}
+                      />
+                    )}
+                    {route.name === 'project' && (
+                      <ProjectDetail
+                        data={data}
+                        taskId={route.id}
+                        onBack={backTo('projects')}
+                        onEdit={(t) => setEditingTask(t)}
+                        onOpenPerson={openPerson}
+                        onOpenOrg={openOrg}
+                        onOpenGroup={openGroup}
+                        onOpenList={openList}
+                        onOpenNote={openNote}
+                        onAddNote={createNote}
+                      />
+                    )}
+                    {route.name === 'lists' && (
+                      <ListsView
+                        data={data}
+                        onOpenList={openList}
+                        area={areaId}
+                        onEditList={(l) => setEditingList(l)}
+                        onAdd={() => setEditingList('new')}
+                        onSearch={isMobile ? () => setQuickFind(true) : undefined}
+                      />
+                    )}
+                    {route.name === 'list' && (
+                      <ListDetail
+                        data={data}
+                        listId={route.id}
+                        // Go back to wherever the list was opened from — the Lists tab,
+                        // a project, Today, etc. history.back() pops the entry that
+                        // pushed this route, so it can't loop (unlike re-pushing a fixed
+                        // hash, which stacks duplicates that the OS back button then
+                        // walks through). Deep-linked with no history → fall to Lists.
+                        onBack={backTo('lists')}
+                        onEdit={(l) => setEditingList(l)}
+                        onOpenNote={openNote}
+                        onOpenProject={openProject}
+                      />
+                    )}
+                    {/* One component owns both notes routes: on a wide screen the index
                 and the open note sit side by side, so /notes and /note/<id> are
                 the same screen with a different selection. NotesView renders
                 NoteDetail itself (keyed by id) and falls back to the phone's
                 push-navigation when there isn't room for two panes. Keeping it
                 mounted across both routes also preserves the search box, sort,
                 and tag filter when you open a note and come back. */}
-                {(route.name === 'notes' || route.name === 'note') && (
-                  <NotesView
-                    data={data}
-                    noteId={route.name === 'note' ? route.id : null}
-                    onOpenNote={openNote}
-                    onAdd={createNote}
-                    onOpenMention={openMention}
-                    area={areaId}
-                    sort={appPrefs.notesSort}
-                    onSort={(v) => setAppPrefs(meId, { notesSort: v })}
-                    onSearch={isMobile ? () => setQuickFind(true) : undefined}
-                    onCloseNote={() => goBack('notes')}
-                    onBack={backTo('today')}
-                  />
-                )}
-                {route.name === 'people' && (
-                  <SearchView
-                    data={data}
-                    searchRef={searchRef}
-                    query={query}
-                    setQuery={setQuery}
-                    filters={peopleFilters}
-                    setFilters={setPeopleFilters}
-                    onOpen={openPerson}
-                    onOpenOrg={openOrg}
-                    onEdit={(p) => setEditingPerson(p)}
-                    onAdd={() => setEditingPerson('new')}
-                    memberId={meId}
-                    hub={hubNav('people')}
-                  />
-                )}
-                {route.name === 'person' && (
-                  <PersonPage
-                    data={data}
-                    personId={route.id}
-                    onOpenPerson={openPerson}
-                    onOpenOrg={openOrg}
-                    onOpenTask={openTask}
-                    onOpenNote={openNote}
-                    onBack={backTo('people')}
-                    onEdit={(p) => setEditingPerson(p)}
-                    onConnect={(p) => setRelationshipFrom(p)}
-                    isDemo={isDemo}
-                  />
-                )}
-                {route.name === 'orgs' && (
-                  <OrgsView
-                    data={data}
-                    onOpen={openOrg}
-                    onAdd={() => setEditingOrg('new')}
-                    hub={hubNav('orgs')}
-                  />
-                )}
-                {route.name === 'org' && (
-                  <OrgPage
-                    data={data}
-                    orgId={route.id}
-                    onOpenPerson={openPerson}
-                    onOpenTask={openTask}
-                    onOpenNote={openNote}
-                    // Seeds the add-person form with this org, so an empty
-                    // organization offers the thing that fills it.
-                    onAddPerson={(o) => setEditingPerson({ organization_id: o.id })}
-                    onBack={backTo('orgs')}
-                    onEdit={(o) => setEditingOrg(o)}
-                    isDemo={isDemo}
-                  />
-                )}
-                {route.name === 'groups' && (
-                  <GroupsView
-                    data={data}
-                    onOpen={openGroup}
-                    onAdd={() => setEditingGroup('new')}
-                    hub={hubNav('groups')}
-                  />
-                )}
-                {route.name === 'group' && (
-                  <GroupPage
-                    data={data}
-                    groupId={route.id}
-                    onOpenPerson={openPerson}
-                    onOpenTask={openTask}
-                    onOpenNote={openNote}
-                    onBack={backTo('groups')}
-                    onEdit={(g) => setEditingGroup(g)}
-                    isDemo={isDemo}
-                  />
-                )}
-                {route.name === 'relationships' && (
-                  <RelationshipsView
-                    data={data}
-                    onOpenPerson={openPerson}
-                    onAdd={() => setRelationshipFrom('new')}
-                    hub={hubNav('relationships')}
-                  />
-                )}
-                {route.name === 'habits' && (
-                  <HabitsView
-                    data={data}
-                    onAdd={(seed) => setEditingHabit(seed || 'new')}
-                    onPickTemplate={() => setPickingHabit(true)}
-                    onOpen={(id) => go(`habit/${id}`)}
-                    onOpenInsights={() => go('habit-insights')}
-                  />
-                )}
-                {route.name === 'habit-insights' && (
-                  <HabitInsightsView
-                    data={data}
-                    onBack={() => go('habits')}
-                    onOpenHabit={(id) => go(`habit/${id}`)}
-                  />
-                )}
-                {route.name === 'habit' && (
-                  <HabitDetail
-                    data={data}
-                    habitId={route.id}
-                    // A habit is now reachable from Today, the activity feed and
-                    // Quick Find, so "back" has to mean where you came from — a
-                    // fixed hop to the Habits index would strand you somewhere you
-                    // never were. Deep-linked with no history → Habits.
-                    onBack={backTo('habits')}
-                    onEdit={(h) => setEditingHabit(h)}
-                    onOpenNote={openNote}
-                  />
-                )}
-                {route.name === 'import' && (
-                  <Suspense fallback={<EmptyState loading>Loading</EmptyState>}>
-                    <ImportExport data={data} />
+                    {(route.name === 'notes' || route.name === 'note') && (
+                      <NotesView
+                        data={data}
+                        noteId={route.name === 'note' ? route.id : null}
+                        onOpenNote={openNote}
+                        onAdd={createNote}
+                        onOpenMention={openMention}
+                        area={areaId}
+                        sort={appPrefs.notesSort}
+                        onSort={(v) => setAppPrefs(meId, { notesSort: v })}
+                        onSearch={isMobile ? () => setQuickFind(true) : undefined}
+                        onCloseNote={() => goBack('notes')}
+                        onBack={backTo('today')}
+                      />
+                    )}
+                    {route.name === 'people' && (
+                      <SearchView
+                        data={data}
+                        searchRef={searchRef}
+                        query={query}
+                        setQuery={setQuery}
+                        filters={peopleFilters}
+                        setFilters={setPeopleFilters}
+                        onOpen={openPerson}
+                        onOpenOrg={openOrg}
+                        onEdit={(p) => setEditingPerson(p)}
+                        onAdd={() => setEditingPerson('new')}
+                        memberId={meId}
+                        hub={hubNav('people')}
+                      />
+                    )}
+                    {route.name === 'person' && (
+                      <PersonPage
+                        data={data}
+                        personId={route.id}
+                        onOpenPerson={openPerson}
+                        onOpenOrg={openOrg}
+                        onOpenTask={openTask}
+                        onOpenNote={openNote}
+                        onBack={backTo('people')}
+                        onEdit={(p) => setEditingPerson(p)}
+                        onConnect={(p) => setRelationshipFrom(p)}
+                        isDemo={isDemo}
+                      />
+                    )}
+                    {route.name === 'orgs' && (
+                      <OrgsView
+                        data={data}
+                        onOpen={openOrg}
+                        onAdd={() => setEditingOrg('new')}
+                        hub={hubNav('orgs')}
+                      />
+                    )}
+                    {route.name === 'org' && (
+                      <OrgPage
+                        data={data}
+                        orgId={route.id}
+                        onOpenPerson={openPerson}
+                        onOpenTask={openTask}
+                        onOpenNote={openNote}
+                        // Seeds the add-person form with this org, so an empty
+                        // organization offers the thing that fills it.
+                        onAddPerson={(o) => setEditingPerson({ organization_id: o.id })}
+                        onBack={backTo('orgs')}
+                        onEdit={(o) => setEditingOrg(o)}
+                        isDemo={isDemo}
+                      />
+                    )}
+                    {route.name === 'groups' && (
+                      <GroupsView
+                        data={data}
+                        onOpen={openGroup}
+                        onAdd={() => setEditingGroup('new')}
+                        hub={hubNav('groups')}
+                      />
+                    )}
+                    {route.name === 'group' && (
+                      <GroupPage
+                        data={data}
+                        groupId={route.id}
+                        onOpenPerson={openPerson}
+                        onOpenTask={openTask}
+                        onOpenNote={openNote}
+                        onBack={backTo('groups')}
+                        onEdit={(g) => setEditingGroup(g)}
+                        isDemo={isDemo}
+                      />
+                    )}
+                    {route.name === 'relationships' && (
+                      <RelationshipsView
+                        data={data}
+                        onOpenPerson={openPerson}
+                        onAdd={() => setRelationshipFrom('new')}
+                        hub={hubNav('relationships')}
+                      />
+                    )}
+                    {route.name === 'habits' && (
+                      <HabitsView
+                        data={data}
+                        onAdd={(seed) => setEditingHabit(seed || 'new')}
+                        onPickTemplate={() => setPickingHabit(true)}
+                        onOpen={(id) => go(`habit/${id}`)}
+                        onOpenInsights={() => go('habit-insights')}
+                      />
+                    )}
+                    {route.name === 'habit-insights' && (
+                      <HabitInsightsView
+                        data={data}
+                        onBack={() => go('habits')}
+                        onOpenHabit={(id) => go(`habit/${id}`)}
+                      />
+                    )}
+                    {route.name === 'habit' && (
+                      <HabitDetail
+                        data={data}
+                        habitId={route.id}
+                        // A habit is now reachable from Today, the activity feed and
+                        // Quick Find, so "back" has to mean where you came from — a
+                        // fixed hop to the Habits index would strand you somewhere you
+                        // never were. Deep-linked with no history → Habits.
+                        onBack={backTo('habits')}
+                        onEdit={(h) => setEditingHabit(h)}
+                        onOpenNote={openNote}
+                      />
+                    )}
+                    {route.name === 'import' && <ImportExport data={data} />}
+                    {route.name === 'areas' && (
+                      <AreasView
+                        data={data}
+                        onAdd={() => setEditingArea('new')}
+                        onEdit={(a) => setEditingArea(a)}
+                        // Reached from Settings today, so that's where Back lands when
+                        // there's no history to pop (a deep link, a cold launch).
+                        onBack={backTo('settings')}
+                      />
+                    )}
+                    {route.name === 'settings' && (
+                      <SettingsView
+                        go={go}
+                        household={household}
+                        isDemo={!!(demoMode || session?.demo)}
+                        onLogout={requestLogout}
+                        session={session}
+                        onBack={isMobile ? backTo('today') : undefined}
+                      />
+                    )}
+                    {route.name === 'kitchen-sink' && KitchenSink && <KitchenSink />}
+                    {(route.name === 'privacy' || route.name === 'terms') && (
+                      <LegalView doc={route.name} onBack={backTo('today')} />
+                    )}
                   </Suspense>
-                )}
-                {route.name === 'areas' && (
-                  <AreasView
-                    data={data}
-                    onAdd={() => setEditingArea('new')}
-                    onEdit={(a) => setEditingArea(a)}
-                    // Reached from Settings today, so that's where Back lands when
-                    // there's no history to pop (a deep link, a cold launch).
-                    onBack={backTo('settings')}
-                  />
-                )}
-                {route.name === 'settings' && (
-                  <SettingsView
-                    go={go}
-                    household={household}
-                    isDemo={!!(demoMode || session?.demo)}
-                    onLogout={requestLogout}
-                    session={session}
-                    onBack={isMobile ? backTo('today') : undefined}
-                  />
-                )}
-                {route.name === 'kitchen-sink' && KitchenSink && (
-                  <Suspense fallback={<p className="empty dots">Loading</p>}>
-                    <KitchenSink />
-                  </Suspense>
-                )}
-                {(route.name === 'privacy' || route.name === 'terms') && (
-                  <LegalView doc={route.name} onBack={backTo('today')} />
-                )}
-              </div>
-            </PullToRefresh>
-          </main>
+                </div>
+              </PullToRefresh>
+            </main>
 
-          <Toasts />
+            <Toasts />
 
-          {quickFind && (
-            <QuickFind data={data} onPick={pickQuickFind} onClose={() => setQuickFind(false)} />
-          )}
+            {quickFind && (
+              <QuickFind data={data} onPick={pickQuickFind} onClose={() => setQuickFind(false)} />
+            )}
 
-          {isMobile && (
-            <MobileNav
-              route={route.name}
-              active={activeNav}
-              adds={adds}
-              badge={badge}
-              counts={navCounts}
-            />
-          )}
+            {isMobile && (
+              <MobileNav
+                route={route.name}
+                active={activeNav}
+                adds={adds}
+                badge={badge}
+                counts={navCounts}
+              />
+            )}
 
-          {confirmLogout && (
-            <ConfirmDialog
-              title="Log out?"
-              message="You'll need to sign in again to get back to your household."
-              confirmLabel="Log out"
-              danger
-              onConfirm={() => {
-                setConfirmLogout(false)
-                onLogout()
-              }}
-              onCancel={() => setConfirmLogout(false)}
-            />
-          )}
+            {confirmLogout && (
+              <ConfirmDialog
+                title="Log out?"
+                message="You'll need to sign in again to get back to your household."
+                confirmLabel="Log out"
+                danger
+                onConfirm={() => {
+                  setConfirmLogout(false)
+                  onLogout()
+                }}
+                onCancel={() => setConfirmLogout(false)}
+              />
+            )}
 
-          {editingPerson && (
-            <PersonForm
-              // 'new' or a seed object (no id) both mean "add"; only a real row
-              // with an id is an edit. See PersonForm's isNew.
-              person={editingPerson === 'new' ? null : editingPerson}
-              orgs={data.orgs}
-              affiliations={data.affiliations}
-              people={data.people}
-              families={data.families}
-              groups={data.groups}
-              existingTags={allTags}
-              onSave={data.savePerson}
-              onSaveAffiliations={data.setPersonAffiliations}
-              onCreateFamily={data.saveFamily}
-              onCreateOrg={data.findOrCreateOrg}
-              onClose={() => setEditingPerson(null)}
-              onOpenPerson={openPerson}
-              defaultPrivacy={appPrefs.personPrivacy}
-              isDemo={isDemo}
-            />
-          )}
-          {editingOrg && (
-            <OrgForm
-              org={editingOrg === 'new' ? null : editingOrg}
-              orgs={data.orgs}
-              onSave={data.saveOrg}
-              onClose={() => setEditingOrg(null)}
-              isDemo={isDemo}
-              defaultPrivacy={appPrefs.personPrivacy}
-            />
-          )}
-          {editingGroup && (
-            <GroupForm
-              group={editingGroup === 'new' ? null : editingGroup}
-              people={data.people}
-              existingTags={allTags}
-              onSave={data.saveGroup}
-              onClose={() => setEditingGroup(null)}
-              isDemo={isDemo}
-            />
-          )}
-          {editingHabit && (
-            <HabitForm
-              habit={editingHabit === 'new' ? null : editingHabit}
-              onSave={(fields, id) => (id ? data.updateHabit(id, fields) : data.addHabit(fields))}
-              onClose={() => setEditingHabit(null)}
-            />
-          )}
-          {editingArea && (
-            <AreaForm
-              area={editingArea === 'new' ? null : editingArea}
-              onSave={(fields) =>
-                editingArea === 'new'
-                  ? data.addArea(fields)
-                  : data.updateArea(editingArea.id, fields)
-              }
-              onClose={() => setEditingArea(null)}
-            />
-          )}
-          {pickingHabit && (
-            <HabitTemplatePicker
-              onPick={(seed) => {
-                setPickingHabit(false)
-                setEditingHabit(seed || 'new')
-              }}
-              onClose={() => setPickingHabit(false)}
-            />
-          )}
-          {editingTask && (
-            <TaskForm
-              task={editingTask === 'new' ? null : editingTask}
-              onSave={(fields, id) => (id ? data.updateTask(id, fields) : data.addTask(fields))}
-              onClose={() => setEditingTask(null)}
-              onMakeProject={(title) => {
-                setEditingTask(null)
-                openProjectPicker(title)
-              }}
-              notes={data.notes}
-              // Close the sheet on the way out — leaving it stacked over the note
-              // you just opened would put a form on top of what you went to read.
-              onOpenNote={(id) => {
-                setEditingTask(null)
-                openNote(id)
-              }}
-              defaultPrivacy={appPrefs.taskPrivacy}
-              // A new task starts filed under the lens you're looking through
-              // (None under All — areaForNewItem never guesses one).
-              defaultAreaId={areaForNewItem(areaId)}
-              // Real area rows now, not the distinct strings scraped off
-              // tasks.area — so an area you just made is pickable before anything
-              // has been filed into it.
-              areas={visibleAreas(data.areas, data.userId)}
-              // Making an area from inside the sheet: a name and a colour that
-              // isn't already taken, and nothing else. Every other setting an
-              // area has (icon, sharing, Today) keeps its AreaForm default and
-              // waits for Settings → Areas — the point here is not to leave a
-              // half-written task to go and fill in a second form.
-              onCreateArea={(name) =>
-                data.addArea({ name, color: nextColor((data.areas || []).map((a) => a.color)) })
-              }
-              tagSuggestions={taskTags(data.tasks)}
-            />
-          )}
-          {pickingProject && (
-            <ProjectTemplatePicker
-              onCreate={createProject}
-              onClose={() => {
-                setPickingProject(false)
-                setProjectSeedName('')
-              }}
-              // A project now inherits the lens (see createProject), so it has
-              // to inherit what that lens says about visibility too — otherwise
-              // starting a project under a keep-things-private area files it
-              // there and shares it anyway. Only the starting point: the review
-              // step shows the PrivacyField this feeds.
-              defaultPrivacy={privacyForNewItem(
-                areaById(data.areas, areaForNewItem(areaId)),
-                appPrefs.taskPrivacy,
+            {/* The sheet layer. One boundary again — at most one of these is open
+              at a time, and a sheet arriving a frame late is invisible next to
+              its own open animation. No fallback: a spinner behind a sheet that
+              hasn't appeared yet would be a flash of nothing in particular. */}
+            <Suspense fallback={null}>
+              {editingPerson && (
+                <PersonForm
+                  // 'new' or a seed object (no id) both mean "add"; only a real row
+                  // with an id is an edit. See PersonForm's isNew.
+                  person={editingPerson === 'new' ? null : editingPerson}
+                  orgs={data.orgs}
+                  affiliations={data.affiliations}
+                  people={data.people}
+                  families={data.families}
+                  groups={data.groups}
+                  areas={data.areas}
+                  userId={data.userId}
+                  existingTags={allTags}
+                  onSave={data.savePerson}
+                  onSaveAffiliations={data.setPersonAffiliations}
+                  onCreateFamily={data.saveFamily}
+                  onCreateOrg={data.findOrCreateOrg}
+                  onClose={() => setEditingPerson(null)}
+                  onOpenPerson={openPerson}
+                  defaultPrivacy={appPrefs.personPrivacy}
+                  isDemo={isDemo}
+                />
               )}
-              initialName={projectSeedName}
-            />
-          )}
-          {editingList && (
-            <ListForm
-              list={editingList === 'new' ? null : editingList}
-              onSave={data.saveList}
-              onClose={() => setEditingList(null)}
-              defaultPrivacy={appPrefs.listPrivacy}
-              areas={visibleAreas(data.areas, data.userId)}
-              defaultAreaId={areaForNewItem(areaId)}
-            />
-          )}
-          {editingReminder && (
-            <ReminderForm
-              reminder={editingReminder === 'new' ? null : editingReminder}
-              people={data.people.filter((p) => !p.deleted_at)}
-              areas={visibleAreas(data.areas, data.userId)}
-              // A reminder made under a lens is filed there, like every other
-              // create path — and so it inherits what that lens says about
-              // visibility too, or a keep-things-private area would file the
-              // reminder and share it anyway. Both are starting points: the
-              // form's own pickers overrule either.
-              defaultAreaId={areaForNewItem(areaId)}
-              defaultPrivacy={privacyForNewItem(
-                areaById(data.areas, areaForNewItem(areaId)),
-                appPrefs.taskPrivacy,
+              {editingOrg && (
+                <OrgForm
+                  org={editingOrg === 'new' ? null : editingOrg}
+                  orgs={data.orgs}
+                  areas={data.areas}
+                  userId={data.userId}
+                  onSave={data.saveOrg}
+                  onClose={() => setEditingOrg(null)}
+                  isDemo={isDemo}
+                  defaultPrivacy={appPrefs.personPrivacy}
+                />
               )}
-              onSave={(fields) => {
-                if (editingReminder === 'new') data.addTask(fields)
-                else data.updateTask(editingReminder.id, fields)
-                setEditingReminder(null)
-              }}
-              onClose={() => setEditingReminder(null)}
-              // "Save this on Ada instead?" — hand the whole thing to her contact,
-              // where a date about a person can live exactly once. The person form
-              // opens seeded, so the reminder is never written at all rather than
-              // written and then migrated.
-              onFileOnContact={({ person, kind }, form) => {
-                setEditingReminder(null)
-                setEditingPerson(
-                  kind === 'birthday' && form.due_date
-                    ? { ...person, birthday: form.due_date }
-                    : person,
-                )
-              }}
-            />
-          )}
-          {relationshipFrom && (
-            <RelationshipForm
-              from={relationshipFrom === 'new' ? null : relationshipFrom}
-              people={data.people.filter((p) => !p.deleted_at)}
-              onSave={data.addRelationship}
-              onClose={() => setRelationshipFrom(null)}
-            />
-          )}
-        </div>
+              {editingGroup && (
+                <GroupForm
+                  group={editingGroup === 'new' ? null : editingGroup}
+                  people={data.people}
+                  existingTags={allTags}
+                  onSave={data.saveGroup}
+                  onClose={() => setEditingGroup(null)}
+                  isDemo={isDemo}
+                />
+              )}
+              {editingHabit && (
+                <HabitForm
+                  habit={editingHabit === 'new' ? null : editingHabit}
+                  onSave={(fields, id) =>
+                    id ? data.updateHabit(id, fields) : data.addHabit(fields)
+                  }
+                  onClose={() => setEditingHabit(null)}
+                />
+              )}
+              {editingArea && (
+                <AreaForm
+                  area={editingArea === 'new' ? null : editingArea}
+                  onSave={(fields) =>
+                    editingArea === 'new'
+                      ? data.addArea(fields)
+                      : data.updateArea(editingArea.id, fields)
+                  }
+                  onClose={() => setEditingArea(null)}
+                />
+              )}
+              {pickingHabit && (
+                <HabitTemplatePicker
+                  onPick={(seed) => {
+                    setPickingHabit(false)
+                    setEditingHabit(seed || 'new')
+                  }}
+                  onClose={() => setPickingHabit(false)}
+                />
+              )}
+              {editingTask && (
+                <TaskForm
+                  task={editingTask === 'new' ? null : editingTask}
+                  onSave={(fields, id) => (id ? data.updateTask(id, fields) : data.addTask(fields))}
+                  onClose={() => setEditingTask(null)}
+                  onMakeProject={(title) => {
+                    setEditingTask(null)
+                    openProjectPicker(title)
+                  }}
+                  notes={data.notes}
+                  // Close the sheet on the way out — leaving it stacked over the note
+                  // you just opened would put a form on top of what you went to read.
+                  onOpenNote={(id) => {
+                    setEditingTask(null)
+                    openNote(id)
+                  }}
+                  defaultPrivacy={appPrefs.taskPrivacy}
+                  // A new task starts filed under the lens you're looking through
+                  // (None under All — areaForNewItem never guesses one).
+                  defaultAreaId={areaForNewItem(areaId)}
+                  // Real area rows now, not the distinct strings scraped off
+                  // tasks.area — so an area you just made is pickable before anything
+                  // has been filed into it.
+                  areas={visibleAreas(data.areas, data.userId)}
+                  // Making an area from inside the sheet: a name and a colour that
+                  // isn't already taken, and nothing else. Every other setting an
+                  // area has (icon, sharing, Today) keeps its AreaForm default and
+                  // waits for Settings → Areas — the point here is not to leave a
+                  // half-written task to go and fill in a second form.
+                  onCreateArea={(name) =>
+                    data.addArea({ name, color: nextColor((data.areas || []).map((a) => a.color)) })
+                  }
+                  tagSuggestions={taskTags(data.tasks)}
+                />
+              )}
+              {pickingProject && (
+                <ProjectTemplatePicker
+                  onCreate={createProject}
+                  onClose={() => {
+                    setPickingProject(false)
+                    setProjectSeedName('')
+                  }}
+                  // A project now inherits the lens (see createProject), so it has
+                  // to inherit what that lens says about visibility too — otherwise
+                  // starting a project under a keep-things-private area files it
+                  // there and shares it anyway. Only the starting point: the review
+                  // step shows the PrivacyField this feeds.
+                  defaultPrivacy={privacyForNewItem(
+                    areaById(data.areas, areaForNewItem(areaId)),
+                    appPrefs.taskPrivacy,
+                  )}
+                  initialName={projectSeedName}
+                />
+              )}
+              {editingList && (
+                <ListForm
+                  list={editingList === 'new' ? null : editingList}
+                  onSave={data.saveList}
+                  onClose={() => setEditingList(null)}
+                  defaultPrivacy={appPrefs.listPrivacy}
+                  areas={visibleAreas(data.areas, data.userId)}
+                  defaultAreaId={areaForNewItem(areaId)}
+                />
+              )}
+              {editingReminder && (
+                <ReminderForm
+                  reminder={editingReminder === 'new' ? null : editingReminder}
+                  people={data.people.filter((p) => !p.deleted_at)}
+                  areas={visibleAreas(data.areas, data.userId)}
+                  // A reminder made under a lens is filed there, like every other
+                  // create path — and so it inherits what that lens says about
+                  // visibility too, or a keep-things-private area would file the
+                  // reminder and share it anyway. Both are starting points: the
+                  // form's own pickers overrule either.
+                  defaultAreaId={areaForNewItem(areaId)}
+                  defaultPrivacy={privacyForNewItem(
+                    areaById(data.areas, areaForNewItem(areaId)),
+                    appPrefs.taskPrivacy,
+                  )}
+                  onSave={(fields) => {
+                    if (editingReminder === 'new') data.addTask(fields)
+                    else data.updateTask(editingReminder.id, fields)
+                    setEditingReminder(null)
+                  }}
+                  onClose={() => setEditingReminder(null)}
+                  // "Save this on Ada instead?" — hand the whole thing to her contact,
+                  // where a date about a person can live exactly once. The person form
+                  // opens seeded, so the reminder is never written at all rather than
+                  // written and then migrated.
+                  onFileOnContact={({ person, kind }, form) => {
+                    setEditingReminder(null)
+                    setEditingPerson(
+                      kind === 'birthday' && form.due_date
+                        ? { ...person, birthday: form.due_date }
+                        : person,
+                    )
+                  }}
+                />
+              )}
+              {relationshipFrom && (
+                <RelationshipForm
+                  from={relationshipFrom === 'new' ? null : relationshipFrom}
+                  people={data.people.filter((p) => !p.deleted_at)}
+                  onSave={data.addRelationship}
+                  onClose={() => setRelationshipFrom(null)}
+                />
+              )}
+            </Suspense>
+          </div>
+        </PresenceContext.Provider>
       </AreaLensContext.Provider>
     </AccountProvider>
   )

@@ -14,6 +14,7 @@ import { isEditableTarget } from '../../lib/keys'
 import { memberName, isSolo } from '../../lib/household'
 import { visibleAreas } from '../../lib/areas'
 import { relativeTime } from '../../lib/contact'
+import ShareButton from '../../components/ui/ShareButton'
 
 // A single note, full-page (like ListDetail), edited in place with autosave.
 // The body is rich text (RichTextEditor); mentions are recomputed from it on
@@ -253,6 +254,7 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
   // there, the embedded row's own cluster when it isn't.
   const actions = (
     <>
+      <ShareButton type="note" row={note} label="Send this note" />
       <button
         className={`icon-btn ${note.pinned ? 'accent' : ''}`}
         onClick={() => togglePinNote(note.id)}

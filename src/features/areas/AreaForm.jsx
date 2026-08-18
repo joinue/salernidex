@@ -23,6 +23,7 @@ export default function AreaForm({ area, onSave, onClose }) {
   // Defaults ON: a new area should behave like everything else until you decide
   // otherwise. Silence is opt-in.
   const [showOnToday, setShowOnToday] = useState(area?.show_on_today ?? true)
+  const [isBusiness, setIsBusiness] = useState(area?.is_business ?? false)
   const [error, setError] = useState(null)
   const confirm = useConfirm()
 
@@ -60,6 +61,7 @@ export default function AreaForm({ area, onSave, onClose }) {
       // deliberately holds no constraint saying so (0040 explains why).
       default_private: shared ? false : defaultPrivate,
       show_on_today: showOnToday,
+      is_business: isBusiness,
     })
     onClose()
   }
@@ -200,6 +202,40 @@ export default function AreaForm({ area, onSave, onClose }) {
           <p className="field-hint">
             Turn it off for work and a Saturday morning stops carrying it — without hiding anything
             you go looking for.
+          </p>
+        </div>
+
+        {/* The one switch here that changes contacts at all, and it does so
+            additively: a contact you file under a business area is OFFERED more
+            (client/vendor tiers, weekly check-in cadences) and can go quiet with
+            the area on a Saturday. It is never hidden by it. Areas still don't
+            filter the People page — see the note under the switcher. */}
+        <div className="field">
+          <div className="value-row">
+            <div className="row-body">
+              <div className="row-title" style={{ fontSize: 15 }}>
+                This is business
+              </div>
+              <div className="row-sub">
+                {isBusiness
+                  ? 'Contacts you know through this area get the business details.'
+                  : 'A personal part of your life.'}
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isBusiness}
+              aria-label="This is business"
+              className={`switch ${isBusiness ? 'on' : ''}`}
+              onClick={() => setIsBusiness(!isBusiness)}
+            >
+              <span className="knob" />
+            </button>
+          </div>
+          <p className="field-hint">
+            Adds client and vendor labels, weekly check-in options, and lets their follow-ups go
+            quiet with the rest of this area. Nobody is ever hidden by it.
           </p>
         </div>
 

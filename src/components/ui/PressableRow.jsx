@@ -14,12 +14,16 @@ const noop = () => {}
 //
 // Pass `interactive={false}` for a row that only displays (no onClick), so it
 // doesn't advertise an action it doesn't have.
+// `focus` is a {ref, className} pair from useFocusRow — how a page marks the row
+// you followed a link to. One prop rather than a spread, so it can't clobber the
+// className this row already computes.
 export default function PressableRow({
   onClick,
   onLongPress,
   className = 'list-row',
   label,
   interactive = true,
+  focus = {},
   children,
 }) {
   const lp = useLongPress(onLongPress || noop)
@@ -36,7 +40,8 @@ export default function PressableRow({
 
   return (
     <div
-      className={className}
+      ref={focus.ref}
+      className={focus.className ? `${className} ${focus.className}` : className}
       onClick={onClick}
       {...(active
         ? { role: 'button', tabIndex: 0, onKeyDown, 'aria-label': label || undefined }

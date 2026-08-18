@@ -157,7 +157,7 @@ export default function SearchView({
     if (tierFilter) pool = pool.filter((p) => p.tier === tierFilter)
     if (privacyFilter) pool = pool.filter((p) => p.privacy_level === privacyFilter)
     return sortPeople(
-      searchPeople(pool, query, orgsById, affiliations),
+      searchPeople(pool, query, orgsById, affiliations, interactions),
       searching ? 'relevance' : sort,
       lastByPerson,
     )
@@ -176,6 +176,7 @@ export default function SearchView({
     sort,
     searching,
     lastByPerson,
+    interactions,
   ])
 
   const activeCount = [
@@ -193,8 +194,8 @@ export default function SearchView({
   // with no filters on: those narrow the *people*, so mixing in orgs that
   // ignore them would be misleading.
   const orgResults = useMemo(
-    () => (searching && !activeCount ? searchOrgs(orgs, query) : []),
-    [orgs, query, searching, activeCount],
+    () => (searching && !activeCount ? searchOrgs(orgs, query, interactions) : []),
+    [orgs, query, searching, activeCount, interactions],
   )
 
   const clearAll = () => setFilters(EMPTY_PEOPLE_FILTERS)
@@ -539,7 +540,7 @@ export default function SearchView({
       )}
       {logPerson && (
         <InteractionForm
-          person={logPerson}
+          subject={logPerson}
           presetType="call"
           onSave={addInteraction}
           onClose={() => setLogPerson(null)}

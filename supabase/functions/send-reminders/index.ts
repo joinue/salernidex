@@ -27,6 +27,7 @@ import { digestCopy } from './digest.ts'
 import { isAuthorized } from './auth.ts'
 import { badgeCount } from './badge.ts'
 import { mutedAreaIds, reachesToday } from './areas.ts'
+import { scopeFor } from './scope.ts'
 import { localNow } from './localTime.ts'
 
 const supabase = createClient(
@@ -176,28 +177,64 @@ function listReminders(lists: any[], items: any[], today: string, time: string):
   return out
 }
 
-function checkIns(people: any[], interactions: any[], memberId: string): Item[] {
+// Check-ins, for people AND for organizations — orgs carry a cadence of their
+// own since 0042, and the two produce the same kind of item, so one function
+// builds both. The targetKeys match the client's exactly (`nudge:<id>` and
+// `nudge:org:<id>`), which is what makes an in-app snooze silence the push.
+function checkIns(people: any[], orgs: any[], interactions: any[], now = Date.now()): Item[] {
   const lastByPerson = new Map<string, string>()
+  const lastByOrg = new Map<string, string>()
   for (const i of interactions) {
-    const prev = lastByPerson.get(i.person_id)
-    if (!prev || prev < i.occurred_at) lastByPerson.set(i.person_id, i.occurred_at)
+    const [map, id] = i.organization_id
+      ? [lastByOrg, i.organization_id]
+      : [lastByPerson, i.person_id]
+    if (!id) continue
+    const prev = map.get(id)
+    if (!prev || prev < i.occurred_at) map.set(id, i.occurred_at)
   }
+
+  // null = not due; { since } = due, with days elapsed (null if never logged).
+  const due = (row: any, last?: string) => {
+    if (!row.keep_in_touch_days) return null
+    const since = last ? Math.floor((now - new Date(last).getTime()) / 86400000) : null
+    if (since !== null && since < row.keep_in_touch_days) return null
+    return { since }
+  }
+
   const out: Item[] = []
   for (const p of people) {
-    if (p.deleted_at || !p.keep_in_touch_days) continue
-    const last = lastByPerson.get(p.id)
-    const since = last ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000) : null
-    if (since !== null && since < p.keep_in_touch_days) continue
+    if (p.deleted_at) continue
+    const state = due(p, lastByPerson.get(p.id))
+    if (!state) continue
     out.push({
       kind: 'nudge',
       targetKey: `nudge:${p.id}`,
       title: 'Check in',
       // warm copy, mirroring the app — never "overdue"/"cadence"
       body:
-        since === null
+        state.since === null
           ? `Say hi to ${p.name} — no catch-ups logged yet`
           : `It's been a while since you caught up with ${p.name}`,
       url: `/#/person/${p.id}`,
+    })
+  }
+
+  // Plainer register for an account, matching checkInSub in TodayView: "say hi"
+  // to a contracting firm is odd, and the warmth those words carry is for
+  // people. Still not pipeline-speak — "nothing logged yet" is a fact about your
+  // own record, not a stage in a funnel.
+  for (const o of orgs) {
+    const state = due(o, lastByOrg.get(o.id))
+    if (!state) continue
+    out.push({
+      kind: 'nudge',
+      targetKey: `nudge:org:${o.id}`,
+      title: 'Check in',
+      body:
+        state.since === null
+          ? `${o.name} — nothing logged yet`
+          : `It's been a while since you were in touch with ${o.name}`,
+      url: `/#/org/${o.id}`,
     })
   }
   return out
@@ -405,6 +442,7 @@ Deno.serve(async (req) => {
     snoozeRows,
     subscriptions,
     people,
+    orgs,
     interactions,
     tasks,
     keyDates,
@@ -419,7 +457,13 @@ Deno.serve(async (req) => {
     supabase.from('reminder_snoozes').select('*'),
     supabase.from('push_subscriptions').select('*'),
     supabase.from('people').select('*'),
-    supabase.from('interactions').select('person_id, occurred_at'),
+    // Orgs carry a cadence of their own since 0042 — the client company is the
+    // thing you manage, and its contact person may change twice a year.
+    supabase.from('organizations').select('*'),
+    // household_id rides along so this can be scoped like everything else. It
+    // would be *nearly* safe without it (a foreign person_id simply never gets
+    // looked up), and "nearly safe by accident" is how the leak below happened.
+    supabase.from('interactions').select('household_id, person_id, occurred_at'),
     supabase.from('tasks').select('*'),
     supabase.from('key_dates').select('*'),
     supabase.from('habits').select('*'),
@@ -445,13 +489,18 @@ Deno.serve(async (req) => {
   // badgeCount does its own filtering from `areas` (see badge.ts), which its
   // parity test pins against the client.
   //
-  // Contacts are untouched by design: birthdays and check-ins come from people,
-  // who deliberately have no area, so silencing Work can never silence a
-  // birthday. That is the rule working, not a gap in it.
+  // A contact reached through a business area is mutable with it (0042). Personal
+  // contacts still aren't: they have no context area, so silencing Work can never
+  // silence a friend's birthday. That is the rule working, not a gap in it.
   const muted = mutedAreaIds(areas)
   const liveTasks = tasks.filter((t: any) => reachesToday(t, muted))
   const liveLists = lists.filter((l: any) => reachesToday(l, muted))
   const liveHabits = habits.filter((h: any) => reachesToday(h, muted))
+  // A contact's check-in and dates follow its context area's show_on_today. The
+  // row keeps `context_area_id` (never `area_id`) precisely so this is the only
+  // thing that ever reads it — see 0042 and lib/areas.js.
+  const livePeople = people.filter((p: any) => reachesToday({ area_id: p.context_area_id }, muted))
+  const liveOrgs = orgs.filter((o: any) => reachesToday({ area_id: o.context_area_id }, muted))
 
   let sent = 0
 
@@ -475,26 +524,40 @@ Deno.serve(async (req) => {
         .map((s: any) => s.target_key),
     )
 
+    // Everything this member may be told about, decided ONCE and then used by
+    // every builder below — the badge, the digest, and each individual ping.
+    //
+    // It used to be decided here for the badge alone, and the builders that
+    // write the notification text were handed the raw service-role arrays. That
+    // is a disclosure bug in both directions: across households (a check-in push
+    // naming a stranger's contact, deep-linked to a profile the recipient can't
+    // open) and within one (a contact marked "Private, only me" pushed to the
+    // other member by name, since nothing here applied privacy_level at all).
+    //
+    // Two rules, one place, no per-builder opt-in: a builder added later is
+    // scoped by construction rather than by remembering. See scope.ts.
+    const hh = member.household_id
+    const uid = member.user_id
+    const myTasks = scopeFor(liveTasks, hh, uid)
+    const myLists = scopeFor(liveLists, hh, uid)
+    const myHabits = scopeFor(liveHabits, hh, uid)
+    const myPeople = scopeFor(livePeople, hh, uid)
+    const myOrgs = scopeFor(liveOrgs, hh, uid)
+    const myKeyDates = scopeFor(keyDates, hh, uid)
+    const myInteractions = scopeFor(interactions, hh, uid)
+
     // The app-icon number, recomputed fresh and attached to every push this
     // member gets — public/sw.js applies it, which is the only way the badge can
     // move while the app is closed (src/App.jsx can only set it from an open
-    // page). Scoped to the member's own household because that is what the app
-    // counts; see badge.ts.
+    // page).
     //
     // Deliberately NOT wired to the client's `todayScope` preference, which
     // lives in localStorage and never reaches the server (member_preferences has
     // no column for it). 'mine' is the default and matches the rule the pushes
     // below already use; a member who switched Today to "Everyone's" sees the
     // in-app badge correct itself the moment they open the app.
-    const hh = member.household_id
     const badge = badgeCount(
-      {
-        tasks: tasks.filter((t: any) => t.household_id === hh),
-        lists: lists.filter((l: any) => l.household_id === hh),
-        people: people.filter((p: any) => p.household_id === hh),
-        keyDates: keyDates.filter((k: any) => k.household_id === hh),
-        areas,
-      },
+      { tasks: myTasks, lists: myLists, people: myPeople, keyDates: myKeyDates, areas },
       member.id,
       today,
       prefs,
@@ -509,17 +572,19 @@ Deno.serve(async (req) => {
     ) => claimSend(subs, member.id, kind, targetKey, today, { ...p, badge })
 
     const items: Item[] = [
-      ...(prefs.tasks ? dueTasksToday(liveTasks, member.id, today, time) : []),
-      ...(prefs.nudges ? checkIns(people, interactions, member.id) : []),
-      ...(prefs.dates ? dateReminders(people, keyDates, today, prefs.dates_lead_days ?? 7) : []),
-      ...(prefs.dates ? reminderPings(liveTasks, member.id, today) : []),
+      ...(prefs.tasks ? dueTasksToday(myTasks, member.id, today, time) : []),
+      ...(prefs.nudges ? checkIns(myPeople, myOrgs, myInteractions) : []),
+      ...(prefs.dates
+        ? dateReminders(myPeople, myKeyDates, today, prefs.dates_lead_days ?? 7)
+        : []),
+      ...(prefs.dates ? reminderPings(myTasks, member.id, today) : []),
     ].filter((i) => !hidden.has(i.targetKey))
 
     // Deadlines with days still on the clock. Kept out of `items` on purpose:
     // they must not join today's count ("3 things today" that includes
     // something due Friday is a lie) and must never become individual pings.
     // See deadlines.ts.
-    const ahead = (prefs.tasks ? deadlinesAhead(liveTasks, member.id, today) : []).filter(
+    const ahead = (prefs.tasks ? deadlinesAhead(myTasks, member.id, today) : []).filter(
       (t) => !hidden.has(`task:${t.id}`),
     )
 
@@ -545,7 +610,7 @@ Deno.serve(async (req) => {
 
     // Habit reminders fire at each habit's own reminder_time, independent of the
     // digest, and are gated per-habit (reminder_enabled) + by snoozes.
-    const habitItems = habitReminders(liveHabits, habitEntries, member.id, today, time).filter(
+    const habitItems = habitReminders(myHabits, habitEntries, member.id, today, time).filter(
       (i) => !hidden.has(i.targetKey),
     )
     for (const item of habitItems) {
@@ -560,7 +625,7 @@ Deno.serve(async (req) => {
     // per-list (reminder_enabled) + by the lists pref + snoozes. Lists are
     // household-shared, so every member with the pref on gets the nudge.
     if (prefs.lists) {
-      const listItemsToSend = listReminders(liveLists, listItems, today, time).filter(
+      const listItemsToSend = listReminders(myLists, listItems, today, time).filter(
         (i) => !hidden.has(i.targetKey),
       )
       for (const item of listItemsToSend) {

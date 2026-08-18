@@ -24,6 +24,8 @@ vi.mock('../lib/supabase', () => {
       eq: () => c,
       in: () => c,
       lte: () => c,
+      // The append-only logs are read from a date floor — see RECENT_LOG_DAYS.
+      gte: () => c,
       // Row-at-a-time reads resolve to a row, not a list — hydrateNotifyPrefs
       // branches on the difference.
       single: () => ((state.single = true), c),

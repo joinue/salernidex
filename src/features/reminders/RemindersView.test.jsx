@@ -31,7 +31,14 @@ const PEOPLE = [
   person('p7', 'Annie Easley', '1933-04-23'),
 ]
 
-const setup = ({ people = PEOPLE, keyDates = [], reminders = [], onOpenPerson = vi.fn() } = {}) => {
+const setup = ({
+  people = PEOPLE,
+  keyDates = [],
+  reminders = [],
+  onOpenPerson = vi.fn(),
+  focusId,
+  area = null,
+} = {}) => {
   const data = {
     reminders,
     people,
@@ -42,14 +49,18 @@ const setup = ({ people = PEOPLE, keyDates = [], reminders = [], onOpenPerson = 
   render(
     <RemindersView
       data={data}
+      focusId={focusId}
       onAdd={vi.fn()}
       onEdit={vi.fn()}
       onOpenPerson={onOpenPerson}
-      area={null}
+      area={area}
     />,
   )
   return { onOpenPerson }
 }
+
+// The row a link named, e.g. from Today's Coming up section.
+const marked = () => document.querySelector('.row-focus')
 
 describe('RemindersView contact dates', () => {
   it('lists the year’s birthdays even when nothing is coming up', () => {
@@ -97,5 +108,41 @@ describe('RemindersView contact dates', () => {
     expect(screen.queryByText('Later in the year')).not.toBeInTheDocument()
     expect(screen.getByText(/No birthdays or key dates on file yet/)).toBeInTheDocument()
     expect(screen.queryByText(/are read from your contacts/)).not.toBeInTheDocument()
+  })
+})
+
+// #/reminders/<id>: tapping a reminder on Today brings you here, to that
+// reminder. This page mixes what you wrote with what it worked out from your
+// contacts and runs to five sections, so "it's on the page somewhere" is not
+// the same as having been taken to it.
+describe('RemindersView — landing on one named reminder', () => {
+  const REMINDERS = [
+    { id: 'r1', title: 'Bin day', due_date: '2026-06-13', assignee: 'anyone' },
+    { id: 'r2', title: 'Renew the MOT', due_date: '2026-06-14', assignee: 'anyone' },
+  ]
+
+  it('marks the one it was sent to, and only that one', () => {
+    setup({ people: [], reminders: REMINDERS, focusId: 'r2' })
+    expect(marked()).toHaveTextContent('Renew the MOT')
+    expect(document.querySelectorAll('.row-focus')).toHaveLength(1)
+  })
+
+  it('marks nothing when no reminder was named', () => {
+    setup({ people: [], reminders: REMINDERS })
+    expect(marked()).toBeNull()
+  })
+
+  // Reminders carry an area, so under a lens an unfiled one falls into the
+  // collapsed section — where a link that "took you to it" would leave it
+  // behind a fold you'd have to know to open.
+  it('opens the No area section when that is where it sits', () => {
+    setup({
+      people: [],
+      area: 'a-work',
+      focusId: 'r1',
+      reminders: [{ ...REMINDERS[0] }, { ...REMINDERS[1], area_id: 'a-work' }],
+    })
+    expect(screen.getByText('Bin day')).toBeInTheDocument()
+    expect(marked()).toHaveTextContent('Bin day')
   })
 })

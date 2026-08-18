@@ -24,3 +24,24 @@
   background: var(--fill);
   color: var(--text-3);
 }
+
+/* ---------- business tiers (0042) ---------- */
+/* Deliberately one family of colour rather than five, because these are ROLES
+   and not rungs: "client" is not warmer than "vendor" the way "inner circle" is
+   warmer than "network", and a five-colour spread would imply a ranking that
+   isn't there. Client is the one that pays, so it gets the solid weight and the
+   rest share a quieter version of the same hue — you can tell at a glance that
+   a row is business without decoding which shade means what. */
+.chip.tier-client {
+  background: color-mix(in srgb, var(--indigo) 18%, transparent);
+  color: var(--indigo);
+  font-weight: 600;
+}
+
+.chip.tier-prospect,
+.chip.tier-partner,
+.chip.tier-vendor,
+.chip.tier-advisor {
+  background: color-mix(in srgb, var(--indigo) 10%, transparent);
+  color: color-mix(in srgb, var(--indigo) 82%, var(--text-2));
+}

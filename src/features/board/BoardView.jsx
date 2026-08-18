@@ -3,6 +3,7 @@ import { X } from 'react-feather'
 import { buildBoard } from '../../lib/board'
 import { toISO } from '../../lib/mealPlan'
 import { dueLabel, taskBucket } from '../../lib/tasks'
+import { reminderWhen } from '../../lib/reminders'
 import { entryMap, habitsScheduledToday } from '../../lib/habits'
 import { assigneeLabel } from '../../lib/household'
 import { useNow } from '../../hooks/useNow'
@@ -56,6 +57,7 @@ export default function BoardView({ data, onExit }) {
       buildBoard(
         {
           tasks: data.tasks,
+          reminders: data.reminders,
           lists: data.lists,
           listItems: data.listItems,
           people: data.people,
@@ -144,7 +146,44 @@ export default function BoardView({ data, onExit }) {
             </section>
           )}
 
-          {board.shopping.map((g) => (
+          {board.reminders.length > 0 && (
+            <section className="board-card">
+              {/* Its own card rather than folded into Today: a reminder has
+                  nothing to do about it, so it can't be late and mustn't
+                  borrow the overdue styling above. */}
+              <h2>Reminders</h2>
+              <ul className="board-reminders">
+                {capped(board.reminders, (r) => (
+                  <li key={r.key}>
+                    <span className="board-task-title">{r.title}</span>
+                    <span className="board-when-chip">{reminderWhen(r)}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {board.unscheduled.length > 0 && (
+            <section className="board-card">
+              {/* Not "Anytime": the whole reason these earn wall space is that
+                  each one has a name against it. */}
+              <h2>
+                On someone <span className="board-count">{board.unscheduled.length}</span>
+              </h2>
+              <ul className="board-tasks">
+                {capped(board.unscheduled, (t) => (
+                  <li key={t.id}>
+                    <span className="board-task-title">{t.title}</span>
+                    <span className="board-task-meta">
+                      <Avatar name={assigneeLabel(t.assignee)} size={26} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {board.lists.map((g) => (
             <section className="board-card" key={g.list.id}>
               <h2>
                 {g.list.name} <span className="board-count">{g.items.length}</span>

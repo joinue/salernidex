@@ -49,10 +49,17 @@
     margin-bottom: 10px;
   }
 
-  /* Search sticks under a frosted bar while results scroll */
+  /* Search sticks under a frosted bar while results scroll.
+
+     The offset has to carry the safe-area inset the same way .navbar's does:
+     the wrapper parks its own 10px of padding off-screen, so a flat -12px put
+     the field itself at y≈-2 — fine in a browser tab, straight under the
+     Dynamic Island once installed, on People and Relationships both. Subtracting
+     10 from the inset lands the field's top edge exactly at the bottom of the
+     inset; with no inset it resolves to -10px, which is where it always sat. */
   .search-wrap {
     position: sticky;
-    top: -12px;
+    top: calc(env(safe-area-inset-top) - 10px);
     z-index: 10;
     background: var(--bg);
     padding: 10px 0;

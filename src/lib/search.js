@@ -4,13 +4,31 @@
 import { TIERS, TIER_RANK } from './constants'
 import { affiliationsFor } from './orgs'
 
+// Every touchpoint note, keyed by the person or org it was logged against and
+// flattened into one lowercase blob per subject.
+//
+// Built once per search rather than per candidate: the log grows without bound
+// while the contact list doesn't, so re-scanning it inside the people loop is
+// the one thing here that would actually get slow.
+export function interactionText(interactions = []) {
+  const byPerson = new Map()
+  const byOrg = new Map()
+  for (const it of interactions) {
+    if (!it.note) continue
+    const [map, id] = it.organization_id ? [byOrg, it.organization_id] : [byPerson, it.person_id]
+    if (!id) continue
+    map.set(id, `${map.get(id) || ''} ${it.note}`.toLowerCase())
+  }
+  return { byPerson, byOrg }
+}
+
 // `orgsById` (Map id → org row) and `affiliations` resolve the orgs a person is
 // linked to, since people reference orgs through link rows rather than carrying
 // a name. EVERY org they're attached to is searchable, including the biography
 // ones we deliberately keep out from under their name — hiding a fact from a
 // list row is a display decision, not a reason to make it unfindable. Titles
 // come from the links too, plus any standalone people.role.
-function fieldText(person, orgsById, affiliations) {
+function fieldText(person, orgsById, affiliations, logByPerson) {
   const links = affiliationsFor(person.id, affiliations)
   return {
     name: (person.name || '').toLowerCase(),
@@ -22,18 +40,27 @@ function fieldText(person, orgsById, affiliations) {
     email: (person.email || '').toLowerCase(),
     notes: (person.notes || '').toLowerCase(),
     tags: (person.tags || []).join(' ').toLowerCase(),
+    // What you actually talked about (0042). The log was write-only until now,
+    // which made "what did we agree on that call?" unanswerable — fine for a
+    // personal rolodex, close to useless once money is involved.
+    log: logByPerson?.get(person.id) || '',
   }
 }
 
-const WEIGHTS = { name: 100, organization: 40, role: 30, tags: 30, email: 20, notes: 10 }
+// `log` sits just above free-text notes: a touchpoint note is more specific than
+// a profile note (it's about one conversation) but it is still prose, and a
+// query matching someone's NAME must always outrank a query matching something
+// they once said.
+const WEIGHTS = { name: 100, organization: 40, role: 30, tags: 30, email: 20, log: 15, notes: 10 }
 
-export function searchPeople(people, query, orgsById, affiliations = []) {
+export function searchPeople(people, query, orgsById, affiliations = [], interactions = []) {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)
   if (!words.length) return people
 
+  const { byPerson } = interactionText(interactions)
   const scored = []
   for (const person of people) {
-    const fields = fieldText(person, orgsById, affiliations)
+    const fields = fieldText(person, orgsById, affiliations, byPerson)
     let total = 0
     let allMatched = true
     for (const word of words) {
@@ -56,16 +83,18 @@ export function searchPeople(people, query, orgsById, affiliations = []) {
   return scored.sort((a, b) => b.total - a.total).map((s) => s.person)
 }
 
-const ORG_WEIGHTS = { name: 100, type: 40, tags: 30, contact: 20, description: 10 }
+const ORG_WEIGHTS = { name: 100, type: 40, tags: 30, contact: 20, log: 15, description: 10 }
 
 // Organizations matched by the same rules as people, so the People page can put
 // them alongside the person results. Searching "plumber" should surface
 // Riverbend Plumbing itself, not only the people filed under it — for a vendor
-// the org IS the contact (0032).
-export function searchOrgs(orgs, query) {
+// the org IS the contact (0032). Since 0042 that includes what you logged
+// against the account, which is where an account's history now lives.
+export function searchOrgs(orgs, query, interactions = []) {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)
   if (!words.length) return []
 
+  const { byOrg } = interactionText(interactions)
   const scored = []
   for (const org of orgs) {
     const fields = {
@@ -76,6 +105,7 @@ export function searchOrgs(orgs, query) {
         .filter(Boolean)
         .join(' ')
         .toLowerCase(),
+      log: byOrg.get(org.id) || '',
       description: (org.description || '').toLowerCase(),
     }
     let total = 0

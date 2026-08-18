@@ -9,6 +9,7 @@ import {
   KNOWN_ROUTES,
   MENU,
   barFor,
+  deepLinkPath,
   destinationGroups,
 } from './nav'
 
@@ -155,5 +156,34 @@ describe('route lists', () => {
     for (const route of BARLESS_ROUTES) {
       expect(BAR, `${route} has both a bar and an exemption`).not.toHaveProperty(route)
     }
+  })
+})
+
+describe('deepLinkPath', () => {
+  it('recognises a link to one specific thing', () => {
+    expect(deepLinkPath('#/list/l1')).toBe('list/l1')
+    expect(deepLinkPath('#/task/t1')).toBe('task/t1')
+    expect(deepLinkPath('#/note/n1')).toBe('note/n1')
+    // The leading slash is optional in the wild; both forms are real hashes.
+    expect(deepLinkPath('#task/t1')).toBe('task/t1')
+  })
+
+  it('ignores a bare route, which is not worth overriding a sign-in landing', () => {
+    expect(deepLinkPath('#/lists')).toBe(null)
+    expect(deepLinkPath('#/')).toBe(null)
+    expect(deepLinkPath('')).toBe(null)
+    expect(deepLinkPath(null)).toBe(null)
+  })
+
+  it('ignores a route the app does not have', () => {
+    expect(deepLinkPath('#/wat/x1')).toBe(null)
+  })
+
+  it('is not fooled by the auth tokens that replace the hash', () => {
+    // The exact thing this exists to survive: Supabase returns from an email
+    // link on `#access_token=…`, and splitting that on '/' would otherwise
+    // produce a "route" that gets stashed and later restored as garbage.
+    expect(deepLinkPath('#access_token=abc123&type=recovery&expires_in=3600')).toBe(null)
+    expect(deepLinkPath('#/access_token=abc123')).toBe(null)
   })
 })

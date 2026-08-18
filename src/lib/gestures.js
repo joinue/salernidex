@@ -39,6 +39,29 @@ export function swallowNextClick(window_ = window) {
   setTimeout(() => window_.removeEventListener('click', swallow, { capture: true }), 80)
 }
 
+// ── Who owns the long press ──────────────────────────────────────────────────
+// Multi-select wants press-and-hold. So does reorder. They cannot both have it,
+// and the answer is settled here rather than in each view, because a rule
+// re-decided per surface is a rule that ends up different on every one.
+//
+// The rule:
+//
+//   • While selecting, the long press does nothing. You are choosing rows, not
+//     arranging them, and a lift mid-selection would scatter the list under a
+//     finger that meant to add one more item.
+//   • On a hand-orderable list, reorder keeps it. Dragging is the whole point of
+//     those lists and it has no other affordance; selection does.
+//   • Everywhere else it enters selection.
+//
+// What makes that safe is the second half: selection is ALWAYS reachable from
+// the explicit Select control, on every surface. The gesture is a shortcut, so a
+// list that can't offer it loses a convenience rather than a feature — which is
+// also how iOS resolves the same collision in Notes, Files and Photos.
+export function longPressOwner({ reorderable = false, selecting = false } = {}) {
+  if (selecting) return null
+  return reorderable ? 'reorder' : 'selection'
+}
+
 // Elements that own their own drags. A gesture starting inside one of these is
 // theirs, not the container's: dragging in a textarea places a cursor, dragging
 // a slider moves it. Without this a sheet with a note field dismisses itself

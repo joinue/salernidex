@@ -23,6 +23,23 @@
   color: var(--text-2);
 }
 
+/* Same weight as "Shared" — both are states of the lens, and one of them
+   looking louder would imply it's the one you act on. */
+.area-chip-business {
+  font-size: 11px;
+  padding: 1px 6px;
+  background: var(--fill);
+  color: var(--text-2);
+}
+
+/* The §3.2 note under the list: areas don't filter contacts. Sits apart from
+   the rows (it's about the whole feature, not any one area) and reads at the
+   weight of a hint, because it answers a question rather than asking one. */
+.area-contacts-note {
+  margin: 18px 16px 8px;
+  max-width: 46em;
+}
+
 /* An archived area is still legible — it keeps its items and can come back —
    so this dims rather than greys out, and the unarchive button stays at full
    contrast because it's the only thing here you can do. */
@@ -122,11 +139,15 @@
 }
 
 /* ── The switcher (components/shell/AreaSwitcher.jsx) ─────────────────────────
-   Two placements, one control. On a phone it sits under the page header; on
-   desktop it's in the sidebar above the destinations. Both reuse .area-pill
-   from features/people-index.css rather than restyling it — the pill you filter
-   with and the pill you file with have to be the same object, or the form stops
-   looking like it sets what the page reads. */
+   Two placements, two shapes. On a phone it sits under the page header as a row
+   of pills; on desktop it's a single row in the sidebar that opens a menu, so
+   the rail's height stops growing with your area count. See the component for
+   why the two diverge.
+
+   Both keep .area-pill's parts — the dot, the emoji, the count — from
+   features/people-index.css rather than restyling them, because the thing you
+   filter with and the thing you file with have to look like the same object, or
+   the form stops looking like it sets what the page reads. */
 .area-switcher {
   display: flex;
   gap: 8px;
@@ -166,24 +187,177 @@
   flex: none;
 }
 
-/* Sidebar: a wrapping cluster, because a rail has vertical room and no
-   horizontal room. Sits above the destination list with a hairline under it —
-   an area is not a place you go, so it must not read as one more nav item. */
+/* Sidebar: ONE row, naming the active lens, with the rest behind a menu.
+   It was a wrapping cluster of pills, and that made the rail's height a
+   function of how many areas you own — ten areas wrapped to roughly five rows
+   and pushed Today / Tasks / Lists down a 232px column that also has to hold
+   every destination in the app. Fixed height now, at two areas or thirty; the
+   phone's `bar` keeps its pills, where a fifteenth area costs a longer swipe
+   and no vertical space at all.
+
+   Hairline under it: an area is not a place you go, so the lens must not read
+   as one more nav item. `position: relative` anchors the popover — the sidebar
+   sets no overflow, so the menu is free to overhang the content. */
 .area-switcher-rail {
-  flex-wrap: wrap;
-  /* Row gap outruns the column gap on purpose: .area-pill takes the shared 44px
-     tap extension from base.css, so wrapped rows 6px apart would have
-     overlapping hit areas and the lower row would win the hit test — the same
-     failure CONVENTIONS documents for adjacent icon buttons. */
-  gap: 16px 6px;
-  padding: 0 6px 12px;
+  position: relative;
+  display: block;
+  padding: 0 0 12px;
   margin-bottom: 4px;
   border-bottom: var(--hairline) solid var(--separator);
 }
 
-.area-switcher-rail .area-pill {
-  font-size: 12px;
-  padding: 4px 10px;
+/* Bordered and chevroned like .nav-search directly above it, because both are
+   controls rather than destinations. A flat row here would sit in the column
+   looking like the nav items below and invite a click that "goes" somewhere. */
+.area-lens-trigger {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--fill);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-sm);
+  text-align: left;
+  transition:
+    background var(--dur-1) ease,
+    border-color var(--dur-1) ease;
+}
+
+@media (hover: hover) {
+  .area-lens-trigger:hover {
+    background: var(--fill-2);
+    border-color: var(--text-3);
+  }
+}
+
+/* Truncates rather than wraps: the rail is 208px of content width, and a
+   two-line trigger would give back the fixed height this whole change bought. */
+.area-lens-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.area-lens-chevron {
+  flex: none;
+  margin-left: 6px;
+  color: var(--text-3);
+  transition: transform var(--dur-2) var(--ease-ios);
+}
+
+.area-lens-trigger[aria-expanded='true'] .area-lens-chevron {
+  transform: rotate(180deg);
+}
+
+/* Wider than the rail when a name needs it, never wider than the sidebar's
+   neighbour can absorb. Scrolls past ~10 areas rather than running off the
+   bottom of the viewport — this is the one place the count is allowed to cost
+   something, and a scroll inside a menu costs nothing that's on screen. */
+.area-lens-popover {
+  position: absolute;
+  top: calc(100% - 6px);
+  left: 0;
+  z-index: calc(var(--z-popover) + 1);
+  min-width: 100%;
+  width: max-content;
+  max-width: 264px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--surface);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  transform-origin: top left;
+  animation: area-lens-in var(--dur-2) var(--ease-ios);
+}
+
+@keyframes area-lens-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+}
+
+/* 44px min-height, like .account-item: these are the same kind of row in the
+   same kind of menu, and the tap extension can't help inside a scroller. */
+.area-lens-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  font-size: 14px;
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+
+.area-lens-item svg {
+  flex: none;
+  margin-left: 8px;
+  color: var(--accent);
+}
+
+.area-lens-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.area-lens-item:active {
+  background: var(--fill);
+}
+
+@media (hover: hover) {
+  .area-lens-item:hover {
+    background: var(--fill);
+  }
+}
+
+/* The checkmark carries "this one", so the row only has to tint — no accent
+   fill, which in a vertical menu would read as a selected nav item. */
+.area-lens-item.on {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.area-lens-divider {
+  height: 1px;
+  margin: 5px 8px;
+  background: var(--separator);
+}
+
+/* Everything above it picks a lens; this one leaves. Quiet, and its icon is
+   not the accent tick's colour. */
+.area-lens-manage {
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.area-lens-manage svg {
+  margin: 0 8px 0 0;
+  color: var(--text-3);
+}
+
+/* .area-pill-dot / -icon / -count were written for .area-pill, which lays out
+   inline. Here they're flex items with definite widths, and a definite width is
+   still shrinkable — a long area name would otherwise squeeze the colour dot to
+   an ellipse and the count to nothing. */
+.area-lens-trigger .area-pill-dot,
+.area-lens-trigger .area-pill-icon,
+.area-lens-trigger .area-pill-count,
+.area-lens-item .area-pill-dot,
+.area-lens-item .area-pill-icon,
+.area-lens-item .area-pill-count {
+  flex: none;
 }
 
 /* Volume, not attention: quiet enough that it never competes with the red

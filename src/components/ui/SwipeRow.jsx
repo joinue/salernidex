@@ -24,7 +24,18 @@ import haptics from '../../lib/haptics'
 const CLOSE_EVENT = 'swiperow-close-others'
 let nextId = 0
 
-export default function SwipeRow({ actions = [], onClick, onLongPress, label, children }) {
+// `focus` is a {ref, className} pair from useFocusRow — how a page says "this
+// is the row they came here for". Taken as one prop and applied to the wrapper
+// rather than spread, because the wrapper already computes its own className
+// and a spread would silently win the argument.
+export default function SwipeRow({
+  actions = [],
+  onClick,
+  onLongPress,
+  label,
+  focus = {},
+  children,
+}) {
   const finePointer = useMediaQuery('(hover: hover) and (pointer: fine)')
   const coarsePointer = useMediaQuery('(any-pointer: coarse)')
   const swipeEnabled = !finePointer || coarsePointer
@@ -99,7 +110,7 @@ export default function SwipeRow({ actions = [], onClick, onLongPress, label, ch
   }
 
   return (
-    <div className={`swipe-wrap ${offset ? 'open' : ''}`}>
+    <div ref={focus.ref} className={`swipe-wrap ${offset ? 'open' : ''} ${focus.className || ''}`}>
       {/* Hidden from assistive tech: these duplicate the always-present cluster
           below, which is the accessible path. Sighted users tap them directly
           after swiping, so they need no name of their own. */}

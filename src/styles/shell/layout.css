@@ -6,6 +6,13 @@
   display: flex;
   min-height: 100vh;
   min-height: 100dvh;
+  /* Rotate a notched phone and the island moves to a long edge, taking a 59px
+     bite out of the side of the screen — where, until this, the sidebar's nav
+     items and the note editor's toolbar were sitting. Padding the shell fixes
+     every column at once; both are 0 in portrait and on every device without a
+     cutout, so this costs nothing anywhere else. */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 @media (min-width: 721px) {

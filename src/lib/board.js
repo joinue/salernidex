@@ -19,6 +19,8 @@
 import { isPrivate } from './privacy'
 import { taskBucket } from './tasks'
 import { isMealPlan, mealsOn } from './mealPlan'
+import { isCollection } from './listKinds'
+import { upcomingReminders } from './reminders'
 import { upcomingDates } from './contact'
 
 // A board row is only worth the space if it needs doing today. Overdue counts
@@ -47,6 +49,60 @@ export function boardTasks(tasks = []) {
     })
 }
 
+// Undated work that still belongs to somebody.
+//
+// boardTasks above is strictly date-driven, which left the board unable to
+// answer "what does this house owe" for anything nobody had scheduled — and
+// most household chores are never scheduled. The assignee is what makes this
+// bounded and worth wall space: "Kim is fixing the gate" is a standing fact the
+// room benefits from knowing, whereas an unassigned backlog is a Tasks-page
+// problem and would bury every other card under a +40 more.
+//
+// So the rule is a named assignee and nothing else. Deferred tasks stay out
+// (taskBucket sends a future start_date to 'upcoming'): parked on purpose is
+// not the same as unscheduled.
+export function boardUnscheduled(tasks = []) {
+  return tasks
+    .filter(
+      (t) =>
+        !t.completed_at &&
+        !t.is_heading &&
+        !t.is_project &&
+        !isPrivate(t) &&
+        taskBucket(t) === 'someday' &&
+        t.assignee &&
+        t.assignee !== 'anyone',
+    )
+    .sort((a, b) => (a.title || '').localeCompare(b.title || ''))
+}
+
+// Reminders — "bins go out Thursday" — due today or already past.
+//
+// These live in the tasks table but useData splits them off before anything
+// sees them (migration 0039), so a board reading only `data.tasks` showed none
+// of them. On a kitchen display that was the wrong half to drop: a reminder is
+// pure information, which is the only thing a read-only screen can carry.
+//
+// Two deliberate narrowings:
+//
+//   • Stored rows only. upcomingReminders would happily fold in birthdays and
+//     key dates derived from contacts, but those are the "Coming up" card's job
+//     (same upcomingDates source) — passing no people/keyDates is what keeps
+//     one birthday off two cards.
+//   • Dated only. An undated reminder has no day to be shown on, and the board
+//     is a display of now.
+//
+// Per-member snoozes are NOT applied, and that's the household-scope rule
+// again: buildAttention hides a snoozed item from the member who snoozed it,
+// but one person tapping "later" on their phone shouldn't blank a screen the
+// whole house reads.
+export function boardReminders(reminders = []) {
+  return upcomingReminders(
+    { reminders: reminders.filter((r) => !isPrivate(r)) },
+    { withinDays: 0 },
+  ).filter((r) => r.daysUntil !== null)
+}
+
 // Tonight's meals, across every meal plan the household keeps. Returns the
 // items themselves — the board shows what's for dinner, not which list it
 // came from.
@@ -60,11 +116,28 @@ export function boardMeals(lists = [], listItems = [], todayISO) {
   )
 }
 
-// Open shopping, per grocery list. Lists with nothing on them are dropped —
-// an empty card is noise on a display you can't scroll.
-export function boardShopping(lists = [], listItems = []) {
+// Open items, per household checklist — one card each.
+//
+// This was grocery-only, which quietly meant a list called "Hardware store" or
+// "Packing for the trip" never reached the board even though it is exactly as
+// shared, as open, and as household-shaped as the grocery list beside it. The
+// kind was doing work it was never meant to do: 'grocery' describes aisle
+// sorting, not who the list is for.
+//
+// So the axis is "is there anything outstanding on it", and the two exclusions
+// are the two kinds where that question has no meaning:
+//
+//   meal_plan   already on the board as Dinner; listing it twice, once as
+//               tonight's meal and once as seven unchecked rows, is worse than
+//               either alone.
+//   collection  never completed by design (favourite restaurants), so every
+//               row would sit on the board permanently.
+//
+// Lists with nothing open are dropped — an empty card is noise on a display you
+// can't scroll.
+export function boardLists(lists = [], listItems = []) {
   return lists
-    .filter((l) => l.kind === 'grocery' && !isPrivate(l))
+    .filter((l) => !isPrivate(l) && !isMealPlan(l) && !isCollection(l))
     .map((l) => ({
       list: l,
       items: listItems.filter((it) => it.list_id === l.id && !it.checked_at && !it.is_heading),
@@ -102,8 +175,10 @@ export function boardHabits(mine = [], sharedWithMe = []) {
 export function boardIsEmpty(board) {
   return (
     board.tasks.length === 0 &&
+    board.unscheduled.length === 0 &&
+    board.reminders.length === 0 &&
     board.meals.length === 0 &&
-    board.shopping.length === 0 &&
+    board.lists.length === 0 &&
     board.habits.length === 0 &&
     board.dates.length === 0
   )
@@ -114,13 +189,15 @@ export function boardIsEmpty(board) {
 // entry map, which is the caller's to build); boardHabits applies the sharing
 // rule on top.
 export function buildBoard(
-  { tasks, lists, listItems, people, keyDates, habits, sharedHabits },
+  { tasks, reminders, lists, listItems, people, keyDates, habits, sharedHabits },
   todayISO,
 ) {
   const board = {
     tasks: boardTasks(tasks),
+    unscheduled: boardUnscheduled(tasks),
+    reminders: boardReminders(reminders),
     meals: boardMeals(lists, listItems, todayISO),
-    shopping: boardShopping(lists, listItems),
+    lists: boardLists(lists, listItems),
     habits: boardHabits(habits, sharedHabits),
     dates: boardDates(people, keyDates),
   }

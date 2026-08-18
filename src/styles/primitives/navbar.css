@@ -2,8 +2,15 @@
 
 /* Sticky frosted strip: Back stays reachable however far the page scrolls. The
    negative margins let it span the content gutter so the blur reads as chrome
-   rather than as a card; the top offset cancels .main's own padding so it sits
-   flush under the status bar / notch. */
+   rather than as a card, and the negative top margin lifts it over .main's own
+   top padding — the bar re-spends that padding itself, which is what holds Back
+   clear of the notch / Dynamic Island.
+
+   The negative sticky offset is the desktop half of that: here .main is the
+   scroller and its 24px top padding sits inside the scrollport, so the bar has
+   to ride up by exactly that much to pin flush instead of leaving a band of
+   content scrolling visibly above it. On a phone the same offset is a bug —
+   see the override at the bottom of this file. */
 .navbar {
   position: sticky;
   top: calc(-1 * var(--main-pad-t));
@@ -36,7 +43,15 @@
   right: 0;
   z-index: var(--z-chrome);
   margin: 0;
-  padding: calc(env(safe-area-inset-top) + 6px) var(--main-pad-x, 14px) 6px;
+  /* All four insets spelled out, because being portalled to <body> puts this
+     outside .layout — which is where every other column picks up the left and
+     right ones. Rotate a notched phone without this and Back sits under the
+     island while the trailing actions run off the other edge. */
+  /* The +6 on the left is .navbar-back's optical -6px margin paid back: without
+     it the chevron hangs exactly that far into the inset. */
+  padding: calc(env(safe-area-inset-top) + 6px)
+    max(var(--main-pad-x, 14px), env(safe-area-inset-right)) 6px
+    max(var(--main-pad-x, 14px), calc(env(safe-area-inset-left) + 6px));
 }
 
 /* Height of the bar the pinned version has taken out of flow, and it has to be
@@ -121,5 +136,15 @@
 @media (max-width: 720px) {
   .navbar {
     margin-bottom: 6px;
+    /* 0, not -(--main-pad-t). The window is the scroller here, so the bar pins
+       against the top of the *screen* — and on a phone --main-pad-t is
+       12px + env(safe-area-inset-top), the very padding that holds Back clear
+       of the notch. Letting the bar ride up by it meant that the moment an
+       installed app scrolled, Back climbed into the Dynamic Island: at rest it
+       sat 71px down a 14 Pro, scrolled it sat at 0. Invisible in a browser tab
+       and in device emulation, where the inset is 0 and the two offsets are
+       the same number. At 0 the bar pins flush with the top of the screen, its
+       own padding still spends the inset, and Back stays put. */
+    top: 0;
   }
 }

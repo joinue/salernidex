@@ -30,13 +30,48 @@ export function normalizeName(name) {
     .trim()
 }
 
+// Every email a contact has, normalized — the primary column plus the labelled
+// extras in `emails` (migration 0012). Same for phones.
+//
+// Comparing only the primary columns was the original behaviour and it missed
+// exactly where it mattered most: a business contact is the one most likely to
+// have two addresses, so saving Dana at her work address when she was already
+// filed under her personal one produced no warning at all. A set, because a
+// contact with three numbers should not match three times over.
+function allEmails(row) {
+  const out = new Set()
+  const add = (v) => {
+    const n = normalizeEmail(v)
+    if (n) out.add(n)
+  }
+  add(row?.email)
+  for (const e of row?.emails || []) add(e?.value)
+  return out
+}
+
+function allPhones(row) {
+  const out = new Set()
+  const add = (v) => {
+    const n = normalizePhone(v)
+    if (n) out.add(n)
+  }
+  add(row?.phone)
+  for (const p of row?.phones || []) add(p?.value)
+  return out
+}
+
+const intersects = (a, b) => {
+  for (const v of a) if (b.has(v)) return true
+  return false
+}
+
 // Find existing people that look like `candidate`. Returns matches sorted
 // strongest-first, each tagged with a confidence ('strong' | 'likely') and the
 // human-readable reasons it matched. Soft-deleted people and `excludeId` (the
 // record being edited) are ignored.
 export function findDuplicates(candidate, people = [], excludeId = null) {
-  const email = normalizeEmail(candidate.email)
-  const phone = normalizePhone(candidate.phone)
+  const emails = allEmails(candidate)
+  const phones = allPhones(candidate)
   const name = normalizeName(candidate.name)
 
   const matches = []
@@ -45,8 +80,10 @@ export function findDuplicates(candidate, people = [], excludeId = null) {
     if (excludeId && person.id === excludeId) continue
 
     const reasons = []
-    if (email && normalizeEmail(person.email) === email) reasons.push('same email')
-    if (phone && normalizePhone(person.phone) === phone) reasons.push('same phone')
+    // ANY shared address or number, in either direction — a work email on one
+    // record and the same address as someone else's primary is the same person.
+    if (emails.size && intersects(emails, allEmails(person))) reasons.push('same email')
+    if (phones.size && intersects(phones, allPhones(person))) reasons.push('same phone')
     if (name && normalizeName(person.name) === name) reasons.push('same name')
     if (!reasons.length) continue
 

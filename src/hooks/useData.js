@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import {
   demoMode,
@@ -34,7 +34,9 @@ import { filterVisible, PRIVATE_LEVEL } from '../lib/privacy'
 import { hydrateAppPrefs, bindAppPrefsRemote, getAppPrefs } from '../lib/appPrefs'
 import { hydrateNotifyPrefs, bindNotifyRemote } from '../lib/notifyPrefs'
 import { loadSnapshot, saveSnapshot } from '../lib/offlineCache'
-import { mutationQueue, record } from '../lib/mutationQueue'
+import { createGuardBook, mutationQueue, record } from '../lib/mutationQueue'
+import { TABLES, recentLogFloor } from '../lib/tables'
+import { migrateBackup } from '../lib/backupMigrations'
 
 // Streak lengths (days, or weeks for weekly habits) worth a small celebration.
 const MILESTONES = new Set([7, 14, 30, 50, 75, 100, 150, 200, 365])
@@ -143,6 +145,22 @@ export function useData(session) {
     return Object.fromEntries(Object.entries(row).filter(([k]) => known.has(k)))
   }
 
+  // This render's mutation closures, for the stable façade built at the bottom.
+  const latestMutations = useRef(null)
+
+  // The `updated_at` values the server has actually shown us, per row — the
+  // only thing a queued write may be guarded against. See createGuardBook for
+  // why local state's optimistic updated_at cannot be used here.
+  const guardBook = useRef(createGuardBook())
+  // Sugar for the write paths below: the guard for a row, or null when we have
+  // no server observation of it and must fall back to last-write-wins.
+  const guardOf = (table, id) => guardBook.current.guardFor(table, id)
+
+  // Whether the realtime channel has completed a subscribe before. Lets the
+  // handler tell a first connection (already covered by refresh()) from a
+  // reconnect, which may have missed events and needs a full re-pull.
+  const subscribedOnce = useRef(false)
+
   // Once a real server refresh has landed, the IndexedDB snapshot must never
   // overwrite it (the cache hydrate is async and can resolve after the network
   // when both race on a warm start). This flag lets the hydrate bail.
@@ -174,133 +192,125 @@ export function useData(session) {
     typeof v === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
 
-  const refresh = useCallback(async () => {
-    // Bail if the active household isn't known yet (Shell only mounts once the
-    // household cache is hydrated, so this is just a guard). Crucially, every
-    // read is filtered to householdId: RLS's is_member() returns rows for ALL
-    // households you belong to, so without this filter a multi-household user
-    // would see their households' data commingled. (reminder_snoozes is
-    // member-scoped, not household-scoped, so it filters on member_id instead.)
-    if (isDemo || !householdId) return
-    const [p, o, r, i, g, t, c, tl, l, li, f, kd, sn, h, he, lc, nt, af, ar] = await Promise.all([
-      supabase.from('people').select('*').eq('household_id', householdId).order('name'),
-      supabase.from('organizations').select('*').eq('household_id', householdId).order('name'),
-      supabase.from('relationships').select('*').eq('household_id', householdId),
-      supabase
-        .from('interactions')
-        .select('*')
-        .eq('household_id', householdId)
-        .order('occurred_at', { ascending: false }),
-      supabase.from('groups').select('*').eq('household_id', householdId).order('name'),
-      supabase.from('tasks').select('*').eq('household_id', householdId).order('created_at'),
-      supabase
-        .from('task_completions')
-        .select('*')
-        .eq('household_id', householdId)
-        .order('completed_at', { ascending: false }),
-      supabase.from('task_links').select('*').eq('household_id', householdId),
-      supabase.from('lists').select('*').eq('household_id', householdId).order('created_at'),
-      supabase.from('list_items').select('*').eq('household_id', householdId).order('created_at'),
-      supabase.from('families').select('*').eq('household_id', householdId).order('name'),
-      supabase.from('key_dates').select('*').eq('household_id', householdId).order('date'),
-      // My snoozes/dismissals (RLS already limits to own rows; member_id is
-      // explicit too). Kept OUT of firstError below for the same reason
-      // member_preferences is loaded separately — a missing Phase 6 table must
-      // degrade to "no snoozes", not blank the whole app.
-      supabase.from('reminder_snoozes').select('*').eq('member_id', memberId),
-      // Habits (Phase: habit tracking). Kept OUT of firstError below, like
-      // snoozes — a missing table (migration not yet run) must degrade to "no
-      // habits", not blank the whole app.
-      supabase.from('habits').select('*').eq('household_id', householdId).order('created_at'),
-      supabase.from('habit_entries').select('*').eq('household_id', householdId),
-      // Recent-items catalog (autocomplete). Kept OUT of firstError too — a
-      // missing table degrades to "no suggestions", not a blanked app.
-      supabase.from('list_catalog').select('*').eq('household_id', householdId),
-      // Notebook. Kept OUT of firstError as well — a missing notes table
-      // (migration 0029 not yet run) must degrade to "no notes", not blank the app.
-      supabase
-        .from('notes')
-        .select('*')
-        .eq('household_id', householdId)
-        .order('updated_at', { ascending: false }),
-      // Person↔org links. Kept OUT of firstError like the rest of the
-      // late-arriving tables — if migration 0033 hasn't run, contacts should
-      // simply show no organization rather than the whole app going blank.
-      supabase.from('affiliations').select('*').eq('household_id', householdId),
-      // Areas (0040). Kept OUT of firstError with the rest of the late-arriving
-      // tables: if the migration hasn't run, the app should show every item
-      // unfiled — which is exactly how it behaved before areas existed — rather
-      // than going blank. Ordering is applied in lib/areas.sortAreas (manual
-      // rank, then creation), so this pull doesn't need an .order().
-      supabase.from('areas').select('*').eq('household_id', householdId),
-    ])
-    const firstError =
-      p.error ||
-      o.error ||
-      r.error ||
-      i.error ||
-      g.error ||
-      t.error ||
-      c.error ||
-      tl.error ||
-      l.error ||
-      li.error ||
-      f.error ||
-      kd.error
-    if (firstError) {
-      setError(firstError.message)
-    } else {
+  // Where each table's rows land. React guarantees a useState setter's identity
+  // never changes, so this is built once — which is what lets refresh() below
+  // stay a stable useCallback despite touching all nineteen.
+  const setters = useMemo(
+    () => ({
+      areas: setAreas,
+      families: setFamilies,
+      orgs: setOrgs,
+      people: setPeople,
+      affiliations: setAffiliations,
+      relationships: setRelationships,
+      interactions: setInteractions,
+      keyDates: setKeyDates,
+      groups: setGroups,
+      tasks: setTasks,
+      completions: setCompletions,
+      taskLinks: setTaskLinks,
+      lists: setLists,
+      listItems: setListItems,
+      reminderSnoozes: setReminderSnoozes,
+      habits: setHabits,
+      habitEntries: setHabitEntries,
+      listCatalog: setListCatalog,
+      notes: setNotes,
+    }),
+    [],
+  )
+
+  // The last full pull, mirrored to IndexedDB. Held in memory so a partial
+  // refetch can patch one table without reading the snapshot back off disk.
+  const snapshot = useRef(null)
+  const snapshotTimer = useRef(null)
+  // Writing the snapshot serialises the whole household, so it rides a trailing
+  // timer rather than following every refetch — a realtime burst would
+  // otherwise pay that cost once per event. It is a cold-launch nicety, never a
+  // source of truth, so being a few seconds behind costs nothing.
+  const queueSnapshotSave = useCallback(() => {
+    if (!householdId) return
+    clearTimeout(snapshotTimer.current)
+    snapshotTimer.current = setTimeout(() => {
+      if (snapshot.current) saveSnapshot(householdId, snapshot.current)
+    }, 5000)
+  }, [householdId])
+
+  // One table's read, shaped by its spec in lib/tables.js.
+  //
+  // Every household-scoped read is filtered to householdId: RLS's is_member()
+  // returns rows for ALL households you belong to, so without this filter a
+  // multi-household user would see their households' data commingled.
+  // reminder_snoozes is member-scoped, so it filters on member_id instead.
+  const readTable = useCallback(
+    (spec) => {
+      let q = supabase.from(spec.table).select('*')
+      q = spec.scope === 'member' ? q.eq('member_id', memberId) : q.eq('household_id', householdId)
+      if (spec.since) q = q.gte(spec.since, recentLogFloor())
+      if (spec.order) q = q.order(spec.order, { ascending: !spec.desc })
+      return q
+    },
+    [memberId, householdId],
+  )
+
+  // Pull some subset of the tables and apply them. `critical` decides what a
+  // failure means: one of those blanks the app with an error rather than
+  // showing a half-loaded household, while everything else degrades to keeping
+  // whatever is already in state — a table whose migration hasn't run yet must
+  // cost you that feature, not the whole app.
+  const refreshTables = useCallback(
+    async (specs) => {
+      if (isDemo || !householdId || !specs.length) return
+      const results = await Promise.all(specs.map(readTable))
+      const fatal = specs.find((s, n) => s.critical && results[n].error)
+      if (fatal) {
+        setError(results[specs.indexOf(fatal)].error.message)
+        setLoading(false)
+        return
+      }
       setError(null)
-      setPeople(p.data)
-      setOrgs(o.data)
-      setRelationships(r.data)
-      setInteractions(i.data)
-      setGroups(g.data)
-      setTasks(t.data)
-      setCompletions(c.data)
-      setTaskLinks(tl.data)
-      setLists(l.data)
-      setListItems(li.data)
-      setFamilies(f.data)
-      setKeyDates(kd.data)
-      // Snoozes load alongside but don't gate core data: if the table is absent
-      // (migration not yet run) keep the prior in-session list instead of
-      // wiping it — dismissals made this session still hold until reload.
-      if (!sn.error) setReminderSnoozes(sn.data || [])
-      if (!h.error) setHabits(h.data || [])
-      if (!he.error) setHabitEntries(he.data || [])
-      if (!lc.error) setListCatalog(lc.data || [])
-      if (!nt.error) setNotes(nt.data || [])
-      if (!af.error) setAffiliations(af.data || [])
-      if (!ar.error) setAreas(ar.data || [])
-      // Server truth is in: from here the offline snapshot must not clobber it,
-      // and we persist this pull as the new last-known-good for the next cold
-      // launch. Best-effort — saveSnapshot swallows its own failures.
-      serverLoaded.current = true
-      saveSnapshot(householdId, {
-        people: p.data,
-        orgs: o.data,
-        relationships: r.data,
-        interactions: i.data,
-        groups: g.data,
-        tasks: t.data,
-        completions: c.data,
-        taskLinks: tl.data,
-        lists: l.data,
-        listItems: li.data,
-        families: f.data,
-        keyDates: kd.data,
-        reminderSnoozes: sn.error ? [] : sn.data || [],
-        habits: h.error ? [] : h.data || [],
-        habitEntries: he.error ? [] : he.data || [],
-        listCatalog: lc.error ? [] : lc.data || [],
-        notes: nt.error ? [] : nt.data || [],
-        affiliations: af.error ? [] : af.data || [],
-        areas: ar.error ? [] : ar.data || [],
+      specs.forEach((spec, n) => {
+        const { data, error: rowsErr } = results[n]
+        if (rowsErr) return // non-critical: keep what's already there
+        const rows = data || []
+        setters[spec.key](rows)
+        // Fresh server truth is exactly what a staleness guard is allowed to
+        // compare against, so every read feeds the book.
+        guardBook.current.observe(spec.table, rows)
+        if (snapshot.current) snapshot.current[spec.key] = rows
       })
-    }
-    setLoading(false)
-  }, [isDemo, memberId, householdId])
+      // Server truth is in: from here the offline snapshot must not clobber it.
+      serverLoaded.current = true
+      setLoading(false)
+      queueSnapshotSave()
+    },
+    [isDemo, householdId, readTable, setters, queueSnapshotSave],
+  )
+
+  // The full pull: every table at once. Used on mount, on reconnect, and by
+  // pull-to-refresh. Seeds the in-memory snapshot, which partial refetches then
+  // patch. A table that failed caches as empty rather than missing, so the next
+  // cold launch reads a complete shape.
+  const refresh = useCallback(async () => {
+    if (isDemo || !householdId) return
+    snapshot.current = Object.fromEntries(TABLES.map((t) => [t.key, []]))
+    await refreshTables(TABLES)
+  }, [isDemo, householdId, refreshTables])
+
+  // The lossless read, for the JSON backup only. Bounded tables (see
+  // RECENT_LOG_DAYS) hold back years of history that the app has no use for but
+  // a backup is contractually required to carry, so the export pulls those in
+  // full rather than exporting the window the UI happens to be using.
+  const fetchFullTable = useCallback(
+    async (key) => {
+      const spec = TABLES.find((t) => t.key === key)
+      if (!spec || isDemo || !householdId) return null
+      const { since: _since, ...unbounded } = spec
+      const { data, error: readErr } = await readTable(unbounded)
+      return readErr ? null : data || []
+    },
+    [isDemo, householdId, readTable],
+  )
 
   // App preferences are loaded apart from the main data pull so a pref-specific
   // failure — most likely the member_preferences table not existing yet because
@@ -343,31 +353,14 @@ export function useData(session) {
     let cancelled = false
     loadSnapshot(householdId).then((snap) => {
       if (cancelled || !snap || serverLoaded.current) return
-      setPeople(snap.people || [])
-      setOrgs(snap.orgs || [])
-      setAffiliations(snap.affiliations || [])
-      setRelationships(snap.relationships || [])
-      setInteractions(snap.interactions || [])
-      setGroups(snap.groups || [])
-      setTasks(snap.tasks || [])
-      setCompletions(snap.completions || [])
-      setTaskLinks(snap.taskLinks || [])
-      setLists(snap.lists || [])
-      setListItems(snap.listItems || [])
-      setFamilies(snap.families || [])
-      setKeyDates(snap.keyDates || [])
-      setReminderSnoozes(snap.reminderSnoozes || [])
-      setHabits(snap.habits || [])
-      setHabitEntries(snap.habitEntries || [])
-      setListCatalog(snap.listCatalog || [])
-      setNotes(snap.notes || [])
-      setAreas(snap.areas || [])
+      for (const spec of TABLES) setters[spec.key](snap[spec.key] || [])
+      snapshot.current = { ...snap }
       setLoading(false)
     })
     return () => {
       cancelled = true
     }
-  }, [isDemo, householdId])
+  }, [isDemo, householdId, setters])
 
   useEffect(() => {
     if (!session || isDemo) return
@@ -392,26 +385,41 @@ export function useData(session) {
           .upsert({ member_id: mid, ...toNotifyRow(prefs) }, { onConflict: 'member_id' }),
       ),
     )
-    // Realtime fires one event per changed row, so a burst — a bulk import, a
-    // multi-row edit, or our own optimistic write echoing back — would trigger a
-    // full 13-table refetch per event. Coalesce them into a single refresh.
-    let refreshTimer
-    const debouncedRefresh = () => {
-      clearTimeout(refreshTimer)
-      refreshTimer = setTimeout(() => {
-        // Hold off while our own optimistic writes are still settling so a
-        // stale server read can't drop a just-added row; their echoes keep
-        // re-arming this, and we refetch once everything has landed.
-        if (pendingWrites.current > 0) {
-          debouncedRefresh()
-          return
-        }
-        refresh()
-      }, 250)
+    // Realtime fires one event per changed row. This used to listen to the whole
+    // public schema and answer every event with a full nineteen-table refetch,
+    // so one partner ticking one checkbox re-downloaded both households' entire
+    // datasets. Now each table is subscribed by name and an event only refetches
+    // the table it came from — a burst still coalesces, but into "reread tasks"
+    // rather than "reread everything".
+    let refetchTimer
+    const dirty = new Set()
+    const fire = () => {
+      // Hold off while our own optimistic writes are still settling so a stale
+      // server read can't drop a just-added row; their echoes keep re-arming
+      // this, and we refetch once everything has landed.
+      if (pendingWrites.current > 0) {
+        refetchTimer = setTimeout(fire, 250)
+        return
+      }
+      const specs = TABLES.filter((t) => dirty.has(t.key))
+      dirty.clear()
+      refreshTables(specs)
     }
-    const channel = supabase
-      .channel('salernidex-sync')
-      .on('postgres_changes', { event: '*', schema: 'public' }, debouncedRefresh)
+    const queueRefetch = (spec) => () => {
+      dirty.add(spec.key)
+      clearTimeout(refetchTimer)
+      refetchTimer = setTimeout(fire, 250)
+    }
+
+    const channel = supabase.channel('doot-sync')
+    for (const spec of TABLES) {
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: spec.table },
+        queueRefetch(spec),
+      )
+    }
+    channel
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'member_preferences' },
@@ -422,18 +430,26 @@ export function useData(session) {
         { event: '*', schema: 'public', table: 'notification_prefs' },
         refreshNotifyPrefs,
       )
-      .subscribe()
+      // A dropped-and-restored socket may have missed events entirely, and a
+      // per-table refetch can't know what it didn't hear about — so a RE-subscribe
+      // (not the first one, which the refresh() above already covers) falls back
+      // to the full pull.
+      .subscribe((status) => {
+        if (status !== 'SUBSCRIBED') return
+        if (subscribedOnce.current) refresh()
+        subscribedOnce.current = true
+      })
     return () => {
-      clearTimeout(refreshTimer)
+      clearTimeout(refetchTimer)
       bindAppPrefsRemote(null)
       bindNotifyRemote(null)
       supabase.removeChannel(channel)
     }
-    // refresh/refreshPrefs/refreshNotifyPrefs already close over isDemo (via
-    // their own deps), and `sync` is intentionally left out — listing it would
-    // re-subscribe the realtime channel on every render.
+    // refresh/refreshTables/refreshPrefs/refreshNotifyPrefs already close over
+    // isDemo (via their own deps), and `sync` is intentionally left out —
+    // listing it would re-subscribe the realtime channel on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, refresh, refreshPrefs, refreshNotifyPrefs])
+  }, [session, refresh, refreshTables, refreshPrefs, refreshNotifyPrefs])
 
   // Drain the outbox against the server. Safe to call often — it no-ops while
   // already running, so a burst of writes doesn't start a burst of drains.
@@ -450,6 +466,10 @@ export function useData(session) {
       const res = await mutationQueue.drain(supabase, {
         householdId,
         onDrop: (m, err) => showToast(friendlyError(err), { variant: 'error', duration: 6000 }),
+        // Our own write may have moved the row, which spends the observation we
+        // were guarding it with. Dropping it here means the next edit goes out
+        // unguarded rather than guarded against a value we just invalidated.
+        onSettled: (m) => guardBook.current.forgetTarget(m),
       })
       if (res.dropped || res.superseded) refresh()
     } finally {
@@ -504,6 +524,25 @@ export function useData(session) {
     return res
   }
 
+  // Persist a manual ordering: [{ id, sort_order }, ...]. Four tables are
+  // drag-reorderable and all four wanted the identical twelve lines, so this is
+  // the one copy — each table below is a single binding of it.
+  //
+  // Stays row-by-row rather than one upsert on purpose: a Supabase upsert is a
+  // full INSERT ... ON CONFLICT, so sending {id, sort_order} would write column
+  // defaults over every other field on the row. Fractional ranks mean a drag
+  // usually touches exactly one row anyway, so the loop is nearly always one
+  // request.
+  const reorderRows = (table, setRows) => (updates) => {
+    const byId = new Map(updates.map((u) => [u.id, u.sort_order]))
+    setRows((prev) => prev.map((r) => (byId.has(r.id) ? { ...r, sort_order: byId.get(r.id) } : r)))
+    sync(async (db) => {
+      for (const u of updates) {
+        must(await db.from(table).update({ sort_order: u.sort_order }).eq('id', u.id))
+      }
+    })
+  }
+
   const savePerson = (fields, id) => {
     const rowId = id || uuid()
     setPeople((prev) =>
@@ -521,9 +560,18 @@ export function useData(session) {
             },
           ],
     )
+    // Guarded, like every general edit path below. Saving a form over a change
+    // your partner made an hour ago is exactly the lost work the guard is for:
+    // the form sends whole fields, so a replayed stale save doesn't merge with
+    // theirs, it erases it.
+    //
+    // The dedicated intent paths — archive, delete, check-off — deliberately
+    // stay unguarded. Those carry a decision rather than a field's contents,
+    // there is nothing in them to lose, and "your delete didn't apply because
+    // somebody renamed it" is a worse answer than simply deleting it.
     sync((db) =>
       id
-        ? db.from('people').update(fields).eq('id', id)
+        ? db.from('people').update(fields).eq('id', id).guard(guardOf('people', id))
         : db.from('people').insert(stamp({ ...fields, id: rowId })),
     )
     // Returned so a caller that just created someone can attach rows keyed to
@@ -588,7 +636,7 @@ export function useData(session) {
     )
     sync((db) =>
       id
-        ? db.from('organizations').update(fields).eq('id', id)
+        ? db.from('organizations').update(fields).eq('id', id).guard(guardOf('organizations', id))
         : db.from('organizations').insert(stamp({ ...fields, id: rowId })),
     )
   }
@@ -684,10 +732,26 @@ export function useData(session) {
     sync((db) => db.from('relationships').delete().eq('id', id))
   }
 
+  // A touchpoint's subject is a person OR an organization (0042) — the caller
+  // passes whichever, and the DB check constraint refuses both or neither.
   const addInteraction = (fields) => {
     const rowId = uuid()
     setInteractions((prev) => [stamp({ ...fields, id: rowId, created_at: now() }), ...prev])
     sync((db) => db.from('interactions').insert(stamp({ ...fields, id: rowId })))
+  }
+
+  // Editing one (0042). It was insert-and-delete only, which quietly made the
+  // log a streak counter rather than a record: a call logged on the wrong day,
+  // or a note you wanted to finish later, could only be destroyed and retyped.
+  // Patch-shaped like every other save here, so a caller can correct just the
+  // date or just the note.
+  const saveInteraction = (fields, id) => {
+    setInteractions((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, ...fields, updated_at: now() } : i)),
+    )
+    sync((db) =>
+      db.from('interactions').update(fields).eq('id', id).guard(guardOf('interactions', id)),
+    )
   }
 
   const deleteInteraction = (id) => {
@@ -745,7 +809,7 @@ export function useData(session) {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...fields, updated_at: now() } : t)))
     const dbFields =
       'assignee' in fields ? { ...fields, assignee: dbAssignee(fields.assignee) } : fields
-    sync((db) => db.from('tasks').update(dbFields).eq('id', id))
+    sync((db) => db.from('tasks').update(dbFields).eq('id', id).guard(guardOf('tasks', id)))
     // Refiling a project carries its subtasks with it — the other half of the
     // rule addTask applies. Without this, moving "Kitchen refresh" to Home would
     // leave its five steps behind in whatever area they were created under, and
@@ -762,30 +826,8 @@ export function useData(session) {
     }
   }
 
-  // Persist a manual ordering: [{ id, sort_order }, ...]. Local apply is one
-  // pass; the network side is a few tiny updates (fractional ranks mean a drag
-  // usually touches exactly one row).
-  const reorderTasks = (updates) => {
-    const byId = new Map(updates.map((u) => [u.id, u.sort_order]))
-    setTasks((prev) => prev.map((t) => (byId.has(t.id) ? { ...t, sort_order: byId.get(t.id) } : t)))
-    sync(async (db) => {
-      for (const u of updates) {
-        must(await db.from('tasks').update({ sort_order: u.sort_order }).eq('id', u.id))
-      }
-    })
-  }
-
-  const reorderListItems = (updates) => {
-    const byId = new Map(updates.map((u) => [u.id, u.sort_order]))
-    setListItems((prev) =>
-      prev.map((it) => (byId.has(it.id) ? { ...it, sort_order: byId.get(it.id) } : it)),
-    )
-    sync(async (db) => {
-      for (const u of updates) {
-        must(await db.from('list_items').update({ sort_order: u.sort_order }).eq('id', u.id))
-      }
-    })
-  }
+  const reorderTasks = reorderRows('tasks', setTasks)
+  const reorderListItems = reorderRows('list_items', setListItems)
 
   const deleteTask = (id) => {
     // cascade to subtasks + completions + links (mirrors on-delete-cascade),
@@ -978,7 +1020,7 @@ export function useData(session) {
     )
     sync((db) =>
       id
-        ? db.from('lists').update(fields).eq('id', id)
+        ? db.from('lists').update(fields).eq('id', id).guard(guardOf('lists', id))
         : db.from('lists').insert(stamp({ ...fields, id: rowId })),
     )
   }
@@ -1171,6 +1213,103 @@ export function useData(session) {
     })
   }
 
+  // ---- Bulk actions (multi-select) --------------------------------------
+  //
+  // These exist because looping the single-row helper is not the same thing.
+  // Ten calls to deleteListItem raise ten toasts, each offering to undo one
+  // tenth of what you did — and the tenth toast is the only one still on screen
+  // by the time you reach for it. One action the user took is one row of
+  // feedback and one Undo that reverses all of it.
+  //
+  // They also each send ONE request instead of N, which is the difference
+  // between a bulk delete on a phone working and timing out halfway.
+
+  const deleteListItems = (ids) => {
+    const gone = listItems.filter((it) => ids.includes(it.id))
+    if (!gone.length) return
+    const goneIds = gone.map((it) => it.id)
+    setListItems((prev) => prev.filter((it) => !goneIds.includes(it.id)))
+    sync((db) => db.from('list_items').delete().in('id', goneIds))
+    showToast(`Deleted ${gone.length} ${gone.length === 1 ? 'item' : 'items'}`, {
+      actionLabel: 'Undo',
+      onAction: () => {
+        setListItems((prev) => [...prev, ...gone])
+        sync((db) => db.from('list_items').upsert(gone))
+      },
+    })
+  }
+
+  // Check off (or un-check) several at once. Only the rows that would actually
+  // change are touched, so re-checking an already-checked row doesn't rewrite
+  // its checked_at and move it to the top of the "Got it" pile.
+  const setListItemsChecked = (ids, checked) => {
+    const targets = listItems.filter((it) => ids.includes(it.id) && !!it.checked_at !== checked)
+    if (!targets.length) return
+    const targetIds = targets.map((it) => it.id)
+    const checked_at = checked ? new Date().toISOString() : null
+    const checked_by = checked ? userId : null
+    setListItems((prev) =>
+      prev.map((it) => (targetIds.includes(it.id) ? { ...it, checked_at, checked_by } : it)),
+    )
+    sync((db) => db.from('list_items').update({ checked_at, checked_by }).in('id', targetIds))
+  }
+
+  // Deleting tasks carries their subtasks, completions and links, exactly as
+  // deleteTask does for one — a bulk delete that orphaned children would leave
+  // rows nothing can reach.
+  const deleteTasks = (ids) => {
+    const goneTasks = tasks.filter((t) => ids.includes(t.id) || ids.includes(t.parent_id))
+    if (!goneTasks.length) return
+    const goneIds = new Set(goneTasks.map((t) => t.id))
+    const goneCompletions = completions.filter((c) => goneIds.has(c.task_id))
+    const goneLinks = taskLinks.filter((tl) => goneIds.has(tl.task_id))
+    const topIds = goneTasks.filter((t) => ids.includes(t.id)).map((t) => t.id)
+    setTasks((prev) => prev.filter((t) => !goneIds.has(t.id)))
+    setCompletions((prev) => prev.filter((c) => !goneIds.has(c.task_id)))
+    setTaskLinks((prev) => prev.filter((tl) => !goneIds.has(tl.task_id)))
+    // Deleting the parents is enough — the DB cascades to the children.
+    sync((db) => db.from('tasks').delete().in('id', topIds))
+    showToast(`Deleted ${topIds.length} ${topIds.length === 1 ? 'task' : 'tasks'}`, {
+      actionLabel: 'Undo',
+      onAction: () => {
+        setTasks((prev) => [...prev, ...goneTasks])
+        setCompletions((prev) => [...goneCompletions, ...prev])
+        setTaskLinks((prev) => [...prev, ...goneLinks])
+        sync(async (db) => {
+          // Parents before children, for the self-referencing FK.
+          const parents = goneTasks.filter((t) => topIds.includes(t.id))
+          const children = goneTasks.filter((t) => !topIds.includes(t.id))
+          must(await db.from('tasks').upsert(parents))
+          if (children.length) must(await db.from('tasks').upsert(children))
+          if (goneCompletions.length)
+            must(await db.from('task_completions').upsert(goneCompletions))
+          if (goneLinks.length) must(await db.from('task_links').upsert(goneLinks))
+        })
+      },
+    })
+  }
+
+  // Soft delete, like deleteNote — they go to Recently Deleted, not away.
+  const deleteNotes = (ids) => {
+    const gone = notes.filter((n) => ids.includes(n.id) && !n.deleted_at)
+    if (!gone.length) return
+    const goneIds = gone.map((n) => n.id)
+    const at = now()
+    setNotes((prev) => prev.map((n) => (goneIds.includes(n.id) ? { ...n, deleted_at: at } : n)))
+    sync((db) =>
+      db.from('notes').update({ deleted_at: new Date().toISOString() }).in('id', goneIds),
+    )
+    showToast(`Deleted ${gone.length} ${gone.length === 1 ? 'note' : 'notes'}`, {
+      actionLabel: 'Undo',
+      onAction: () => {
+        setNotes((prev) =>
+          prev.map((n) => (goneIds.includes(n.id) ? { ...n, deleted_at: null } : n)),
+        )
+        sync((db) => db.from('notes').update({ deleted_at: null }).in('id', goneIds))
+      },
+    })
+  }
+
   // Clear all checked items from a list (e.g. after a grocery run).
   const clearCheckedItems = (listId) => {
     const gone = listItems.filter((it) => it.list_id === listId && it.checked_at)
@@ -1223,7 +1362,7 @@ export function useData(session) {
   const updateNote = (id, fields) => {
     const patch = { ...fields, updated_by: memberId }
     setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch, updated_at: now() } : n)))
-    sync((db) => db.from('notes').update(patch).eq('id', id))
+    sync((db) => db.from('notes').update(patch).eq('id', id).guard(guardOf('notes', id)))
   }
 
   const togglePinNote = (id) => {
@@ -1308,7 +1447,7 @@ export function useData(session) {
   const updateArea = (id, fields) => {
     const patch = fields.shared ? { ...fields, default_private: false } : fields
     setAreas((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch, updated_at: now() } : a)))
-    sync((db) => db.from('areas').update(patch).eq('id', id))
+    sync((db) => db.from('areas').update(patch).eq('id', id).guard(guardOf('areas', id)))
   }
 
   // Move everything filed in one area into another, leaving both areas standing.
@@ -1340,15 +1479,7 @@ export function useData(session) {
     })
   }
 
-  const reorderAreas = (updates) => {
-    const byId = new Map(updates.map((u) => [u.id, u.sort_order]))
-    setAreas((prev) => prev.map((a) => (byId.has(a.id) ? { ...a, sort_order: byId.get(a.id) } : a)))
-    sync(async (db) => {
-      for (const u of updates) {
-        must(await db.from('areas').update({ sort_order: u.sort_order }).eq('id', u.id))
-      }
-    })
-  }
+  const reorderAreas = reorderRows('areas', setAreas)
 
   // Archiving hides a lens, never an item: area_id stays put, so everything
   // filed here is still reachable under "All" and comes straight back if the
@@ -1438,7 +1569,7 @@ export function useData(session) {
     setFamilies((prev) => (id ? prev.map((f) => (f.id === id ? row : f)) : [...prev, row]))
     sync((db) =>
       id
-        ? db.from('families').update(fields).eq('id', id)
+        ? db.from('families').update(fields).eq('id', id).guard(guardOf('families', id))
         : db.from('families').insert(stamp({ ...fields, id: row.id })),
     )
     return row
@@ -1491,7 +1622,7 @@ export function useData(session) {
     )
     sync((db) =>
       id
-        ? db.from('groups').update(fields).eq('id', id)
+        ? db.from('groups').update(fields).eq('id', id).guard(guardOf('groups', id))
         : db.from('groups').insert(stamp({ ...fields, id: rowId })),
     )
   }
@@ -1520,7 +1651,7 @@ export function useData(session) {
 
   const updateHabit = (id, fields) => {
     setHabits((prev) => prev.map((h) => (h.id === id ? { ...h, ...fields, updated_at: now() } : h)))
-    sync((db) => db.from('habits').update(fields).eq('id', id))
+    sync((db) => db.from('habits').update(fields).eq('id', id).guard(guardOf('habits', id)))
   }
 
   const archiveHabit = (id, archived = true) =>
@@ -1575,17 +1706,7 @@ export function useData(session) {
     showToast(`🔥 ${streak}-${unit} streak · ${habit.name}!`)
   }
 
-  const reorderHabits = (updates) => {
-    const byId = new Map(updates.map((u) => [u.id, u.sort_order]))
-    setHabits((prev) =>
-      prev.map((h) => (byId.has(h.id) ? { ...h, sort_order: byId.get(h.id) } : h)),
-    )
-    sync(async (db) => {
-      for (const u of updates) {
-        must(await db.from('habits').update({ sort_order: u.sort_order }).eq('id', u.id))
-      }
-    })
-  }
+  const reorderHabits = reorderRows('habits', setHabits)
 
   // Vacation / pause: rest every scheduled day in [startISO, endISO] inclusive,
   // reusing the rest-day primitive — so the streak engine already treats the
@@ -1755,129 +1876,11 @@ export function useData(session) {
   // ImportExport so data stays portable (e.g. moving off Supabase later).
   // Upserts by id so re-importing a backup is idempotent and merges cleanly.
   const restoreBackup = async (backup) => {
-    const tables = {
-      families: backup.families,
-      organizations: backup.organizations,
-      people: backup.people,
-      affiliations: backup.affiliations,
-      relationships: backup.relationships,
-      interactions: backup.interactions,
-      key_dates: backup.key_dates,
-      groups: backup.groups,
-      tasks: backup.tasks,
-      task_completions: backup.task_completions,
-      task_links: backup.task_links,
-      lists: backup.lists,
-      list_items: backup.list_items,
-      reminder_snoozes: backup.reminder_snoozes,
-      habits: backup.habits,
-      habit_entries: backup.habit_entries,
-      list_catalog: backup.list_catalog,
-      notes: backup.notes,
-      areas: backup.areas,
-    }
-    // Backups taken before migration 0023 store the old 'marc_only' privacy
-    // label; map it to 'private' so they still restore against the renamed enum.
-    for (const t of ['people', 'organizations', 'tasks', 'lists', 'notes']) {
-      if (Array.isArray(tables[t])) {
-        tables[t] = tables[t].map((row) =>
-          row?.privacy_level === 'marc_only' ? { ...row, privacy_level: 'private' } : row,
-        )
-      }
-    }
-    // Backups v<=6 stored people.organization as a name string. Map it to
-    // organization_id, find-or-creating orgs (seeded from both the backup's
-    // organizations and the current ones) so they restore as real rows.
-    if (
-      Array.isArray(tables.people) &&
-      tables.people.some((p) => p.organization && !p.organization_id)
-    ) {
-      const incomingOrgs = Array.isArray(tables.organizations) ? tables.organizations : []
-      const byName = new Map()
-      for (const o of [...orgs, ...incomingOrgs]) {
-        const k = (o.name || '').trim().toLowerCase()
-        if (k && !byName.has(k)) byName.set(k, o)
-      }
-      const created = []
-      const resolveOrg = (name) => {
-        const trimmed = (name || '').trim()
-        if (!trimmed) return null
-        const key = trimmed.toLowerCase()
-        let o = byName.get(key)
-        if (!o) {
-          o = stamp({
-            created_at: now(),
-            updated_at: now(),
-            key_contacts: [],
-            name: trimmed,
-            id: uuid(),
-          })
-          byName.set(key, o)
-          created.push(o)
-        }
-        return o.id
-      }
-      tables.people = tables.people.map(({ organization, ...rest }) =>
-        rest.organization_id ? rest : { ...rest, organization_id: resolveOrg(organization) },
-      )
-      if (created.length) tables.organizations = [...incomingOrgs, ...created]
-    }
-    // Backups v<=9 attached the org as people.organization_id, with the title in
-    // people.role. Turn each into the affiliation row it became in 0033, and
-    // strip both fields off the person so the restore can't reintroduce the
-    // dropped column. Skipped when the backup already carries affiliations.
-    if (Array.isArray(tables.people) && !Array.isArray(tables.affiliations)) {
-      const migrated = []
-      tables.people = tables.people.map(({ organization_id, ...rest }) => {
-        if (!organization_id) return rest
-        migrated.push({
-          id: uuid(),
-          person_id: rest.id,
-          organization_id,
-          role: (rest.role || '').trim() || null,
-          is_primary: true,
-          show_in_summary: null,
-          started_on: null,
-          ended_on: null,
-          created_by: rest.created_by ?? userId,
-          created_at: rest.created_at || now(),
-          updated_at: now(),
-        })
-        return { ...rest, role: null }
-      })
-      if (migrated.length) tables.affiliations = migrated
-    }
-    // Areas (v11) restore by id, so a backup taken from this household round-trips
-    // with every area_id still pointing at the right row and nothing to remap.
-    // Restoring into a DIFFERENT household is where it bites: areas carry a
-    // unique (household_id, created_by, lower(name)), so an incoming "Work" that
-    // collides with an existing "Work" would abort the whole restore on a
-    // constraint violation. Fold the incoming one into the existing row instead,
-    // and rewrite every area_id that referenced it — the same find-or-merge shape
-    // v7 uses for organizations, keyed on the constraint's own columns.
-    if (Array.isArray(tables.areas) && tables.areas.length) {
-      const key = (a) => `${a.created_by || ''}|${(a.name || '').trim().toLowerCase()}`
-      const existing = new Map(areas.map((a) => [key(a), a.id]))
-      const remap = new Map()
-      tables.areas = tables.areas.filter((a) => {
-        const hit = existing.get(key(a))
-        if (hit && hit !== a.id) {
-          remap.set(a.id, hit)
-          return false
-        }
-        return true
-      })
-      if (remap.size) {
-        for (const t of ['tasks', 'lists', 'notes', 'habits']) {
-          if (!Array.isArray(tables[t])) continue
-          tables[t] = tables[t].map((row) =>
-            row?.area_id && remap.has(row.area_id)
-              ? { ...row, area_id: remap.get(row.area_id) }
-              : row,
-          )
-        }
-      }
-    }
+    // Every "backups v<=N stored it this way" rule lives in lib/backupMigrations
+    // — pure data-in/data-out, so it can be tested without a database. It needs
+    // the household's current orgs and areas to merge incoming rows against.
+    const tables = migrateBackup(backup, { orgs, areas, userId, stamp })
+
     if (isDemo) {
       const merge = (prev, incoming) => {
         if (!Array.isArray(incoming)) return prev
@@ -1885,26 +1888,10 @@ export function useData(session) {
         for (const row of incoming) map.set(row.id, { ...map.get(row.id), ...row })
         return [...map.values()]
       }
-      if (tables.families) setFamilies((prev) => merge(prev, tables.families))
-      if (tables.organizations) setOrgs((prev) => merge(prev, tables.organizations))
-      if (tables.people) setPeople((prev) => merge(prev, tables.people))
-      if (tables.affiliations) setAffiliations((prev) => merge(prev, tables.affiliations))
-      if (tables.key_dates) setKeyDates((prev) => merge(prev, tables.key_dates))
-      if (tables.relationships) setRelationships((prev) => merge(prev, tables.relationships))
-      if (tables.interactions) setInteractions((prev) => merge(prev, tables.interactions))
-      if (tables.groups) setGroups((prev) => merge(prev, tables.groups))
-      if (tables.tasks) setTasks((prev) => merge(prev, tables.tasks))
-      if (tables.task_completions) setCompletions((prev) => merge(prev, tables.task_completions))
-      if (tables.task_links) setTaskLinks((prev) => merge(prev, tables.task_links))
-      if (tables.lists) setLists((prev) => merge(prev, tables.lists))
-      if (tables.list_items) setListItems((prev) => merge(prev, tables.list_items))
-      if (tables.reminder_snoozes)
-        setReminderSnoozes((prev) => merge(prev, tables.reminder_snoozes))
-      if (tables.habits) setHabits((prev) => merge(prev, tables.habits))
-      if (tables.habit_entries) setHabitEntries((prev) => merge(prev, tables.habit_entries))
-      if (tables.list_catalog) setListCatalog((prev) => merge(prev, tables.list_catalog))
-      if (tables.notes) setNotes((prev) => merge(prev, tables.notes))
-      if (tables.areas) setAreas((prev) => merge(prev, tables.areas))
+      for (const spec of TABLES) {
+        const rows = tables[spec.table]
+        if (rows) setters[spec.key]((prev) => merge(prev, rows))
+      }
       return
     }
     // Live: re-home each row into the active household, sanitize legacy ids
@@ -1928,29 +1915,10 @@ export function useData(session) {
           row.completed_by = isUuid(row.completed_by) ? row.completed_by : null
         return row
       })
-    for (const name of [
-      // Areas first: tasks, lists, notes and habits all carry an area_id FK, so
-      // the lens has to exist before anything can be filed into it.
-      'areas',
-      'families',
-      'organizations',
-      'people',
-      'affiliations',
-      'relationships',
-      'interactions',
-      'key_dates',
-      'groups',
-      'tasks',
-      'task_completions',
-      'task_links',
-      'lists',
-      'list_items',
-      'reminder_snoozes',
-      'habits',
-      'habit_entries',
-      'list_catalog',
-      'notes',
-    ]) {
+    // TABLES is in dependency order — areas first, because tasks, lists, notes
+    // and habits all carry an area_id FK, so the lens has to exist before
+    // anything can be filed into it.
+    for (const { table: name } of TABLES) {
       const rows = tables[name]
       if (!rows?.length) continue
       // list_catalog has no stable id across households; merge on its natural key.
@@ -1961,34 +1929,66 @@ export function useData(session) {
     await refresh()
   }
 
+  // ---- Derived reads ----------------------------------------------------
+  //
+  // Every one of these is memoised, and the reason is not micro-optimisation.
+  // `filterVisible` allocates, so an unmemoised derived array changes identity
+  // on every render — and because these are what the app hands to the views as
+  // `data.tasks`, `data.people` and the rest, every downstream `useMemo` keyed
+  // on one of them would miss every time. That silently disabled ~100 memos
+  // across the feature views: the whole attention engine and the entire
+  // TasksView bucket/logbook chain re-ran on every sheet open, every useNow
+  // tick and every tab focus (measured at 8ms per render on 5k tasks).
+  //
+  // The raw useState arrays below ARE identity-stable between renders, so
+  // keying on them is what makes the memo hit. Anything derived here must stay
+  // memoised for the same reason — an unmemoised addition re-breaks the chain
+  // for everything downstream of it, and does so invisibly.
+
   // "Private — only me" enforcement (lib/privacy.js): filtered once here, so
   // every view, search, group, reminder, badge, and CSV/vCard export inherits
   // it. The all* arrays bypass the filter for the lossless JSON backup only.
-  const visiblePeople = filterVisible(people, userId)
-  const visibleOrgs = filterVisible(orgs, userId)
+  const visiblePeople = useMemo(() => filterVisible(people, userId), [people, userId])
+  const visibleOrgs = useMemo(() => filterVisible(orgs, userId), [orgs, userId])
   // Reminders share the tasks table (migration 0039) and are split off HERE,
   // once, rather than filtered out by each of the eleven files that read
   // `data.tasks`. A reminder that leaks through one of those doesn't look like a
   // bug, it looks like a birthday you're failing to tick off — and the miss
   // would be in whichever view was written next, not in this one.
-  const allVisibleTasks = filterVisible(tasks, userId)
-  const visibleTasks = allVisibleTasks.filter((t) => !t.is_reminder)
-  const visibleReminders = allVisibleTasks.filter((t) => t.is_reminder)
+  const allVisibleTasks = useMemo(() => filterVisible(tasks, userId), [tasks, userId])
+  const visibleTasks = useMemo(
+    () => allVisibleTasks.filter((t) => !t.is_reminder),
+    [allVisibleTasks],
+  )
+  const visibleReminders = useMemo(
+    () => allVisibleTasks.filter((t) => t.is_reminder),
+    [allVisibleTasks],
+  )
   // Live notebook vs Recently Deleted, each privacy-filtered for the viewer.
-  const visibleNotes = filterVisible(
-    notes.filter((n) => !n.deleted_at),
-    userId,
+  const visibleNotes = useMemo(
+    () =>
+      filterVisible(
+        notes.filter((n) => !n.deleted_at),
+        userId,
+      ),
+    [notes, userId],
   )
-  const deletedNotes = filterVisible(
-    notes.filter((n) => n.deleted_at),
-    userId,
+  const deletedNotes = useMemo(
+    () =>
+      filterVisible(
+        notes.filter((n) => n.deleted_at),
+        userId,
+      ),
+    [notes, userId],
   )
-  const visibleLists = filterVisible(lists, userId)
-  const visibleListIds = new Set(visibleLists.map((l) => l.id))
-  const visibleListItems =
-    visibleLists.length === lists.length
-      ? listItems
-      : listItems.filter((it) => visibleListIds.has(it.list_id))
+  const visibleLists = useMemo(() => filterVisible(lists, userId), [lists, userId])
+  const visibleListItems = useMemo(() => {
+    // Nothing filtered out of the lists means nothing to filter out of their
+    // items — hand back the original array so its identity survives too.
+    if (visibleLists.length === lists.length) return listItems
+    const ids = new Set(visibleLists.map((l) => l.id))
+    return listItems.filter((it) => ids.has(it.list_id))
+  }, [visibleLists, lists, listItems])
 
   // Habits are personal by default — the main list is the current member's.
   // Anything a *different* member flagged `shared` shows up read-only in a
@@ -1996,52 +1996,24 @@ export function useData(session) {
   // seed owner m-1 so the partner's shared habits demo correctly. Soft-deleted
   // always hidden.
   const meId = isDemo ? 'm-1' : memberId
-  const liveHabits = habits.filter((h) => !h.deleted_at)
-  const myHabits = liveHabits.filter((h) => h.member_id === meId)
-  const sharedHabits = liveHabits.filter((h) => h.member_id !== meId && h.shared)
+  const liveHabits = useMemo(() => habits.filter((h) => !h.deleted_at), [habits])
+  const myHabits = useMemo(() => liveHabits.filter((h) => h.member_id === meId), [liveHabits, meId])
+  const sharedHabits = useMemo(
+    () => liveHabits.filter((h) => h.member_id !== meId && h.shared),
+    [liveHabits, meId],
+  )
 
-  return {
-    people: visiblePeople,
-    orgs: visibleOrgs,
-    // Not privacy-filtered itself: a link is only reachable through a person or
-    // an org, and both of those arrays are already filtered for the viewer.
-    affiliations,
-    relationships,
-    interactions,
-    groups,
-    tasks: visibleTasks,
-    reminders: visibleReminders,
-    completions,
-    taskLinks,
-    lists: visibleLists,
-    listItems: visibleListItems,
-    listCatalog,
-    families,
-    keyDates,
-    reminderSnoozes,
-    habits: myHabits,
-    sharedHabits,
-    habitEntries,
-    notes: visibleNotes,
-    deletedNotes,
-    // Every area in the household, unfiltered. Which ones YOU are offered as a
-    // lens (`shared or mine`, minus archived) is lib/areas.visibleAreas — kept
-    // there rather than here because the manager deliberately wants the full
-    // list, archived rows included.
-    areas,
-    allNotes: notes,
-    allPeople: people,
-    allOrgs: orgs,
-    allTasks: tasks,
-    allLists: lists,
-    allListItems: listItems,
-    allHabits: habits,
-    allHabitEntries: habitEntries,
-    loading,
-    error,
-    userId,
-    memberId,
+  // ---- The object the whole app reads ------------------------------------
+  //
+  // Everything a view can DO, collected once. These close over this render's
+  // state, so a fresh set is built every render — which is precisely why they
+  // are not returned directly: sixty-odd new function identities would change
+  // `data`'s identity on every render and make the memo below worthless.
+  const mutations = {
     refresh,
+    // Unbounded read of one table, for the lossless JSON backup — see
+    // RECENT_LOG_DAYS in lib/tables.js for why the app's own read is narrower.
+    fetchFullTable,
     savePerson,
     deletePerson,
     restorePerson,
@@ -2053,6 +2025,7 @@ export function useData(session) {
     addRelationship,
     deleteRelationship,
     addInteraction,
+    saveInteraction,
     deleteInteraction,
     addTask,
     updateTask,
@@ -2071,6 +2044,10 @@ export function useData(session) {
     updateListItem,
     deleteListItem,
     clearCheckedItems,
+    deleteListItems,
+    setListItemsChecked,
+    deleteTasks,
+    deleteNotes,
     addNote,
     updateNote,
     deleteNote,
@@ -2104,4 +2081,108 @@ export function useData(session) {
     importPeople,
     restoreBackup,
   }
+
+  // A stable façade over them. `api` is built once and every method dispatches
+  // through the ref, so callers always run the freshest closure while the
+  // object handed to the views never changes identity. The alternative was
+  // useCallback on all sixty, each with its own dependency list to get wrong.
+  //
+  // Derived from `mutations` rather than a hand-written name list on purpose:
+  // a new mutation is exposed by existing, not by being remembered twice.
+  latestMutations.current = mutations
+  const api = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.keys(mutations).map((k) => [k, (...args) => latestMutations.current[k](...args)]),
+      ),
+    // Built from the first render's key set, which is static — the object is
+    // one literal above, so the names cannot vary between renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
+
+  // Memoised so that a render which changed no data — a sheet opening, the
+  // useNow tick, a route change, a tab regaining focus — hands every view the
+  // same object it had before, and React.memo can skip the subtree outright.
+  return useMemo(
+    () => ({
+      people: visiblePeople,
+      orgs: visibleOrgs,
+      // Not privacy-filtered itself: a link is only reachable through a person
+      // or an org, and both of those arrays are already filtered for the viewer.
+      affiliations,
+      relationships,
+      interactions,
+      groups,
+      tasks: visibleTasks,
+      reminders: visibleReminders,
+      completions,
+      taskLinks,
+      lists: visibleLists,
+      listItems: visibleListItems,
+      listCatalog,
+      families,
+      keyDates,
+      reminderSnoozes,
+      habits: myHabits,
+      sharedHabits,
+      habitEntries,
+      notes: visibleNotes,
+      deletedNotes,
+      // Every area in the household, unfiltered. Which ones YOU are offered as
+      // a lens (`shared or mine`, minus archived) is lib/areas.visibleAreas —
+      // kept there rather than here because the manager deliberately wants the
+      // full list, archived rows included.
+      areas,
+      allNotes: notes,
+      allPeople: people,
+      allOrgs: orgs,
+      allTasks: tasks,
+      allLists: lists,
+      allListItems: listItems,
+      allHabits: habits,
+      allHabitEntries: habitEntries,
+      loading,
+      error,
+      userId,
+      memberId,
+      ...api,
+    }),
+    [
+      visiblePeople,
+      visibleOrgs,
+      affiliations,
+      relationships,
+      interactions,
+      groups,
+      visibleTasks,
+      visibleReminders,
+      completions,
+      taskLinks,
+      visibleLists,
+      visibleListItems,
+      listCatalog,
+      families,
+      keyDates,
+      reminderSnoozes,
+      myHabits,
+      sharedHabits,
+      habitEntries,
+      visibleNotes,
+      deletedNotes,
+      areas,
+      notes,
+      people,
+      orgs,
+      tasks,
+      lists,
+      listItems,
+      habits,
+      loading,
+      error,
+      userId,
+      memberId,
+      api,
+    ],
+  )
 }
