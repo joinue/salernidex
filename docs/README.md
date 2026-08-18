@@ -72,8 +72,15 @@ they describe futures, and the present moves.
 
 Historical. Kept for the reasoning and the decisions, not as instructions. Read
 each one's header first: two of them contain guidance that has since been
-reversed or completed.
+reversed or completed — and one of them, `mobile-audit.md`, is the exception to
+the whole category, because its findings are still open.
 
+- [`records/mobile-audit.md`](records/mobile-audit.md) — the 2026-08-18 mobile
+  UI/UX + feature audit. **The one record that is still a to-do list:** nothing
+  in it has been acted on. Carries a P0 (the selection bar and the tab bar
+  occupy the same rect, so multi-select can't be used or cancelled on a phone),
+  measured WCAG ratios showing `--text-2` and `--text-3` failing AA, and the
+  note that the five audit scripts all pass because none of them enters a mode.
 - [`records/ui-ux-review.md`](records/ui-ux-review.md) — the mobile-first UI/UX
   review of 2026-08-04, acted on in full. `CONVENTIONS.md` is what came out of
   it. The best single explanation of *why the app is shaped the way it is*.
