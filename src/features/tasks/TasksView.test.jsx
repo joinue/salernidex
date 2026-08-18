@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { useState } from 'react'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import TasksView from './TasksView'
 import { ConfirmContext } from '../../hooks/useConfirm'
 import { isoDateIn } from '../../lib/tasks'
+import { ALL_AREAS } from '../../lib/areas'
 
 // TasksView owns real decisions, not just markup: which bucket a task lands in,
 // that timed work leads the day, that rows are operable from a keyboard, and
@@ -38,12 +40,28 @@ const task = (over = {}) => ({
 })
 
 // `confirm` resolves to whatever the test wants the user to have chosen.
-const setup = (tasks, { confirmAnswer = true, ...over } = {}) => {
+const area = (over = {}) => ({
+  id: 'a-work',
+  name: 'Work',
+  shared: false,
+  created_by: 'u-1',
+  created_at: '2026-01-01T00:00:00Z',
+  ...over,
+})
+
+const setup = (
+  tasks,
+  { confirmAnswer = true, areas = [], activeArea = ALL_AREAS, ...over } = {},
+) => {
   const deleteTask = vi.fn()
   const onOpenTask = vi.fn()
   const confirm = vi.fn().mockResolvedValue(confirmAnswer)
   const data = {
     tasks,
+    areas,
+    // The auth user, not the member id — visibleAreas tests created_by, which
+    // defaults to auth.uid(). Passing a member id here would hide every area.
+    userId: 'u-1',
     completions: [],
     memberId: 'm-1',
     addTask: vi.fn(),
@@ -54,9 +72,27 @@ const setup = (tasks, { confirmAnswer = true, ...over } = {}) => {
     reorderTasks: vi.fn(),
     ...over,
   }
+  // The lens is a controlled prop now — App owns it so the page and (in phase 2)
+  // the shell switcher can't disagree about which area is active. Hold it here,
+  // or clicking a pill would render as a no-op.
+  function Harness() {
+    // The lens is read-only here: the control that sets it lives in the shell
+    // (AreaSwitcher), so a test of this page starts already scoped rather than
+    // clicking a pill the page no longer owns.
+    const [active] = useState(activeArea)
+    return (
+      <TasksView
+        data={data}
+        area={active}
+        onAdd={vi.fn()}
+        onEdit={vi.fn()}
+        onOpenTask={onOpenTask}
+      />
+    )
+  }
   render(
     <ConfirmContext.Provider value={confirm}>
-      <TasksView data={data} onAdd={vi.fn()} onEdit={vi.fn()} onOpenTask={onOpenTask} />
+      <Harness />
     </ConfirmContext.Provider>,
   )
   return { deleteTask, confirm, data, onOpenTask }
@@ -378,6 +414,72 @@ describe('TasksView — deleting states the consequence', () => {
   })
 })
 
+describe('TasksView — the area lens', () => {
+  const scoped = () =>
+    setup(
+      [
+        task({ id: 'a', title: 'File expenses', area_id: 'a-work', due_date: isoDateIn(0) }),
+        task({ id: 'b', title: 'Water plants', due_date: isoDateIn(0) }),
+        task({ id: 'c', title: 'Call the plumber', area_id: 'a-home', due_date: isoDateIn(0) }),
+      ],
+      { areas: [area()], activeArea: 'a-work' },
+    )
+
+  it('narrows to the active area', () => {
+    scoped()
+    expect(screen.getByText('File expenses')).toBeInTheDocument()
+    expect(screen.queryByText('Call the plumber')).not.toBeInTheDocument()
+  })
+
+  // The call §3.5 turns on: unfiled work is NOT dropped by the lens. Hiding it
+  // would make forgetting to file something look like losing it, which is the
+  // failure that costs the feature its trust.
+  it('keeps unfiled tasks reachable in a collapsed No area section', async () => {
+    scoped()
+    expect(screen.queryByText('Water plants')).not.toBeInTheDocument()
+    const section = screen.getByText(/No area/)
+    expect(section).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Show' }))
+    expect(screen.getByText('Water plants')).toBeInTheDocument()
+  })
+
+  it('offers no No-area section when nothing is unfiled', () => {
+    setup([task({ id: 'a', area_id: 'a-work', due_date: isoDateIn(0) })], {
+      areas: [area()],
+      activeArea: 'a-work',
+    })
+    expect(screen.queryByText(/No area/)).not.toBeInTheDocument()
+  })
+
+  // The pills used to live on this page. They're in the shell now, so one pick
+  // scopes every screen — this asserts the page stopped owning that control.
+  it('renders no area pills of its own', () => {
+    scoped()
+    expect(screen.queryByRole('button', { name: 'All areas' })).not.toBeInTheDocument()
+  })
+
+  // On All the rows are mixed, so each one says where it belongs (AreaDot).
+  it('marks which area a filed row is in while looking at All', () => {
+    setup(
+      [
+        task({ id: 'a', title: 'File expenses', area_id: 'a-work', due_date: isoDateIn(0) }),
+        task({ id: 'b', title: 'Water plants', due_date: isoDateIn(0) }),
+      ],
+      { areas: [area()] },
+    )
+    expect(screen.getByLabelText('In Work')).toBeInTheDocument()
+    // One dot, not two: an unfiled task has no area to name.
+    expect(screen.getAllByLabelText(/^In /)).toHaveLength(1)
+  })
+
+  // Under a lens every row shares the area, so the mark would be a column of
+  // identical dots saying what the switcher already says.
+  it('drops the mark once a lens is on', () => {
+    scoped()
+    expect(screen.queryByLabelText('In Work')).not.toBeInTheDocument()
+  })
+})
+
 describe('TasksView — quick add', () => {
   it('a typed line lands on you, not on nobody', async () => {
     const { data } = setup([])
@@ -386,10 +488,12 @@ describe('TasksView — quick add', () => {
   })
 
   it('inherits the area you are looking at so it does not vanish on add', async () => {
-    const { data } = setup([task({ id: 'a', area: 'Work', due_date: isoDateIn(0) })])
-    await userEvent.click(screen.getByRole('button', { name: 'Work' }))
+    const { data } = setup([task({ id: 'a', area_id: 'a-work', due_date: isoDateIn(0) })], {
+      areas: [area()],
+      activeArea: 'a-work',
+    })
     await userEvent.type(screen.getByPlaceholderText(/Add a task/), 'file expenses{Enter}')
-    expect(data.addTask).toHaveBeenCalledWith(expect.objectContaining({ area: 'Work' }))
+    expect(data.addTask).toHaveBeenCalledWith(expect.objectContaining({ area_id: 'a-work' }))
   })
 
   it('an explicit "for <name>" still beats the default', async () => {

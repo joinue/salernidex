@@ -187,6 +187,24 @@ export function assigneeLabel(value) {
   return members().find((m) => m.id === v)?.name || 'Anyone'
 }
 
+// Who DID a thing, for display in the activity feed. Deliberately not
+// assigneeLabel, on two counts:
+//
+//   • Different question. assigneeLabel answers "whose job is this?", where
+//     unknown legitimately means "Anyone". There is no anyone who did
+//     something — so an unresolvable actor returns null and the caller omits
+//     the credit, rather than crediting a person who doesn't exist.
+//   • Different id space. Actor columns come in two flavours (see the note in
+//     useData): created_by / checked_by hold an AUTH USER id, because their DB
+//     default is auth.uid(); completed_by holds a household_members id. Demo
+//     collapses both onto the member id. So try user_id first, then the member
+//     id, and let one function serve every "by" in the feed.
+export function actorLabel(id) {
+  if (!id) return null
+  const ms = members()
+  return ms.find((m) => m.user_id === id)?.name || ms.find((m) => m.id === id)?.name || null
+}
+
 // Who a NEW task starts out belonging to. Once there's more than one member,
 // that's you: a task you just typed is yours until you hand it over, and
 // "Anyone" made every new task nobody's in particular — the state a shared list

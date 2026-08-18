@@ -305,7 +305,7 @@ export default function PersonForm({
                     <span className="dup-row-meta">
                       {[personSummary(match, affiliations, orgsById), reasons.join(' · ')]
                         .filter(Boolean)
-                        .join(' — ')}
+                        .join(' · ')}
                     </span>
                   </div>
                   {onOpenPerson && (
@@ -531,7 +531,7 @@ export default function PersonForm({
           {form.family_id === NEW_FAMILY && (
             <input
               style={{ marginTop: 8 }}
-              placeholder='Family name — "The Parks"'
+              placeholder='Family name, like "The Parks"'
               value={newFamilyName}
               onChange={(e) => setNewFamilyName(e.target.value)}
               autoFocus

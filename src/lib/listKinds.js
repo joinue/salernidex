@@ -66,7 +66,7 @@ export const LIST_KINDS = [
     value: COLLECTION,
     label: 'Collection',
     icon: '⭐',
-    hint: "Things you're keeping rather than doing — favourite restaurants, wines you liked, films to remember. No checkboxes.",
+    hint: "Things you're keeping rather than doing: favourite restaurants, wines you liked, films to remember. No checkboxes.",
     checkable: false,
     dueable: false,
     // A collection is never "done", so counting its rows as outstanding work

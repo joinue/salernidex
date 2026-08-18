@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react'
 import { Search, ChevronsLeft, ChevronsRight } from 'react-feather'
-import Wordmark from '../ui/Wordmark'
+import Logo from '../ui/Logo'
 import { isEditableTarget } from '../../lib/keys'
 import { destinationGroups } from '../../lib/nav'
 import NAV_ICONS from './navIcons'
@@ -17,7 +17,18 @@ const COLLAPSE_KEY = 'salernidex-sidebar-collapsed'
 // red attention badge rides the icon, and every button keeps its title tooltip
 // so the destination is still nameable. The choice sticks per device
 // (localStorage) and toggles with ⌘B / Ctrl+B.
-export default function Sidebar({ active, go, onSearch, badge = 0, counts = {} }) {
+export default function Sidebar({
+  active,
+  go,
+  onSearch,
+  badge = 0,
+  counts = {},
+  // The area lens (0040), rendered above the destinations. Passed in rather
+  // than built here so App stays the one place that owns which area is active —
+  // the phone renders the same control under the page header, and two owners is
+  // how the two placements would drift.
+  areaSwitcher = null,
+}) {
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem(COLLAPSE_KEY) === '1'
@@ -63,7 +74,7 @@ export default function Sidebar({ active, go, onSearch, badge = 0, counts = {} }
   return (
     <nav className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="brand">
-        <Wordmark className="brand-mark" />
+        <Logo className="brand-mark" />
         <button
           className="sidebar-toggle"
           onClick={() => setCollapsed((v) => !v)}
@@ -80,6 +91,12 @@ export default function Sidebar({ active, go, onSearch, badge = 0, counts = {} }
         <span className="nav-search-text">Search</span>
         <span className="nav-kbd">{isMac ? '⌘K' : 'Ctrl K'}</span>
       </button>
+
+      {/* Above the destinations, not among them: an area is not a place you go,
+          it's which slice of every place you're looking at. Hidden while the
+          rail is collapsed — the pills are names, and a 64px rail has nowhere to
+          put them. */}
+      {!collapsed && areaSwitcher}
 
       {/* Destinations come from lib/nav.js, which the mobile drawer reads too —
           they were two hand-maintained lists, and that is how Notes ended up

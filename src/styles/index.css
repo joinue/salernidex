@@ -11,7 +11,7 @@
 
 @import './tokens.css';
 @import './base.css';
-@import './primitives/wordmark.css';
+@import './primitives/logo.css';
 @import './shell/install-hint.css';
 @import './shell/badges.css';
 @import './primitives/switch.css';
@@ -23,6 +23,7 @@
 @import './features/people-index.css';
 @import './primitives/search-field.css';
 @import './primitives/segmented.css';
+@import './primitives/menu-select.css';
 @import './primitives/filter-pills.css';
 @import './primitives/list.css';
 @import './primitives/avatar.css';
@@ -63,4 +64,5 @@
 @import './features/people-map.css';
 @import './features/projects.css';
 @import './features/reminders.css';
+@import './features/areas.css';
 @import './features/kitchen-sink.css';

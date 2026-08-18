@@ -14,7 +14,22 @@ import { isoDateIn } from '../../../src/lib/tasks.js'
 import { badgeCount } from './badge.ts'
 
 const PREFS = { tasks: true, lists: true, nudges: true, dates: true, dates_lead_days: 7 }
-const base = { people: [], tasks: [], reminders: [], interactions: [], keyDates: [], lists: [] }
+const base = {
+  people: [],
+  tasks: [],
+  reminders: [],
+  interactions: [],
+  keyDates: [],
+  lists: [],
+  areas: [],
+}
+
+const area = (over: Record<string, unknown> = {}) => ({
+  id: 'a-work',
+  name: 'Work',
+  show_on_today: true,
+  ...over,
+})
 
 const reminder = (over: Record<string, unknown> = {}) => ({
   id: 'r',
@@ -52,7 +67,13 @@ const both = (data: Record<string, any>, prefs = PREFS, snoozes: any[] = []) => 
   return {
     client: clientBadge(buildAttention(full, prefs, snoozes, 'm1')),
     server: badgeCount(
-      { tasks: serverTasks, lists: full.lists, people: full.people, keyDates: full.keyDates },
+      {
+        tasks: serverTasks,
+        lists: full.lists,
+        people: full.people,
+        keyDates: full.keyDates,
+        areas: full.areas,
+      },
       'm1',
       today,
       prefs,
@@ -347,5 +368,76 @@ describe('badgeCount — reminders', () => {
 
   it('stays out of the count when it belongs to someone else', () => {
     agree({ reminders: [reminder({ due_date: isoDateIn(0), assignee: 'm2' })] }, 0)
+  })
+})
+
+// ── show_on_today (0040) ─────────────────────────────────────────────────────
+// The badge is the surface this rule matters most on: it is the one thing you
+// can see with the app closed, so an area you silenced that still badges the
+// icon is the loudest possible version of the bug. Both sides must drop the
+// same rows — and, just as important, must NOT drop the contact-derived ones.
+describe('badgeCount — areas switched off Today', () => {
+  it('drops a due task in a muted area, on both sides', () => {
+    agree(
+      {
+        tasks: [task({ id: 'work', due_date: isoDateIn(0), area_id: 'a-work' })],
+        areas: [area({ show_on_today: false })],
+      },
+      0,
+    )
+  })
+
+  it('keeps the same task once the area is back on', () => {
+    agree(
+      {
+        tasks: [task({ id: 'work', due_date: isoDateIn(0), area_id: 'a-work' })],
+        areas: [area()],
+      },
+      1,
+    )
+  })
+
+  it('counts unfiled work regardless — it has no area to be silenced by', () => {
+    agree(
+      {
+        tasks: [
+          task({ id: 'work', due_date: isoDateIn(0), area_id: 'a-work' }),
+          task({ id: 'loose', due_date: isoDateIn(0) }),
+        ],
+        areas: [area({ show_on_today: false })],
+      },
+      1,
+    )
+  })
+
+  it('drops a muted list and a muted reminder too', () => {
+    agree(
+      {
+        lists: [{ id: 'l', name: 'Work errands', due_date: isoDateIn(0), area_id: 'a-work' }],
+        reminders: [reminder({ id: 'r', due_date: isoDateIn(0), area_id: 'a-work' })],
+        areas: [area({ show_on_today: false })],
+      },
+      0,
+    )
+  })
+
+  // The rule reaching contacts would be a real bug: silencing Work must never
+  // silence a birthday. Contacts have no area at all, which is what makes this
+  // true by construction rather than by a special case.
+  it('never silences a birthday — contacts have no area', () => {
+    const today = isoDateIn(0)
+    agree(
+      {
+        people: [{ id: 'p1', name: 'Nina', birthday: `1990-${today.slice(5)}` }],
+        areas: [area({ show_on_today: false })],
+      },
+      1,
+    )
+  })
+
+  // Compatibility: a pre-0040 row, or a project where the migration has not run
+  // yet, must badge exactly as it did before.
+  it('is a no-op when no areas exist at all', () => {
+    agree({ tasks: [task({ id: 'a', due_date: isoDateIn(0), area_id: 'a-work' })] }, 1)
   })
 })

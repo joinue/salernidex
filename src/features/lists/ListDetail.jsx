@@ -490,7 +490,7 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
   // silently doing nothing.
   const startShopping = (item) => {
     if (groceryLists.length === 0) {
-      showToast('No grocery list yet — make one and try again')
+      showToast('No grocery list yet. Make one and try again')
     } else if (groceryLists.length === 1) {
       sendToGroceries(item, groceryLists[0])
     } else {

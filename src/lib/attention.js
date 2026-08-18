@@ -33,6 +33,7 @@ import { followUp, lastInteraction, upcomingDates } from './contact'
 import { isDueable } from './listKinds'
 import { entryMap, habitsDueToday } from './habits'
 import { DEFAULT_PREFS } from './notifyPrefs'
+import { mutedAreaIds, reachesToday } from './areas'
 
 // How far ahead a deadline ('by') task reaches onto Today. A week is the span
 // you can actually plan across — far enough to slot the task into a free
@@ -65,6 +66,11 @@ export function buildAttention(
   snoozes = [],
   memberId = null,
   now = Date.now(),
+  // No `areaId` here on purpose. The badge must not follow the lens — your work
+  // tasks still need you while you're looking at Home, and a count that changed
+  // every time you flipped the switcher would stop meaning anything — and Today
+  // needs the excluded items rather than a list with them already removed. So
+  // the lens is applied by the caller; this returns everything that needs you.
   { taskScope = 'mine', normalizeAssignee = (v) => v } = {},
 ) {
   const {
@@ -76,6 +82,7 @@ export function buildAttention(
     lists = [],
     habits = [],
     habitEntries = [],
+    areas = [],
   } = data
   const active = people.filter((p) => !p.deleted_at)
 
@@ -202,7 +209,47 @@ export function buildAttention(
     }
   }
 
-  return items.filter((i) => !hidden.has(i.key))
+  // show_on_today, applied to every caller: Today, the nav badge, the app-icon
+  // badge and the push sweep. STANDING — "this part of my life doesn't belong
+  // on a Saturday" — as opposed to the lens, which is momentary and belongs to
+  // whoever is doing the looking. It has to run here, or work you deliberately
+  // silenced still buzzes the phone.
+  //
+  // The LENS is deliberately NOT applied here. It was, and that was wrong: a
+  // caller scoping to an area also needs the items it EXCLUDED, to offer them
+  // in a "No area" section — and a filter that has already dropped them can't
+  // hand them back. TodayView partitions with canBeFiled/attentionAreaId below.
+  const muted = mutedAreaIds(areas)
+  return items.filter((i) => !hidden.has(i.key) && reachesToday(itemRow(i), muted))
+}
+
+// Which area an attention item belongs to, or null.
+export function attentionAreaId(item) {
+  return itemRow(item)?.area_id ?? null
+}
+
+// Could this item have been filed into an area at all?
+//
+// The distinction is unfiled vs UNFILEABLE, and it decides what a "No area"
+// section may hide. A task with no area is unfiled — you could file it, and a
+// nudge to do so is useful. A birthday is unfileable: it's read off a contact,
+// and contacts deliberately have no area (§3.2). Habits are unfileable in
+// practice too — the column exists but nothing sets it, which is why `habits`
+// is absent from AREA_SCOPED_ROUTES.
+//
+// Getting this backwards would be loud: every birthday and every habit would
+// vanish into a collapsed section the moment you picked a lens.
+export function canBeFiled(item) {
+  return item.kind === 'task' || item.kind === 'list' || item.kind === 'reminder'
+}
+
+// Which area an attention item belongs to, or null for the ones that can't have
+// one. Tasks, reminders (tasks too) and lists carry area_id; habits carry the
+// column but nothing sets it yet. `nudge` and `date` come from CONTACTS, which
+// deliberately have no area at all — a colleague who becomes a friend is not
+// 40% work — so a birthday is unfiled by construction rather than by omission.
+function itemRow(item) {
+  return item.task || item.reminder || item.list || item.habit || null
 }
 
 // Tab + app-icon badge: only what's actionable right now. Soft items (ambient

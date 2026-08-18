@@ -43,7 +43,7 @@ export default function HabitsView({ data, onAdd, onPickTemplate, onOpen, onOpen
       <PageHeader
         title="Habits"
         infoTitle="How habits work"
-        info="Build (do more), Limit (do less), or Track (just log a number). Schedule by specific days or “N times a week.” Log today on the list, or open a habit for its full history, streaks, and insights. Streaks count consecutive good days (or weeks) — off-days and rest days don’t break them."
+        info="Build (do more), Limit (do less), or Track (just log a number). Schedule by specific days or “N times a week.” Log today on the list, or open a habit for its full history, streaks, and insights. Streaks count consecutive good days (or weeks); off-days and rest days don’t break them."
         createAction={onPickTemplate}
         actionLabel="New habit"
       />

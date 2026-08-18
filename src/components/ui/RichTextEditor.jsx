@@ -13,7 +13,7 @@ import {
 import { sanitizeNoteHtml, linkifyHtml } from '../../lib/notes'
 import { fileToImageDataUrl } from '../../lib/image'
 import { showToast } from '../../lib/toast'
-import { useVisualBandBottom } from '../../hooks/useKeyboardOpen'
+import { useKeyboardOpen, useVisualBandBottom } from '../../hooks/useKeyboardOpen'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 
 // Hand-rolled rich-text editor — a contentEditable surface with a formatting
@@ -74,25 +74,41 @@ const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace
 // so the picker used to open behind the keyboard (and, near the right edge,
 // half off-screen) whenever you typed "@" low in a note. visualViewport is the
 // visible band inside it; keep the picker in there.
+//
+// `dockH` shortens that band by whatever the docked formatting bar is covering.
+// The band's own bottom edge is the keyboard, but the bar rests ON the keyboard,
+// so the last ~57px of the band are already spoken for: a picker that merely
+// cleared the band opened across the tools (measured: a two-item picker under a
+// mid-screen caret overlapped the bar by 23px). Being the higher layer it still
+// took its taps, so this was never broken, only visibly wrong — two floating
+// surfaces in the same place.
 const PICKER_W = 240
 const PICKER_MAX_H = 260
 const PICKER_ROW_H = 37 // one .mention-option, incl. its padding
 const CARET_GAP = 4
 const EDGE_GAP = 8
 
-function placePicker(rect, count) {
+function placePicker(rect, count, dockH = 0) {
   const vv = window.visualViewport
   const vTop = vv ? vv.offsetTop : 0
   const vLeft = vv ? vv.offsetLeft : 0
   const vh = vv ? vv.height : window.innerHeight
   const vw = vv ? vv.width : window.innerWidth
   const h = Math.min(PICKER_MAX_H, count * PICKER_ROW_H + 12)
+  const floor = vTop + vh - dockH
 
   // Below the caret by default, flipped above it when that would run past the
-  // bottom of the visible band — which, with a keyboard up, is its top edge.
+  // usable bottom — the top of the docked bar, or the bottom of the band when
+  // there isn't one.
   const below = rect.bottom + CARET_GAP
-  const top =
-    below + h > vTop + vh - EDGE_GAP ? Math.max(vTop + EDGE_GAP, rect.top - CARET_GAP - h) : below
+  const wanted =
+    below + h > floor - EDGE_GAP ? Math.max(vTop + EDGE_GAP, rect.top - CARET_GAP - h) : below
+  // Then hold it inside the usable space regardless of where the caret is. The
+  // flip above assumes the caret is somewhere you can see, and it usually is —
+  // but a caret can end up under the bar itself, and "just above the caret" is
+  // then still across the tools. Sitting a few pixels off the caret matters
+  // less than sitting on top of the formatting bar.
+  const top = Math.max(vTop + EDGE_GAP, Math.min(wanted, floor - EDGE_GAP - h))
   // Clamp horizontally too; `.mention-picker` caps its own width for the case
   // where the band is narrower than the picker and this can't help.
   const left = Math.max(vLeft + EDGE_GAP, Math.min(rect.left, vLeft + vw - PICKER_W - EDGE_GAP))
@@ -105,9 +121,16 @@ export default function RichTextEditor({
   onOpenMention,
   candidates = [],
   placeholder = 'Start writing…',
+  // Filled with a `focusEnd()` the page above can call to put the caret in the
+  // body — the note title uses it so Return moves you into the note, the way
+  // the second line of a real note follows the first. A ref rather than an
+  // imperative handle: one method, one caller.
+  handle,
 }) {
   const ref = useRef(null)
   const fileRef = useRef(null)
+  const toolbarRef = useRef(null)
+  const closeTimer = useRef(null)
   const [empty, setEmpty] = useState(!sanitizeNoteHtml(initialHtml).trim())
   const [picker, setPicker] = useState(null) // { items, index, top, left }
 
@@ -133,6 +156,17 @@ export default function RichTextEditor({
   // belong to neither pane.
   const dockable = useMediaQuery('(pointer: coarse) and (max-width: 899px)')
   const docked = focused && dockable
+  // Docked with no keyboard under it — an iPad with a hardware keyboard, or the
+  // beat after "Done" dismisses one while the caret stays put. The bar is then
+  // resting on the bottom of the screen rather than on a keyboard, so it has to
+  // clear the home indicator itself. Nothing to clear the rest of the time: the
+  // keyboard covers that inset, and adding it would float the bar off the top
+  // of the keys. Reuses the app-wide keyboard signal rather than comparing
+  // edges here — an installed PWA reports a band bottom *past* innerHeight, so
+  // "is the band at the bottom of the screen" is not the question it looks like
+  // (see useVisualBandBottom).
+  const keyboardUp = useKeyboardOpen()
+  const resting = docked && !keyboardUp
   // Sit the bar's bottom edge on the bottom edge of the visible band. No
   // threshold, no branch, and nothing that has to work out whether a keyboard
   // is open: wherever the band ends is where the bar belongs, keyboard or not.
@@ -146,6 +180,22 @@ export default function RichTextEditor({
     if (ref.current) ref.current.innerHTML = sanitizeNoteHtml(initialHtml)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Caret to the end of the body. Focus alone lands it at the start, which on
+  // an existing note means typing in front of the first word.
+  if (handle) {
+    handle.current = () => {
+      const el = ref.current
+      if (!el) return
+      el.focus()
+      const range = document.createRange()
+      range.selectNodeContents(el)
+      range.collapse(false)
+      const sel = window.getSelection()
+      sel.removeAllRanges()
+      sel.addRange(range)
+    }
+  }
 
   const emit = () => {
     if (!ref.current) return
@@ -237,6 +287,12 @@ export default function RichTextEditor({
 
   const closePicker = () => setPicker(null)
 
+  // The blur below closes the picker on a delay, so a tap on one of its rows
+  // lands before the list disappears. That timer can outlive the editor —
+  // blurring by navigating away is the normal case — and firing into an
+  // unmounted component is a React warning at best. Clear it on the way out.
+  useEffect(() => () => clearTimeout(closeTimer.current), [])
+
   const refreshPicker = () => {
     const token = mentionToken()
     if (!token) return closePicker()
@@ -244,7 +300,10 @@ export default function RichTextEditor({
     const items = candidates.filter((c) => !q || c.label.toLowerCase().includes(q)).slice(0, 8)
     if (items.length === 0) return closePicker()
     const rect = token.range.getBoundingClientRect()
-    setPicker({ items, index: 0, ...placePicker(rect, items.length) })
+    // Measured, not the CSS token: the bar wears a safe-area inset when it is
+    // resting on the screen edge, so its height is not a constant.
+    const dockH = docked ? toolbarRef.current?.offsetHeight || 0 : 0
+    setPicker({ items, index: 0, ...placePicker(rect, items.length, dockH) })
   }
 
   const onInput = () => {
@@ -366,7 +425,7 @@ export default function RichTextEditor({
       if (linked !== ref.current.innerHTML) ref.current.innerHTML = linked
     }
     emit()
-    setTimeout(closePicker, 150)
+    closeTimer.current = setTimeout(closePicker, 150)
   }
 
   useLayoutEffect(() => {
@@ -394,7 +453,8 @@ export default function RichTextEditor({
 
   const toolbar = (
     <div
-      className={`note-toolbar ${docked ? 'docked' : ''}`}
+      ref={toolbarRef}
+      className={`note-toolbar ${docked ? 'docked' : ''} ${resting ? 'resting' : ''}`}
       // The one thing that can't be CSS: where the visible band currently ends.
       style={docked ? dockStyle : undefined}
     >
@@ -420,7 +480,7 @@ export default function RichTextEditor({
   )
 
   return (
-    <div className="note-editor">
+    <div className={`note-editor ${focused ? 'typing' : ''}`}>
       {/* On a touch screen the bar exists only while you're typing. Unfocused
           there is no selection for Bold or Checklist to act on, so a resting
           toolbar is a row of controls that do nothing — it just sat at the top

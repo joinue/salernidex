@@ -1,0 +1,89 @@
+/* ---------- menu select (the dropdown form of a Segmented) ---------- */
+
+.menu-select {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.menu-select-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px 0 12px;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--text);
+  font-size: 14.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    transform 120ms ease;
+}
+
+.menu-select-sm .menu-select-btn {
+  height: 28px;
+  font-size: 13.5px;
+}
+
+.menu-select-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-select-chevron {
+  flex-shrink: 0;
+  color: var(--text-3);
+  transition: transform 160ms ease;
+}
+
+.menu-select-btn[aria-expanded='true'] .menu-select-chevron {
+  transform: rotate(180deg);
+}
+
+.menu-select-btn:active {
+  transform: scale(0.96);
+}
+
+@media (hover: hover) {
+  .menu-select-btn:hover {
+    background: var(--fill-2);
+  }
+}
+
+/* Centered under its own pill rather than edge-anchored: the pill itself is
+   centered in the header row, so hanging the menu off either edge would throw
+   it toward a screen edge on a phone. */
+.menu-select-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 51;
+  min-width: max(100%, 176px);
+  max-width: min(260px, calc(100vw - 32px));
+  padding: 6px;
+  background: var(--surface);
+  border: 0.5px solid var(--separator);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  transform: translateX(-50%);
+  transform-origin: top center;
+  animation: menu-select-in 140ms var(--ease-ios);
+}
+
+@keyframes menu-select-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}

@@ -38,6 +38,25 @@ describe('buildProjectRows', () => {
     expect(lists.every((l) => l.privacy_level === 'marc_only')).toBe(true)
   })
 
+  // The lens the project was started under has to reach everything the project
+  // stamps out, or a Work project's packing list falls out of the Work lens the
+  // moment it's created.
+  it('threads the area through children + lists the same way', () => {
+    const { project, children, lists } = buildProjectRows(trip, { area_id: 'a-work' })
+    expect(project.area_id).toBe('a-work')
+    expect(children.every((c) => c.area_id === 'a-work')).toBe(true)
+    expect(lists.every((l) => l.area_id === 'a-work')).toBe(true)
+  })
+
+  // Under the All lens nothing is inherited — App passes areaForNewItem, which
+  // returns null rather than picking one.
+  it('leaves everything unfiled when no area is given', () => {
+    const { project, children, lists } = buildProjectRows(trip, {})
+    expect(project.area_id).toBeNull()
+    expect(children.every((c) => c.area_id === null)).toBe(true)
+    expect(lists.every((l) => l.area_id === null)).toBe(true)
+  })
+
   it('interleaves heading rows and their tasks in manual sort_order', () => {
     const { children } = buildProjectRows(trip, {})
     // First phase: heading "Before you go" then its 3 tasks.

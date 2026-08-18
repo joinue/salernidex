@@ -44,7 +44,7 @@ function Privacy() {
       <h2>1. Who controls your data</h2>
       <p>
         DOOT is a tool you use to record your own household, contacts, and to-dos. For the
-        information you enter — including details about other people — <strong>you</strong> decide
+        information you enter (including details about other people), <strong>you</strong> decide
         what to put in and how it is used. With respect to that content you act as the data
         controller; we act as a processor that stores it on your behalf. You are responsible for
         having a lawful basis to record information about other people and for honoring any request
@@ -88,18 +88,18 @@ function Privacy() {
       <p>We share data only with vendors that help us run the Service, and only as needed:</p>
       <ul>
         <li>
-          <strong>Supabase</strong> — database, authentication, and hosting of your data.
+          <strong>Supabase</strong>: database, authentication, and hosting of your data.
         </li>
         <li>
-          <strong>Our hosting/CDN provider</strong> — delivery of the application to your browser.
+          <strong>Our hosting/CDN provider</strong>: delivery of the application to your browser.
         </li>
         <li>
-          <strong>Web-push services</strong> (such as those operated by Apple, Google, or Mozilla) —
+          <strong>Web-push services</strong> (such as those operated by Apple, Google, or Mozilla):
           only if you enable reminders, and only to deliver them.
         </li>
         <li>
           <strong>Household members.</strong> Data you create is visible to the other members of
-          your household, except items you mark “Private — only me.”
+          your household, except items you mark “Private, only me.”
         </li>
       </ul>
       <p>
@@ -121,7 +121,7 @@ function Privacy() {
       <h2>6. Your choices &amp; rights</h2>
       <p>
         You can view, edit, export, and delete your content directly in the Service. Depending on
-        where you live, you may have additional rights — to access, correct, delete, or port your
+        where you live, you may have additional rights: to access, correct, delete, or port your
         data, or to object to certain processing. To exercise them, contact us at{' '}
         <a href={`mailto:${CONTACT}`}>{CONTACT}</a>. We will respond as required by applicable law.
       </p>
@@ -209,7 +209,7 @@ function Terms() {
         <li>use the Service to harass, harm, or impersonate anyone.</li>
       </ul>
 
-      <h2>6. Reminders are not guaranteed — don’t rely on them</h2>
+      <h2>6. Reminders are not guaranteed, so don’t rely on them</h2>
       <p>
         The Service may surface reminders, due dates, check-in nudges, and notifications. These are
         a convenience only. We do not guarantee that any reminder or notification will be generated,
@@ -242,8 +242,8 @@ function Terms() {
       <h2>9. Service availability &amp; changes</h2>
       <p>
         The Service is under active development, may contain bugs or errors, and is provided on an
-        evolving basis. We may add, change, suspend, or discontinue features — or the entire Service
-        — at any time, with or without notice. We are not liable to you for any modification,
+        evolving basis. We may add, change, suspend, or discontinue features (or the entire Service)
+        at any time, with or without notice. We are not liable to you for any modification,
         suspension, or discontinuation, or for any delay or failure caused by events beyond our
         reasonable control.
       </p>

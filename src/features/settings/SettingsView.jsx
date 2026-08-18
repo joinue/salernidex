@@ -9,6 +9,7 @@ import {
   LogOut,
   Bell,
   Monitor,
+  Grid,
 } from 'react-feather'
 import PageHeader from '../../components/shell/PageHeader'
 import Segmented from '../../components/ui/Segmented'
@@ -71,7 +72,7 @@ function PushSection({ memberId }) {
   if (support === 'ios-install-first') {
     return (
       <p className="muted" style={{ fontSize: 13, margin: '10px 4px 0' }}>
-        On iPhone, add DOOT to your Home Screen first (Share → Add to Home Screen) — then
+        On iPhone, add DOOT to your Home Screen first (Share → Add to Home Screen). Then
         notifications can be enabled here.
       </p>
     )
@@ -137,7 +138,7 @@ function PushSection({ memberId }) {
         <span className="v-label">This device</span>
         {ready ? (
           <span className="v-value" style={{ color: 'var(--green)' }}>
-            Ready — delivery starts at launch
+            Ready · delivery starts at launch
           </span>
         ) : (
           <button className="text-btn" onClick={enable} disabled={busy}>
@@ -593,7 +594,7 @@ function AccountSection({ email }) {
       {confirmDelete && (
         <ConfirmDialog
           title="Delete your account?"
-          message="This permanently deletes your login and any household you're the only member of — people, tasks, lists, and habits included. Shared households stay for their other members. It can't be undone; export your data first (below) if you want a copy."
+          message="This permanently deletes your login and any household you're the only member of, people, tasks, lists, and habits included. Shared households stay for their other members. It can't be undone; export your data first (below) if you want a copy."
           confirmLabel="Delete account"
           danger
           onConfirm={deleteAccount}
@@ -620,7 +621,7 @@ export default function SettingsView({ go, household, isDemo = false, onLogout, 
 
   // Mirror the who-filter on the Tasks page (same member source it uses).
   const taskFilterOptions = [
-    { value: 'all', label: 'Everyone' },
+    { value: 'all', label: 'Anyone' },
     ...getMembers().map((m) => ({ value: m.id, label: m.name })),
   ]
 
@@ -679,7 +680,7 @@ export default function SettingsView({ go, household, isDemo = false, onLogout, 
     : {
         title: `Delete ${activeName}?`,
         message:
-          "This permanently deletes the household and everything in it — people, tasks, lists, and habits. It can't be undone. Export your data first (above) if you want to keep a copy.",
+          "This permanently deletes the household and everything in it: people, tasks, lists, and habits. It can't be undone. Export your data first (above) if you want to keep a copy.",
       }
 
   // Demo has no real membership model: both exits just reset the local sandbox.
@@ -771,9 +772,26 @@ export default function SettingsView({ go, household, isDemo = false, onLogout, 
         </select>
       </div>
 
+      <SectionLabel>Areas</SectionLabel>
+      <p className="muted" style={{ fontSize: 13, margin: '0 4px 10px' }}>
+        Which part of your life something belongs to: work, home, anything else you keep apart.
+      </p>
+      <div className="list">
+        <button className="list-row" onClick={() => go('areas')}>
+          <span className="activity-icon">
+            <Grid size={16} />
+          </span>
+          <div className="row-body">
+            <div className="row-title">Manage areas</div>
+            <div className="row-sub">Add, rename, reorder, merge or archive.</div>
+          </div>
+          <ChevronRight size={18} className="row-chevron" />
+        </button>
+      </div>
+
       <SectionLabel>Tasks view</SectionLabel>
       <p className="muted" style={{ fontSize: 13, margin: '0 4px 10px' }}>
-        How the Tasks page opens. Yours alone — other members set their own.
+        How the Tasks page opens. Yours alone; other members set their own.
       </p>
       <div className="field">
         <label className="label">Show tasks for</label>
@@ -794,7 +812,7 @@ export default function SettingsView({ go, household, isDemo = false, onLogout, 
 
       <SectionLabel>Notifications</SectionLabel>
       <p className="muted" style={{ fontSize: 13, margin: '0 4px 10px' }}>
-        What shows in Today's sections and the badge. Yours alone — other members set their own.
+        What shows in Today's sections and the badge. Yours alone; other members set their own.
       </p>
       {/* Only worth asking once there's someone else to filter out. */}
       {!isSolo() && (

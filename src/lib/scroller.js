@@ -32,6 +32,19 @@ export function scrollToTop(main) {
   else main?.scrollTo(0, 0)
 }
 
+/**
+ * Put whichever scroller is live back at `y`.
+ *
+ * Explicitly instant, for the same reason freezeScroll's release is: the
+ * document carries `scroll-behavior: smooth`, and restoring a position is
+ * meant to look like the page never left it — not like it drifts back into
+ * place after you press Back.
+ */
+export function scrollToY(main, y) {
+  if (documentScrolls()) window.scrollTo({ top: y, left: 0, behavior: 'instant' })
+  else main?.scrollTo({ top: y, left: 0, behavior: 'instant' })
+}
+
 // Subscribe to scroll on both candidates rather than picking one.
 //
 // Two reasons, and the second is the load-bearing one. First, the document's

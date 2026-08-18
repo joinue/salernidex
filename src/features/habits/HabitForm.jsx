@@ -22,9 +22,9 @@ const MEASURES = [
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
 const POLARITY_HINT = {
-  build: 'Build — do more of a good thing. A day counts when you hit your goal.',
-  limit: 'Limit — keep a habit down. A day counts when you stay at or under your cap.',
-  track: 'Track — just log the number. No goal, no streak, just the trend.',
+  build: 'Build: do more of a good thing. A day counts when you hit your goal.',
+  limit: 'Limit: keep a habit down. A day counts when you stay at or under your cap.',
+  track: 'Track: just log the number. No goal, no streak, just the trend.',
 }
 
 export default function HabitForm({ habit, onSave, onClose }) {
@@ -255,7 +255,7 @@ export default function HabitForm({ habit, onSave, onClose }) {
               </button>
             </div>
             <p className="muted" style={{ fontSize: 13 }}>
-              Hit it any {form.weekly_target} days a week — the streak counts whole weeks.
+              Hit it any {form.weekly_target} days a week. The streak counts whole weeks.
             </p>
           </div>
         ) : (
@@ -268,7 +268,7 @@ export default function HabitForm({ habit, onSave, onClose }) {
             />
             <p className="muted" style={{ fontSize: 13 }}>
               {form.rule
-                ? `${describeRecurrence(form.rule)} — the streak counts each time it’s due.`
+                ? `${describeRecurrence(form.rule)}. The streak counts each time it’s due.`
                 : 'Repeat every few days, monthly, or yearly. Off-days don’t count against the streak.'}
             </p>
           </div>

@@ -1,6 +1,15 @@
 # Task areas — scope
 
 > **Scope** — a proposal, not a commitment. Written 2026-08-05.
+> **Superseded (2026-08-17) by [`areas-and-tags.md`](areas-and-tags.md)**, which
+> keeps this document's core reading — exclusive/optional, `task_areas` as the
+> end state, `show_on_today` as the thing that actually fixes the complaint —
+> and widens it from a Tasks-page feature to an app-wide lens over lists, notes
+> and habits. It also answers the open questions in §7: projects get areas
+> (they're tasks), contacts deliberately don't, and §7.2's per-household vs
+> per-member is settled by an `areas.shared` flag. Two names below have since
+> changed: the table is `areas`, not `task_areas`, and `buildAttention` moved to
+> `lib/attention.js` when `lib/reminders.js` became the reminder entity (0039).
 > **Status (2026-08-06): phase 1 is partly shipped.** `TasksView` has the area
 > pill row, an area filter, and `TaskForm` has the picker — but the pills carry
 > no counts, and the selection persists to `sessionStorage`, not `appPrefs`.

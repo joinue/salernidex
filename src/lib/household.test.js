@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
+  actorLabel,
   normalizeAssignee,
   assigneeLabel,
   assigneeOptions,
@@ -66,6 +67,41 @@ describe('assigneeLabel / options', () => {
       { value: 'm-2', label: 'Rita', avatar_url: null },
     ])
     expect(members()).toHaveLength(2)
+  })
+})
+
+// actorLabel resolves "who did this?" across BOTH id spaces, because the
+// columns disagree: created_by/checked_by hold an auth user id, completed_by
+// holds a member id. Getting this wrong is what left list activity anonymous.
+describe('actorLabel — who did it', () => {
+  beforeEach(() => {
+    localStorage.setItem(
+      'salernidex-household',
+      JSON.stringify({
+        name: 'Test',
+        join_code: 'ABC-DEF',
+        current_member_id: 'm-1',
+        members: [
+          { id: 'm-1', name: 'Marc', user_id: 'auth-marc' },
+          { id: 'm-2', name: 'Rita', user_id: 'auth-rita' },
+        ],
+      }),
+    )
+  })
+
+  it('resolves an auth user id — the shape created_by/checked_by store', () => {
+    expect(actorLabel('auth-rita')).toBe('Rita')
+  })
+  it('resolves a member id too — the shape completed_by and demo data store', () => {
+    expect(actorLabel('m-2')).toBe('Rita')
+  })
+  it('returns null rather than "Anyone" when nobody did it', () => {
+    // The distinction that matters: an unattributed action is not an action by
+    // Anyone, so the caller omits the credit instead of printing a fiction.
+    expect(actorLabel(null)).toBe(null)
+    expect(actorLabel(undefined)).toBe(null)
+    expect(actorLabel('auth-stranger')).toBe(null)
+    expect(assigneeLabel('auth-stranger')).toBe('Anyone') // ...unlike assignment
   })
 })
 

@@ -16,6 +16,8 @@ import RecurrencePicker from '../../components/ui/RecurrencePicker'
 import AssigneePicker from '../../components/ui/AssigneePicker'
 import PrivacyField from '../../components/ui/PrivacyField'
 import TagInput from '../../components/ui/TagInput'
+import AreaPicker from '../../components/ui/AreaPicker'
+import { areaById, privacyForNewItem } from '../../lib/areas'
 import NoteBacklinks from '../../components/ui/NoteBacklinks'
 import { focusOnDesktop } from '../../lib/constants'
 import { normalizeAssignee, defaultAssignee, members, isSolo } from '../../lib/household'
@@ -30,19 +32,28 @@ const TOKEN_ICON = { due: Calendar, time: Clock, repeat: RepeatIcon, who: User }
 // detail view (subtasks + linked contacts); subtasks themselves are added from
 // there, so this form stays focused on one item's fields.
 //
-// Field order is the order you answer in: WHAT, then WHEN, then WHO. Everything
-// else (priority, area, tags, defer, repeat, visibility, notes) is one task in
-// twenty, so it waits behind "More options" — auto-expanded when editing a task
-// that already uses any of it. Task-vs-project is a rare, structural choice, so
-// it sits at the foot of the sheet rather than in front of the title.
+// Field order is the order you answer in: WHAT, then WHEN, then WHO, then
+// WHICH PART OF YOUR LIFE. Area earns the fourth slot rather than a place in
+// the drawer — it's the one axis the whole app can be scoped to, so filing is
+// something you do on most tasks, and a field you use most times is not an
+// option. It stays hidden until an area exists (AreaPicker's own rule), so a
+// user who has never made one still sees a three-question sheet.
+//
+// Everything else (priority, tags, defer, repeat, visibility, notes) is one
+// task in twenty, so it waits behind "More options" — auto-expanded when
+// editing a task that already uses any of it. Task-vs-project is a rare,
+// structural choice, so it sits at the foot of the sheet rather than in front
+// of the title.
 export default function TaskForm({
   task,
   onSave,
   onClose,
   onMakeProject,
   onOpenNote,
+  onCreateArea,
   notes = [],
   defaultPrivacy = 'shared',
+  defaultAreaId = null,
   areas = [],
   tagSuggestions = [],
 }) {
@@ -52,7 +63,12 @@ export default function TaskForm({
     // A new task is yours (see household.defaultAssignee); an edit keeps whoever
     // it already belongs to.
     assignee: task ? normalizeAssignee(task.assignee) : defaultAssignee(),
-    area: task?.area || '',
+    // A new task inherits the lens you're looking through, exactly as quick-add
+    // and a new note already do — typing a task while scoped to Work must
+    // produce a Work task with no extra taps, or the lens is a tax rather than
+    // a tool. Under All there is nothing to inherit and it stays None: the
+    // caller passes areaForNewItem, which never guesses one for you.
+    area_id: task ? task.area_id || null : defaultAreaId,
     tags: task?.tags || [],
     due_date: task?.due_date || '',
     due_kind: task?.due_kind === 'by' ? 'by' : 'on',
@@ -63,10 +79,12 @@ export default function TaskForm({
     privacy_level: task?.privacy_level || (isSolo() ? PRIVATE_LEVEL : defaultPrivacy),
     notes: task?.notes || '',
   })
+  // area_id is deliberately not in this test any more: the picker is up front
+  // now, so an edited task that only uses an area has nothing behind the
+  // expander worth opening it for.
   const [more, setMore] = useState(
     !!task &&
-      (!!task.area ||
-        task.tags?.length > 0 ||
+      (task.tags?.length > 0 ||
         !!task.start_date ||
         !!task.recurrence ||
         (task.priority ?? 0) > 0 ||
@@ -85,6 +103,10 @@ export default function TaskForm({
   // Same story for On/By: until the control is touched, a "by Friday" typed into
   // the title still gets to steer it.
   const [dueKindTouched, setDueKindTouched] = useState(false)
+  // Same story again for visibility: until the control is touched, filing a NEW
+  // task into an area that keeps things private moves it for you. An edit never
+  // re-decides — the task already has a visibility somebody chose.
+  const [privacyTouched, setPrivacyTouched] = useState(false)
 
   const set = (key) => (e) => {
     const value = e.target.value
@@ -112,6 +134,14 @@ export default function TaskForm({
   // Who: an explicit pick wins, else a parsed "by …", else the current value.
   const dueKind = dueKindTouched ? form.due_kind : uses('due') ? parsed.due_kind : form.due_kind
 
+  // Visibility, on the same precedence: an explicit pick wins, otherwise the
+  // area's own default gets to speak (lib/areas.privacyForNewItem — a
+  // fallthrough, so an area with nothing to say leaves your preference alone).
+  const privacy =
+    task || privacyTouched
+      ? form.privacy_level
+      : privacyForNewItem(areaById(areas, form.area_id), form.privacy_level)
+
   const submit = async (e) => {
     e.preventDefault()
     setBusy(true)
@@ -136,7 +166,8 @@ export default function TaskForm({
           title,
           recurrence,
           assignee,
-          area: form.area.trim() || null,
+          area_id: form.area_id || null,
+          privacy_level: privacy,
           tags: form.tags,
           due_date: due,
           // No date, nothing to be flexible about — a Someday task is never a
@@ -200,7 +231,7 @@ export default function TaskForm({
                           key={t.type}
                           className={`nl-chip nl-${t.type} ${off ? 'off' : ''}`}
                           onClick={() => setIgnored((g) => ({ ...g, [t.type]: !g[t.type] }))}
-                          title={off ? 'Ignored — tap to apply' : 'Applied — tap to ignore'}
+                          title={off ? 'Ignored, tap to apply' : 'Applied, tap to ignore'}
                         >
                           {Icon && <Icon size={11} />} {t.label}
                           {off ? (
@@ -308,11 +339,22 @@ export default function TaskForm({
           </Field>
         )}
 
+        {/* Which part of your life. Above the expander because it's the field
+            people reach for on most tasks, and it carries its own escape hatch:
+            the area you want can be made here, without leaving a half-written
+            task to go to Settings and come back. */}
+        <AreaPicker
+          areas={areas}
+          value={form.area_id}
+          onChange={(v) => patch({ area_id: v })}
+          onCreate={onCreateArea}
+        />
+
         {!more ? (
           <button type="button" className="form-more-btn" onClick={() => setMore(true)}>
             <ChevronRight size={15} />
             More options
-            <span className="form-more-hint">priority · area · tags · starts · repeat · …</span>
+            <span className="form-more-hint">priority · tags · starts · repeat · …</span>
           </button>
         ) : (
           <>
@@ -323,25 +365,6 @@ export default function TaskForm({
                 onChange={(v) => patch({ priority: v })}
                 size="sm"
               />
-            </Field>
-            <Field label="Area" hint="One category per task — Work, Home, Personal.">
-              {(id) => (
-                <>
-                  <input
-                    id={id}
-                    value={form.area}
-                    onChange={set('area')}
-                    list="task-areas"
-                    placeholder="e.g. Work, Personal, Home"
-                    autoComplete="off"
-                  />
-                  <datalist id="task-areas">
-                    {areas.map((a) => (
-                      <option key={a} value={a} />
-                    ))}
-                  </datalist>
-                </>
-              )}
             </Field>
             <Field
               label={
@@ -394,8 +417,11 @@ export default function TaskForm({
               />
             </Field>
             <PrivacyField
-              value={form.privacy_level}
-              onChange={(v) => patch({ privacy_level: v })}
+              value={privacy}
+              onChange={(v) => {
+                setPrivacyTouched(true)
+                patch({ privacy_level: v })
+              }}
             />
             <Field
               label={

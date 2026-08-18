@@ -39,5 +39,5 @@ export function describeGroup(group) {
   if ((group.all_tags || []).length) parts.push(group.all_tags.join(' AND '))
   if ((group.any_tags || []).length) parts.push(`any of: ${group.any_tags.join(', ')}`)
   if ((group.none_tags || []).length) parts.push(`not: ${group.none_tags.join(', ')}`)
-  return parts.join(' · ') || 'No rules yet — matches everyone'
+  return parts.join(' · ') || 'No rules yet · matches everyone'
 }

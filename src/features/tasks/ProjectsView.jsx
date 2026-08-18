@@ -19,6 +19,8 @@ import SharedDot from '../../components/ui/SharedDot'
 import SectionLabel from '../../components/ui/SectionLabel'
 import PressableRow from '../../components/ui/PressableRow'
 import EmptyState from '../../components/ui/EmptyState'
+import UnfiledSection from '../../components/ui/UnfiledSection'
+import { ALL_AREAS, scopeToArea } from '../../lib/areas'
 
 const SORT_OPTIONS = [
   { value: 'recent', label: 'Recent' },
@@ -39,7 +41,16 @@ function rangeLabel(p) {
 // The Projects index — peer to TasksView, reached via the Tasks↔Projects title
 // switcher (the People-hub pattern). Projects are tasks flagged is_project; here
 // they get a real front door, grouped by lifecycle (Active / Someday / Done).
-export default function ProjectsView({ data, onOpenProject, onAdd, onSearch, hub, sort, onSort }) {
+export default function ProjectsView({
+  data,
+  onOpenProject,
+  onAdd,
+  onSearch,
+  hub,
+  sort,
+  onSort,
+  area,
+}) {
   const { tasks, taskLinks = [], people } = data
 
   const peopleById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people])
@@ -59,15 +70,28 @@ export default function ProjectsView({ data, onOpenProject, onAdd, onSearch, hub
     return byProject
   }, [taskLinks, peopleById])
 
+  // A project is a task, so it carries area_id for free. `unfiled` is what the
+  // lens excluded only for having no area — collapsed at the foot rather than
+  // dropped (docs/scopes/areas-and-tags.md §3.5).
+  const { scoped, unfiled } = useMemo(
+    () => scopeToArea(tasks.filter(isProject), area),
+    [tasks, area],
+  )
+
   const buckets = useMemo(() => {
     const out = { active: [], someday: [], done: [] }
-    for (const t of tasks) if (isProject(t)) out[projectBucket(t)].push(t)
+    for (const t of scoped) out[projectBucket(t)].push(t)
     out.active.sort(byProjects(sort))
     out.someday.sort(byProjects(sort))
     // Done reads newest-finished first regardless of the active sort.
     out.done.sort((a, b) => ((a.completed_at || '') < (b.completed_at || '') ? 1 : -1))
     return out
-  }, [tasks, sort])
+  }, [scoped, sort])
+
+  const unfiledOpen = useMemo(
+    () => unfiled.filter((t) => projectBucket(t) !== 'done').sort(byProjects(sort)),
+    [unfiled, sort],
+  )
 
   const total = buckets.active.length + buckets.someday.length + buckets.done.length
 
@@ -144,9 +168,11 @@ export default function ProjectsView({ data, onOpenProject, onAdd, onSearch, hub
         actionLabel="New project"
         onSearch={onSearch}
         infoTitle="What’s a project?"
-        info="A project is something bigger you deliberately start — a trip, a renovation, an event. It holds phased subtasks, its own lists, and the people involved. Everyday to-dos stay over in Tasks."
+        info="A project is something bigger you deliberately start: a trip, a renovation, an event. It holds phased subtasks, its own lists, and the people involved. Everyday to-dos stay over in Tasks."
       />
 
+      {/* Unfiled projects aren't in this area, so they can't stand in for its
+          contents — an empty area still says so, above the "No area" section. */}
       {total === 0 ? (
         <EmptyState
           icon={Folder}
@@ -156,7 +182,9 @@ export default function ProjectsView({ data, onOpenProject, onAdd, onSearch, hub
             </button>
           }
         >
-          No projects yet. Start one from a template — a trip, a renovation, an event.
+          {area && area !== ALL_AREAS
+            ? 'No projects in this area.'
+            : 'No projects yet. Start one from a template: a trip, a renovation, an event.'}
         </EmptyState>
       ) : (
         <>
@@ -166,6 +194,12 @@ export default function ProjectsView({ data, onOpenProject, onAdd, onSearch, hub
           <Section id="done" label="Done" />
         </>
       )}
+
+      {/* Finished projects are left out: an unfiled project you already
+          completed is not something to nudge anyone about. */}
+      <UnfiledSection count={unfiledOpen.length}>
+        <div className="list">{unfiledOpen.map(renderProject)}</div>
+      </UnfiledSection>
     </div>
   )
 }

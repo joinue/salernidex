@@ -187,6 +187,19 @@
   margin-top: 3px;
 }
 
+/* The page-scope control (Tasks: whose tasks), centered in whatever room is
+   left between the title and the trailing buttons. flex:1 + min-width:0 is what
+   lets it both center and give the space back — on a narrow phone the pill
+   ellipsises rather than pushing the buttons off the edge. */
+.header-filter {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+  /* Baseline-ish with the round buttons, since the row aligns to flex-end. */
+  padding-bottom: 3px;
+}
+
 .header-actions {
   display: flex;
   align-items: center;

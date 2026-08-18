@@ -127,3 +127,52 @@ describe('parity with the client attention engine', () => {
     expect(server.length).toBeGreaterThan(0) // guard against both sides being empty
   })
 })
+
+// ── show_on_today (0040) ─────────────────────────────────────────────────────
+// A deadline in a silenced area is still a deadline — it just doesn't get to
+// interrupt you, and it still sits on the Tasks page under its own lens. The
+// asymmetry worth pinning: the client drops it from Today, so the server must
+// drop it from the digest, or "Work is off" means a quiet app and a phone that
+// still tells you about work on a Saturday.
+describe('deadlinesAhead — areas switched off Today', () => {
+  const today = isoDateIn(0)
+  const muted = new Set(['a-work'])
+
+  it('drops a deadline in a muted area', () => {
+    const rows = [task({ id: 'w', due_date: isoDateIn(3), area_id: 'a-work' })]
+    expect(
+      deadlinesAhead(rows as never, 'm1', today, ANYTIME_DAYS, muted).map((t) => t.id),
+    ).toEqual([])
+  })
+
+  it('keeps an unfiled deadline, and one in a live area', () => {
+    const rows = [
+      task({ id: 'loose', due_date: isoDateIn(3) }),
+      task({ id: 'home', due_date: isoDateIn(4), area_id: 'a-home' }),
+      task({ id: 'work', due_date: isoDateIn(5), area_id: 'a-work' }),
+    ]
+    expect(
+      deadlinesAhead(rows as never, 'm1', today, ANYTIME_DAYS, muted).map((t) => t.id),
+    ).toEqual(['loose', 'home'])
+  })
+
+  // Compatibility: no muted set passed at all is exactly the pre-0040 behavior.
+  it('is a no-op when nothing is muted', () => {
+    const rows = [task({ id: 'w', due_date: isoDateIn(3), area_id: 'a-work' })]
+    expect(deadlinesAhead(rows as never, 'm1', today).map((t) => t.id)).toEqual(['w'])
+  })
+
+  // The agreement that matters: with the area muted, the client's Today has no
+  // 'anytime' item for it either.
+  it('agrees with the client, which drops it from Today entirely', () => {
+    const t = task({ id: 'w', due_date: isoDateIn(3), area_id: 'a-work' })
+    const clientAnytime = buildAttention(
+      { ...base, tasks: [t], areas: [{ id: 'a-work', show_on_today: false }] },
+      prefs,
+      [],
+      'm1',
+    ).filter((i: any) => i.urgency === 'anytime')
+    expect(clientAnytime).toHaveLength(0)
+    expect(deadlinesAhead([t] as never, 'm1', today, ANYTIME_DAYS, muted)).toHaveLength(0)
+  })
+})

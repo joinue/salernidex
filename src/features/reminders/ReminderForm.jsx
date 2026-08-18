@@ -159,7 +159,7 @@ export default function ReminderForm({
               value={form.notes}
               onChange={set('notes')}
               rows={2}
-              placeholder="Anything you'll want at hand — a policy number, a size."
+              placeholder="Anything you'll want at hand, like a policy number or a size."
             />
           )}
         </Field>

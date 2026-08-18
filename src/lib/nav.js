@@ -64,7 +64,7 @@ export const INSIGHTS = 'habit-insights'
 // than a link — otherwise the row has a hole in it, and Today loses the only
 // "you are here" mark a contextual bar can offer.
 export const BAR = {
-  today: ['today', 'tasks', ACTION, 'reminders', MENU],
+  today: ['today', 'tasks', ACTION, 'lists', MENU],
   tasks: ['today', 'projects', ACTION, 'reminders', MENU],
   projects: ['today', 'tasks', ACTION, 'lists', MENU],
   reminders: ['today', 'tasks', ACTION, 'lists', MENU],
@@ -143,6 +143,26 @@ export const DETAIL_ROUTES = [
   'privacy',
   'terms',
 ]
+
+// Routes the area lens scopes (0040). Everything your household DOES lives
+// here; everything it KNOWS deliberately doesn't.
+//
+// The Contacts group is absent on purpose and it is the load-bearing omission:
+// a colleague who becomes a friend is not 40% work, they're both, so a person
+// must never vanish because you're in Work mode. Non-exclusive by nature ⇒ tags
+// and Groups, which the app already has a whole page for. Search is absent for
+// a different reason — searching MEANS you don't know where the thing is, so
+// scoping it is how a search returns nothing and the data looks lost.
+//
+// See docs/scopes/areas-and-tags.md §3.2.
+export const AREA_SCOPED_ROUTES = ['today', 'tasks', 'projects', 'reminders', 'lists', 'notes']
+
+// `habits` is absent, and that is a scope decision rather than an oversight.
+// habits.area_id exists (0040) but nothing sets it — there is no picker in
+// HabitForm, because nobody has forty habits and the page was never a bloated
+// mess. Listing it here would put a switcher on a page where every habit is
+// unfiled, so picking any area would empty it. Add the route the same day the
+// picker lands, not before. See docs/scopes/areas-and-tags.md §3.2.
 
 // NO_FAB_ROUTES and NO_TABBAR_ROUTES used to live here. Both are gone, and
 // their absence is the point: the create button moved into the bar's middle

@@ -27,7 +27,7 @@ export default function KeyDateForm({ person, onSave, onClose }) {
   }
 
   return (
-    <Modal title={`Key date — ${person.name}`} onClose={onClose}>
+    <Modal title={`Key date: ${person.name}`} onClose={onClose}>
       <form onSubmit={submit}>
         {error && <p className="error-text">{error}</p>}
         <div className="field">
@@ -45,7 +45,7 @@ export default function KeyDateForm({ person, onSave, onClose }) {
           <DatePicker value={date} onChange={setDate} required />
           {annual && (
             <p className="muted" style={{ fontSize: 13, marginTop: 6 }}>
-              Use the original year if you know it — that's how "10 years" gets counted.
+              Use the original year if you know it. That's how "10 years" gets counted.
             </p>
           )}
         </div>

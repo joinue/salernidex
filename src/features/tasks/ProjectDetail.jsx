@@ -258,7 +258,7 @@ export default function ProjectDetail({
     const l = lists.find((x) => x.id === listId)
     const ok = await confirm({
       title: `Remove “${l?.name || 'this list'}”?`,
-      message: 'It comes off this project but stays in your Lists — nothing is deleted.',
+      message: 'It comes off this project but stays in your Lists. Nothing is deleted.',
       confirmLabel: 'Remove',
       danger: true,
     })
@@ -517,7 +517,7 @@ export default function ProjectDetail({
               className="text-btn quiet"
               onClick={() => addSub(true)}
               disabled={!draftSub.trim()}
-              title="Group the steps below it — like “Materials” or “Phase 1”"
+              title="Group the steps below it, like “Materials” or “Phase 1”"
             >
               Add as heading
             </button>
@@ -600,7 +600,7 @@ export default function ProjectDetail({
             fitQuickNote(e.target)
           }}
           onBlur={saveQuickNote}
-          placeholder="Measurements, confirmation #s, links — anything you want at hand."
+          placeholder="Measurements, confirmation #s, links, anything you want at hand."
         />
       </div>
 
@@ -681,7 +681,7 @@ export default function ProjectDetail({
       <div className="list">
         {links.length === 0 ? (
           <EmptyState inline>
-            Nothing linked yet. Add a person, organization, or group tied to this project — a
+            Nothing linked yet. Add a person, organization, or group tied to this project: a
             contractor, vendor, or family member.
           </EmptyState>
         ) : (

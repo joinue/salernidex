@@ -79,7 +79,7 @@ export const demoPeople = [
     phone: '(555) 555-0177',
     tags: ['Northwind customer'],
     notes:
-      'Bought a grinder/polisher line in 2025. Asks detailed consumables questions — loop in support early.',
+      'Bought a grinder/polisher line in 2025. Asks detailed consumables questions, so loop in support early.',
   },
   {
     ...base,
@@ -165,7 +165,7 @@ export const demoPeople = [
     email: '',
     phone: '(555) 555-0171',
     birthday: soonBirthday,
-    address: 'Two doors down — 1314 Maple St',
+    address: 'Two doors down at 1314 Maple St',
     tags: ['Neighbor'],
     privacy_level: 'family_shared',
     notes: 'Two doors down. Has our spare key. Dog: Biscuit.',
@@ -179,10 +179,10 @@ export const demoPeople = [
     email: 'theo.park@oaklineschools.org',
     phone: '(555) 555-0172',
     birthday: '1988-09-30',
-    address: 'Two doors down — 1314 Maple St',
+    address: 'Two doors down at 1314 Maple St',
     tags: ['Neighbor'],
     privacy_level: 'family_shared',
-    notes: "Nina's husband. Grills on Sundays — standing invite. Coaches Little League in spring.",
+    notes: "Nina's husband. Grills on Sundays, standing invite. Coaches Little League in spring.",
   },
   {
     ...base,
@@ -229,7 +229,7 @@ export const demoOrgs = [
     id: 'o-pima',
     name: 'Lakeside County',
     type: 'Government',
-    description: 'County government contacts — District 4 and economic development.',
+    description: 'County government contacts for District 4 and economic development.',
     key_contacts: [],
     tags: ['civic'],
   },
@@ -253,7 +253,7 @@ export const demoOrgs = [
     id: 'o-summit',
     name: 'Summit Materials Lab',
     type: 'Company',
-    description: 'Materials testing lab — customer for consumables and polishing pads.',
+    description: 'Materials testing lab, customer for consumables and polishing pads.',
     key_contacts: [],
     tags: ['work'],
   },
@@ -271,7 +271,7 @@ export const demoOrgs = [
     id: 'o-garrity',
     name: 'Garrity & Sons Machining',
     type: 'Company',
-    description: 'Machine shop — referred to Summit for testing.',
+    description: 'Machine shop, referred to Summit for testing.',
     key_contacts: [],
     tags: ['work'],
   },
@@ -553,7 +553,7 @@ export const demoGroups = [
   },
   {
     id: 'g-civic-non-gov',
-    name: 'Civic — outside government',
+    name: 'Civic, outside government',
     all_tags: [],
     any_tags: ['ONA board', 'Riverside Compass partner'],
     none_tags: ['Lakeside County'],
@@ -932,7 +932,7 @@ export const demoInteractions = [
     person_id: 'p-david',
     type: 'call',
     occurred_at: daysAgo(78),
-    note: 'Consumables question — looped in support.',
+    note: 'Consumables question, looped in support.',
     created_at: daysAgo(78),
   },
   // Rita — cadence 90d, last touch ~120d ago → overdue
@@ -941,7 +941,7 @@ export const demoInteractions = [
     person_id: 'p-rita',
     type: 'meeting',
     occurred_at: daysAgo(120),
-    note: 'ONA board meeting — zoning discussion.',
+    note: 'ONA board meeting, zoning discussion.',
     created_at: daysAgo(120),
   },
   // Priya — cadence 180d, last touch ~12d ago → on track
@@ -950,7 +950,7 @@ export const demoInteractions = [
     person_id: 'p-priya',
     type: 'email',
     occurred_at: daysAgo(12),
-    note: 'Internship pipeline — sent her the intake form.',
+    note: 'Internship pipeline, sent her the intake form.',
     created_at: daysAgo(12),
   },
   // Nina — cadence 180d, last touch ~210d ago → overdue (neighbor we should check on)
@@ -986,6 +986,47 @@ export const demoInteractions = [
 // Tasks: a weekly chore, a monthly-on-the-Nth bill (overdue), a first-Monday
 // recurring chore, a dated to-do, a project with subtasks (one done →
 // progress), an undated "someday", and a completed item.
+// Areas — the lens (0040). Two, because two is what the feature is about: one
+// private area that only its owner has, one the household shares. Plenty of
+// rows below are deliberately left unfiled, so the "No area" section a scoped
+// view shows has something in it — that section is part of the design, not an
+// accident of half-finished demo data.
+//
+// show_on_today is left ON for both, and that IS the interesting default to
+// demo. Work is exactly the area you'd switch off — but a demo whose tasks are
+// missing from Today reads as broken rather than as a feature, so the switch is
+// left for the visitor to find in Settings → Areas and watch Today change.
+export const demoAreas = [
+  {
+    id: 'a-work',
+    name: 'Work',
+    icon: '💼',
+    color: '#0a84ff', // lib/colors.js COLORS[1]
+    sort_order: 1,
+    shared: false, // mine alone — it isn't a lens my partner is offered
+    default_private: true, // …so everything filed here is private by default
+    show_on_today: true,
+    archived_at: null,
+    created_by: 'm-1',
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    id: 'a-home',
+    name: 'Home',
+    icon: '🏡',
+    color: 'green',
+    sort_order: 2,
+    shared: true, // a place we both go
+    default_private: false,
+    show_on_today: true,
+    archived_at: null,
+    created_by: 'm-1',
+    created_at: now,
+    updated_at: now,
+  },
+]
+
 const taskBase = {
   notes: '',
   privacy_level: 'family_shared',
@@ -995,6 +1036,7 @@ const taskBase = {
   start_date: null,
   priority: 0,
   completed_at: null,
+  area_id: null, // most demo rows are unfiled on purpose — see demoAreas
   created_at: now,
   updated_at: now,
 }
@@ -1005,6 +1047,7 @@ export const demoTasks = [
   {
     ...taskBase,
     id: 't-trash',
+    area_id: 'a-home',
     title: 'Take out trash & recycling',
     assignee: 'partner',
     tags: ['home'],
@@ -1016,6 +1059,7 @@ export const demoTasks = [
   {
     ...taskBase,
     id: 't-waterbill',
+    area_id: 'a-home',
     title: 'Pay water bill',
     assignee: 'me',
     due_date: dateIn(-1),
@@ -1025,6 +1069,7 @@ export const demoTasks = [
   {
     ...taskBase,
     id: 't-smoke',
+    area_id: 'a-home',
     title: 'Test smoke alarms',
     assignee: 'either',
     due_date: nextOccurrence(firstMondayRule, dateIn(0), { inclusive: true }),
@@ -1061,10 +1106,40 @@ export const demoTasks = [
   {
     ...taskBase,
     id: 't-gutters',
+    area_id: 'a-home',
     title: 'Clear the gutters before the rain',
     assignee: 'either',
     tags: ['home'],
     due_date: dateIn(19),
+    due_kind: 'by',
+    recurrence: null,
+    parent_id: null,
+  },
+  // The Work area's two rows. A household app's demo is otherwise all household,
+  // which would leave the lens with nothing to show on the side of the split it
+  // exists to protect. Both are `private` — that's what an area with
+  // default_private set does to everything filed in it, and it's why the same
+  // rows never reach a partner's Today.
+  {
+    ...taskBase,
+    id: 't-timesheet',
+    area_id: 'a-work',
+    title: 'Submit timesheet',
+    assignee: 'me',
+    privacy_level: 'private',
+    due_date: dateIn(2),
+    recurrence: { freq: 'weekly', interval: 1, weekdays: [5], anchor: dateIn(2) },
+    parent_id: null,
+  },
+  {
+    ...taskBase,
+    id: 't-offsite',
+    area_id: 'a-work',
+    title: 'Book flights for the offsite',
+    assignee: 'me',
+    privacy_level: 'private',
+    tags: ['travel'],
+    due_date: dateIn(9),
     due_kind: 'by',
     recurrence: null,
     parent_id: null,
@@ -1089,7 +1164,7 @@ export const demoTasks = [
     recurrence: null,
     parent_id: null,
     is_project: true,
-    notes: 'Master bath — drips overnight. Marco quoted $180 if we want him to do it.',
+    notes: 'Master bath, drips overnight. Marco quoted $180 if we want him to do it.',
   },
   // headings group the subtasks that follow them (Things-style sections)
   {
@@ -1225,7 +1300,7 @@ export const demoTasks = [
     parent_id: null,
     is_project: true,
     project_status: 'someday',
-    notes: 'New backsplash + paint. Someday — gathering ideas.',
+    notes: 'New backsplash + paint. Someday, gathering ideas.',
   },
   {
     ...taskBase,
@@ -1261,7 +1336,7 @@ export const demoTasks = [
     is_reminder: true,
     recurrence: null,
     parent_id: null,
-    notes: 'Policy 88-4412 — worth re-shopping before it auto-renews.',
+    notes: 'Policy 88-4412, worth re-shopping before it auto-renews.',
   },
   {
     ...taskBase,
@@ -1280,6 +1355,7 @@ export const demoTasks = [
 export const demoLists = [
   {
     id: 'l-grocery',
+    area_id: 'a-home',
     name: 'Groceries',
     icon: '🛒',
     kind: 'grocery', // items auto-group into aisles
@@ -1309,6 +1385,7 @@ export const demoLists = [
   },
   {
     id: 'l-meals',
+    area_id: 'a-home',
     name: 'This week',
     icon: '🍽️',
     kind: 'meal_plan', // items are indexed by on_date, not sort order (0037)
@@ -1425,7 +1502,9 @@ export const demoListItems = [
     text: 'Pizza from Tony’s',
     on_date: dateIn(-1),
     checked_at: daysAgo(1),
+    checked_by: 'm-1',
     created_at: daysAgo(3),
+    created_by: 'm-1',
   },
   {
     id: 'li1',
@@ -1462,7 +1541,9 @@ export const demoListItems = [
     text: 'Bananas',
     category: 'Produce',
     checked_at: daysAgo(0),
+    checked_by: 'm-2',
     created_at: daysAgo(2),
+    created_by: 'm-1',
   },
   {
     id: 'li5',
@@ -1470,14 +1551,20 @@ export const demoListItems = [
     text: 'Dish soap',
     category: 'Household',
     checked_at: daysAgo(0),
+    checked_by: 'm-2',
     created_at: daysAgo(2),
+    created_by: 'm-1',
   },
+  // One member adds to the hardware list, the other shops it — the split the
+  // feed's "· Name" exists to show. In demo, created_by/checked_by hold member
+  // ids; live they hold auth user ids (actorLabel resolves both).
   {
     id: 'li6',
     list_id: 'l-hardware',
     text: 'Faucet cartridge',
     checked_at: null,
     created_at: daysAgo(1),
+    created_by: 'm-2',
   },
   {
     id: 'li7',
@@ -1485,6 +1572,7 @@ export const demoListItems = [
     text: 'Furnace filter (16x25)',
     checked_at: null,
     created_at: daysAgo(1),
+    created_by: 'm-2',
   },
   // Packing list, split into hand-made sections (is_heading rows; the items
   // after each in sort_order belong to it).
@@ -1527,7 +1615,9 @@ export const demoListItems = [
     list_id: 'l-trip',
     text: 'Phone charger',
     checked_at: daysAgo(0),
+    checked_by: 'm-1',
     created_at: daysAgo(3),
+    created_by: 'm-2',
   },
 ]
 
@@ -1538,7 +1628,7 @@ const mentionChip = (type, id, label) =>
 export const demoNotes = [
   {
     id: 'n-italy',
-    title: 'Italy trip — planning',
+    title: 'Italy trip: planning',
     body:
       `<div>Notes for the Italy trip. Booked through ${mentionChip('organization', 'o-summit', 'Summit Travel Co.')}.</div>` +
       `<div><br></div>` +
@@ -1560,6 +1650,7 @@ export const demoNotes = [
   },
   {
     id: 'n-civic',
+    area_id: 'a-home',
     title: 'Neighborhood meeting',
     body:
       `<div>Recap from the ${mentionChip('group', 'g-civic', 'Civic Association')} meeting.</div>` +
@@ -1578,7 +1669,7 @@ export const demoNotes = [
   {
     id: 'n-gift',
     title: 'Gift ideas',
-    body: `<div>Birthday ideas for ${mentionChip('person', 'p-rita', 'Rita Hollis')} — she mentioned wanting a good kettle.</div>`,
+    body: `<div>Birthday ideas for ${mentionChip('person', 'p-rita', 'Rita Hollis')}. She mentioned wanting a good kettle.</div>`,
     tags: ['gifts'],
     mentions: [{ type: 'person', id: 'p-rita' }],
     // Private: created by the partner (m-2), so it must NOT show for "me" (m-1).

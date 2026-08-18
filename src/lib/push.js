@@ -157,7 +157,7 @@ export async function disablePush() {
 export async function sendTestNotification() {
   const reg = await navigator.serviceWorker.ready
   await reg.showNotification('DOOT', {
-    body: "Notifications are working — you'll get the morning summary here once live accounts arrive.",
+    body: "Notifications are working. You'll get the morning summary here once live accounts arrive.",
     icon: '/web-app-manifest-192x192.png',
     badge: '/favicon-96x96.png',
     data: { url: '/' },
@@ -201,10 +201,10 @@ export function testPushMessage({ sent = 0, total = 0, results = [] } = {}) {
   if (reasons.has('expired')) {
     const lost = total - sent
     return sent
-      ? `Sent to ${sent} of ${total}. ${lost} stale registration${lost === 1 ? ' was' : 's were'} dropped — re-enable notifications on those devices.`
+      ? `Sent to ${sent} of ${total}. ${lost} stale registration${lost === 1 ? ' was' : 's were'} dropped. Re-enable notifications on those devices.`
       : 'Your registration had expired and has been cleared. Turn notifications off and on again to re-register.'
   }
   if (reasons.has('rate-limited'))
     return 'The push service is rate-limiting us. Try again in a minute.'
-  return `Sent to ${sent} of ${total}. The rest failed — check the function logs.`
+  return `Sent to ${sent} of ${total}. The rest failed. Check the function logs.`
 }

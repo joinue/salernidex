@@ -23,6 +23,7 @@ import {
   priorityLabel,
   startLabel,
 } from '../../lib/tasks'
+import { areaById } from '../../lib/areas'
 import { describeRecurrence } from '../../lib/recurrence'
 import { relativeTime } from '../../lib/contact'
 import { assigneeLabel, normalizeAssignee } from '../../lib/household'
@@ -157,7 +158,11 @@ export default function TaskDetail({ data, taskId, onBack, onEdit, onOpenNote })
               </span>
             )}
             {dl && <span className={`chip due-${ds}`}>{dl}</span>}
-            {task.area && <span className="chip area">{task.area}</span>}
+            {/* Resolved from area_id, not the legacy tasks.area text — that
+                column is a write-time snapshot and goes stale on a rename. */}
+            {areaById(data.areas, task.area_id) && (
+              <span className="chip area">{areaById(data.areas, task.area_id).name}</span>
+            )}
             {tags.map((t) => (
               <span className="chip tag" key={t}>
                 {t}

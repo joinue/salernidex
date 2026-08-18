@@ -32,7 +32,15 @@ import SectionLabel from '../../components/ui/SectionLabel'
 //     backup turns each organization_id into a primary affiliation (see
 //     useData.restoreBackup). Also adds org contact fields (0032), which ride
 //     along inside the organizations rows.
-const BACKUP_VERSION = 10
+// v11: adds `areas` (migration 0040) and the area_id each task/list/note/habit
+//     carries. Areas restore BEFORE anything that references them, and an
+//     incoming area whose name collides with an existing one folds into it with
+//     every area_id rewritten (see useData.restoreBackup).
+//     Also fixes a v8–v10 defect: `notes` was read by restoreBackup but never
+//     written here, so every backup taken in that range silently dropped the
+//     entire notebook. Those backups cannot be recovered from — the data was
+//     never in the file — but from v11 the notebook round-trips.
+const BACKUP_VERSION = 11
 
 const SCHEMA_FIELDS = [
   '',
@@ -128,6 +136,7 @@ export default function ImportExport({ data }) {
     keyDates,
     reminderSnoozes,
     listCatalog,
+    areas,
     importPeople,
     restoreBackup,
   } = data
@@ -135,6 +144,9 @@ export default function ImportExport({ data }) {
   // "Private — only me" rows survive the round-trip. CSV/vCard exports use
   // the filtered arrays above — they only ever contain what YOU can see.
   const { allPeople, allOrgs, allTasks, allLists, allListItems, allHabits, allHabitEntries } = data
+  // allNotes, not notes: the filtered array hides both private rows and anything
+  // in Recently Deleted, and a backup that quietly drops either isn't lossless.
+  const { allNotes } = data
   const confirm = useConfirm()
   const csvRef = useRef(null)
   const jsonRef = useRef(null)
@@ -177,6 +189,8 @@ export default function ImportExport({ data }) {
       habits: allHabits,
       habit_entries: allHabitEntries,
       list_catalog: listCatalog, // rebuildable autocomplete cache; included so the backup is complete
+      notes: allNotes, // v11 — restoreBackup has always read these; nothing wrote them
+      areas: areas || [], // v11 — the lens every area_id above points at
       settings: {
         members: memberNames(),
         notifications: getAllPrefs(),
@@ -393,7 +407,7 @@ export default function ImportExport({ data }) {
     const toImport = review.records.filter((r) => r.action === 'import')
     const skipped = review.records.length - toImport.length
     if (!toImport.length) {
-      setStatus('Every row was skipped — nothing imported.')
+      setStatus('Every row was skipped. Nothing imported.')
       setReview(null)
       setParsed(null)
       return
@@ -411,7 +425,7 @@ export default function ImportExport({ data }) {
 
   return (
     <div>
-      <PageHeader title="Import / Export" subtitle="Your data, always portable — no lock-in." />
+      <PageHeader title="Import / Export" subtitle="Your data, always portable. No lock-in." />
 
       {status && (
         <p className="demo-banner" style={{ color: 'var(--text)' }}>
@@ -428,7 +442,7 @@ export default function ImportExport({ data }) {
           <div className="row-body">
             <div className="row-title">Download backup (JSON)</div>
             <div className="row-sub">
-              Everything — people, orgs, network, activity, groups. Lossless & restorable.
+              Everything: people, orgs, network, activity, groups. Lossless & restorable.
             </div>
           </div>
           <Download size={18} className="row-chevron" />
@@ -464,7 +478,7 @@ export default function ImportExport({ data }) {
           <div className="row-body">
             <div className="row-title">Export vCard (.vcf)</div>
             <div className="row-sub">
-              All {active.length} active {active.length === 1 ? 'person' : 'people'} — imports
+              All {active.length} active {active.length === 1 ? 'person' : 'people'}. Imports
               straight into iPhone or Google contacts.
             </div>
           </div>
@@ -527,7 +541,7 @@ export default function ImportExport({ data }) {
 
       {parsed && !review && (
         <div className="section-gap">
-          <SectionLabel>Column mapping — {parsed.rows.length} rows found</SectionLabel>
+          <SectionLabel>Column mapping · {parsed.rows.length} rows found</SectionLabel>
           <div className="list">
             {parsed.headers.map((header) => (
               <div className="map-row" key={header}>
@@ -562,7 +576,7 @@ export default function ImportExport({ data }) {
           return (
             <div className="section-gap">
               <SectionLabel>
-                Possible duplicates — {flagged.length} of {review.records.length} rows match someone
+                Possible duplicates · {flagged.length} of {review.records.length} rows match someone
                 you already have
               </SectionLabel>
               <p className="row-sub" style={{ margin: '0 4px 12px' }}>
@@ -576,7 +590,7 @@ export default function ImportExport({ data }) {
                       <div className="row-body">
                         <div className="row-title">{r.rec.name}</div>
                         <div className="row-sub">
-                          matches {r.matches[0].person.name} — {r.matches[0].reasons.join(' · ')}
+                          matches {r.matches[0].person.name} ({r.matches[0].reasons.join(' · ')})
                         </div>
                       </div>
                       <Segmented

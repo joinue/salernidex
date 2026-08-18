@@ -47,6 +47,90 @@
   opacity: 0.6;
 }
 
+/* ---------- tag filter row ----------
+   Tags used to borrow .area-pill, which put two scrolling rows of identical
+   grey capsules on top of each other on a phone (the area lens sits directly
+   above this) and made you read the words to tell which axis you were touching.
+   They're different questions — an area is WHICH PART OF YOUR LIFE a thing
+   belongs to, a tag is WHAT IT NEEDS — so they get different shapes:
+
+     area  ·  solid capsule, colour dot + emoji, fills accent when on
+     tag   ·  outline only, a # in front, tints accent when on
+
+   Filled vs outlined survives greyscale, a colourblind eye and a glance from
+   across the room, which "slightly different grey" does not. The # is the same
+   mark the tag wears everywhere else it's typed. */
+.tag-filter {
+  display: flex;
+  gap: 8px;
+  /* Vertical padding, not margin: overflow-x forces overflow-y to auto, which
+     would clip each pill's 44px tap extension down to its painted height (the
+     area switcher documents the same trap). */
+  padding: 8px 0;
+  margin-bottom: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tag-filter::-webkit-scrollbar {
+  display: none;
+}
+
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  flex: none;
+  padding: 4px 12px;
+  /* A full 1px of --separator-strong, not a hairline: this outline is carrying
+     the whole "not an area" signal, and 0.5px of the softer token disappears
+     against the page on a phone — which leaves the tags looking like plain text
+     nobody can tap. */
+  border: 1px solid var(--separator-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.tag-pill.on {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent);
+}
+
+/* The hash is scenery: it says "tag" without competing with the word itself. */
+.tag-pill-hash {
+  color: var(--text-3);
+  font-weight: 400;
+}
+
+.tag-pill.on .tag-pill-hash {
+  color: var(--accent);
+  opacity: 0.55;
+}
+
+/* "All tags" is the row's off switch, not a tag — hence no #, and a dotted edge
+   so a glance can tell "showing everything" from "showing one thing". */
+.tag-pill-all {
+  border-style: dashed;
+}
+
+.tag-pill-all.on {
+  border-style: solid;
+}
+
+.tag-pill:active {
+  transform: scale(0.96);
+}
+
 /* compact filter trigger + sheet */
 .filter-bar {
   display: flex;

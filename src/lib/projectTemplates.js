@@ -143,6 +143,7 @@ export function buildProjectRows(template, opts = {}) {
     notes = '',
     privacy_level = 'shared',
     assignee = 'anyone',
+    area_id = null,
     start_date = null,
     end_date = null,
     phases = template.phases || [],
@@ -156,6 +157,7 @@ export function buildProjectRows(template, opts = {}) {
     project_status: 'active',
     privacy_level,
     assignee,
+    area_id,
     start_date,
     end_date,
   }
@@ -170,18 +172,26 @@ export function buildProjectRows(template, opts = {}) {
         sort_order: order++,
         privacy_level,
         assignee,
+        area_id,
       })
     }
     for (const title of phase.tasks || []) {
       if (title && title.trim()) {
-        children.push({ title: title.trim(), sort_order: order++, privacy_level, assignee })
+        children.push({
+          title: title.trim(),
+          sort_order: order++,
+          privacy_level,
+          assignee,
+          area_id,
+        })
       }
     }
   }
 
   // Scoped lists inherit the project's privacy so a private project never leaks
-  // a family-shared packing list. project_id is filled in by the caller.
-  const listSpecs = lists.map((l) => ({ ...l, privacy_level }))
+  // a family-shared packing list, and its area so the lens that made the project
+  // still holds everything the project made. project_id is filled in by caller.
+  const listSpecs = lists.map((l) => ({ ...l, privacy_level, area_id }))
 
   return { project, children, lists: listSpecs }
 }

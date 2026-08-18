@@ -58,7 +58,7 @@ describe('groupJoinTags', () => {
 describe('describeGroup', () => {
   it('renders the rule, or a friendly empty', () => {
     expect(describeGroup({ all_tags: ['a', 'b'] })).toBe('a AND b')
-    expect(describeGroup({})).toBe('No rules yet — matches everyone')
+    expect(describeGroup({})).toBe('No rules yet · matches everyone')
   })
   it('labels manual groups as hand-picked', () => {
     expect(describeGroup({ kind: 'manual', member_ids: ['1', '2'] })).toBe('Hand-picked')

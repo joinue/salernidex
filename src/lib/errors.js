@@ -7,7 +7,7 @@ export function friendlyError(err) {
   const code = err.code
 
   if (code === '23505' || /duplicate key|already exists/i.test(msg))
-    return 'That already exists — looks like a duplicate.'
+    return 'That already exists. Looks like a duplicate.'
   if (code === '23502' || /null value in column/i.test(msg)) return 'A required field is missing.'
   if (code === '23514' || /violates check constraint/i.test(msg))
     return "That value isn't allowed here."
@@ -16,7 +16,7 @@ export function friendlyError(err) {
   if (code === '42501' || /row-level security|permission denied/i.test(msg))
     return "You don't have access to save that."
   if (/failed to fetch|networkerror|network request failed|offline/i.test(msg))
-    return 'You appear to be offline — your change will retry.'
+    return 'You appear to be offline. Your change will retry.'
 
   return msg
 }

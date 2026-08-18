@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Users, CheckSquare, Sunrise, List, Activity, Eye, EyeOff } from 'react-feather'
 import { supabase } from '../../lib/supabase'
-import Wordmark from '../../components/ui/Wordmark'
+import Logo from '../../components/ui/Logo'
 
 // The no-session screen. On desktop it doubles as a minimal landing page
 // (brand hero on the left, auth card on the right); on mobile it collapses to
@@ -161,7 +161,7 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
       <section className="auth-hero">
         <div className="auth-hero-inner">
           <h1 className="auth-hero-title">
-            <Wordmark size="full" />
+            <Logo variant="lockup" />
           </h1>
           <p className="auth-hero-tag">
             Things to do? Doot. The shared operating system for your household.
@@ -189,7 +189,7 @@ export default function AuthScreen({ onDemo, noAuth = false, recovery = false, o
       <section className="auth-panel">
         <div className="auth-card">
           <div className="auth-card-brand">
-            <span>DOOT</span>
+            <Logo variant="lockup" />
           </div>
 
           {/* Mobile-only value context — the desktop hero is hidden below 860px,

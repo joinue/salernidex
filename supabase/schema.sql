@@ -169,7 +169,7 @@ create table public.tasks (
   title         text not null,
   notes         text,
   assignee      text not null default 'anyone',     -- member id | 'anyone'
-  area          text,                                -- optional user-defined category ("Work", "Personal"); null = none (TasksView group-by)
+  area          text,                                -- SUPERSEDED by area_id (0040, added at the foot of this file). Kept and dual-written: never drop a column an older client might still read. Was the free-text category ("Work", "Personal"); null = none
   tags          text[] not null default '{}',        -- cross-cutting labels, same shape as people.tags (0022); area is the one category, tags are the many
   due_date      date,
   due_kind      text not null default 'on'           -- what the due date MEANS (0034): 'on' = belongs to that day (recurring occurrence, appointment) · 'by' = a deadline, actionable now, buckets under Anytime and reaches Today a week out. Ignored when due_date is null
@@ -265,9 +265,10 @@ create table public.list_items (
   is_heading  boolean not null default false,       -- standard-list section row, à la tasks.is_heading (0019)
   on_date     date,                                 -- meal-plan day this item belongs to; null = unscheduled / not a meal plan (0037)
   checked_at  timestamptz,                          -- null = not yet got/done
+  checked_by  uuid,                                 -- auth user who checked it off; nulled on uncheck (0041)
   sort_order  double precision,                     -- manual drag order (see tasks.sort_order)
   assignee    uuid,                                 -- household_members FK; who's grabbing it, null = anyone (0023)
-  created_by  uuid default auth.uid(),
+  created_by  uuid default auth.uid(),              -- auth user who added it; credited in the activity feed (0041)
   created_at  timestamptz not null default now()
 );
 
@@ -1076,3 +1077,83 @@ create policy "household members" on public.affiliations for all to authenticate
   using (public.is_member(household_id)) with check (public.is_member(household_id));
 
 alter publication supabase_realtime add table public.affiliations;
+
+-- ------------------------------------------------------------
+-- areas (one lens over the whole app; see 0040)
+-- ------------------------------------------------------------
+-- An area is which part of your life something belongs to — Work, Home, the
+-- band. Exclusive (one per item, or none) and optional, which is what makes it
+-- different from tags: tags are the many cross-cutting labels, an area is the
+-- one partition, and it's the only axis you can scope the whole app to.
+--
+-- Promoted from the free-text `tasks.area` of 0005, which stopped at Tasks and
+-- couldn't carry an icon, a colour, an order, or a rename. Design and the
+-- reasoning behind every column: docs/scopes/areas-and-tags.md.
+--
+-- Lives at the foot of this file rather than beside tasks because it references
+-- households, which is itself defined below the base tables — so the four
+-- `area_id` columns are added by ALTER down here instead of inline above.
+create table public.areas (
+  id              uuid primary key default gen_random_uuid(),
+  household_id    uuid not null references public.households(id) on delete cascade,
+  name            text not null,
+  icon            text,                            -- lib/icons.js glyph; same picker as habits/lists
+  color           text,                            -- lib/colors.js key; tints the chip and the switcher, never the whole app
+  sort_order      double precision,                -- manual drag order (fractional ranks, lib/order.js)
+  shared          boolean not null default false,  -- does this lens exist for OTHER members. NOT an ACL — item visibility is still privacy_level
+  default_private boolean not null default false,  -- pre-fill new items here as private. Only meaningful while shared = false; the app hides the toggle otherwise, and no check constraint enforces it (an old client setting shared would start failing)
+  show_on_today   boolean not null default true,   -- off = never reaches Today, the nav/app badges, or the send-reminders push sweep
+  archived_at     timestamptz,                     -- hidden from the switcher; its items keep area_id and stay reachable under "All"
+  created_by      uuid default auth.uid(),
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+create index areas_household_idx on public.areas (household_id);
+
+-- One "Work" per person, but two people in one household may each have their
+-- own — that is what `shared` is for, and what stops a shared "Work" holding
+-- two different jobs.
+create unique index areas_name_uniq on public.areas (household_id, created_by, lower(name));
+
+create trigger areas_touch before update on public.areas
+  for each row execute function public.touch_updated_at();
+create trigger areas_audit after insert or update or delete on public.areas
+  for each row execute function public.write_audit();
+
+-- Plain household isolation, deliberately NOT restricted to shared areas: when
+-- a private area's item is shared, the chip on that item still has to render
+-- its name. Which lenses YOU get offered (`shared or mine`) is an app-side
+-- filter, not a policy.
+alter table public.areas enable row level security;
+create policy "household members" on public.areas for all to authenticated
+  using (public.is_member(household_id)) with check (public.is_member(household_id));
+
+alter publication supabase_realtime add table public.areas;
+
+-- The four surfaces an area scopes. `on delete set null` throughout: deleting
+-- an area must never delete work — its items fall back to No area.
+-- list_items deliberately gets no area_id; it inherits its list's, because the
+-- list is the unit you file.
+alter table public.tasks  add column area_id uuid references public.areas(id) on delete set null;
+alter table public.lists  add column area_id uuid references public.areas(id) on delete set null;
+alter table public.notes  add column area_id uuid references public.areas(id) on delete set null;
+alter table public.habits add column area_id uuid references public.areas(id) on delete set null;
+
+create index tasks_area_idx  on public.tasks  (area_id);
+create index lists_area_idx  on public.lists  (area_id);
+create index notes_area_idx  on public.notes  (area_id);
+create index habits_area_idx on public.habits (area_id);
+
+-- Tags on list rows (0040), so a grocery row can appear on a tag page beside a
+-- task and a note — "@errand" pulling the dry cleaning and the milk into one
+-- list. Same shape and same flat household namespace as tasks.tags / notes.tags.
+alter table public.list_items add column tags text[] not null default '{}';
+
+-- The active lens, per member (0040). A preference like every other one in
+-- member_preferences, so it syncs across devices — and it has to live here
+-- rather than in localStorage alone, because appPrefs re-hydrates from this
+-- table on every realtime echo: a key with no column round-trips as its default
+-- and the lens would snap back to "All" after every pick.
+-- `on delete set null`: deleting the area you were viewing returns you to All.
+alter table public.member_preferences
+  add column area uuid references public.areas(id) on delete set null;

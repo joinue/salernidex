@@ -45,7 +45,11 @@ export function useHousehold(session) {
           (cached.members || []).map((m) => ({
             id: m.id,
             name: m.name,
-            user_id: null,
+            // Kept from the cache rather than nulled: offline is exactly when
+            // the feed is being read back, and dropping it would strip the
+            // names off list activity until the network returned. Null only
+            // for a cache written before user_id was persisted.
+            user_id: m.user_id || null,
             role: null,
             person_id: m.person_id || null,
             avatar_url: m.avatar_url || null,
@@ -103,9 +107,15 @@ export function useHousehold(session) {
       id: hh.id,
       name: hh.name,
       join_code: hh.join_code,
+      // user_id rides along because the synchronous readers (household.members,
+      // and actorLabel on top of it) see ONLY this cache — never the state
+      // above. Actor columns like list_items.created_by hold an auth user id,
+      // so without it in the cache there is nothing to match them against and
+      // every "who did it" in the activity feed silently resolves to nobody.
       members: memberRows.map((m) => ({
         id: m.id,
         name: m.name,
+        user_id: m.user_id,
         avatar_url: m.avatar_url,
         person_id: m.person_id,
       })),

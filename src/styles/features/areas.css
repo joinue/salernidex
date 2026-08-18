@@ -1,0 +1,202 @@
+/* Areas — the manager screen (features/areas/AreasView.jsx).
+   The rows themselves are .list-row + .list-emoji, borrowed wholesale from
+   Lists, so there is very little here on purpose: an area row IS a list row
+   with a different payload, and giving it its own look would make two things
+   that behave identically read as two different kinds of thing. */
+
+/* The count line carries a "Shared" chip, so it needs to lay out as a row
+   rather than a bare string. */
+.area-row .row-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Quieter than a normal chip: this is a state, not a label you act on. */
+.area-chip-shared {
+  font-size: 11px;
+  padding: 1px 6px;
+  background: var(--chip-bg);
+  color: var(--text-muted);
+}
+
+/* An archived area is still legible — it keeps its items and can come back —
+   so this dims rather than greys out, and the unarchive button stays at full
+   contrast because it's the only thing here you can do. */
+.area-row.is-archived {
+  opacity: 0.6;
+}
+
+.area-row.is-archived .text-btn {
+  opacity: 1;
+}
+
+/* An area's emoji, on the filter pill and in the form's picker. Both reuse
+   .area-pill from features/people-index.css rather than restyling it — the
+   pill in TaskForm and the pill on the Tasks page ARE the same control, and
+   the moment they diverge the form stops looking like it sets what the filter
+   reads. */
+.area-pill-icon {
+  margin-right: 5px;
+  font-size: 12px;
+}
+
+/* The area's colour on its own pill — the legend for .area-dot (AreaDot.jsx).
+   Sits before the emoji so the colour reads first: the emoji is the area's
+   identity, the colour is the thing a row can afford to show. */
+.area-pill-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: 1px;
+}
+
+/* On the active pill the fill is already the accent, so a coloured disc sitting
+   on it muddies both. It's redundant there anyway — while a lens is on, no row
+   shows a dot for it to explain. */
+.area-pill.on .area-pill-dot {
+  background: rgb(255 255 255 / 0.75);
+}
+
+/* Which area a row is in, on All (components/ui/AreaDot.jsx). A ring, not a
+   disc, so it is never mistaken for the filled .shared-dot at the other end of
+   the same line. Quiet on purpose — it's context for a row you're scanning, not
+   a thing to act on, so it must lose to the due date every time. */
+.area-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  opacity: 0.85;
+}
+
+/* The picker inside a form (components/ui/AreaPicker.jsx). Wraps rather than
+   scrolls: a form field that scrolls sideways hides its own options, and unlike
+   the page filter there's no horizontal room to spare inside a sheet. */
+.area-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ＋ New area, at the end of the row. Same shape as the pills so it sits in the
+   row without breaking it, but no fill and a dashed edge — you are making a
+   lens here, not choosing one, and the two must never be one tap apart and
+   identical. */
+.area-pill-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  color: var(--text-3);
+  border: 1px dashed var(--divider);
+  /* The border eats 1px on each side; take it back so the pill's height still
+     matches its neighbours. */
+  padding: 4px 12px;
+}
+
+/* The name box it opens into. Below the pills rather than inline among them:
+   an input the width of a pill is a text field you can't read what you typed
+   in, and the row would reflow under every keystroke. */
+.area-new-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.area-new-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.area-new-row .text-btn {
+  flex: none;
+}
+
+/* ── The switcher (components/shell/AreaSwitcher.jsx) ─────────────────────────
+   Two placements, one control. On a phone it sits under the page header; on
+   desktop it's in the sidebar above the destinations. Both reuse .area-pill
+   from features/people-index.css rather than restyling it — the pill you filter
+   with and the pill you file with have to be the same object, or the form stops
+   looking like it sets what the page reads. */
+.area-switcher {
+  display: flex;
+  gap: 8px;
+}
+
+/* Phone: one scrolling row, never wrapping. Wrapping would let the lens push
+   the first task below the fold on a small screen, and the cost of having made
+   fifteen areas should be visible (a long scroll) rather than paid silently in
+   vertical space. */
+/* Phone: rendered by PageHeader, directly UNDER the page title.
+   It sat above the <h1> first, and that was wrong twice over — it took the top
+   slot from the page's own identity, and it gave back none of what chrome buys,
+   because it is `position: static` and scrolls away with the content. Making it
+   sticky was the other option and was declined: switching areas is a
+   few-times-a-day action (the same reasoning that declined a swipe gesture for
+   it), and a 375px screen already spends fixed height on the tab pill and the
+   ＋. Desktop gets the persistent version in the sidebar, where there is room.
+
+   The vertical padding is load-bearing, not spacing. `overflow-x: auto` forces
+   overflow-y to `auto` as well, which clips each pill's 44px tap extension
+   (base.css) to the painted 29px — and the audit hit-tests, so a clipped
+   extension is a real miss, not a cosmetic one. 8px top and bottom gives the
+   44px box room to exist inside the scroll container. */
+.area-switcher-bar {
+  padding: 8px 0;
+  margin-bottom: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.area-switcher-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.area-switcher-bar .area-pill {
+  flex: none;
+}
+
+/* Sidebar: a wrapping cluster, because a rail has vertical room and no
+   horizontal room. Sits above the destination list with a hairline under it —
+   an area is not a place you go, so it must not read as one more nav item. */
+.area-switcher-rail {
+  flex-wrap: wrap;
+  /* Row gap outruns the column gap on purpose: .area-pill takes the shared 44px
+     tap extension from base.css, so wrapped rows 6px apart would have
+     overlapping hit areas and the lower row would win the hit test — the same
+     failure CONVENTIONS documents for adjacent icon buttons. */
+  gap: 16px 6px;
+  padding: 0 6px 12px;
+  margin-bottom: 4px;
+  border-bottom: var(--hairline) solid var(--separator);
+}
+
+.area-switcher-rail .area-pill {
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+/* Volume, not attention: quiet enough that it never competes with the red
+   count on Today. tabular-nums so it doesn't jitter as it ticks. */
+.area-pill-count {
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.6;
+}
+
+/* Manage sits at the end of the row and must not look like another lens —
+   it's an action, so it drops the fill and reads as a link. */
+.area-pill-manage {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  color: var(--text-3);
+}

@@ -264,7 +264,7 @@ export default function PersonPage({
           </div>
           {archived && !mine && (
             <p className="profile-note">
-              Added by {ownerName || 'another member'} — only they can delete it permanently.
+              Added by {ownerName || 'another member'}. Only they can delete it permanently.
             </p>
           )}
         </div>
@@ -550,7 +550,7 @@ export default function PersonPage({
                   <div className="row-sub">
                     {rel.relationship_type.replace(/_/g, ' ')}
                     {summary(other) ? ` · ${summary(other)}` : ''}
-                    {rel.notes ? ` — ${rel.notes}` : ''}
+                    {rel.notes ? ` · ${rel.notes}` : ''}
                   </div>
                 </div>
                 {!archived && (

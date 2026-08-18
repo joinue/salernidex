@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { ACTIVE_HOUSEHOLD_KEY } from '../../hooks/useHousehold'
 import { stampMemberTimezone } from '../../lib/timezone'
 import Segmented from '../../components/ui/Segmented'
+import Logo from '../../components/ui/Logo'
 
 // First-run flow for a signed-in user with no household yet: pick a display
 // name, then either create a household or join an existing one by invite code.
@@ -73,13 +74,13 @@ export default function Onboarding({ session, onDone, onLogout }) {
       <section className="auth-panel">
         <div className="auth-card">
           <div className="auth-card-brand">
-            <span>DOOT</span>
+            <Logo variant="lockup" />
           </div>
 
           <form onSubmit={submit}>
             <h2 className="auth-title">Set up your household</h2>
             <p className="muted auth-sub">
-              A household is your shared space — contacts, tasks, and lists everyone in it can see.
+              A household is your shared space: contacts, tasks, and lists everyone in it can see.
             </p>
 
             {error && <p className="error-text">{error}</p>}

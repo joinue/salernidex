@@ -17,7 +17,7 @@ export default function GroupsView({ data, onOpen, onAdd, hub }) {
         navActive={hub?.active}
         onNavigate={hub?.onNavigate}
         infoTitle="How groups work"
-        info="A group is people you pick — or, if you'd rather, everyone matching a set of tags. Hand-picked groups stay exactly as you set them. Tag-based (smart) groups update themselves: add the tag to a person and they join, remove it and they leave."
+        info="A group is people you pick, or, if you'd rather, everyone matching a set of tags. Hand-picked groups stay exactly as you set them. Tag-based (smart) groups update themselves: add the tag to a person and they join, remove it and they leave."
         createAction={onAdd}
         actionLabel="New group"
       />

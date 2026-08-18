@@ -3,6 +3,8 @@ import { Bell, Check, Edit2, Plus, Repeat, Trash2, User } from 'react-feather'
 import PageHeader from '../../components/shell/PageHeader'
 import SectionLabel from '../../components/ui/SectionLabel'
 import EmptyState from '../../components/ui/EmptyState'
+import UnfiledSection from '../../components/ui/UnfiledSection'
+import { ALL_AREAS, scopeToArea } from '../../lib/areas'
 import SwipeRow from '../../components/ui/SwipeRow'
 import SharedDot from '../../components/ui/SharedDot'
 import IconButton from '../../components/ui/IconButton'
@@ -39,14 +41,38 @@ export default function RemindersView({
   onSearch,
   hub,
   onNavigate,
+  area,
 }) {
   const { reminders = [], people = [], keyDates = [], completeTask, deleteTask } = data
 
+  const lensOn = !!area && area !== ALL_AREAS
+  // Stored reminders are tasks, so they carry an area. Derived ones — birthdays
+  // and key dates read off contacts — never can: contacts deliberately have no
+  // area (a colleague who becomes a friend is not 40% work). So under a lens
+  // they all fall to the unfiled section, which is the right place for them: a
+  // birthday belongs to neither work nor home.
+  const lens = useMemo(() => scopeToArea(reminders, area), [reminders, area])
+
   const groups = useMemo(
-    () => groupReminders(upcomingReminders({ reminders, people, keyDates })),
-    [reminders, people, keyDates],
+    () =>
+      groupReminders(
+        upcomingReminders({
+          reminders: lens.scoped,
+          people: lensOn ? [] : people,
+          keyDates: lensOn ? [] : keyDates,
+        }),
+      ),
+    [lens.scoped, lensOn, people, keyDates],
+  )
+  const unfiled = useMemo(
+    () =>
+      lensOn
+        ? groupReminders(upcomingReminders({ reminders: lens.unfiled, people, keyDates }))
+        : null,
+    [lensOn, lens.unfiled, people, keyDates],
   )
   const total = SECTIONS.reduce((n, s) => n + groups[s.key].length, 0)
+  const unfiledTotal = unfiled ? SECTIONS.reduce((n, s) => n + unfiled[s.key].length, 0) : 0
 
   const acknowledge = (row) => {
     haptics.success()
@@ -110,7 +136,7 @@ export default function RemindersView({
                 r.recurrence ? describeRecurrence(r.recurrence) : null,
               ]
                 .filter(Boolean)
-                .join(' · ') || 'Nothing to do — just a heads-up'}
+                .join(' · ') || 'Nothing to do, just a heads-up'}
             </div>
           </div>
           <div className="row-meta">
@@ -127,7 +153,7 @@ export default function RemindersView({
               icon={Check}
               variant="accent"
               className="touch-quick"
-              label={`Got it — ${item.title}`}
+              label={`Got it: ${item.title}`}
               onClick={(e) => {
                 e.stopPropagation()
                 acknowledge(r)
@@ -149,10 +175,12 @@ export default function RemindersView({
         navOptions={hub?.options}
         navActive={hub?.active}
         onNavigate={onNavigate}
-        info="Things to be told about, with nothing to do. Birthdays and key dates come from your contacts automatically — edit those on the person."
+        info="Things to be told about, with nothing to do. Birthdays and key dates come from your contacts automatically; edit those on the person."
         infoTitle="Reminders"
       />
 
+      {/* Unfiled reminders aren't in this area, so they don't suppress the
+          empty state — it sits above the "No area" section below. */}
       {total === 0 ? (
         <EmptyState
           icon={Bell}
@@ -162,7 +190,9 @@ export default function RemindersView({
             </button>
           }
         >
-          Nothing coming up. Add a date you want surfaced — bin day, a renewal, an anniversary.
+          {lensOn
+            ? 'Nothing coming up in this area.'
+            : 'Nothing coming up. Add a date you want surfaced: bin day, a renewal, an anniversary.'}
         </EmptyState>
       ) : (
         SECTIONS.map(({ key, label }) =>
@@ -178,12 +208,26 @@ export default function RemindersView({
         )
       )}
 
+      <UnfiledSection count={unfiledTotal}>
+        {SECTIONS.map(({ key, label }) =>
+          !unfiled || unfiled[key].length === 0 ? null : (
+            <div key={key}>
+              <SectionLabel>
+                {label}
+                <span className="section-count">{unfiled[key].length}</span>
+              </SectionLabel>
+              <div className="list">{unfiled[key].map(row)}</div>
+            </div>
+          ),
+        )}
+      </UnfiledSection>
+
       {/* Where the derived half comes from, said once at the foot rather than on
           every row that came from a contact. */}
       {onOpenPerson && (
         <p className="reminders-footnote">
-          <User size={12} aria-hidden="true" /> Birthdays and key dates are read from your contacts
-          — change them on the person and they change here.
+          <User size={12} aria-hidden="true" /> Birthdays and key dates are read from your contacts.
+          Change them on the person and they change here.
         </p>
       )}
     </div>

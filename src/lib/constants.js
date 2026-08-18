@@ -10,7 +10,7 @@ export const focusOnDesktop = () =>
 // household members (lib/privacy.js). The enum value was renamed from the
 // legacy 'marc_only' in migration 0023.
 export const PRIVACY_LABELS = {
-  private: 'Private — only me',
+  private: 'Private, only me',
   shared: 'Shared',
   family_shared: 'Family shared',
   public: 'Public',

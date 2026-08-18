@@ -78,7 +78,7 @@ export default function OrgForm({
         <div className="field">
           <label className="label">Type</label>
           <select value={form.type} onChange={set('type')}>
-            <option value="">—</option>
+            <option value="">None</option>
             {ORG_TYPES.map((t) => (
               <option key={t} value={t}>
                 {t}
@@ -90,7 +90,7 @@ export default function OrgForm({
               letting the effect look arbitrary later. */}
           <p className="field-hint">
             {isCounterparty(form)
-              ? 'Shown under the name of people linked here — this is how you know them.'
+              ? 'Shown under the name of people linked here. This is how you know them.'
               : 'Kept on their profile and in search, but not shown under their name.'}
           </p>
         </div>

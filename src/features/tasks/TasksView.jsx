@@ -19,12 +19,13 @@ import {
   capCompletionLog,
   completionTime,
   isProject,
-  areaNames,
   taskTags,
   byDue,
   byUpcoming,
   isoDateIn,
 } from '../../lib/tasks'
+import { ALL_AREAS, areaById, privacyForNewItem, resolveAreaId } from '../../lib/areas'
+import UnfiledSection from '../../components/ui/UnfiledSection'
 import { describeRecurrence } from '../../lib/recurrence'
 import { parseTaskInput, quickTaskFields } from '../../lib/taskParse'
 import { PRIVATE_LEVEL } from '../../lib/privacy'
@@ -40,7 +41,7 @@ import { byOrder, moveUpdates } from '../../lib/order'
 import haptics from '../../lib/haptics'
 import { useConfirm } from '../../hooks/useConfirm'
 import PageHeader from '../../components/shell/PageHeader'
-import Segmented from '../../components/ui/Segmented'
+import MenuSelect from '../../components/ui/MenuSelect'
 import TaskRow from './TaskRow'
 import SharedDot from '../../components/ui/SharedDot'
 import ReorderableList from '../../components/ui/ReorderableList'
@@ -78,6 +79,11 @@ export default function TasksView({
   defaultFilter = 'all',
   defaultShowCompleted = false,
   defaultPrivacy = 'shared',
+  // The area lens, read-only here. The control that SETS it lives in the shell
+  // (sidebar on desktop, under the page header on a phone) so one pick scopes
+  // every page at once; App owns the value and persists it to appPrefs, which
+  // is what makes it survive a cold launch.
+  area = ALL_AREAS,
 }) {
   const {
     tasks,
@@ -106,10 +112,8 @@ export default function TasksView({
     const v = readSession().filter ?? defaultFilter
     return v === 'all' || members().some((m) => m.id === v) ? v : 'all'
   })
-  // Optional narrowing to one area. The area pills only appear once areas exist
-  // (see areaList below), so until then this is a no-op the user never sees.
-  const [areaFilter, setAreaFilter] = useState(() => readSession().areaFilter ?? 'all')
-  // Same idea for one tag (cross-cutting label). Independent of the area filter.
+  // Narrowing to one tag (cross-cutting label). Independent of the area lens —
+  // an area is which part of your life, a tag is what the thing needs.
   const [tagFilter, setTagFilter] = useState(() => readSession().tagFilter ?? 'all')
   const confirm = useConfirm()
   // A set, not one id. Comparing two tasks' subtasks is a normal thing to want,
@@ -147,40 +151,57 @@ export default function TasksView({
     try {
       sessionStorage.setItem(
         sessionKey,
-        JSON.stringify({ filter, areaFilter, tagFilter, showDone, showRecurring }),
+        JSON.stringify({ filter, tagFilter, showDone, showRecurring }),
       )
     } catch {
       // private mode / quota — non-essential, fine to skip
     }
-  }, [sessionKey, filter, areaFilter, tagFilter, showDone, showRecurring])
+  }, [sessionKey, filter, tagFilter, showDone, showRecurring])
 
+  // "Anyone", not "Everyone": it matches the word a task already uses for work
+  // nobody has claimed, and the list it opens is a list of people — reading it
+  // as "show me … anyone / Marc / Sam" is the question this control answers.
   const filterOptions = [
-    { value: 'all', label: 'Everyone' },
+    { value: 'all', label: 'Anyone' },
     ...members().map((m) => ({ value: m.id, label: m.name })),
   ]
 
-  // Areas in use across open top-level tasks — drives the filter pills. Derived
-  // from every open task (not the member-filtered set) so the pills don't flicker
-  // in and out as you switch member.
-  const areaList = useMemo(
-    () => areaNames(tasks.filter((t) => !t.parent_id && !t.completed_at)),
-    [tasks],
-  )
   const tagList = useMemo(
     () => taskTags(tasks.filter((t) => !t.parent_id && !t.completed_at)),
     [tasks],
   )
-  // Guard against a stale selection: if the last task in an area/tag is finished
-  // or renamed, fall back to "All" rather than showing an empty list.
-  const activeArea = areaList.includes(areaFilter) ? areaFilter : 'all'
+  // Guard against a stale selection. For areas that means one deleted, archived
+  // or un-shared while you were away (resolveAreaId); for tags, the last task
+  // carrying it being finished. Either way, fall back to All rather than
+  // showing an empty list with no explanation.
+  const activeArea = resolveAreaId(data.areas, area, data.userId)
   const activeTag = tagList.includes(tagFilter) ? tagFilter : 'all'
+
+  // The dot on a row. Suppressed while a lens is active: every row on screen is
+  // in that area, so it would repeat the same mark down the whole page.
+  const rowArea = (t) => (activeArea === ALL_AREAS ? areaById(data.areas, t.area_id) : null)
 
   const matches = (t) => {
     if (filter !== 'all') {
       const a = normalizeAssignee(t.assignee)
       if (a !== filter && a !== 'anyone') return false
     }
-    if (activeArea !== 'all' && (t.area || '').trim() !== activeArea) return false
+    // The lens narrows to its own area only. Unfiled tasks are NOT dropped —
+    // they come back below in their own collapsed "No area" section, so
+    // forgetting to file something never makes it disappear (§3.5).
+    if (activeArea !== ALL_AREAS && t.area_id !== activeArea) return false
+    if (activeTag !== 'all' && !(t.tags || []).includes(activeTag)) return false
+    return true
+  }
+
+  // Same test, minus the area clause — the rows the lens excluded purely for
+  // having no area of their own.
+  const matchesUnfiled = (t) => {
+    if (activeArea === ALL_AREAS || t.area_id) return false
+    if (filter !== 'all') {
+      const a = normalizeAssignee(t.assignee)
+      if (a !== filter && a !== 'anyone') return false
+    }
     if (activeTag !== 'all' && !(t.tags || []).includes(activeTag)) return false
     return true
   }
@@ -209,6 +230,17 @@ export default function TasksView({
     [tasks, completions, filter, activeArea, activeTag],
   )
   const logCount = useMemo(() => log.reduce((n, g) => n + g.events.length, 0), [log])
+  // Open tasks with no area at all, while a lens is on. Shown in a collapsed
+  // section at the foot rather than mixed in: the lens stays legible, and the
+  // section does the nudging to file them that a silent rule can't.
+  const unfiled = useMemo(
+    () =>
+      tasks
+        .filter((t) => !t.parent_id && !t.completed_at && !isProject(t) && matchesUnfiled(t))
+        .sort(byOrder),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tasks, filter, activeArea, activeTag],
+  )
   // Inline view is capped to the last 2 weeks / 30 check-offs (whichever bites
   // first) so the list can't run away; "Show N earlier" reveals the rest in place.
   const { groups: cappedLog, omitted } = useMemo(() => capCompletionLog(log), [log])
@@ -310,12 +342,19 @@ export default function TasksView({
     }
     // Inherit the active content filters so a quick task stays in the view you
     // added it to — otherwise matches() hides it the moment it's created.
-    if (activeArea !== 'all') fields.area = activeArea
+    if (activeArea !== ALL_AREAS) fields.area_id = activeArea
     if (activeTag !== 'all') fields.tags = [activeTag]
     haptics.success()
     // Privacy follows the user's "new task" default, exactly like TaskForm — solo
-    // households are always private; otherwise it's the configured taskPrivacy.
-    addTask({ ...fields, privacy_level: isSolo() ? PRIVATE_LEVEL : defaultPrivacy })
+    // households are always private; otherwise it's the configured taskPrivacy —
+    // and an area that keeps things private overrides it, so a quick task typed
+    // under the Work lens lands as private without a form to say so in.
+    addTask({
+      ...fields,
+      privacy_level: isSolo()
+        ? PRIVATE_LEVEL
+        : privacyForNewItem(areaById(data.areas, activeArea), defaultPrivacy),
+    })
     setQuickDraft('')
     quickRef.current?.focus()
   }
@@ -336,7 +375,7 @@ export default function TasksView({
           onClick={() => toggleExpanded(task.id)}
           label={`${task.title}, ${isOpen ? 'collapse' : 'expand'} details`}
         >
-          <TaskRow task={task} onToggle={toggle} progress={progress} />
+          <TaskRow task={task} onToggle={toggle} progress={progress} area={rowArea(task)} />
           {/* Beside the chevron rather than instead of it, because they answer
               different questions. The chevron is a glance — check the subtasks
               without losing the list. This one leaves the list behind and gives
@@ -494,7 +533,9 @@ export default function TasksView({
                 <RepeatIcon size={11} />
               </span>
             )}
-            {task.area && <span className="chip area">{task.area}</span>}
+            {areaById(data.areas, task.area_id) && (
+              <span className="chip area">{areaById(data.areas, task.area_id).name}</span>
+            )}
             {event.completedBy && <span className="chip">{assigneeLabel(event.completedBy)}</span>}
             <span className="log-time">{completionTime(event.completedAt)}</span>
           </div>
@@ -513,35 +554,39 @@ export default function TasksView({
         createAction={onAdd}
         actionLabel="New task"
         onSearch={onSearch}
+        // Whose tasks, up on the title row — the only page in the app with a
+        // per-person view, and the one filter that decides what "Tasks" means.
+        // It was a full-width tab bar under the header, which spent a whole row
+        // on it, divided that row by N members (slivers past three), and let it
+        // scroll away from the list it was scoping. Only shown with someone to
+        // filter by (see isSolo).
+        filter={
+          isSolo() ? null : (
+            <MenuSelect
+              options={filterOptions}
+              value={filter}
+              onChange={setFilter}
+              label="Show tasks for"
+            />
+          )
+        }
       />
 
-      {/* Member filter only makes sense with someone to filter by (see isSolo). */}
-      {!isSolo() && <Segmented options={filterOptions} value={filter} onChange={setFilter} />}
+      {/* The area pills used to live here. They're gone: the lens is one
+          control in the shell now (sidebar on desktop, under the header on a
+          phone), scoping every page at once. Two controls for one concept is
+          worse than either alone — and it was the per-page version that made
+          you re-apply the same decision on seven screens. The tag pills below
+          stay, because a tag is a different axis and deliberately page-local. */}
 
-      {areaList.length > 0 && (
-        <div className="area-filter">
-          <button
-            className={`area-pill ${activeArea === 'all' ? 'on' : ''}`}
-            onClick={() => setAreaFilter('all')}
-          >
-            All areas
-          </button>
-          {areaList.map((a) => (
-            <button
-              key={a}
-              className={`area-pill ${activeArea === a ? 'on' : ''}`}
-              onClick={() => setAreaFilter(a)}
-            >
-              {a}
-            </button>
-          ))}
-        </div>
-      )}
-
+      {/* Tags, in their own outlined-and-hashed language — see .tag-filter. On a
+          phone this row lands directly under the area lens, and until they were
+          told apart the two read as one four-line pill soup. */}
       {tagList.length > 0 && (
-        <div className="area-filter">
+        <div className="tag-filter" role="group" aria-label="Filter by tag">
           <button
-            className={`area-pill ${activeTag === 'all' ? 'on' : ''}`}
+            className={`tag-pill tag-pill-all ${activeTag === 'all' ? 'on' : ''}`}
+            aria-pressed={activeTag === 'all'}
             onClick={() => setTagFilter('all')}
           >
             All tags
@@ -549,9 +594,13 @@ export default function TasksView({
           {tagList.map((t) => (
             <button
               key={t}
-              className={`area-pill ${activeTag === t ? 'on' : ''}`}
+              className={`tag-pill ${activeTag === t ? 'on' : ''}`}
+              aria-pressed={activeTag === t}
               onClick={() => setTagFilter(t)}
             >
+              <span className="tag-pill-hash" aria-hidden="true">
+                #
+              </span>
               {t}
             </button>
           ))}
@@ -601,8 +650,8 @@ export default function TasksView({
             </button>
           }
         >
-          {activeArea !== 'all'
-            ? `Nothing in ${activeArea}.`
+          {activeArea !== ALL_AREAS
+            ? `Nothing in ${areaById(data.areas, activeArea)?.name || 'this area'}.`
             : filter === 'all'
               ? 'Nothing on the list. Add a task.'
               : 'Nothing assigned here.'}
@@ -664,6 +713,12 @@ export default function TasksView({
           ) : null,
         )
       )}
+
+      {/* Above Done, below the buckets: what the lens excluded only for having
+          no area of its own. Collapsed, so it costs one row until you want it. */}
+      <UnfiledSection count={unfiled.length}>
+        <div className="list">{unfiled.map(renderTask)}</div>
+      </UnfiledSection>
 
       {logCount > 0 && (
         <>

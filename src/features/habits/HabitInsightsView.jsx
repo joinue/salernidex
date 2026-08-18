@@ -43,7 +43,7 @@ export default function HabitInsightsView({ data, onBack, onOpenHabit }) {
         <EmptyState icon={Zap}>
           No patterns yet.
           <span className="muted" style={{ fontSize: 13, maxWidth: 280 }}>
-            Keep logging — patterns appear once a few habits share about two weeks of overlap.
+            Keep logging. Patterns appear once a few habits share about two weeks of overlap.
           </span>
         </EmptyState>
       ) : (
@@ -61,7 +61,7 @@ export default function HabitInsightsView({ data, onBack, onOpenHabit }) {
             </div>
           )}
           <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-            Associations, not causes — a pattern in your logs, not a guarantee.
+            Associations, not causes: a pattern in your logs, not a guarantee.
           </p>
         </>
       )}

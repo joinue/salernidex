@@ -119,7 +119,7 @@ export default function RelationshipsView({ data, onOpenPerson, onAdd, hub }) {
               <span className="conn-name" onClick={() => onOpenPerson(a.id)}>
                 {a.name}
               </span>
-              <span className="arrow">— {rel.relationship_type.replace(/_/g, ' ')} →</span>
+              <span className="arrow">{rel.relationship_type.replace(/_/g, ' ')} →</span>
               <span className="conn-name" onClick={() => onOpenPerson(b.id)}>
                 {b.name}
               </span>

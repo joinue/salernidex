@@ -7,14 +7,20 @@ import {
   BookOpen,
   RotateCcw,
   Grid,
+  Sliders,
   List as ListIcon,
 } from 'react-feather'
 import PageHeader from '../../components/shell/PageHeader'
 import SharedDot from '../../components/ui/SharedDot'
 import SwipeRow from '../../components/ui/SwipeRow'
 import Segmented from '../../components/ui/Segmented'
+import ActionSheet from '../../components/ui/ActionSheet'
+import Sheet from '../../components/ui/Sheet'
 import NoteDetail from './NoteDetail'
 import { useConfirm } from '../../hooks/useConfirm'
+import { useLongPress } from '../../hooks/useLongPress'
+import UnfiledSection from '../../components/ui/UnfiledSection'
+import { scopeToArea, areaById, ALL_AREAS } from '../../lib/areas'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { isEditableTarget } from '../../lib/keys'
 import { relativeTime } from '../../lib/contact'
@@ -30,6 +36,8 @@ const SORTS = [
 // Below this the index and the note are separate screens (push navigation, like
 // the phone has always worked). At or above it there is room to show both.
 const SPLIT_QUERY = '(min-width: 900px)'
+// The phone, where vertical space above the first note is the scarce thing.
+const PHONE_QUERY = '(max-width: 720px)'
 
 // List vs gallery sticks per device, the way the sidebar's collapsed state does.
 const VIEW_KEY = 'salernidex-notes-view'
@@ -62,10 +70,13 @@ export default function NotesView({
   onSearch,
   onCloseNote,
   onBack,
+  area,
 }) {
   const { notes, deletedNotes, deleteNote, togglePinNote, restoreNote, purgeNote } = data
   const confirm = useConfirm()
   const wide = useMediaQuery(SPLIT_QUERY)
+  const phone = useMediaQuery(PHONE_QUERY)
+  const [options, setOptions] = useState(false) // phone: the sort/layout sheet
   const [q, setQ] = useState('')
   const [view, setView] = useState(readView)
   const [tag, setTag] = useState(null) // active tag filter
@@ -73,12 +84,22 @@ export default function NotesView({
   // Keyboard cursor into `filtered`. -1 means "no keyboard selection yet", so
   // arrowing down starts at the top and arrowing up starts at the bottom.
   const [cursor, setCursor] = useState(-1)
+  // Long-pressed gallery card, if any — the touch counterpart of the hover
+  // cluster a card wears with a mouse.
+  const [cardSheet, setCardSheet] = useState(null)
   // Set just before an arrow-key move so the cursor effect knows to pull real
   // focus along with it. Clicks and deep links move the cursor too, and must
   // NOT yank focus out from under whatever the user was already doing.
   const movedByKey = useRef(false)
   const listRef = useRef(null)
   const paneRef = useRef(null)
+  // Which card is under the finger. One long-press hook serves the whole
+  // gallery — hooks can't be called per row — so the card records itself here
+  // on the way down and the handler reads it when the hold completes.
+  const pressedCard = useRef(null)
+  const cardPress = useLongPress(() => {
+    if (pressedCard.current) setCardSheet(pressedCard.current)
+  })
 
   useEffect(() => {
     try {
@@ -90,9 +111,14 @@ export default function NotesView({
 
   const allTags = useMemo(() => [...new Set(notes.flatMap((n) => n.tags || []))].sort(), [notes])
 
+  // The lens, applied before search and tag narrowing. `unfiled` is what it
+  // excluded only for having no area — shown collapsed at the foot rather than
+  // dropped (docs/scopes/areas-and-tags.md §3.5).
+  const lens = useMemo(() => scopeToArea(notes, area), [notes, area])
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    let list = sortNotes(notes, sort)
+    let list = sortNotes(lens.scoped, sort)
     if (tag) list = list.filter((n) => (n.tags || []).includes(tag))
     if (needle)
       list = list.filter((n) =>
@@ -101,7 +127,7 @@ export default function NotesView({
           .includes(needle),
       )
     return list
-  }, [notes, sort, tag, q])
+  }, [lens.scoped, sort, tag, q])
 
   // `filtered` is already in visual order (sortNotes floats pinned to the top),
   // so an index into it is an index into what you see — which is what the
@@ -267,6 +293,13 @@ export default function NotesView({
         key={n.id}
         className={`note-card ${marks(n, idx)}`}
         {...focusProps(n, idx)}
+        {...cardPress}
+        // Composed rather than spread over: the hook owns the hold timer, and
+        // it can't know which card started it.
+        onPointerDown={(e) => {
+          pressedCard.current = n
+          cardPress.onPointerDown(e)
+        }}
         onClick={() => open(n.id)}
       >
         <div className="note-card-head">
@@ -288,8 +321,13 @@ export default function NotesView({
             </span>
           )}
         </div>
-        {/* The gallery has no swipe wrapper, so pin/delete ride the card: a
-            hover cluster on a mouse, always visible on touch. */}
+        {/* The gallery has no swipe wrapper, so pin/delete ride the card — but
+            only with a mouse, where they can hide until hover and cost nothing.
+            Permanent, they needed a 56px lane out of a 168px card and left
+            "Italy tri…" where the title goes. Under a thumb it's a long-press
+            instead (the same gesture a list row answers), and the title gets
+            the whole head back. Hidden in CSS rather than skipped here: the
+            query that governs it is the one that also frees the lane. */}
         <div className="note-card-actions">
           <button
             className="icon-btn"
@@ -398,39 +436,59 @@ export default function NotesView({
   // ---- Notebook ----
   // Search + sort + layout + tags, kept together so the whole block can stick to
   // the top of whatever is scrolling it (the rail on desktop, the page below).
+  // Sort and layout. On anything but a phone they sit in the toolbar; on a
+  // phone they move behind the header's ⚙, because the row they occupied was
+  // 50px of permanent chrome for two settings you change rarely — and the
+  // notebook was spending so much of the screen on controls that exactly one
+  // note showed above the fold. Same controls either way, so the sheet reports
+  // the current sort and layout rather than making you remember them.
+  const sortControls = (
+    <div className="notes-controls">
+      <Segmented options={SORTS} value={sort} onChange={onSort} size="sm" />
+      <div className="notes-viewtoggle" role="group" aria-label="Layout">
+        <button
+          className={view === 'list' ? 'active' : ''}
+          onClick={() => setView('list')}
+          aria-label="List view"
+          aria-pressed={view === 'list'}
+          title="List"
+        >
+          <ListIcon size={16} />
+        </button>
+        <button
+          className={view === 'gallery' ? 'active' : ''}
+          onClick={() => setView('gallery')}
+          aria-label="Gallery view"
+          aria-pressed={view === 'gallery'}
+          title="Gallery"
+        >
+          <Grid size={16} />
+        </button>
+      </div>
+    </div>
+  )
+
   const controls = (
     <div className="notes-toolbar">
       <input
         className="note-search"
+        type="search"
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Search notes"
         aria-label="Search notes"
+        // A search field, told to iOS as one: the key reads "Search" instead of
+        // "return", there's a ✕ to clear it, and a note called "Rome" isn't
+        // autocapitalised into something the titles don't match.
+        enterKeyHint="search"
+        autoCapitalize="off"
+        autoCorrect="off"
+        // Nothing to submit — the list filters as you type — so Return's only
+        // job is to put the keyboard away and hand the screen back.
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
       />
 
-      <div className="notes-controls">
-        <Segmented options={SORTS} value={sort} onChange={onSort} size="sm" />
-        <div className="notes-viewtoggle" role="group" aria-label="Layout">
-          <button
-            className={view === 'list' ? 'active' : ''}
-            onClick={() => setView('list')}
-            aria-label="List view"
-            aria-pressed={view === 'list'}
-            title="List"
-          >
-            <ListIcon size={16} />
-          </button>
-          <button
-            className={view === 'gallery' ? 'active' : ''}
-            onClick={() => setView('gallery')}
-            aria-label="Gallery view"
-            aria-pressed={view === 'gallery'}
-            title="Gallery"
-          >
-            <Grid size={16} />
-          </button>
-        </div>
-      </div>
+      {!phone && sortControls}
 
       {allTags.length > 0 && (
         <div className="chips notes-tag-row">
@@ -469,7 +527,16 @@ export default function NotesView({
     <div className="notes-index" ref={listRef}>
       {controls}
       {filtered.length === 0 ? (
-        <p className="empty">No notes match.</p>
+        // "No notes match" is an answer to a search. With nothing typed and no
+        // tag picked, the only thing that emptied the index is the lens — say
+        // that instead, or an empty area reads as a broken filter.
+        <p className="empty">
+          {q.trim() || tag
+            ? 'No notes match.'
+            : area && area !== ALL_AREAS
+              ? `Nothing in ${areaById(data.areas, area)?.name || 'this area'} yet.`
+              : 'No notes yet.'}
+        </p>
       ) : (
         // Both layouts group the same way. A star in the corner of a card is a
         // weaker signal than a heading, and the gallery skipping the split made
@@ -489,13 +556,23 @@ export default function NotesView({
           )}
         </>
       )}
+      {/* Unfiled notes sit below the index and outside the keyboard cursor's
+          walk — `filtered` is what the arrow keys index into, and folding a
+          collapsible section into it would make the cursor step through rows
+          nobody can see. */}
+      <UnfiledSection count={lens.unfiled.length}>
+        {section(sortNotes(lens.unfiled, sort), 0, 'No area')}
+      </UnfiledSection>
       {trashLink}
     </div>
   )
 
   return (
     <div className="notes-page">
-      {onBack && (
+      {/* Not on a phone: the bottom bar carries Today two slots along, and a
+          top-level destination with a back button above its own title is the
+          one shape iOS never has. */}
+      {onBack && !phone && (
         <button className="back-btn" onClick={onBack}>
           <ArrowLeft size={18} /> Today
         </button>
@@ -504,8 +581,14 @@ export default function NotesView({
       <PageHeader
         title="Notes"
         subtitle={notes.length ? `${notes.length} note${notes.length === 1 ? '' : 's'}` : undefined}
-        action={add}
+        // createAction, not action: on a phone the bar's ＋ already makes a
+        // note, and two primary buttons for one job is the thing that prop
+        // exists to prevent.
+        createAction={add}
         actionLabel="New note"
+        secondaryAction={phone ? () => setOptions(true) : undefined}
+        secondaryActionIcon={Sliders}
+        secondaryActionLabel="Sort and layout"
         onSearch={onSearch}
       />
 
@@ -546,6 +629,25 @@ export default function NotesView({
         </div>
       ) : (
         index
+      )}
+
+      {options && (
+        <Sheet title="Sort and layout" onClose={() => setOptions(false)}>
+          <div className="notes-options">{sortControls}</div>
+        </Sheet>
+      )}
+
+      {cardSheet && (
+        <ActionSheet
+          title={noteTitle(cardSheet)}
+          onClose={() => setCardSheet(null)}
+          actions={rowActions(cardSheet).map(({ label, icon, onClick, variant }) => ({
+            label,
+            icon,
+            onClick,
+            danger: variant === 'danger',
+          }))}
+        />
       )}
     </div>
   )

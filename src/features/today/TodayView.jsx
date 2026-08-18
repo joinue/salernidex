@@ -1,19 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  Bell,
-  Gift,
-  Calendar,
-  ChevronRight,
-  Sun,
-  FileText,
-  MessageCircle,
-  Clock,
-  Check,
-  Search,
-} from 'react-feather'
+import { Bell, Gift, Calendar, ChevronRight, Sun, MessageCircle, Clock, Check } from 'react-feather'
 import { relativeTime } from '../../lib/contact'
 import { dueLabel, daysUntilDue } from '../../lib/tasks'
-import { buildAttention } from '../../lib/attention'
+import { attentionAreaId, buildAttention, canBeFiled } from '../../lib/attention'
+import { ALL_AREAS, areaById } from '../../lib/areas'
+import UnfiledSection from '../../components/ui/UnfiledSection'
 import { reminderWhen } from '../../lib/reminders'
 import { normalizeAssignee } from '../../lib/household'
 import { buildActivityFeed } from '../../lib/activity'
@@ -44,6 +35,7 @@ import SnoozeSheet from '../../components/ui/SnoozeSheet'
 import InteractionForm from '../people/InteractionForm'
 import SectionLabel from '../../components/ui/SectionLabel'
 import EmptyState from '../../components/ui/EmptyState'
+import AreaDot from '../../components/ui/AreaDot'
 import IconButton from '../../components/ui/IconButton'
 
 function greeting() {
@@ -142,11 +134,6 @@ export default function TodayView({
         taskScope,
         // Legacy 'me'/'partner'/'either' assignees only resolve through here.
         normalizeAssignee,
-        // The lens. Today is the sharpest version of the problem areas exist to
-        // solve — a work task with a date landing on the dashboard on a Saturday
-        // morning — so this is the one that matters most. The badge deliberately
-        // does NOT get it; see buildAttention's own note.
-        areaId: area,
       }),
     // Granular deps on purpose: `data` is a fresh object every render; these are
     // the fields buildAttention actually reads.
@@ -167,20 +154,97 @@ export default function TodayView({
       now,
     ],
   )
+  // The lens, applied here rather than inside buildAttention — because a lens
+  // that had already dropped the excluded items couldn't hand them back, and
+  // Today needs them for the "No area" section below.
+  //
+  // Only fileable kinds are partitioned. A birthday and a habit stay put under
+  // every lens: contacts have no area at all, and nothing sets habits.area_id
+  // — so sweeping them into a collapsed section would empty the Dates card and
+  // the Habits card the moment you picked an area. See canBeFiled.
+  const lensOn = !!area && area !== ALL_AREAS
+  const scoped = lensOn
+    ? attention.filter((i) => !canBeFiled(i) || attentionAreaId(i) === area)
+    : attention
+  const unfiled = lensOn ? attention.filter((i) => canBeFiled(i) && !attentionAreaId(i)) : []
+
   // To-do is what's due now. Deadlines that haven't landed yet ride in their own
   // section below it — close enough to plan around (reminders.ANYTIME_DAYS), but
   // mixing them into To-do would blur the line between "due" and "due soon".
-  const dueTasks = attention.filter((i) => i.kind === 'task' && i.urgency !== 'anytime')
-  const anytimeTasks = attention.filter((i) => i.kind === 'task' && i.urgency === 'anytime')
-  const dueLists = attention.filter((i) => i.kind === 'list')
-  const checkIns = attention.filter((i) => i.kind === 'nudge')
+  const dueTasks = scoped.filter((i) => i.kind === 'task' && i.urgency !== 'anytime')
+  const anytimeTasks = scoped.filter((i) => i.kind === 'task' && i.urgency === 'anytime')
+  const dueLists = scoped.filter((i) => i.kind === 'list')
+  const checkIns = scoped.filter((i) => i.kind === 'nudge')
+  const unfiledTasks = unfiled.filter((i) => i.kind === 'task' || i.kind === 'reminder')
+  const unfiledLists = unfiled.filter((i) => i.kind === 'list')
   // Dates read off contacts and reminders you wrote are one section, not two:
   // "what's coming up" is a single question, and the difference between a
   // birthday derived from a contact and a reminder you typed is ours, not
   // yours. Sorted together so the soonest thing is the top row either way.
-  const dates = attention
+  const dates = scoped
     .filter((i) => i.kind === 'date' || i.kind === 'reminder')
     .sort((a, b) => whenDays(a) - whenDays(b))
+
+  // The two row shapes Today draws, pulled out of their sections so the
+  // "No area" block can render the same rows rather than a second, subtly
+  // different version of them. (The To-do and Anytime sections were already
+  // byte-identical.)
+  // Which area a row is in, for its dot. Today is the one screen that mixes
+  // areas by design — a work task and a Saturday errand land in the same To-do
+  // section — so on All this is the only thing on the row saying why it's here.
+  // Null under a lens, and null for the "No area" block below, where the heading
+  // has already said it.
+  const rowArea = (row) => (lensOn ? null : areaById(data.areas, row?.area_id))
+
+  const taskItemRow = (item) => (
+    <SwipeRow
+      key={item.key}
+      label={item.task.title}
+      actions={[later(item)]}
+      onClick={item.project ? () => onOpenProject?.(item.project.id) : undefined}
+    >
+      <div className="list-row">
+        <TaskRow
+          task={item.task}
+          onToggle={toggleTask}
+          breadcrumb={item.project?.title || null}
+          area={rowArea(item.task)}
+        />
+      </div>
+    </SwipeRow>
+  )
+
+  const listItemRow = (item) => {
+    const l = item.list
+    const left = (data.listItems || []).filter((it) => it.list_id === l.id && !it.checked_at).length
+    return (
+      <SwipeRow
+        key={item.key}
+        label={l.name}
+        actions={[later(item)]}
+        onClick={() => onOpenList(l.id)}
+      >
+        <div className="list-row">
+          <span className="list-emoji" style={l.color ? { background: l.color } : undefined}>
+            {l.icon || '📝'}
+          </span>
+          <div className="row-body">
+            <div className="row-titleline">
+              <AreaDot area={rowArea(l)} />
+              <div className="row-title">{l.name}</div>
+            </div>
+            <div className="row-sub">
+              {left ? `${left} item${left === 1 ? '' : 's'} left` : 'All done'}
+            </div>
+          </div>
+          <div className="row-meta">
+            <span className="row-time warn">{dueLabel(l.due_date)}</span>
+            <ChevronRight size={18} className="row-chevron" />
+          </div>
+        </div>
+      </SwipeRow>
+    )
+  }
 
   const toggleTask = (t) => {
     if (!t.completed_at) haptics.success()
@@ -219,13 +283,18 @@ export default function TodayView({
   // whole: the engine now also carries habit items, which this page draws from
   // its own pinned-habits list. Reading the raw length would let an unpinned
   // habit suppress the empty state and leave the page blank.
+  //
+  // Recent activity is deliberately NOT counted, and neither is "No area":
+  // neither is scoped by the lens, so either one would silently swallow the
+  // empty state — pick an area you haven't filed anything into yet and the page
+  // would answer with a history feed and a collapsed section of things that
+  // aren't in it, and never say the area is empty. Both still render below.
   const nothing =
     dueTasks.length === 0 &&
     anytimeTasks.length === 0 &&
     dueLists.length === 0 &&
     checkIns.length === 0 &&
     dates.length === 0 &&
-    recent.length === 0 &&
     todayHabits.length === 0 &&
     pinnedNotes.length === 0
 
@@ -246,36 +315,27 @@ export default function TodayView({
 
   return (
     <div>
-      {/* One trailing button, not three. Settings moved into the account menu
-          the avatar opens (it's account business, not a place your household's
-          things live), and with the avatar arriving on the right this header had
-          a gear, a notes icon, an avatar — and a greeting wrapping onto two
-          lines to make room for them. Notes stays: it's the one destination
-          Today's bottom bar has no slot for. */}
-      <PageHeader
-        title={greeting()}
-        subtitle={longDate()}
-        action={onOpenNotes}
-        actionIcon={FileText}
-        actionLabel="Notes"
-        // A destination, not this page's primary action — so it doesn't wear the
-        // accent circle.
-        actionQuiet
-      />
+      {/* Search and you, exactly as every other top-level page carries them —
+          Today was the odd one out, spending a whole row of the home screen on
+          a search field that is a 36px button everywhere else.
 
-      {/* iOS-style search bar under the large title — opens Quick Find.
-          Keeps the header to two quiet actions instead of squeezing three. */}
-      {onSearch && (
-        <button className="search-bar-btn" onClick={onSearch} aria-label="Quick Find">
-          <Search size={16} />
-          Search
-        </button>
-      )}
+          Two buttons, not three: with the avatar on the right, a third made the
+          greeting wrap onto two lines, which cost more height than the search
+          row saved. Notes gave up the slot — it's one tap away in the drawer,
+          and Search is the thing you reach for from a dashboard. */}
+      <PageHeader title={greeting()} subtitle={longDate()} onSearch={onSearch} />
 
       {household && <ProfileNudge household={household} />}
 
       {nothing && (
-        <EmptyState icon={Sun}>You're all caught up. Nothing needs attention today.</EmptyState>
+        <EmptyState icon={Sun}>
+          {/* Name the lens rather than saying "you're all caught up": under an
+              area, caught-up is a claim about that area only, and the same
+              sentence one tap later on All would be a different fact. */}
+          {lensOn
+            ? `Nothing in ${areaById(data.areas, area)?.name || 'this area'} needs attention today.`
+            : "You're all caught up. Nothing needs attention today."}
+        </EmptyState>
       )}
 
       {/* On wide screens (landscape iPad / desktop) these sections flow into
@@ -289,24 +349,7 @@ export default function TodayView({
         {dueTasks.length > 0 && (
           <section className="today-section">
             <SectionLabel>To-do</SectionLabel>
-            <div className="list">
-              {dueTasks.map((item) => (
-                <SwipeRow
-                  key={item.key}
-                  label={item.task.title}
-                  actions={[later(item)]}
-                  onClick={item.project ? () => onOpenProject?.(item.project.id) : undefined}
-                >
-                  <div className="list-row">
-                    <TaskRow
-                      task={item.task}
-                      onToggle={toggleTask}
-                      breadcrumb={item.project?.title || null}
-                    />
-                  </div>
-                </SwipeRow>
-              ))}
-            </div>
+            <div className="list">{dueTasks.map(taskItemRow)}</div>
           </section>
         )}
 
@@ -319,24 +362,7 @@ export default function TodayView({
         {anytimeTasks.length > 0 && (
           <section className="today-section">
             <SectionLabel>Anytime</SectionLabel>
-            <div className="list">
-              {anytimeTasks.map((item) => (
-                <SwipeRow
-                  key={item.key}
-                  label={item.task.title}
-                  actions={[later(item)]}
-                  onClick={item.project ? () => onOpenProject?.(item.project.id) : undefined}
-                >
-                  <div className="list-row">
-                    <TaskRow
-                      task={item.task}
-                      onToggle={toggleTask}
-                      breadcrumb={item.project?.title || null}
-                    />
-                  </div>
-                </SwipeRow>
-              ))}
-            </div>
+            <div className="list">{anytimeTasks.map(taskItemRow)}</div>
           </section>
         )}
 
@@ -401,43 +427,21 @@ export default function TodayView({
         {dueLists.length > 0 && (
           <section className="today-section">
             <SectionLabel>Lists</SectionLabel>
-            <div className="list">
-              {dueLists.map((item) => {
-                const l = item.list
-                const left = (data.listItems || []).filter(
-                  (it) => it.list_id === l.id && !it.checked_at,
-                ).length
-                return (
-                  <SwipeRow
-                    key={item.key}
-                    label={l.name}
-                    actions={[later(item)]}
-                    onClick={() => onOpenList(l.id)}
-                  >
-                    <div className="list-row">
-                      <span
-                        className="list-emoji"
-                        style={l.color ? { background: l.color } : undefined}
-                      >
-                        {l.icon || '📝'}
-                      </span>
-                      <div className="row-body">
-                        <div className="row-title">{l.name}</div>
-                        <div className="row-sub">
-                          {left ? `${left} item${left === 1 ? '' : 's'} left` : 'All done'}
-                        </div>
-                      </div>
-                      <div className="row-meta">
-                        <span className="row-time warn">{dueLabel(l.due_date)}</span>
-                        <ChevronRight size={18} className="row-chevron" />
-                      </div>
-                    </div>
-                  </SwipeRow>
-                )
-              })}
-            </div>
+            <div className="list">{dueLists.map(listItemRow)}</div>
           </section>
         )}
+
+        {/* What the lens set aside: dated work that needs you today but has no
+            area of its own. Collapsed, below the sections it would otherwise be
+            mixed into — so picking Work doesn't quietly lose the errand you
+            never filed, and doesn't pad Work with it either. Matches Tasks,
+            Projects, Lists, Notes and Reminders. */}
+        <UnfiledSection count={unfiledTasks.length + unfiledLists.length}>
+          <div className="list">
+            {unfiledTasks.map(taskItemRow)}
+            {unfiledLists.map(listItemRow)}
+          </div>
+        </UnfiledSection>
 
         {checkIns.length > 0 && (
           <section className="today-section">

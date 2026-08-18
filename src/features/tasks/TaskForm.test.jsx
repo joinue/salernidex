@@ -27,6 +27,16 @@ function seedHousehold(
   )
 }
 
+// Areas are real rows now (migration 0040), not strings scraped off tasks.
+const homeArea = { id: 'a-home', name: 'Home', shared: false, created_by: 'u-1' }
+const privateArea = {
+  id: 'a-work',
+  name: 'Work',
+  shared: false,
+  default_private: true,
+  created_by: 'u-1',
+}
+
 const setup = (props = {}) => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   const onClose = vi.fn()
@@ -62,17 +72,49 @@ describe('TaskForm — what it asks for up front', () => {
     expect(labels).toEqual(['Task', 'Due', 'Who'])
   })
 
-  it('keeps priority, area, tags, repeat and notes behind More options', async () => {
-    setup()
-    expect(screen.queryByLabelText('Area')).not.toBeInTheDocument()
+  // Area is the one axis the whole app scopes to, so filing happens on most
+  // tasks — it sits with the three questions, not in the drawer.
+  it('asks which area before it offers More options', () => {
+    setup({ areas: [homeArea] })
+    const labels = [...document.querySelectorAll('.field > .label')].map((e) =>
+      e.textContent.trim(),
+    )
+    expect(labels).toEqual(['Task', 'Due', 'Who', 'Area'])
+    expect(screen.getByRole('button', { name: 'Home' })).toBeInTheDocument()
+  })
+
+  it('keeps priority, tags, repeat and notes behind More options', async () => {
+    setup({ areas: [homeArea] })
+    expect(screen.queryByText('Priority')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /More options/ }))
-    expect(screen.getByLabelText('Area')).toBeInTheDocument()
     expect(screen.getByText('Priority')).toBeInTheDocument()
+    expect(screen.getByLabelText(/Notes/)).toBeInTheDocument()
+  })
+
+  // Progressive disclosure, the same rule PrivacyField and the member filter
+  // follow: someone with no areas should never meet the concept.
+  it('offers no area picker at all until an area exists', async () => {
+    setup()
+    expect(screen.queryByText('Area')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /More options/ }))
+    expect(screen.getByText('Priority')).toBeInTheDocument()
+    expect(screen.queryByText('Area')).not.toBeInTheDocument()
   })
 
   it('opens More options already expanded when editing a task that uses them', () => {
-    setup({ task: { id: 't', title: 'Pay rent', area: 'Home', priority: 2 } })
-    expect(screen.getByLabelText('Area')).toHaveValue('Home')
+    setup({
+      task: { id: 't', title: 'Pay rent', area_id: 'a-home', priority: 2 },
+      areas: [homeArea],
+    })
+    expect(screen.getByText('Priority')).toBeInTheDocument()
+  })
+
+  // An area alone is no longer a reason to open the drawer — the picker showing
+  // "Home" already says everything the expander would have.
+  it('leaves More options closed for an edit that only uses an area', () => {
+    setup({ task: { id: 't', title: 'Pay rent', area_id: 'a-home' }, areas: [homeArea] })
+    expect(screen.getByRole('button', { name: 'Home' })).toHaveClass('on')
+    expect(screen.queryByText('Priority')).not.toBeInTheDocument()
   })
 
   it('hides the Who row entirely in a solo household', () => {
@@ -229,5 +271,157 @@ describe('TaskForm — on this day vs anytime before', () => {
     await userEvent.type(titleBox(), 'water the plants')
     await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
     expect(saved(onSave)).toMatchObject({ due_date: null, due_kind: 'on' })
+  })
+})
+
+describe('TaskForm — the lens you are looking through', () => {
+  // Typing a task while scoped to Work must produce a Work task with zero extra
+  // taps, or the lens is a tax rather than a tool.
+  it('opens pre-filed under the active area', async () => {
+    const { onSave } = setup({ areas: [homeArea], defaultAreaId: 'a-home' })
+    expect(screen.getByRole('button', { name: 'Home' })).toHaveClass('on')
+    await userEvent.type(titleBox(), 'Water plants')
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+    expect(saved(onSave).area_id).toBe('a-home')
+  })
+
+  // Under All there is nothing to inherit — App passes areaForNewItem, which
+  // returns null rather than picking one for you.
+  it('starts on None when no lens is on', () => {
+    setup({ areas: [homeArea], defaultAreaId: null })
+    expect(screen.getByRole('button', { name: 'None' })).toHaveClass('on')
+  })
+
+  it('is a starting point, not a rule — None is one tap away', async () => {
+    const { onSave } = setup({ areas: [homeArea], defaultAreaId: 'a-home' })
+    await userEvent.click(screen.getByRole('button', { name: 'None' }))
+    await userEvent.type(titleBox(), 'Water plants')
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+    expect(saved(onSave).area_id).toBeNull()
+  })
+
+  // An edit is not a creation: the lens must never move a task that already
+  // lives somewhere, or opening a Work task under the Home lens refiles it.
+  it('never re-files an existing task to the lens', () => {
+    setup({
+      task: { id: 't', title: 'File expenses', area_id: 'a-work' },
+      areas: [homeArea, privateArea],
+      defaultAreaId: 'a-home',
+    })
+    expect(screen.getByRole('button', { name: 'Work' })).toHaveClass('on')
+  })
+
+  // The §5.2 fallthrough reaches the inherited area too: creating under a lens
+  // that keeps things private shouldn't need a second decision.
+  it('takes the inherited area privacy along with it', async () => {
+    const { onSave } = setup({
+      areas: [privateArea],
+      defaultAreaId: 'a-work',
+      defaultPrivacy: 'shared',
+    })
+    await userEvent.type(titleBox(), 'File expenses')
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+    expect(saved(onSave).privacy_level).toBe('private')
+  })
+})
+
+describe('TaskForm — making an area without leaving the sheet', () => {
+  // The dead end this fixes: you're mid-task, the area you want doesn't exist,
+  // and the only way to make one is to abandon the sheet for Settings.
+  const openNameBox = async () => {
+    await userEvent.click(screen.getByRole('button', { name: /New area/ }))
+    return screen.getByLabelText('New area name')
+  }
+
+  it('creates the area and files the task into it in one go', async () => {
+    const onCreateArea = vi.fn().mockReturnValue('a-new')
+    const { onSave } = setup({ areas: [homeArea], onCreateArea })
+    await userEvent.type(await openNameBox(), 'The band')
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }))
+    expect(onCreateArea).toHaveBeenCalledWith('The band')
+    await userEvent.type(titleBox(), 'Book the rehearsal room')
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+    expect(saved(onSave).area_id).toBe('a-new')
+  })
+
+  it('Enter names the area instead of saving the task', async () => {
+    const onCreateArea = vi.fn().mockReturnValue('a-new')
+    const { onSave } = setup({ areas: [homeArea], onCreateArea })
+    await userEvent.type(await openNameBox(), 'The band{Enter}')
+    expect(onCreateArea).toHaveBeenCalledWith('The band')
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
+  // "work" and "Work" as two areas that can never be merged is exactly what
+  // free-typed areas used to produce; a name that already exists selects it.
+  it('picks the existing area rather than minting a near-duplicate', async () => {
+    const onCreateArea = vi.fn()
+    const { onSave } = setup({ areas: [homeArea], onCreateArea })
+    await userEvent.type(await openNameBox(), '  home {Enter}')
+    expect(onCreateArea).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Home' })).toHaveClass('on')
+    await userEvent.type(titleBox(), 'Water plants')
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+    expect(saved(onSave).area_id).toBe('a-home')
+  })
+
+  // Nothing to make an area from, so nothing happens — and the box closes
+  // rather than sitting open over a form you're trying to finish.
+  it('makes nothing from an empty name', async () => {
+    const onCreateArea = vi.fn()
+    setup({ areas: [homeArea], onCreateArea })
+    await userEvent.type(await openNameBox(), '   {Enter}')
+    expect(onCreateArea).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText('New area name')).not.toBeInTheDocument()
+  })
+
+  // The picker is shared with ListForm and friends, which don't offer this.
+  it('offers no ＋ pill when the caller has no way to create one', () => {
+    setup({ areas: [homeArea] })
+    expect(screen.queryByRole('button', { name: /New area/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('TaskForm — an area that keeps things private', () => {
+  // The §5.2 fallthrough: the area gets to say "private", and otherwise your own
+  // preference decides. Filing into Work should not need a second decision.
+  it('makes a new task private when the area says so', async () => {
+    const { onSave } = setup({ areas: [privateArea], defaultPrivacy: 'shared' })
+    await userEvent.click(screen.getByRole('button', { name: 'Work' }))
+    await userEvent.type(titleBox(), 'File expenses')
+    await userEvent.click(screen.getByRole('button', { name: /Add task/i }))
+    expect(saved(onSave).privacy_level).toBe('private')
+  })
+
+  it('leaves the default alone for an area with nothing to say', async () => {
+    const { onSave } = setup({ areas: [homeArea], defaultPrivacy: 'shared' })
+    await userEvent.click(screen.getByRole('button', { name: 'Home' }))
+    await userEvent.type(titleBox(), 'Water plants')
+    await userEvent.click(screen.getByRole('button', { name: /Add task/i }))
+    expect(saved(onSave).privacy_level).toBe('shared')
+  })
+
+  // Pre-fill, not a rule — you can still share one item out of a private area.
+  it('lets an explicit pick beat the area', async () => {
+    const { onSave } = setup({ areas: [privateArea], defaultPrivacy: 'shared' })
+    await userEvent.click(screen.getByRole('button', { name: 'Work' }))
+    // PrivacyField lives behind the expander, and it's a Segmented, so its
+    // options are tabs rather than buttons.
+    await userEvent.click(screen.getByRole('button', { name: /More options/ }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Shared' }))
+    await userEvent.type(titleBox(), 'Book the offsite')
+    await userEvent.click(screen.getByRole('button', { name: /Add task/i }))
+    expect(saved(onSave).privacy_level).not.toBe('private')
+  })
+
+  // An edit already has a visibility somebody chose; re-deciding it would
+  // silently re-privatise work when the form is opened for an unrelated tweak.
+  it('never re-decides visibility on an edit', async () => {
+    const { onSave } = setup({
+      task: { id: 't', title: 'Pay rent', area_id: 'a-work', privacy_level: 'shared' },
+      areas: [privateArea],
+    })
+    await userEvent.click(screen.getByRole('button', { name: /Save/i }))
+    expect(saved(onSave).privacy_level).toBe('shared')
   })
 })

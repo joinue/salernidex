@@ -11,6 +11,7 @@ import {
 import { describeRecurrence } from '../../lib/recurrence'
 import { assigneeLabel, normalizeAssignee } from '../../lib/household'
 import SharedDot from '../../components/ui/SharedDot'
+import AreaDot from '../../components/ui/AreaDot'
 
 // Presentational task line: completion circle + title + meta chips (assignee,
 // due, recurring). The checkbox stops propagation so the surrounding row can
@@ -25,6 +26,12 @@ export default function TaskRow({
   progress,
   hideAssignee = false,
   breadcrumb = null,
+  // The area row itself, resolved by the caller — not read off the task.
+  // `tasks.area` still exists and is still written (0040 keeps it as a rollback
+  // seat), but it's a snapshot of the name at write time, so a renamed area
+  // would leave old rows showing the old word. The lookup belongs where the
+  // areas are. Null while a lens is on: see AreaDot.
+  area = null,
 }) {
   const done = !!task.completed_at
   // A deadline ('by') answers a different question than a due date: not "when
@@ -67,15 +74,6 @@ export default function TaskRow({
           title={`${priorityLabel(prio)} priority`}
         >
           <Flag size={11} />
-        </span>
-      ),
-    },
-    task.area && {
-      rank: 7,
-      title: task.area,
-      node: (
-        <span className="chip area" key="area">
-          {task.area}
         </span>
       ),
     },
@@ -157,6 +155,12 @@ export default function TaskRow({
       </button>
       <div className="row-body">
         <div className="row-titleline">
+          {/* Out of the chip budget and onto the title line. As a chip it ranked
+              7th of four slots, so on any row carrying a due date, an assignee
+              and a breadcrumb — the rows you most want to place — it collapsed
+              into "+N" and the area was invisible exactly when it mattered. A
+              dot costs 8px and never competes for the budget. */}
+          <AreaDot area={area} />
           <div className={`row-title ${done ? 'task-done' : ''} ${size === 'sm' ? 'sm' : ''}`}>
             {task.title}
           </div>

@@ -142,7 +142,7 @@ function ReviewStep({ template, onBack, onCreate, onClose, defaultPrivacy, initi
           <div className="field">
             <label className="label">Starter tasks</label>
             <p className="muted" style={{ fontSize: 13, margin: '0 2px 8px' }}>
-              Tap to drop anything you don’t need — the phases stay either way.
+              Tap to drop anything you don’t need. The phases stay either way.
             </p>
             {template.phases.map((p, pi) =>
               (p.tasks || []).length ? (

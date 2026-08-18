@@ -18,6 +18,7 @@ import {
   demoHabits,
   demoHabitEntries,
   demoNotes,
+  demoAreas,
 } from '../lib/demo'
 import { completionFields, skipFields } from '../lib/tasks'
 import { categorize } from '../lib/aisles'
@@ -57,6 +58,9 @@ const fromPrefRow = (r) => ({
   showCompleted: r.show_completed,
   peopleSort: r.people_sort,
   projectsSort: r.projects_sort,
+  // The area lens (0040). Same 'all' sentinel ↔ null mapping task_filter uses:
+  // the column is a real FK to areas(id), and "no lens" is the absence of one.
+  area: r.area || 'all',
 })
 const toPrefRow = (p) => ({
   default_task_privacy: p.taskPrivacy,
@@ -66,6 +70,7 @@ const toPrefRow = (p) => ({
   show_completed: p.showCompleted,
   people_sort: p.peopleSort,
   projects_sort: p.projectsSort,
+  area: !p.area || p.area === 'all' ? null : p.area,
 })
 
 const uuid = () => crypto.randomUUID()
@@ -106,6 +111,9 @@ export function useData(session) {
   const [habits, setHabits] = useState(isDemo ? demoHabits : [])
   const [habitEntries, setHabitEntries] = useState(isDemo ? demoHabitEntries : [])
   const [notes, setNotes] = useState(isDemo ? demoNotes : [])
+  // The lens: Work / Home / the band (0040). One per item or none, and the only
+  // axis that scopes the whole app — see lib/areas.js.
+  const [areas, setAreas] = useState(isDemo ? demoAreas : [])
   const [reminderSnoozes, setReminderSnoozes] = useState([])
   const [loading, setLoading] = useState(!isDemo)
   const [error, setError] = useState(null)
@@ -114,6 +122,27 @@ export function useData(session) {
   // are in flight — the server read can still be missing our just-added row and
   // would momentarily clobber it. We defer the refetch until this hits 0.
   const pendingWrites = useRef(0)
+  // Which columns member_preferences actually has on THIS database, learned
+  // from the row we read. null until we've read one.
+  //
+  // Expand/contract cuts both ways and this is the direction that gets
+  // forgotten: the rule protects an old client reading a new database, but a new
+  // client writing an OLD database is just as real — a deploy lands before its
+  // migration is run, and every deploy is that for a few minutes. toPrefRow
+  // sends the whole prefs object, so one column the database hasn't got yet
+  // fails the entire upsert with PGRST204 and NOTHING syncs. That is exactly
+  // what `area` did (0040 adds it; a client shipped ahead of it toasted "Could
+  // not find the 'area' column" on every preference change).
+  //
+  // So: send only what the database has admitted to having. Self-healing — the
+  // next read after the migration includes the column and writes resume.
+  const prefColumns = useRef(null)
+  const knownPrefColumns = (row) => {
+    const known = prefColumns.current
+    if (!known) return row // nothing read yet — assume an up-to-date schema
+    return Object.fromEntries(Object.entries(row).filter(([k]) => known.has(k)))
+  }
+
   // Once a real server refresh has landed, the IndexedDB snapshot must never
   // overwrite it (the cache hydrate is async and can resolve after the network
   // when both race on a warm start). This flag lets the hydrate bail.
@@ -153,7 +182,7 @@ export function useData(session) {
     // would see their households' data commingled. (reminder_snoozes is
     // member-scoped, not household-scoped, so it filters on member_id instead.)
     if (isDemo || !householdId) return
-    const [p, o, r, i, g, t, c, tl, l, li, f, kd, sn, h, he, lc, nt, af] = await Promise.all([
+    const [p, o, r, i, g, t, c, tl, l, li, f, kd, sn, h, he, lc, nt, af, ar] = await Promise.all([
       supabase.from('people').select('*').eq('household_id', householdId).order('name'),
       supabase.from('organizations').select('*').eq('household_id', householdId).order('name'),
       supabase.from('relationships').select('*').eq('household_id', householdId),
@@ -198,6 +227,12 @@ export function useData(session) {
       // late-arriving tables — if migration 0033 hasn't run, contacts should
       // simply show no organization rather than the whole app going blank.
       supabase.from('affiliations').select('*').eq('household_id', householdId),
+      // Areas (0040). Kept OUT of firstError with the rest of the late-arriving
+      // tables: if the migration hasn't run, the app should show every item
+      // unfiled — which is exactly how it behaved before areas existed — rather
+      // than going blank. Ordering is applied in lib/areas.sortAreas (manual
+      // rank, then creation), so this pull doesn't need an .order().
+      supabase.from('areas').select('*').eq('household_id', householdId),
     ])
     const firstError =
       p.error ||
@@ -237,6 +272,7 @@ export function useData(session) {
       if (!lc.error) setListCatalog(lc.data || [])
       if (!nt.error) setNotes(nt.data || [])
       if (!af.error) setAffiliations(af.data || [])
+      if (!ar.error) setAreas(ar.data || [])
       // Server truth is in: from here the offline snapshot must not clobber it,
       // and we persist this pull as the new last-known-good for the next cold
       // launch. Best-effort — saveSnapshot swallows its own failures.
@@ -260,6 +296,7 @@ export function useData(session) {
         listCatalog: lc.error ? [] : lc.data || [],
         notes: nt.error ? [] : nt.data || [],
         affiliations: af.error ? [] : af.data || [],
+        areas: ar.error ? [] : ar.data || [],
       })
     }
     setLoading(false)
@@ -276,7 +313,13 @@ export function useData(session) {
       .select('*')
       .eq('member_id', memberId)
       .maybeSingle()
-    if (!prefErr && data) hydrateAppPrefs(memberId, fromPrefRow(data))
+    if (!prefErr && data) {
+      // The columns this database actually has, learned from the row itself —
+      // PostgREST returns every column, nulls included, so presence is the test.
+      // See prefColumns for why.
+      prefColumns.current = new Set(Object.keys(data))
+      hydrateAppPrefs(memberId, fromPrefRow(data))
+    }
   }, [isDemo, memberId])
 
   // Notification prefs load the same way (separate table, same degrade-to-
@@ -318,6 +361,7 @@ export function useData(session) {
       setHabitEntries(snap.habitEntries || [])
       setListCatalog(snap.listCatalog || [])
       setNotes(snap.notes || [])
+      setAreas(snap.areas || [])
       setLoading(false)
     })
     return () => {
@@ -336,7 +380,9 @@ export function useData(session) {
       sync((db) =>
         db
           .from('member_preferences')
-          .upsert({ member_id: mid, ...toPrefRow(prefs) }, { onConflict: 'member_id' }),
+          .upsert(knownPrefColumns({ member_id: mid, ...toPrefRow(prefs) }), {
+            onConflict: 'member_id',
+          }),
       ),
     )
     bindNotifyRemote((mid, prefs) =>
@@ -658,8 +704,15 @@ export function useData(session) {
     })
   }
 
-  const addTask = (fields) => {
+  const addTask = (rawFields) => {
     const rowId = uuid()
+    // A subtask takes its parent's area, always — a subtask filed somewhere
+    // other than the thing it's a step of is incoherent, and it would show up
+    // under a lens its parent isn't in. Enforced here rather than at each of the
+    // half-dozen call sites that add children, because one that forgets doesn't
+    // look like a bug, it looks like the lens leaking.
+    const parent = rawFields?.parent_id ? tasks.find((t) => t.id === rawFields.parent_id) : null
+    const fields = parent ? { ...rawFields, area_id: parent.area_id ?? null } : rawFields
     setTasks((prev) => [
       ...prev,
       stamp({
@@ -693,6 +746,20 @@ export function useData(session) {
     const dbFields =
       'assignee' in fields ? { ...fields, assignee: dbAssignee(fields.assignee) } : fields
     sync((db) => db.from('tasks').update(dbFields).eq('id', id))
+    // Refiling a project carries its subtasks with it — the other half of the
+    // rule addTask applies. Without this, moving "Kitchen refresh" to Home would
+    // leave its five steps behind in whatever area they were created under, and
+    // they'd vanish from the project's own lens.
+    if ('area_id' in fields) {
+      const children = tasks.filter((t) => t.parent_id === id && t.area_id !== fields.area_id)
+      if (children.length) {
+        const ids = children.map((t) => t.id)
+        setTasks((prev) =>
+          prev.map((t) => (ids.includes(t.id) ? { ...t, area_id: fields.area_id } : t)),
+        )
+        sync((db) => db.from('tasks').update({ area_id: fields.area_id }).in('id', ids))
+      }
+    }
   }
 
   // Persist a manual ordering: [{ id, sort_order }, ...]. Local apply is one
@@ -979,7 +1046,7 @@ export function useData(session) {
         const before = dupe.qty ?? null
         updateListItem(dupe.id, { qty: merged || null })
         if (list) recordCatalog(list, text, category)
-        showToast(`Already on the list — now ${qtyLabel(merged) || '×1'}`, {
+        showToast(`Already on the list · now ${qtyLabel(merged) || '×1'}`, {
           actionLabel: 'Undo',
           onAction: () => updateListItem(dupe.id, { qty: before }),
         })
@@ -988,7 +1055,22 @@ export function useData(session) {
     }
 
     const rowId = uuid()
-    const row = { id: rowId, list_id: listId, text, note, qty, category, assignee, on_date }
+    // created_by is sent explicitly even though the column defaults to
+    // auth.uid(): the default only fills the copy on the SERVER, and the
+    // optimistic row we push into state below is the one on screen until the
+    // next refresh. Without it the activity feed drops your name from the item
+    // you just added and grows it back minutes later, which reads as a glitch.
+    const row = {
+      id: rowId,
+      list_id: listId,
+      text,
+      note,
+      qty,
+      category,
+      assignee,
+      on_date,
+      created_by: userId,
+    }
     setListItems((prev) => [
       ...prev,
       stamp({ ...row, is_heading: false, checked_at: null, sort_order: null, created_at: now() }),
@@ -1050,10 +1132,19 @@ export function useData(session) {
     return rowId
   }
 
+  // Checking off records who did it (0041); unchecking clears the credit rather
+  // than reassigning it — an item put back on the list hasn't been got by
+  // anyone. This is why checked_by has no auth.uid() default in the schema: the
+  // DB can't tell the two directions of a toggle apart, and only this function
+  // can.
   const toggleListItem = (item) => {
-    const checked_at = item.checked_at ? null : new Date().toISOString()
-    setListItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, checked_at } : it)))
-    sync((db) => db.from('list_items').update({ checked_at }).eq('id', item.id))
+    const checking = !item.checked_at
+    const checked_at = checking ? new Date().toISOString() : null
+    const checked_by = checking ? userId : null
+    setListItems((prev) =>
+      prev.map((it) => (it.id === item.id ? { ...it, checked_at, checked_by } : it)),
+    )
+    sync((db) => db.from('list_items').update({ checked_at, checked_by }).eq('id', item.id))
   }
 
   // Inline edits to an item (text, note, qty, aisle, assignee) — tap-to-edit in
@@ -1179,6 +1270,134 @@ export function useData(session) {
   const discardNote = (id) => {
     setNotes((prev) => prev.filter((n) => n.id !== id))
     sync((db) => db.from('notes').delete().eq('id', id))
+  }
+
+  // ---- Areas (the lens: Work / Home / …) --------------------------------
+  // Reads and the filtering rules live in lib/areas.js; this is only the write
+  // side. created_by is the AUTH user, not the member — visibleAreas tests
+  // against auth.uid() because that's what the column defaults to.
+  const addArea = (fields = {}) => {
+    const rowId = uuid()
+    setAreas((prev) => [
+      ...prev,
+      stamp({
+        name: '',
+        icon: null,
+        color: null,
+        sort_order: null,
+        shared: false,
+        default_private: false,
+        show_on_today: true,
+        archived_at: null,
+        created_by: userId,
+        created_at: now(),
+        updated_at: now(),
+        ...fields,
+        id: rowId,
+      }),
+    ])
+    sync((db) => db.from('areas').insert(stamp({ ...fields, id: rowId })))
+    return rowId
+  }
+
+  // Sharing an area clears default_private in the same write. The rule is that
+  // the setting only exists while an area is private — a shared area whose
+  // contents default to private is close to a contradiction — and the database
+  // deliberately carries no constraint saying so (0040 explains why), so this is
+  // the one place that keeps the invariant true.
+  const updateArea = (id, fields) => {
+    const patch = fields.shared ? { ...fields, default_private: false } : fields
+    setAreas((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch, updated_at: now() } : a)))
+    sync((db) => db.from('areas').update(patch).eq('id', id))
+  }
+
+  const reorderAreas = (updates) => {
+    const byId = new Map(updates.map((u) => [u.id, u.sort_order]))
+    setAreas((prev) => prev.map((a) => (byId.has(a.id) ? { ...a, sort_order: byId.get(a.id) } : a)))
+    sync(async (db) => {
+      for (const u of updates) {
+        must(await db.from('areas').update({ sort_order: u.sort_order }).eq('id', u.id))
+      }
+    })
+  }
+
+  // Archiving hides a lens, never an item: area_id stays put, so everything
+  // filed here is still reachable under "All" and comes straight back if the
+  // area is unarchived.
+  const archiveArea = (id) => updateArea(id, { archived_at: now() })
+  const unarchiveArea = (id) => updateArea(id, { archived_at: null })
+
+  // Deleting an area unfiles its contents rather than deleting them — the FK is
+  // `on delete set null`, which makes that atomic server-side. Locally we have
+  // to do the same clearing by hand, because nothing tells the client the FK
+  // fired. Undo re-inserts the area and re-files everything that pointed at it.
+  const deleteArea = (id) => {
+    const gone = areas.find((a) => a.id === id)
+    if (!gone) return
+    const filed = {
+      tasks: tasks.filter((t) => t.area_id === id).map((t) => t.id),
+      lists: lists.filter((l) => l.area_id === id).map((l) => l.id),
+      notes: notes.filter((n) => n.area_id === id).map((n) => n.id),
+      habits: habits.filter((h) => h.area_id === id).map((h) => h.id),
+    }
+    const clear = (rows, ids) => rows.map((r) => (ids.includes(r.id) ? { ...r, area_id: null } : r))
+
+    setAreas((prev) => prev.filter((a) => a.id !== id))
+    setTasks((prev) => clear(prev, filed.tasks))
+    setLists((prev) => clear(prev, filed.lists))
+    setNotes((prev) => clear(prev, filed.notes))
+    setHabits((prev) => clear(prev, filed.habits))
+    sync((db) => db.from('areas').delete().eq('id', id))
+
+    const total = filed.tasks.length + filed.lists.length + filed.notes.length + filed.habits.length
+    showToast(
+      total ? `Deleted “${gone.name}” · ${total} moved to No area` : `Deleted “${gone.name}”`,
+      {
+        actionLabel: 'Undo',
+        onAction: () => {
+          const refile = (rows, ids) =>
+            rows.map((r) => (ids.includes(r.id) ? { ...r, area_id: id } : r))
+          setAreas((prev) => [...prev, gone])
+          setTasks((prev) => refile(prev, filed.tasks))
+          setLists((prev) => refile(prev, filed.lists))
+          setNotes((prev) => refile(prev, filed.notes))
+          setHabits((prev) => refile(prev, filed.habits))
+          sync(async (db) => {
+            must(await db.from('areas').upsert(gone))
+            for (const [table, ids] of Object.entries(filed)) {
+              if (ids.length) must(await db.from(table).update({ area_id: id }).in('id', ids))
+            }
+          })
+        },
+      },
+    )
+  }
+
+  // Merge goes through an RPC, not the write queue. The queue can describe the
+  // repoints and the delete but can't make them atomic — and a merge whose
+  // repoints fail after its delete lands would silently unfile everything. That
+  // makes this the one area operation requiring a connection; the caller shows
+  // the failure rather than queueing it. See 0040_areas.sql.
+  const mergeAreas = async (fromId, intoId) => {
+    if (isDemo) {
+      const move = (rows) => rows.map((r) => (r.area_id === fromId ? { ...r, area_id: intoId } : r))
+      setTasks(move)
+      setLists(move)
+      setNotes(move)
+      setHabits(move)
+      setAreas((prev) => prev.filter((a) => a.id !== fromId))
+      return true
+    }
+    const { error: rpcErr } = await supabase.rpc('merge_area', {
+      p_from: fromId,
+      p_into: intoId,
+    })
+    if (rpcErr) {
+      showToast(friendlyError(rpcErr), { variant: 'error', duration: 6000 })
+      return false
+    }
+    await refresh()
+    return true
   }
 
   // Contact family units ("The Parks"). saveFamily returns the saved row so
@@ -1324,7 +1543,7 @@ export function useData(session) {
     if (!MILESTONES.has(streak)) return
     haptics.success()
     const unit = isWeekly(habit) ? 'week' : 'day'
-    showToast(`🔥 ${streak}-${unit} streak — ${habit.name}!`)
+    showToast(`🔥 ${streak}-${unit} streak · ${habit.name}!`)
   }
 
   const reorderHabits = (updates) => {
@@ -1526,6 +1745,7 @@ export function useData(session) {
       habit_entries: backup.habit_entries,
       list_catalog: backup.list_catalog,
       notes: backup.notes,
+      areas: backup.areas,
     }
     // Backups taken before migration 0023 store the old 'marc_only' privacy
     // label; map it to 'private' so they still restore against the renamed enum.
@@ -1598,6 +1818,37 @@ export function useData(session) {
       })
       if (migrated.length) tables.affiliations = migrated
     }
+    // Areas (v11) restore by id, so a backup taken from this household round-trips
+    // with every area_id still pointing at the right row and nothing to remap.
+    // Restoring into a DIFFERENT household is where it bites: areas carry a
+    // unique (household_id, created_by, lower(name)), so an incoming "Work" that
+    // collides with an existing "Work" would abort the whole restore on a
+    // constraint violation. Fold the incoming one into the existing row instead,
+    // and rewrite every area_id that referenced it — the same find-or-merge shape
+    // v7 uses for organizations, keyed on the constraint's own columns.
+    if (Array.isArray(tables.areas) && tables.areas.length) {
+      const key = (a) => `${a.created_by || ''}|${(a.name || '').trim().toLowerCase()}`
+      const existing = new Map(areas.map((a) => [key(a), a.id]))
+      const remap = new Map()
+      tables.areas = tables.areas.filter((a) => {
+        const hit = existing.get(key(a))
+        if (hit && hit !== a.id) {
+          remap.set(a.id, hit)
+          return false
+        }
+        return true
+      })
+      if (remap.size) {
+        for (const t of ['tasks', 'lists', 'notes', 'habits']) {
+          if (!Array.isArray(tables[t])) continue
+          tables[t] = tables[t].map((row) =>
+            row?.area_id && remap.has(row.area_id)
+              ? { ...row, area_id: remap.get(row.area_id) }
+              : row,
+          )
+        }
+      }
+    }
     if (isDemo) {
       const merge = (prev, incoming) => {
         if (!Array.isArray(incoming)) return prev
@@ -1624,6 +1875,7 @@ export function useData(session) {
       if (tables.habit_entries) setHabitEntries((prev) => merge(prev, tables.habit_entries))
       if (tables.list_catalog) setListCatalog((prev) => merge(prev, tables.list_catalog))
       if (tables.notes) setNotes((prev) => merge(prev, tables.notes))
+      if (tables.areas) setAreas((prev) => merge(prev, tables.areas))
       return
     }
     // Live: re-home each row into the active household, sanitize legacy ids
@@ -1648,6 +1900,9 @@ export function useData(session) {
         return row
       })
     for (const name of [
+      // Areas first: tasks, lists, notes and habits all carry an area_id FK, so
+      // the lens has to exist before anything can be filed into it.
+      'areas',
       'families',
       'organizations',
       'people',
@@ -1740,6 +1995,11 @@ export function useData(session) {
     habitEntries,
     notes: visibleNotes,
     deletedNotes,
+    // Every area in the household, unfiltered. Which ones YOU are offered as a
+    // lens (`shared or mine`, minus archived) is lib/areas.visibleAreas — kept
+    // there rather than here because the manager deliberately wants the full
+    // list, archived rows included.
+    areas,
     allNotes: notes,
     allPeople: people,
     allOrgs: orgs,
@@ -1788,6 +2048,13 @@ export function useData(session) {
     restoreNote,
     purgeNote,
     discardNote,
+    addArea,
+    updateArea,
+    reorderAreas,
+    archiveArea,
+    unarchiveArea,
+    deleteArea,
+    mergeAreas,
     togglePinNote,
     saveGroup,
     deleteGroup,

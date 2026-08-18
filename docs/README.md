@@ -42,8 +42,22 @@ they describe futures, and the present moves.
 - [`scopes/notes.md`](scopes/notes.md) — four candidates for the notebook:
   note-to-note links, search match highlighting, multi-select, and the rail's
   Back-button behavior. *None shipped as of 2026-08-06.*
+- [`scopes/areas-and-tags.md`](scopes/areas-and-tags.md) — the 2026-08-17
+  rethink of the two organizing axes, and the current thinking on both.
+  Areas become an app-wide **lens** set in the shell (tasks, lists, notes,
+  habits — deliberately not contacts) rather than a per-page filter; tags become
+  contexts that cross areas and pay off as saved views on the `groups.js` rule
+  engine; sharing splits into "does this lens exist for you" (`areas.shared`)
+  and "can you see this item" (the existing `privacy_level`), with tags
+  inheriting their row's privacy for free. **The schema half is time-sensitive**
+  — it's the work [`next-steps.md §2b`](next-steps.md) wants landed before an
+  App Store binary exists, so it specifies one `0040` migration carrying every
+  column the feature will ever need, ready to write. Five UI phases after that,
+  an explicit decline list, and a §9 decisions table where the open questions
+  used to be. *Nothing shipped.*
 - [`scopes/task-areas.md`](scopes/task-areas.md) — grouping tasks by area
-  ("Work" vs "Home"), in three phases. *Phase 1 partly shipped; the `task_areas`
+  ("Work" vs "Home"), in three phases. **Superseded by `areas-and-tags.md`**,
+  which keeps its reasoning and widens its scope. *Phase 1 partly shipped; the
   table and the behavioral work are not.*
 - [`scopes/competitive-superlist.md`](scopes/competitive-superlist.md) — the
   2026-08-13 read of Superlist v1.56: the full feature diff, four candidates

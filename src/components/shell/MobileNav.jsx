@@ -5,7 +5,7 @@ import {
   Folder,
   List,
   Plus,
-  Menu,
+  MoreHorizontal,
   Activity,
   Share2,
   Briefcase,
@@ -121,7 +121,12 @@ export default function MobileNav({ route, active, adds, badge = 0, counts = {},
           aria-label="All destinations"
           aria-haspopup="dialog"
         >
-          <Menu size={22} aria-hidden="true" />
+          {/* An ellipsis, not a hamburger. Feather's Menu is three plain lines
+              and its List is three lines with leading dots — at 22px, two slots
+              apart in the same bar, they read as the same glyph. The ellipsis
+              is also the more honest label: this opens the rest of the app, and
+              "more" is exactly what ⋯ means everywhere else on the platform. */}
+          <MoreHorizontal size={22} aria-hidden="true" />
           <span>More</span>
         </button>
       )

@@ -178,6 +178,13 @@
   border-bottom: none;
   border-top: 0.5px solid var(--separator);
 }
+/* Docked with no keyboard beneath it (hardware keyboard, or the moment after
+   one is dismissed with the caret still placed). The bar is then sitting on the
+   bottom of the screen, so it owes the home indicator the clearance the
+   keyboard normally provides. */
+.note-toolbar.docked.resting {
+  padding-bottom: calc(6px + env(safe-area-inset-bottom));
+}
 /* Ten tools won't fit a phone, so the row scrolls rather than wraps — and it
    has to *look* scrollable, which it didn't: the tenth tool was simply clipped
    at the screen edge with nothing to suggest more existed. The fade is on this
@@ -439,6 +446,27 @@
   gap: 8px;
   margin: 8px 0 0;
 }
+/* The same row, in the phone's sort/layout sheet. No top margin there — the
+   sheet's grip already supplies the space. The segments grow to the 44px floor
+   here, which is the point of moving them: in the toolbar they were 86x29 and
+   there was no room to make them anything else, and in a sheet there is
+   nothing but room. */
+.notes-options {
+  padding: 4px 20px 24px;
+}
+.notes-options .notes-controls {
+  margin: 0;
+}
+.notes-options .segmented {
+  margin-bottom: 0;
+}
+.notes-options .segment {
+  padding: 12px 8px;
+  font-size: 15px;
+}
+.notes-options .notes-viewtoggle button {
+  height: var(--tap-min);
+}
 .notes-controls .segmented {
   flex: 1;
   min-width: 0;
@@ -640,10 +668,13 @@
     opacity: 1;
   }
 }
+/* No hover to reveal them and no room to keep them: at 168px wide, a card that
+   reserves a 56px lane for two buttons has about eight characters left for the
+   note's name. Long-press opens the same two actions in a sheet, which is what
+   the list rows already do, and the title gets the head to itself. */
 @media (hover: none) {
-  /* Always-on buttons need their own lane, or they sit on top of the title. */
-  .note-card-head {
-    padding-right: 56px;
+  .note-card-actions {
+    display: none;
   }
 }
 
@@ -794,6 +825,19 @@
   .note-editable {
     min-height: 40dvh;
     padding-bottom: 24px;
+  }
+}
+
+/* And on a touch screen the tail is only owed while there is a caret to keep
+   clear of the docked bar. Left in place with the note merely being read, those
+   96px are a blank screenful between the last line and the Tags field below —
+   the same "screen and a half of scrolling past the end of a three-line note"
+   the two-pane layout fixes by moving the fields up. There is no room to move
+   them up on a phone, so the runway goes away instead when it isn't in use.
+   Nothing above the caret moves when it comes back: the padding is all below. */
+@media (pointer: coarse) {
+  .note-editor:not(.typing) .note-editable {
+    padding-bottom: 16px;
   }
 }
 

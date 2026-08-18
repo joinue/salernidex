@@ -253,7 +253,7 @@ export default function RecurrencePicker({ value, dueDate, onChange }) {
           />
           <p className="rec-hint">
             {afterCompletion
-              ? 'The clock restarts each time you check it off — finish late and the next one moves with you.'
+              ? 'The clock restarts each time you check it off. Finish late and the next one moves with you.'
               : 'Lands on fixed dates whether or not you kept up.'}
           </p>
         </>
@@ -426,7 +426,7 @@ export default function RecurrencePicker({ value, dueDate, onChange }) {
           </div>
           {endsTooEarly && (
             <div className="rec-row error-text" style={{ fontSize: 13 }}>
-              Ends before the first occurrence — this won’t repeat.
+              Ends before the first occurrence, so this won’t repeat.
             </div>
           )}
           {/* One plain-English read-back of the whole rule. With two clocks and

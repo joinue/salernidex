@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildAttention, badgeCount, ANYTIME_DAYS } from './attention'
+import { attentionAreaId, buildAttention, badgeCount, canBeFiled, ANYTIME_DAYS } from './attention'
 import { isoDateIn } from './tasks'
 
 // Minimal data shell — only the fields buildAttention reads. Lists are the
@@ -290,5 +290,80 @@ describe('buildAttention — habit kind', () => {
 
   it('never invents habit items for a household with none', () => {
     expect(buildAttention(base, { ...prefs, habits: true })).toHaveLength(0)
+  })
+})
+
+describe('areas and the attention engine', () => {
+  const task = (over = {}) => ({
+    id: 't1',
+    title: 'A task',
+    assignee: 'anyone',
+    due_date: isoDateIn(0),
+    due_kind: 'on',
+    parent_id: null,
+    completed_at: null,
+    ...over,
+  })
+
+  // show_on_today is STANDING: it applies to every caller, including the badge,
+  // because a silenced area that still buzzes the phone is the whole failure
+  // this switch exists to prevent.
+  it('drops an item whose area is switched off Today', () => {
+    const items = buildAttention(
+      {
+        ...base,
+        tasks: [task({ area_id: 'a-work' })],
+        areas: [{ id: 'a-work', show_on_today: false }],
+      },
+      prefs,
+    )
+    expect(items).toHaveLength(0)
+  })
+
+  it('keeps it when the area is on, and when it has no area', () => {
+    const on = buildAttention(
+      { ...base, tasks: [task({ area_id: 'a-work' })], areas: [{ id: 'a-work' }] },
+      prefs,
+    )
+    const loose = buildAttention(
+      { ...base, tasks: [task()], areas: [{ id: 'a-work', show_on_today: false }] },
+      prefs,
+    )
+    expect(on).toHaveLength(1)
+    expect(loose).toHaveLength(1)
+  })
+
+  // The LENS is not applied here, and that is the fix for Today showing unfiled
+  // work inside an area. A caller that scopes also needs the items it excluded,
+  // to offer them in a "No area" section — a pre-filtered list can't hand them
+  // back. So buildAttention returns everything and the caller partitions.
+  it('does not apply the lens — the caller does, so it can still see what was excluded', () => {
+    const items = buildAttention(
+      {
+        ...base,
+        tasks: [task({ id: 'w', area_id: 'a-work' }), task({ id: 'loose' })],
+        areas: [{ id: 'a-work' }],
+      },
+      prefs,
+    )
+    expect(items.map((i) => i.task.id).sort()).toEqual(['loose', 'w'])
+  })
+
+  it('reports an item’s area', () => {
+    const [item] = buildAttention({ ...base, tasks: [task({ area_id: 'a-work' })] }, prefs)
+    expect(attentionAreaId(item)).toBe('a-work')
+    const [loose] = buildAttention({ ...base, tasks: [task()] }, prefs)
+    expect(attentionAreaId(loose)).toBe(null)
+  })
+
+  // Unfiled vs UNFILEABLE. Getting this backwards would sweep every birthday
+  // and every habit into a collapsed section the moment a lens was picked.
+  it('counts tasks, lists and reminders as fileable — never dates, check-ins or habits', () => {
+    expect(canBeFiled({ kind: 'task' })).toBe(true)
+    expect(canBeFiled({ kind: 'list' })).toBe(true)
+    expect(canBeFiled({ kind: 'reminder' })).toBe(true)
+    expect(canBeFiled({ kind: 'date' })).toBe(false)
+    expect(canBeFiled({ kind: 'nudge' })).toBe(false)
+    expect(canBeFiled({ kind: 'habit' })).toBe(false)
   })
 })

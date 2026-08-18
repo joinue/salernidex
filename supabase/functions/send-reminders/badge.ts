@@ -31,7 +31,13 @@ export type BadgeData = {
   lists: any[]
   people: any[]
   keyDates: any[]
+  // Areas switched off Today (0040). Optional so a caller that predates the
+  // table — or a project where the migration hasn't run — behaves exactly as it
+  // did before rather than badging zero.
+  areas?: any[]
 }
+
+import { mutedAreaIds, reachesToday } from './areas.ts'
 
 const monthDay = (iso: string) => (iso || '').slice(5) // 'MM-DD'
 
@@ -70,6 +76,12 @@ export function badgeCount(
   hidden: Set<string> = new Set(),
 ): number {
   const { tasks = [], lists = [], people = [], keyDates = [] } = data
+  // An area switched off Today is off everywhere Today reaches — including this
+  // number. The badge is the one surface you can see with the app closed, so a
+  // silenced area still badging the icon is the loudest possible version of the
+  // bug. Birthdays and key dates are unaffected by construction: they come from
+  // contacts, which deliberately have no area.
+  const muted = mutedAreaIds(data.areas ?? [])
   let n = 0
 
   if (prefs.tasks) {
@@ -91,6 +103,7 @@ export function badgeCount(
       // 'anytime' falls out here on purpose — that is precisely what badgeCount
       // does with a deadline that still has room.
       if (bucket !== 'overdue' && bucket !== 'today') continue
+      if (!reachesToday(t, muted)) continue
       if (hidden.has(`task:${t.id}`)) continue
       n++
     }
@@ -102,6 +115,7 @@ export function badgeCount(
   if (prefs.lists) {
     for (const l of lists) {
       if (!l.due_date || l.due_date > today) continue
+      if (!reachesToday(l, muted)) continue
       if (hidden.has(`list:${l.id}`)) continue
       n++
     }
@@ -117,6 +131,7 @@ export function badgeCount(
       if (!t.is_reminder || t.completed_at || !t.due_date) continue
       if (t.due_date > today) continue
       if (!assignedToMe(t, null, memberId)) continue
+      if (!reachesToday(t, muted)) continue
       if (hidden.has(`reminder:${t.id}`)) continue
       n++
     }

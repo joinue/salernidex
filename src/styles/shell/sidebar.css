@@ -45,12 +45,14 @@
   }
 }
 
-/* The mark is the wordmark — the app's icon is the word — so the brand row is
-   the logo itself rather than a logo plus the name spelled out beside it. Size
-   it by height and let the width follow; setting `display` here would fight the
-   light/dark swap in primitives/wordmark.css at equal specificity. */
+/* Chrome gets the mark alone, not the lockup: by the time you're looking at a
+   sidebar you know what app you're in, and the square survives the collapsed
+   rail where a lettermark couldn't. The art carries ~14% padding of its own, so
+   the box runs a little larger than the glyph you actually see. Size it by
+   height and let the width follow; setting `display` here would fight the swap
+   rules in primitives/logo.css at equal specificity. */
 .sidebar .brand-mark {
-  height: 30px;
+  height: 36px;
   width: auto;
   flex-shrink: 0;
 }

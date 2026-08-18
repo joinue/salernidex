@@ -74,7 +74,7 @@ function Heatmap({ habit, map, today, weeks, onPick }) {
           <div className="heatmap-col" key={ci}>
             {col.map((cell) => {
               const note = noteOn(habit, cell.iso, map)
-              const label = `${formatDay(cell.iso, todayISO)} — ${
+              const label = `${formatDay(cell.iso, todayISO)}: ${
                 CELL_STATUS[cell.status] ?? cell.status
               }${note ? `. Note: ${note}` : ''}`
               return (
@@ -459,9 +459,9 @@ function BreakSheet({ habitName, todayISO, onPause, onClose }) {
     setEnd(addDaysISO(todayISO, n - 1))
   }
   return (
-    <Sheet title={`Take a break — ${habitName}`} onClose={onClose}>
+    <Sheet title={`Take a break: ${habitName}`} onClose={onClose}>
       <p className="muted" style={{ margin: '0 0 14px' }}>
-        Rest days across this span — your streak stays protected and it drops off Today until you're
+        Rest days across this span. Your streak stays protected and it drops off Today until you're
         back.
       </p>
       <div className="break-dates">

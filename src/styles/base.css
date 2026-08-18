@@ -212,6 +212,17 @@ select option {
 .tier-btn,
 .chip-x,
 .pill button,
+/* The area lens and the area picker (0040). Painted 29px tall so a row of them
+   reads as a filter strip rather than a second toolbar — which is exactly the
+   case this utility exists for. */
+.area-pill,
+/* The header's scope dropdown (Tasks: whose tasks). 32px painted, because it
+   shares a row with a 30px avatar and a 38px round button and can't be the
+   tallest thing in it. */
+.menu-select-btn,
+/* The tag filter row, painted ~26px for the same reason as .area-pill: a row of
+   them has to read as a filter strip, not a second toolbar. */
+.tag-pill,
 .toast-action {
   position: relative;
 }
@@ -230,6 +241,9 @@ select option {
 /* The tag pill's remove "×" — 9x14 painted, and every TagInput in the app
    (notes, tasks, people, orgs, groups) shipped it that way. */
 .pill button::after,
+.area-pill::after,
+.menu-select-btn::after,
+.tag-pill::after,
 .toast-action::after {
   content: '';
   position: absolute;

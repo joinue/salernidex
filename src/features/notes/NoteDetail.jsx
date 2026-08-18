@@ -56,6 +56,8 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
   // An existing note with content is never auto-deleted.
   const wasEmptyOnOpen = useRef(isNoteEmpty(note))
   const titleRef = useRef(null)
+  // Filled in by RichTextEditor: puts the caret at the end of the body.
+  const bodyHandle = useRef(null)
 
   // An empty note is one you just made, so put the caret in it. In two panes
   // especially, "New note" otherwise looks like it did nothing: the pane swaps
@@ -109,6 +111,7 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
   // ones. Keep refs pointed at them, refreshed after every commit.
   const saveRef = useRef(save)
   const exitRef = useRef(exit)
+  const exitTimer = useRef(null)
   useEffect(() => {
     saveRef.current = save
     exitRef.current = exit
@@ -122,10 +125,18 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
 
   // Run the exit handler on unmount (navigating away, edge-swipe back). Only
   // refs are touched, so the empty dep list is complete.
+  //
+  // Deferred by a tick, and cancelled by the next setup, because a teardown is
+  // not proof that you left: StrictMode tears every effect down and sets it
+  // straight back up on mount in dev, and running exit() there discarded the
+  // empty note the moment "New note" opened it — the notebook created a note
+  // and then showed you "Note not found". A real unmount has no setup coming
+  // after it, so the timer survives and the discard/flush still happens.
   useEffect(() => {
+    clearTimeout(exitTimer.current)
     return () => {
       clearTimeout(saveTimer.current)
-      exitRef.current()
+      exitTimer.current = setTimeout(() => exitRef.current(), 0)
     }
   }, [])
 
@@ -211,6 +222,16 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
       onChange={(e) => setTitle(e.target.value)}
       placeholder="Title"
       aria-label="Note title"
+      // A note's title and its first line are one thought — Return carries you
+      // from one to the other, and the key says so before you press it. It did
+      // nothing at all before, which on a phone means the keyboard has a dead
+      // key on it while the thing you want is one tap away off-screen.
+      enterKeyHint="next"
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter') return
+        e.preventDefault()
+        bodyHandle.current?.()
+      }}
     />
   )
 
@@ -267,6 +288,7 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
         key={note.id}
         initialHtml={note.body}
         candidates={candidates}
+        handle={bodyHandle}
         // Tapping a chip leaves the note; unmount flushes any pending save.
         onOpenMention={onOpenMention}
         onChange={(html) => {

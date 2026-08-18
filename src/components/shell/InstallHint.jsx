@@ -61,7 +61,7 @@ export default function InstallHint() {
           <div className="row-title" style={{ fontSize: 15 }}>
             Install DOOT
           </div>
-          <div className="row-sub">Its own window and app icon — no browser tab to lose.</div>
+          <div className="row-sub">Its own window and app icon, no browser tab to lose.</div>
         </div>
         <button className="pill-btn" onClick={install}>
           <Download size={15} /> Install

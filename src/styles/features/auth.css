@@ -19,24 +19,6 @@
   max-width: 100%;
 }
 
-.login-brand {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  margin-bottom: 28px;
-}
-
-.login-mark {
-  width: 64px;
-  height: 64px;
-  object-fit: contain;
-  margin-bottom: 16px;
-  /* Lift the brand mark off the canvas — a soft navy-tinted shadow tied to the
-     logo's own color, so it reads as a crafted product mark, not a flat png. */
-  filter: drop-shadow(0 6px 14px rgba(45, 58, 79, 0.18));
-}
-
 .login-box h1 {
   font-size: 24px;
   font-weight: 700;
@@ -104,9 +86,10 @@
 }
 
 /* Just the hero's size — which of the two PNGs shows is settled once, in
-   primitives/wordmark.css. */
-.auth-hero-title .wordmark {
-  width: min(260px, 60%);
+   primitives/logo.css. The lockup is 3:1 with ~8% padding baked in, so this
+   width buys about 250px of actual logo. */
+.auth-hero-title .logo {
+  width: min(300px, 70%);
 }
 
 .auth-hero-tag {
@@ -243,23 +226,21 @@
   animation: auth-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* The hero is hidden below 860px, so on a phone this row is the only place the
+   app introduces itself — which is why it earns the lockup and not just the
+   mark. Off by default; on in the media query. */
 .auth-card-brand {
   display: none;
   align-items: center;
   justify-content: flex-start;
-  gap: 12px;
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.4px;
   margin-bottom: 22px;
 }
 
-/* In the card lockup the mark sits beside the wordmark, so it tracks the text
-   size rather than the standalone hero size. */
-.auth-card-brand .login-mark {
-  width: 40px;
-  height: 40px;
-  margin-bottom: 0;
+/* Sized to land where the 28px lettering used to: once the lockup's own padding
+   is taken off, its letters come out near that cap height. */
+.auth-card-brand .logo {
+  height: 46px;
+  width: auto;
 }
 
 /* Mobile-only pitch carried inside the card (desktop hero is hidden below

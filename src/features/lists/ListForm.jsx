@@ -8,6 +8,8 @@ import { isSolo } from '../../lib/household'
 import { PRIVATE_LEVEL } from '../../lib/privacy'
 import { isoDateIn } from '../../lib/tasks'
 import IconPicker from '../../components/ui/IconPicker'
+import AreaPicker from '../../components/ui/AreaPicker'
+import { areaById, privacyForNewItem } from '../../lib/areas'
 import ColorPicker from '../../components/ui/ColorPicker'
 import { COLORS } from '../../lib/colors'
 import { LIST_KINDS, isDueable, kindOf } from '../../lib/listKinds'
@@ -20,16 +22,31 @@ const DEFAULT_ICONS = LIST_KINDS.map((k) => k.icon)
 // Create or edit a list (name + an emoji icon for quick recognition). An
 // optional due date puts the list on Today; an optional reminder time fires a
 // push on the due date (mirrors habits' reminder_time/reminder_enabled).
-export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'family_shared' }) {
+export default function ListForm({
+  list,
+  onSave,
+  onClose,
+  defaultPrivacy = 'family_shared',
+  areas = [],
+  // Pre-filled from the active lens on a NEW list, so making a work shopping
+  // list while scoped to Work takes zero extra taps. An edit keeps whatever the
+  // list already had.
+  defaultAreaId = null,
+}) {
   const [name, setName] = useState(list?.name || '')
   const [kind, setKind] = useState(list?.kind || 'standard')
   // Default to the icon that matches the type, not always the cart — a new
   // standard list ("Packing") was shipping with a grocery trolley on it.
   const [icon, setIcon] = useState(list?.icon || kindOf(list).icon)
   const [color, setColor] = useState(list?.color || COLORS[0])
+  const [areaId, setAreaId] = useState(list ? list.area_id || null : defaultAreaId)
   const [privacy, setPrivacy] = useState(
     list?.privacy_level || (isSolo() ? PRIVATE_LEVEL : defaultPrivacy),
   )
+  // Until the control is touched, a NEW list filed into an area that keeps
+  // things private follows it. An edit never re-decides — the list already has
+  // a visibility somebody chose. Same precedence TaskForm uses.
+  const [privacyTouched, setPrivacyTouched] = useState(false)
   const [dueDate, setDueDate] = useState(list?.due_date || '')
   const [reminderEnabled, setReminderEnabled] = useState(list?.reminder_enabled ?? false)
   const [reminderTime, setReminderTime] = useState(
@@ -45,6 +62,10 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
   // then you came here deliberately to change one of these. Same rule TaskForm
   // uses for its own options.
   const [more, setMore] = useState(!!list)
+
+  // An explicit pick wins; otherwise a NEW list follows its area's default.
+  const effectivePrivacy =
+    list || privacyTouched ? privacy : privacyForNewItem(areaById(areas, areaId), privacy)
 
   const submit = async (e) => {
     e.preventDefault()
@@ -65,10 +86,11 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
           name: cleanName,
           icon,
           color,
+          area_id: areaId || null,
           // kind is fixed at creation — a list's grouping model can't flip later
           // without re-filing every item, so we only send it on a new list.
           ...(list ? {} : { kind }),
-          privacy_level: privacy,
+          privacy_level: effectivePrivacy,
           due_date: (dueable && dueDate) || null,
           reminder_enabled: remind,
           reminder_time: remind ? reminderTime : null,
@@ -219,7 +241,15 @@ export default function ListForm({ list, onSave, onClose, defaultPrivacy = 'fami
               </>
             )}
 
-            <PrivacyField value={privacy} onChange={setPrivacy} />
+            <AreaPicker areas={areas} value={areaId} onChange={setAreaId} />
+
+            <PrivacyField
+              value={effectivePrivacy}
+              onChange={(v) => {
+                setPrivacyTouched(true)
+                setPrivacy(v)
+              }}
+            />
           </>
         )}
         <button className="btn-primary" disabled={busy}>

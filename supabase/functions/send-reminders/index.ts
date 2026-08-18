@@ -26,6 +26,7 @@ import { deadlinesAhead } from './deadlines.ts'
 import { digestCopy } from './digest.ts'
 import { isAuthorized } from './auth.ts'
 import { badgeCount } from './badge.ts'
+import { mutedAreaIds, reachesToday } from './areas.ts'
 import { localNow } from './localTime.ts'
 
 const supabase = createClient(
@@ -411,6 +412,7 @@ Deno.serve(async (req) => {
     habitEntries,
     lists,
     listItems,
+    areas,
   ] = await Promise.all([
     supabase.from('household_members').select('*'),
     supabase.from('notification_prefs').select('*'),
@@ -424,6 +426,7 @@ Deno.serve(async (req) => {
     supabase.from('habit_entries').select('habit_id, date, value, skipped'),
     supabase.from('lists').select('*'),
     supabase.from('list_items').select('list_id, checked_at'),
+    supabase.from('areas').select('id, show_on_today'),
   ]).then((rs) => rs.map((r) => r.data ?? []))
 
   const prefsByMember = new Map(
@@ -436,6 +439,20 @@ Deno.serve(async (req) => {
     list.push(sub)
     subsByMember.set(sub.member_id, list)
   }
+  // show_on_today (0040): an area switched off is off everywhere Today reaches,
+  // including this sweep. Built once — area ids are uuids, so one set across
+  // households can't collide — and applied to the rows the PING paths read.
+  // badgeCount does its own filtering from `areas` (see badge.ts), which its
+  // parity test pins against the client.
+  //
+  // Contacts are untouched by design: birthdays and check-ins come from people,
+  // who deliberately have no area, so silencing Work can never silence a
+  // birthday. That is the rule working, not a gap in it.
+  const muted = mutedAreaIds(areas)
+  const liveTasks = tasks.filter((t: any) => reachesToday(t, muted))
+  const liveLists = lists.filter((l: any) => reachesToday(l, muted))
+  const liveHabits = habits.filter((h: any) => reachesToday(h, muted))
+
   let sent = 0
 
   for (const member of members) {
@@ -476,6 +493,7 @@ Deno.serve(async (req) => {
         lists: lists.filter((l: any) => l.household_id === hh),
         people: people.filter((p: any) => p.household_id === hh),
         keyDates: keyDates.filter((k: any) => k.household_id === hh),
+        areas,
       },
       member.id,
       today,
@@ -491,17 +509,17 @@ Deno.serve(async (req) => {
     ) => claimSend(subs, member.id, kind, targetKey, today, { ...p, badge })
 
     const items: Item[] = [
-      ...(prefs.tasks ? dueTasksToday(tasks, member.id, today, time) : []),
+      ...(prefs.tasks ? dueTasksToday(liveTasks, member.id, today, time) : []),
       ...(prefs.nudges ? checkIns(people, interactions, member.id) : []),
       ...(prefs.dates ? dateReminders(people, keyDates, today, prefs.dates_lead_days ?? 7) : []),
-      ...(prefs.dates ? reminderPings(tasks, member.id, today) : []),
+      ...(prefs.dates ? reminderPings(liveTasks, member.id, today) : []),
     ].filter((i) => !hidden.has(i.targetKey))
 
     // Deadlines with days still on the clock. Kept out of `items` on purpose:
     // they must not join today's count ("3 things today" that includes
     // something due Friday is a lie) and must never become individual pings.
     // See deadlines.ts.
-    const ahead = (prefs.tasks ? deadlinesAhead(tasks, member.id, today) : []).filter(
+    const ahead = (prefs.tasks ? deadlinesAhead(liveTasks, member.id, today) : []).filter(
       (t) => !hidden.has(`task:${t.id}`),
     )
 
@@ -527,7 +545,7 @@ Deno.serve(async (req) => {
 
     // Habit reminders fire at each habit's own reminder_time, independent of the
     // digest, and are gated per-habit (reminder_enabled) + by snoozes.
-    const habitItems = habitReminders(habits, habitEntries, member.id, today, time).filter(
+    const habitItems = habitReminders(liveHabits, habitEntries, member.id, today, time).filter(
       (i) => !hidden.has(i.targetKey),
     )
     for (const item of habitItems) {
@@ -542,7 +560,7 @@ Deno.serve(async (req) => {
     // per-list (reminder_enabled) + by the lists pref + snoozes. Lists are
     // household-shared, so every member with the pref on gets the nudge.
     if (prefs.lists) {
-      const listItemsToSend = listReminders(lists, listItems, today, time).filter(
+      const listItemsToSend = listReminders(liveLists, listItems, today, time).filter(
         (i) => !hidden.has(i.targetKey),
       )
       for (const item of listItemsToSend) {

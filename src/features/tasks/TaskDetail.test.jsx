@@ -45,6 +45,10 @@ const setup = (tasks, { confirmAnswer = true, taskId = 't', ...over } = {}) => {
     tasks,
     notes: [],
     completions: [],
+    // The area chip resolves area_id through here, rather than reading the
+    // legacy tasks.area text, so a rename can't leave a stale word on the page.
+    areas: [{ id: 'a-home', name: 'Home', shared: false, created_by: 'u-1' }],
+    userId: 'u-1',
     memberId: 'm-1',
     addTask: vi.fn(),
     updateTask: vi.fn(),
@@ -81,7 +85,7 @@ describe('TaskDetail — nothing is abbreviated', () => {
         priority: 3,
         assignee: 'm-2',
         due_date: isoDateIn(2),
-        area: 'Home',
+        area_id: 'a-home',
         tags: ['errand', 'weekend'],
         recurrence: { freq: 'weekly', interval: 1, weekdays: [1] },
       }),

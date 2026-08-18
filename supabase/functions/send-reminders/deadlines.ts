@@ -17,6 +17,8 @@
 // an interruption; the same call the client makes by keeping it out of the
 // badge (see badgeCount in src/lib/attention.js).
 
+import { reachesToday } from './areas.ts'
+
 // Must match ANYTIME_DAYS in src/lib/attention.js — the parity test pins this.
 export const ANYTIME_DAYS = 7
 
@@ -29,6 +31,7 @@ export type DeadlineTask = {
   parent_id?: string | null
   completed_at?: string | null
   assignee?: string | null
+  area_id?: string | null
 }
 
 // 'yyyy-mm-dd' + n days, via UTC so no timezone can shift the day. Matches the
@@ -46,11 +49,17 @@ export function deadlinesAhead(
   memberId: string,
   today: string,
   days: number = ANYTIME_DAYS,
+  // Areas switched off Today (0040). Defaults to empty, so a caller that hasn't
+  // been taught about areas behaves exactly as it did before.
+  muted: Set<string> = new Set(),
 ): DeadlineTask[] {
   const limit = isoPlusDays(today, days)
   return (
     tasks
       .filter((t) => !t.parent_id && !t.completed_at && t.due_kind === 'by')
+      // A deadline in a silenced area is still a deadline — it just doesn't get
+      // to interrupt you. It stays on the Tasks page under its own lens.
+      .filter((t) => reachesToday(t, muted))
       .filter((t) => !!t.due_date && t.due_date > today && t.due_date <= limit)
       // A deferred task stays parked until its start date, deadline or not.
       .filter((t) => !t.start_date || t.start_date <= today)

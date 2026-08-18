@@ -26,12 +26,22 @@ export const DEFAULT_APP_PREFS = {
   listPrivacy: 'family_shared',
   personPrivacy: 'shared',
   // Tasks page default view.
-  taskFilter: 'all', // 'all' (Everyone) | <member id>
+  taskFilter: 'all', // 'all' (Anyone) | <member id>
   showCompleted: false, // start with the Done section expanded
   // Whose tasks reach Today — and, with it, the tab count, the app-icon badge
   // and the push reminders. 'mine' shows what's assigned to you plus anything
   // left open to Anyone; 'all' is the old whole-household behavior.
   todayScope: 'mine', // 'mine' | 'all'
+  // The active area lens: 'all' (no lens) | <area id>. Scopes Today, Tasks,
+  // Projects, Reminders, Lists, Notes and Habits at once — never Contacts, and
+  // never search (lib/areas.js explains why). Persisted so the app opens where
+  // you left it; the whole point is that it survives a cold launch, which is
+  // what the sessionStorage version it replaces never did.
+  //
+  // Backed by member_preferences.area (0040), so it syncs across devices — you
+  // should open the laptop in the area you left the phone in. The 'all'
+  // sentinel maps to a null column, exactly like taskFilter.
+  area: 'all',
   // People page default sort: 'name' | 'recent' | 'tier' (lib/search.js).
   peopleSort: LEGACY_PEOPLE_SORT,
   // Projects index sort: 'recent' | 'name' | 'due' (lib/tasks.byProjects).
@@ -82,9 +92,22 @@ export function setAppPrefs(memberId, patch) {
 
 // Seed the cache from the server WITHOUT echoing back to it (used by useData on
 // load and on realtime changes). Notifies subscribers so the UI re-renders.
+//
+// MERGE, not replace, and the stored layer sits in the middle for a reason.
+// This ran as `{ ...DEFAULT_APP_PREFS, ...prefs }`, which quietly reset every
+// key the server row doesn't carry — and `prefs` is fromPrefRow's output, so
+// that's every localStorage-only pref. The failure is immediate and looks like
+// the UI fighting you: change one, your own write echoes back off the
+// member_preferences realtime subscription, and the others snap to their
+// defaults a beat later. It cost the area lens (until 0040 gave it a column)
+// and it was silently doing the same to todayScope and notesSort.
+//
+// Server values still win where the server has an opinion — it's the source of
+// truth for the columns it owns. Local-only keys simply survive the round trip.
 export function hydrateAppPrefs(memberId, prefs) {
   const all = loadAll()
-  all[memberId || ''] = { ...DEFAULT_APP_PREFS, ...prefs }
+  const key = memberId || ''
+  all[key] = { ...DEFAULT_APP_PREFS, ...(all[key] || {}), ...prefs }
   localStorage.setItem(KEY, JSON.stringify(all))
   listeners.forEach((fn) => fn())
 }
