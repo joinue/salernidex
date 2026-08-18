@@ -34,7 +34,11 @@ export function isReminder(task) {
 // it never gets: subtasks, headings, a project flag, or a deadline sense of a
 // due date (a reminder happens ON its day; `by` would mean it has slack, which
 // is a claim about work).
-export function newReminderFields({ due_date = '', privacy_level = 'shared' } = {}) {
+export function newReminderFields({
+  due_date = '',
+  privacy_level = 'shared',
+  area_id = null,
+} = {}) {
   return {
     title: '',
     due_date,
@@ -45,6 +49,12 @@ export function newReminderFields({ due_date = '', privacy_level = 'shared' } = 
     notes: '',
     is_reminder: true,
     due_kind: 'on',
+    // Seeded from the active lens by the caller. A reminder made under Work is
+    // a Work reminder without being asked — the same create-time pre-fill tasks,
+    // lists and notes get, and the one that decides whether it reaches Today at
+    // all (an area with show_on_today off keeps it off the dashboard, the badge
+    // and the push sweep).
+    area_id,
   }
 }
 
@@ -81,7 +91,10 @@ function fromDerived(entry) {
     kind: 'derived',
     title,
     sub: entry.years ? `${entry.years} years` : '',
-    dateIso: null, // upcomingDates works in days, not ISO — daysUntil is the truth here
+    // upcomingDates thinks in days, but it also hands back the calendar date it
+    // landed on — carrying it means a birthday four months out reads "Oct 3"
+    // like a stored reminder would, instead of "in 138d".
+    dateIso: entry.dateIso || null,
     daysUntil: entry.daysUntil,
     done: false,
     source: entry,
@@ -109,6 +122,30 @@ export function upcomingReminders(
     if (b.daysUntil === null) return -1
     return a.daysUntil - b.daysUntil
   })
+}
+
+// How far the roster below looks: a full year, so every birthday and key date
+// on file appears exactly once.
+export const ROSTER_DAYS = 365
+
+// The dates the page promises but the horizon hides.
+//
+// The upcoming list stops at 30 days, which is right for "what's coming up" and
+// wrong for the note under it: a household whose next birthday is in August
+// read "birthdays and key dates come from your contacts" against an empty page
+// and had no way to tell whether that meant "none on file" or "none yet". So
+// the rest of the year comes too, in its own section — the claim's evidence,
+// sitting where the claim is made.
+//
+// `after` is the upcoming list's horizon, not a taste call: it's what keeps a
+// date from being listed twice on one screen.
+export function contactDates(
+  { people = [], keyDates = [] } = {},
+  { after = HORIZON_DAYS, withinDays = ROSTER_DAYS } = {},
+) {
+  return upcomingDates(people, keyDates, withinDays)
+    .filter((e) => e.daysUntil > after)
+    .map(fromDerived)
 }
 
 // Reminders with no date at all — kept, because "renew the passport" is a real

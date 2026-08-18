@@ -199,7 +199,36 @@ export default function QuickFind({ data, onPick, onClose }) {
                               )
                             : entry.title}
                         </div>
-                        {entry.sub && <div className="qf-row-sub">{entry.sub}</div>}
+                        {(entry.sub || entry.area) && (
+                          <div className="qf-row-sub">
+                            {/* The area by NAME, not as an AreaDot. That dot is
+                                only legible because AreaSwitcher carries the
+                                same colour as its legend, and the switcher is
+                                behind this overlay — a colour with its key
+                                covered is no label at all. Shown whether or not
+                                a lens is on: this is the one search that never
+                                narrows (§3.6), so every result gets to place
+                                itself. Reuses the switcher pill's own dot and
+                                icon spans so the two can't drift apart. */}
+                            {entry.area && (
+                              <span className="qf-area">
+                                <span
+                                  className="area-pill-dot"
+                                  style={
+                                    entry.area.color ? { background: entry.area.color } : undefined
+                                  }
+                                />
+                                {entry.area.icon && (
+                                  <span className="area-pill-icon" aria-hidden="true">
+                                    {entry.area.icon}
+                                  </span>
+                                )}
+                                {entry.area.name}
+                              </span>
+                            )}
+                            {entry.sub}
+                          </div>
+                        )}
                       </div>
                       {selected && !isMobile && (
                         <CornerDownLeft size={14} className="qf-row-enter" />

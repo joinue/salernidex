@@ -1311,6 +1311,35 @@ export function useData(session) {
     sync((db) => db.from('areas').update(patch).eq('id', id))
   }
 
+  // Move everything filed in one area into another, leaving both areas standing.
+  //
+  // The sibling of merge, and deliberately NOT merge: an archived area is a
+  // lens you've put away, and its contents are visible only under All until
+  // something re-files them (§3.6 calls that a trap and requires this way out).
+  // Deleting the archived area as well would be a second, unasked decision —
+  // you may well want it back next quarter with nothing in it.
+  //
+  // Unlike merge this needs no RPC, and the reason is worth stating because the
+  // shapes look identical: merge has to be atomic because a delete follows the
+  // repoints, and `on delete set null` turns a half-applied merge into silent
+  // unfiling. Nothing follows these repoints. A partial failure leaves some
+  // items behind in an area that still exists — visible, still filed, and
+  // fixable by running it again. So it rides the ordinary write queue and works
+  // offline, which merge cannot.
+  const moveAreaItems = (fromId, intoId) => {
+    if (!fromId || !intoId || fromId === intoId) return
+    const move = (rows) => rows.map((r) => (r.area_id === fromId ? { ...r, area_id: intoId } : r))
+    setTasks(move)
+    setLists(move)
+    setNotes(move)
+    setHabits(move)
+    sync(async (db) => {
+      for (const table of ['tasks', 'lists', 'notes', 'habits']) {
+        must(await db.from(table).update({ area_id: intoId }).eq('area_id', fromId))
+      }
+    })
+  }
+
   const reorderAreas = (updates) => {
     const byId = new Map(updates.map((u) => [u.id, u.sort_order]))
     setAreas((prev) => prev.map((a) => (byId.has(a.id) ? { ...a, sort_order: byId.get(a.id) } : a)))
@@ -2050,6 +2079,7 @@ export function useData(session) {
     discardNote,
     addArea,
     updateArea,
+    moveAreaItems,
     reorderAreas,
     archiveArea,
     unarchiveArea,

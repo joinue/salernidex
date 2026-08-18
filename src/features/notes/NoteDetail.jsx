@@ -5,12 +5,14 @@ import Field from '../../components/ui/Field'
 import RichTextEditor from '../../components/ui/RichTextEditor'
 import TagInput from '../../components/ui/TagInput'
 import PrivacyField from '../../components/ui/PrivacyField'
+import AreaPicker from '../../components/ui/AreaPicker'
 import ActionSheet from '../../components/ui/ActionSheet'
 import { useConfirm } from '../../hooks/useConfirm'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { extractMentions, mentionCandidates, isNoteEmpty, noteTitle } from '../../lib/notes'
 import { isEditableTarget } from '../../lib/keys'
 import { memberName, isSolo } from '../../lib/household'
+import { visibleAreas } from '../../lib/areas'
 import { relativeTime } from '../../lib/contact'
 
 // A single note, full-page (like ListDetail), edited in place with autosave.
@@ -42,6 +44,12 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
   const [title, setTitle] = useState(note?.title || '')
   const [tags, setTags] = useState(note?.tags || [])
   const [privacy, setPrivacy] = useState(note?.privacy_level || 'shared')
+  // Which area this note is filed under. createNote seeds it from the active
+  // lens, and until this field existed that seed was permanent: a note written
+  // on All landed in the "No area" section of the notebook with no control
+  // anywhere in the feature to get it out again. Tasks and lists have had the
+  // picker since phase 2; this is the third of the three things you can file.
+  const [areaId, setAreaId] = useState(note?.area_id || null)
   const [sheet, setSheet] = useState(false)
 
   // Latest body HTML lives in a ref (the editor owns the DOM; we only persist).
@@ -75,6 +83,11 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
     [data.people, data.orgs, data.groups, data.tasks, data.lists, data.habits],
   )
 
+  // The lenses this user is offered — a co-member's private area is not
+  // somewhere you can file. AreaPicker renders nothing when the list is empty,
+  // so this costs a household with no areas exactly nothing.
+  const areas = useMemo(() => visibleAreas(data.areas, data.userId), [data.areas, data.userId])
+
   // Tag suggestions drawn from the household's other notes.
   const tagSuggestions = useMemo(
     () => [...new Set(notes.flatMap((n) => n.tags || []))].sort(),
@@ -92,6 +105,7 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
       tags,
       mentions: extractMentions(body),
       privacy_level: privacy,
+      area_id: areaId,
     })
   }
 
@@ -186,7 +200,7 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
     }
     if (note) scheduleSave()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, tags, privacy])
+  }, [title, tags, privacy, areaId])
 
   if (!note) {
     return (
@@ -305,6 +319,10 @@ export default function NoteDetail({ data, noteId, onBack, onOpenMention, embedd
         <Field label="Tags">
           {(id) => <TagInput id={id} tags={tags} onChange={setTags} suggestions={tagSuggestions} />}
         </Field>
+        {/* Between the tags and the visibility, which is the order the same
+            three fields sit in on TaskForm and ListForm: what this is about,
+            which part of your life it belongs to, then who can see it. */}
+        <AreaPicker areas={areas} value={areaId} onChange={setAreaId} />
         <PrivacyField value={privacy} onChange={setPrivacy} />
       </div>
 

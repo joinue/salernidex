@@ -243,3 +243,39 @@ describe('useData writes → outbox', () => {
     expect(await mutationQueue.pending()).toHaveLength(0)
   })
 })
+
+// Moving an archived area's leftovers is four repoints and nothing else, which
+// is exactly why it can ride the outbox when merge — same shape, plus a delete
+// — cannot. A half-applied merge unfiles rows via `on delete set null`; a
+// half-applied move just leaves some of them where they already were.
+describe('useData — moveAreaItems', () => {
+  // This one spans four tables, so it can't use the tasks-only `queued`.
+  const everything = async () => await mutationQueue.pending()
+
+  it('repoints every filed table, and deletes nothing', async () => {
+    mode = 'offline'
+    const { result } = await mount()
+    await act(async () => {
+      result.current.moveAreaItems('a-old', 'a-work')
+    })
+
+    await waitFor(async () => expect(await everything()).toHaveLength(4))
+    const ms = await everything()
+    expect(ms.map((m) => m.table)).toEqual(['tasks', 'lists', 'notes', 'habits'])
+    for (const m of ms) {
+      expect(m.op).toBe('update')
+      expect(m.where).toEqual([['eq', 'area_id', 'a-old']])
+      expect(m.values).toEqual({ area_id: 'a-work' })
+    }
+  })
+
+  it('refuses a move that would go nowhere', async () => {
+    mode = 'offline'
+    const { result } = await mount()
+    await act(async () => {
+      result.current.moveAreaItems('a-old', 'a-old')
+      result.current.moveAreaItems(null, 'a-work')
+    })
+    expect(await everything()).toHaveLength(0)
+  })
+})

@@ -24,6 +24,16 @@
     opacity var(--dur-2) ease;
 }
 
+/* Held back for the moment after launch while the window is still settling on
+   its height — see useViewportSettled. The pill is bottom-anchored, so it is
+   drawn against that floor and would otherwise appear high and drop into place.
+   Opacity only, deliberately: `.tucked` owns the transform, and a fade is what
+   makes the arrival read as the app coming up rather than as a correction. */
+.tabbar.settling {
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* Stood down while the software keyboard is up. Slides off the bottom edge
    rather than fading in place, so it reads as "put away" — the same move the
    FAB makes. The inset is added back so the pill clears its own gap. */

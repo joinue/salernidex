@@ -49,9 +49,16 @@ export function upcomingBirthday(person, withinDays = 30) {
   return { date: next, daysUntil, turning: y ? next.getFullYear() - y : null }
 }
 
+// Local yyyy-mm-dd for a Date. Entries below carry it alongside `daysUntil` so
+// a derived date can be labelled by the same code that labels a stored one —
+// "Sep 4" once "in 84d" has stopped meaning anything.
+function isoLocal(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 // All upcoming dates for the Today hub: birthdays merged with key dates
 // (anniversaries etc.), soonest first. Each entry: { kind, person, daysUntil,
-// label, turning?, years?, keyDate? }. Annual key dates roll forward each
+// dateIso, label, turning?, years?, keyDate? }. Annual key dates roll forward each
 // year ("years" = how many, when the original year is meaningful); one-offs
 // appear until their date passes.
 export function upcomingDates(people, keyDates = [], withinDays = 30) {
@@ -70,6 +77,7 @@ export function upcomingDates(people, keyDates = [], withinDays = 30) {
         kind: 'birthday',
         person: p,
         daysUntil: b.daysUntil,
+        dateIso: isoLocal(b.date),
         turning: b.turning,
         label: 'Birthday',
       })
@@ -97,6 +105,7 @@ export function upcomingDates(people, keyDates = [], withinDays = 30) {
       person,
       keyDate: kd,
       daysUntil,
+      dateIso: isoLocal(next),
       label: kd.label,
       years: kd.annual && y ? next.getFullYear() - y : null,
     })

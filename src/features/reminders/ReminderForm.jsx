@@ -6,25 +6,37 @@ import Avatar from '../../components/ui/Avatar'
 import RecurrencePicker from '../../components/ui/RecurrencePicker'
 import AssigneePicker from '../../components/ui/AssigneePicker'
 import PrivacyField from '../../components/ui/PrivacyField'
+import AreaPicker from '../../components/ui/AreaPicker'
 import { focusOnDesktop } from '../../lib/constants'
 import { defaultAssignee, isSolo, normalizeAssignee } from '../../lib/household'
 import { isoDateIn } from '../../lib/tasks'
 import { newReminderFields, suggestsContactDate } from '../../lib/reminders'
 
 // Create or edit a reminder. Shorter than TaskForm by design — there is no
-// priority, no area, no defer date and no subtasks, because none of those mean
-// anything about a thing you aren't going to do. What's left is: what, when, and
-// (in a household) whose.
+// priority, no defer date and no subtasks, because none of those mean anything
+// about a thing you aren't going to do. What's left is: what, when, which part
+// of your life, and (in a household) whose.
+//
+// The area is the exception to that pruning, and it was wrongly pruned with the
+// rest at first. Priority and defer dates are about DOING something, which a
+// reminder isn't; an area is about which part of your life the thing belongs
+// to, which a renewal date has as much as a chore does. It also carries the one
+// setting that decides whether this reaches you at all — an area with
+// show_on_today off keeps its reminders off Today, both badges and the push
+// sweep. Without it RemindersView scoped and sectioned by an area no reminder
+// could ever have, so every one of them lived permanently under "No area".
 export default function ReminderForm({
   reminder,
   people = [],
+  areas = [],
   onSave,
   onClose,
   onFileOnContact,
   defaultPrivacy = 'shared',
+  defaultAreaId = null,
 }) {
   const [form, setForm] = useState(() => ({
-    ...newReminderFields({ privacy_level: defaultPrivacy }),
+    ...newReminderFields({ privacy_level: defaultPrivacy, area_id: defaultAreaId }),
     ...(reminder
       ? {
           title: reminder.title || '',
@@ -34,6 +46,7 @@ export default function ReminderForm({
           assignee: normalizeAssignee(reminder.assignee),
           privacy_level: reminder.privacy_level || defaultPrivacy,
           notes: reminder.notes || '',
+          area_id: reminder.area_id || null,
         }
       : { assignee: defaultAssignee() }),
   }))
@@ -57,6 +70,7 @@ export default function ReminderForm({
       due_date: form.due_date || null,
       due_time: form.due_time || null,
       notes: form.notes.trim(),
+      area_id: form.area_id || null,
       is_reminder: true,
     })
   }
@@ -151,6 +165,11 @@ export default function ReminderForm({
             <AssigneePicker value={form.assignee} onChange={(v) => patch({ assignee: v })} />
           </Field>
         )}
+
+        {/* Above Notes and below Who, matching TaskForm's order. Hidden until
+            an area exists, by AreaPicker's own rule, so a household that never
+            made one still gets the short form this screen was written to be. */}
+        <AreaPicker areas={areas} value={form.area_id} onChange={(area_id) => patch({ area_id })} />
 
         <Field label="Notes">
           {(id) => (

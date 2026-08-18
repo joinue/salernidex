@@ -192,6 +192,26 @@
   text-overflow: ellipsis;
 }
 
+/* Which area a result is filed under, on the sub line ahead of the type/date
+   text. A chip rather than a bare word so it reads as a label on the row and
+   not as the start of the sentence after it, and quiet enough to lose to the
+   title every time — this is context for a result you're placing, not the
+   reason you'd pick it. */
+.qf-area {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  margin-right: 6px;
+  border-radius: 5px;
+  background: var(--fill);
+  color: var(--text-2);
+  font-size: 11.5px;
+  /* The sub line is a plain block that ellipsises, so this sits in the inline
+     flow with it — baseline-aligned, and clipped with everything else if the
+     row runs out of width. It inherits .area-pill-dot's own vertical-align. */
+  vertical-align: baseline;
+}
+
 .qf-row-enter {
   color: var(--text-3);
   flex-shrink: 0;

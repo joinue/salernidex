@@ -83,31 +83,125 @@ export function directUrl(value) {
   return /^(https?:|data:|blob:)/.test(value) ? value : null
 }
 
-// Signed URLs are cached per path until shortly before they expire, so the many
-// Avatars on a page share one network round-trip per image.
+// Signing used to be one network round-trip per Avatar, fired from each one's
+// own effect — a list of forty contacts opened forty requests before a single
+// photo byte moved, which is why avatars trickled in. Two things fix that:
+//
+//   1. Every path requested in the same tick is signed in ONE createSignedUrls
+//      call, so a whole page costs a single round-trip no matter how many faces
+//      are on it (and duplicates of a path share one entry).
+//   2. Results are cached for the life of the signature AND mirrored into
+//      sessionStorage, so a reload or a re-entry into a list paints photos on
+//      the first frame instead of after a round-trip.
+const CACHE_KEY = 'sdx:avatar-src'
+const MAX_BATCH = 100 // paths per createSignedUrls call
+
 const signedCache = new Map() // path -> { url, expires }
 
-async function signedUrl(path) {
-  if (!path || !supabase) return null
-  const hit = signedCache.get(path)
-  if (hit && hit.expires > Date.now()) return hit.url
-  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, SIGN_TTL)
-  if (error || !data?.signedUrl) return null
-  signedCache.set(path, { url: data.signedUrl, expires: Date.now() + (SIGN_TTL - 120) * 1000 })
-  return data.signedUrl
+// Rehydrate on module load: signatures live an hour, so most reloads land on a
+// cache that's still good. Anything expired (or unreadable, e.g. private mode)
+// is simply dropped and re-signed on demand.
+try {
+  const saved = JSON.parse(sessionStorage.getItem(CACHE_KEY) || '{}')
+  const now = Date.now()
+  for (const [path, hit] of Object.entries(saved)) {
+    if (hit?.url && hit.expires > now) signedCache.set(path, hit)
+  }
+} catch {
+  /* no session storage, or garbage in it — start cold */
 }
 
-// Resolve an avatar_url value to something an <img src> can use. Direct URLs
-// (demo data URLs, external links) return synchronously; Storage paths resolve
-// to a signed URL on the next tick.
+let persistTimer = null
+function persist() {
+  if (persistTimer) return
+  persistTimer = setTimeout(() => {
+    persistTimer = null
+    try {
+      const now = Date.now()
+      const out = {}
+      for (const [path, hit] of signedCache) if (hit.expires > now) out[path] = hit
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify(out))
+    } catch {
+      /* quota or private mode — the in-memory cache still stands */
+    }
+  }, 250)
+}
+
+const inflight = new Map() // path -> Promise<string|null>, so N Avatars sharing a path share one job
+let queued = [] // { path, resolve } awaiting the next flush
+let flushScheduled = false
+
+async function flush() {
+  flushScheduled = false
+  const jobs = queued
+  queued = []
+  if (!jobs.length) return
+  const paths = [...new Set(jobs.map((j) => j.path))]
+  const urls = new Map()
+  try {
+    for (let i = 0; i < paths.length; i += MAX_BATCH) {
+      const chunk = paths.slice(i, i + MAX_BATCH)
+      const { data } = await supabase.storage.from(BUCKET).createSignedUrls(chunk, SIGN_TTL)
+      // Rows come back in request order; `path` is echoed but is null on the
+      // error rows, so the index is the reliable way home.
+      ;(data || []).forEach((row, j) => {
+        if (row?.signedUrl && !row.error) urls.set(row.path ?? chunk[j], row.signedUrl)
+      })
+    }
+  } catch {
+    /* offline / Storage down — everyone falls back to the monogram and a later
+       mount retries, since nothing failed gets cached */
+  }
+  if (urls.size) {
+    const expires = Date.now() + (SIGN_TTL - 120) * 1000
+    for (const [path, url] of urls) signedCache.set(path, { url, expires })
+    persist()
+  }
+  for (const job of jobs) job.resolve(urls.get(job.path) ?? null)
+}
+
+// Joins the current batch, or starts one. The microtask flush is what collapses
+// a page's worth of mounts into a single request: React runs every Avatar's
+// effect in one task, so they all land here before the queue drains.
+function signedUrl(path) {
+  if (!path || !supabase) return Promise.resolve(null)
+  const hit = signedCache.get(path)
+  if (hit && hit.expires > Date.now()) return Promise.resolve(hit.url)
+  const existing = inflight.get(path)
+  if (existing) return existing
+  const job = new Promise((resolve) => queued.push({ path, resolve })).finally(() =>
+    inflight.delete(path),
+  )
+  inflight.set(path, job)
+  if (!flushScheduled) {
+    flushScheduled = true
+    queueMicrotask(flush)
+  }
+  return job
+}
+
+// What we can render for `value` with no network at all: a direct URL, or a
+// signature still in cache. Null means "ask the network".
+export function cachedAvatarSrc(value) {
+  const direct = directUrl(value)
+  if (direct || !value) return direct
+  const hit = signedCache.get(value)
+  return hit && hit.expires > Date.now() ? hit.url : null
+}
+
+// Resolve an avatar_url value to something an <img src> can use. Anything
+// already known — a data URL, an external link, a cached signature — comes back
+// on the first render, so a warm avatar never flashes its monogram; only a cold
+// Storage path waits a tick for the batch.
 export function useAvatarSrc(value) {
-  const [src, setSrc] = useState(() => directUrl(value))
+  const [src, setSrc] = useState(() => cachedAvatarSrc(value))
   useEffect(() => {
-    const direct = directUrl(value)
-    if (direct || !value) {
-      setSrc(direct)
+    const known = cachedAvatarSrc(value)
+    if (known || !value) {
+      setSrc(known)
       return
     }
+    setSrc(null)
     let active = true
     signedUrl(value).then((url) => active && setSrc(url))
     return () => {
@@ -115,4 +209,16 @@ export function useAvatarSrc(value) {
     }
   }, [value])
   return src
+}
+
+// Test seam: drop every cached signature (and the batch state behind it).
+export function resetAvatarCache() {
+  signedCache.clear()
+  inflight.clear()
+  queued = []
+  try {
+    sessionStorage.removeItem(CACHE_KEY)
+  } catch {
+    /* nothing to clear */
+  }
 }

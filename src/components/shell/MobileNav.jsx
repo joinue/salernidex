@@ -17,6 +17,7 @@ import Sheet from '../ui/Sheet'
 import NavSheet from './NavSheet'
 import { useLongPress } from '../../hooks/useLongPress'
 import { useKeyboardOpen } from '../../hooks/useKeyboardOpen'
+import { useViewportSettled } from '../../hooks/useViewportSettled'
 import { ACTION, MENU, INSIGHTS, DESTINATIONS, barFor } from '../../lib/nav'
 import NAV_ICONS from './navIcons'
 
@@ -70,6 +71,11 @@ export default function MobileNav({ route, active, adds, badge = 0, counts = {},
   // the page as Safari pans (see useKeyboardOpen). Standing down also hands the
   // freed height to whatever composer you're typing into.
   const keyboardOpen = useKeyboardOpen()
+  // And it doesn't paint at all until the window has settled on its height: on
+  // a cold start the browser lays out first for chrome it isn't showing, so a
+  // bar anchored to the bottom appears high and drops a frame later. Fading in
+  // once the floor is final costs a beat nobody sees and removes the jump.
+  const settled = useViewportSettled()
   const close = () => setSheet(false)
   const pick = (fn) => () => {
     close()
@@ -161,7 +167,7 @@ export default function MobileNav({ route, active, adds, badge = 0, counts = {},
   return (
     <>
       <nav
-        className={`tabbar ${keyboardOpen ? 'tucked' : ''}`}
+        className={`tabbar ${keyboardOpen ? 'tucked' : ''} ${settled ? '' : 'settling'}`}
         // "Main" would overclaim: this is the way onward from this page, and the
         // complete list of destinations lives behind ☰.
         aria-label="Page navigation"

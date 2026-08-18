@@ -96,8 +96,16 @@ for (const file of cssFiles) {
     const selector = m[1].trim().split('\n').pop().trim()
     const size = /font-size:\s*([0-9.]+)px/.exec(m[2])
     if (!size || parseFloat(size[1]) >= 15.995) continue
+    // Tag names only count as tag names. `\bselect\b` matches *inside*
+    // `.menu-select-btn`, because a hyphen is a word boundary — which reported
+    // a <button> as a zooming text field. Strip the class, id and attribute
+    // tokens first, so only a real element selector is left to test.
+    const tagsOnly = selector
+      .replace(/\[[^\]]*\]/g, ' ')
+      .replace(/[.#][-\w]+/g, ' ')
+      .replace(/::?[-\w()]+/g, ' ')
     const namesControl =
-      /\b(input|textarea|select)\b/.test(selector) ||
+      /\b(input|textarea|select)\b/.test(tagsOnly) ||
       CONTROL_CLASSES.some((c) => selector.includes(`.${c}`))
     if (!namesControl) continue
     const what = `${selector}  →  ${size[1]}px`

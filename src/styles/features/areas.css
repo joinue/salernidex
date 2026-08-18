@@ -12,12 +12,15 @@
   gap: 6px;
 }
 
-/* Quieter than a normal chip: this is a state, not a label you act on. */
+/* Quieter than a normal chip: this is a state, not a label you act on.
+   --chip-bg and --text-muted were never tokens — .chip itself uses --fill and
+   --text-2 — so this rendered as bare inherited text with no fill at all, which
+   is exactly what "Shared" must NOT look like next to an item count. */
 .area-chip-shared {
   font-size: 11px;
   padding: 1px 6px;
-  background: var(--chip-bg);
-  color: var(--text-muted);
+  background: var(--fill);
+  color: var(--text-2);
 }
 
 /* An archived area is still legible — it keeps its items and can come back —

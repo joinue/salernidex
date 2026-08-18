@@ -24,9 +24,11 @@ const empty = {
 // followed by a setup (StrictMode's dev remount) doesn't count as leaving.
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
-const setup = ({ notes = [empty], noteId = 'n1' } = {}) => {
+const setup = ({ notes = [empty], noteId = 'n1', areas = [] } = {}) => {
   const data = {
     notes,
+    areas,
+    userId: 'u-1',
     people: [],
     orgs: [],
     groups: [],
@@ -89,5 +91,36 @@ describe('NoteDetail', () => {
     view.unmount()
     await tick()
     expect(data.discardNote).not.toHaveBeenCalled()
+  })
+})
+
+// createNote seeds area_id from the active lens, and for a while that seed was
+// permanent: nothing in the whole Notes feature could change it, so a note
+// written on All was stuck in the notebook's "No area" section for good.
+describe('NoteDetail — filing', () => {
+  const areas = [{ id: 'a-work', name: 'Work', icon: '💼', created_by: 'u-1' }]
+  const filed = { ...empty, title: 'Kickoff', body: '<p>notes</p>' }
+
+  it('files a note into an area, and saves it', async () => {
+    const { data } = setup({ notes: [filed], areas })
+    await userEvent.click(screen.getByRole('button', { name: /Work/ }))
+    // Same 600ms debounce the title and tags ride.
+    await new Promise((r) => setTimeout(r, 700))
+    expect(data.updateNote).toHaveBeenCalledWith(
+      'n1',
+      expect.objectContaining({ area_id: 'a-work' }),
+    )
+  })
+
+  it('unfiles it again', async () => {
+    const { data } = setup({ notes: [{ ...filed, area_id: 'a-work' }], areas })
+    await userEvent.click(screen.getByRole('button', { name: 'None' }))
+    await new Promise((r) => setTimeout(r, 700))
+    expect(data.updateNote).toHaveBeenCalledWith('n1', expect.objectContaining({ area_id: null }))
+  })
+
+  it('shows no area chrome to a household with none', () => {
+    setup({ notes: [filed] })
+    expect(screen.queryByText('Area')).not.toBeInTheDocument()
   })
 })

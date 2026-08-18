@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   HORIZON_DAYS,
+  ROSTER_DAYS,
+  contactDates,
   groupReminders,
   isReminder,
   newReminderFields,
@@ -95,6 +97,43 @@ describe('upcomingReminders', () => {
       people: [],
     })
     expect(items.map((i) => i.title)).toEqual(['Thing 2026-06-13', 'Someday'])
+  })
+})
+
+// The rest of the year's contact dates, which is what makes the note at the
+// foot of the page checkable: before this, a household whose next birthday was
+// in August read "birthdays come from your contacts" against an empty screen.
+describe('contactDates', () => {
+  const people = [
+    { id: 'p1', name: 'Ada Lovelace', birthday: '1990-06-15' }, // 3 days out
+    { id: 'p2', name: 'Grace Hopper', birthday: '1906-12-09' }, // ~180 days out
+    { id: 'p3', name: 'Gone Person', birthday: '1990-11-01', deleted_at: '2026-01-01' },
+  ]
+  const keyDates = [
+    { id: 'k1', person_id: 'p1', date: '2015-09-04', annual: true, label: 'Wedding' },
+  ]
+
+  it('is the dates past the horizon, so nothing is listed twice on one page', () => {
+    const roster = contactDates({ people, keyDates })
+    expect(roster.map((i) => i.key)).toEqual(['k-k1', 'b-p2'])
+    expect(roster.every((i) => i.daysUntil > HORIZON_DAYS)).toBe(true)
+    expect(ROSTER_DAYS).toBe(365)
+  })
+
+  it("leaves an archived contact's dates out, here as everywhere else", () => {
+    expect(contactDates({ people, keyDates }).map((i) => i.key)).not.toContain('b-p3')
+  })
+
+  it('drops the floor on request, which is how the page asks "any on file at all?"', () => {
+    const all = contactDates({ people, keyDates }, { after: -1 })
+    expect(all.map((i) => i.key)).toEqual(['b-p1', 'k-k1', 'b-p2'])
+    expect(contactDates({ people: [], keyDates: [] }, { after: -1 })).toEqual([])
+  })
+
+  it('reads as a calendar date, because "in 84d" is not a date anyone can use', () => {
+    const [wedding] = contactDates({ people, keyDates })
+    expect(reminderWhen(wedding)).toBe('Sep 4')
+    expect(wedding.title).toBe('Ada Lovelace · Wedding')
   })
 })
 

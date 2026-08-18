@@ -9,15 +9,16 @@
 > questions that one left open: what tags are *for*, and how either interacts
 > with a household.
 >
-> **Status (2026-08-17): §7.1 and UI phases 1–4 are built. Phase 5 (tags) is
-> not. RE-RUN `0040` — it gained `member_preferences.area` after its first
-> run.**
+> **Status (2026-08-17): §7.1 and UI phases 1–4 are complete. Phase 5 (tags) is
+> not started. RE-RUN `0040` — it gained `member_preferences.area` after its
+> first run.**
 > Shipped: [`0040_areas.sql`](../../supabase/migrations/0040_areas.sql) (table,
 > `area_id` on tasks/lists/notes/habits, `list_items.tags`, backfill,
 > `merge_area` RPC), [`lib/areas.js`](../../src/lib/areas.js), the areas manager
 > at `#/areas`, the shell switcher
 > ([`AreaSwitcher`](../../src/components/shell/AreaSwitcher.jsx)), area pickers
-> on tasks and lists, subtask/project inheritance, create-time pre-fill, and the
+> on tasks, lists, notes and reminders, subtask/project inheritance,
+> create-time pre-fill, and the
 > "No area" section ([`UnfiledSection`](../../src/components/ui/UnfiledSection.jsx))
 > on Tasks, Projects, Lists, Notes and Reminders.
 > Phase 4 shipped with it: the `show_on_today` toggle in AreaForm, the rule in
@@ -31,9 +32,28 @@
 > ([`areas.parity.test.ts`](../../supabase/functions/send-reminders/areas.parity.test.ts)
 > plus extensions to the badge and deadline ones).
 > Phase 3 shipped too: the `default_private` toggle (shown only on unshared
-> areas, per §5.2), `privacyForNewItem` wired into all four create paths
-> (TaskForm, quick-add, ListForm, notes) on the same explicit-pick-wins
-> precedence TaskForm uses for assignee, and the un-share confirm from §5.3.
+> areas, per §5.2), `privacyForNewItem` wired into all five create paths
+> (TaskForm, quick-add, ListForm, notes, ReminderForm) on the same
+> explicit-pick-wins precedence TaskForm uses for assignee, and the un-share
+> confirm from §5.3.
+>
+> **Four gaps inside those phases were closed on 2026-08-17**, each of them a
+> surface that *showed* you the partition without letting you act on it — the
+> shape worth watching for in the rest of this work:
+> • the manager offered no create on a phone (`PageHeader` stands a
+> `createAction` down where the bottom bar's ＋ covers it, and `areas` is the one
+> page with a create and no bar) and no tap-to-edit on its rows;
+> • a note could be seeded with an area and never re-filed, so anything written
+> on All stayed in the notebook's "No area" section for good;
+> • a reminder got no area at all, while `RemindersView` scoped and sectioned by
+> one — §3.2's "covers reminders for free" was true of the column and false of
+> the form, which is its own lesson;
+> • an archived area offered unarchive but not §3.6's *move items to…*, so the
+> trap that section names had only one way out. That last one is `moveAreaItems`
+> in `useData`, and deliberately **not** an RPC: §3.7's atomicity argument is
+> about the delete that follows a merge's repoints, and nothing follows these,
+> so it rides the outbox and works offline where merge can't.
+>
 > **Not built: phase 5 (tags).** Habits carry `area_id` but have
 > no picker and are deliberately absent from `AREA_SCOPED_ROUTES` — see §3.2.
 > Today follows §3.5 like every other surface: unfiled tasks and lists go to a
@@ -44,10 +64,12 @@
 > because contacts have no area and nothing sets `habits.area_id` — sweeping them
 > in would empty the Dates and Habits cards the moment a lens was picked.
 >
-> **The schema half is time-sensitive.**
+> **The schema half was time-sensitive, and it landed.**
 > [`next-steps.md §2`](../next-steps.md) — *"do this before any App Store binary
-> exists"* — names this work as pending. §7 is structured around that: **one
-> migration, now; all the UI whenever.**
+> exists"* — named this work as pending, and §7 was structured around it: **one
+> migration, now; all the UI whenever.** `0040` carries every column this
+> document will ever need, `list_items.tags` included, so phase 5 is UI work
+> with no migration in front of it.
 
 The ask, in three parts:
 
@@ -189,7 +211,7 @@ areas offline would show an empty app.
 
 | Gets `area_id` | Why |
 |---|---|
-| `tasks` | Already has one. Covers projects, reminders and subtasks for free (`is_project`, `is_reminder`) |
+| `tasks` | Already has one. Covers projects, reminders and subtasks for free (`is_project`, `is_reminder`) — *for free in the **column**, not in the UI: reminders have their own form, and it shipped without a picker or a lens seed, so every reminder lived under "No area" until that was fixed* |
 | `lists` | A work shopping list is a real thing. The list is the unit you file, not the item |
 | `notes` | Meeting notes are the clearest case in the app |
 | `habits` | Cheapest of the four to add and the weakest to *use* — see below |

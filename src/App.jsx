@@ -1259,7 +1259,17 @@ function Shell({ session, onLogout, household }) {
             <ReminderForm
               reminder={editingReminder === 'new' ? null : editingReminder}
               people={data.people.filter((p) => !p.deleted_at)}
-              defaultPrivacy={appPrefs.taskPrivacy}
+              areas={visibleAreas(data.areas, data.userId)}
+              // A reminder made under a lens is filed there, like every other
+              // create path — and so it inherits what that lens says about
+              // visibility too, or a keep-things-private area would file the
+              // reminder and share it anyway. Both are starting points: the
+              // form's own pickers overrule either.
+              defaultAreaId={areaForNewItem(areaId)}
+              defaultPrivacy={privacyForNewItem(
+                areaById(data.areas, areaForNewItem(areaId)),
+                appPrefs.taskPrivacy,
+              )}
               onSave={(fields) => {
                 if (editingReminder === 'new') data.addTask(fields)
                 else data.updateTask(editingReminder.id, fields)

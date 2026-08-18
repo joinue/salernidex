@@ -46,19 +46,22 @@ they describe futures, and the present moves.
   rethink of the two organizing axes, and the current thinking on both.
   Areas become an app-wide **lens** set in the shell (tasks, lists, notes,
   habits — deliberately not contacts) rather than a per-page filter; tags become
-  contexts that cross areas and pay off as saved views on the `groups.js` rule
-  engine; sharing splits into "does this lens exist for you" (`areas.shared`)
-  and "can you see this item" (the existing `privacy_level`), with tags
-  inheriting their row's privacy for free. **The schema half is time-sensitive**
-  — it's the work [`next-steps.md §2b`](next-steps.md) wants landed before an
-  App Store binary exists, so it specifies one `0040` migration carrying every
-  column the feature will ever need, ready to write. Five UI phases after that,
-  an explicit decline list, and a §9 decisions table where the open questions
-  used to be. *Nothing shipped.*
+  contexts that cross areas and pay off through a plain tag page (the saved-view
+  rule engine on `groups.js` was weighed and **declined** in §4.2 — a fortnight
+  of work for something nobody has asked for); sharing splits into "does this
+  lens exist for you" (`areas.shared`) and "can you see this item" (the existing
+  `privacy_level`), with tags inheriting their row's privacy for free. The
+  schema half was the time-sensitive part — one `0040` migration carrying every
+  column the feature will ever need — and it landed whole, which is what leaves
+  the rest free of migrations. Five UI phases after that, an explicit decline
+  list, and a §9 decisions table where the open questions used to be.
+  ***Areas shipped: `0040` plus UI phases 1–4. Tags (phase 5) have not
+  started.*** See the doc's own status block for what each phase covered.
 - [`scopes/task-areas.md`](scopes/task-areas.md) — grouping tasks by area
   ("Work" vs "Home"), in three phases. **Superseded by `areas-and-tags.md`**,
-  which keeps its reasoning and widens its scope. *Phase 1 partly shipped; the
-  table and the behavioral work are not.*
+  which keeps its reasoning and widens its scope — and which shipped, so this
+  file is history rather than a plan. *Read it only for the reasoning; two of
+  its names have since changed (see its own banner).*
 - [`scopes/competitive-superlist.md`](scopes/competitive-superlist.md) — the
   2026-08-13 read of Superlist v1.56: the full feature diff, four candidates
   worth building (offline writes, attachments, multi-select, calendar in

@@ -139,3 +139,38 @@ describe('searchIndex / groupResults', () => {
     expect(find('   ')).toEqual([])
   })
 })
+
+// Search never narrows to the active lens (§3.6), which only works if a result
+// from another area can say where it came from. Without this the global search
+// reads as a broken filter.
+describe('buildIndex — areas on results', () => {
+  const filed = {
+    ...data,
+    areas: [{ id: 'a-work', name: 'Work', icon: '💼', color: '#48f' }],
+    tasks: [{ id: 't1', title: 'Take out the bins', area_id: 'a-work' }],
+    lists: [{ id: 'l1', name: 'Groceries', area_id: 'a-work' }],
+    notes: [{ id: 'n1', title: 'Trip planning', body: '', tags: [], area_id: 'a-work' }],
+  }
+
+  it('names the area on every entity that can be filed in one', () => {
+    const byId = new Map(buildIndex(filed).map((e) => [e.id, e]))
+    for (const id of ['t1', 'l1', 'n1']) expect(byId.get(id).area.name).toBe('Work')
+  })
+
+  it('leaves the area off things that carry none', () => {
+    const byId = new Map(buildIndex(filed).map((e) => [e.id, e]))
+    expect(byId.get('p1').area).toBeUndefined()
+    expect(byId.get('h1').area).toBeUndefined()
+  })
+
+  it('survives a household with no areas at all', () => {
+    const byId = new Map(buildIndex(data).map((e) => [e.id, e]))
+    expect(byId.get('t1').area).toBeNull()
+  })
+
+  it('drops an area_id pointing at an area that is gone', () => {
+    const stale = { ...filed, areas: [] }
+    const byId = new Map(buildIndex(stale).map((e) => [e.id, e]))
+    expect(byId.get('t1').area).toBeNull()
+  })
+})

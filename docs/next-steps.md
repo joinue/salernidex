@@ -111,13 +111,13 @@ Whatever is still intended from `notes-roadmap.md` and the areas work. Additive,
 idempotent, expand/contract only — never drop or rename a column while an older client
 could still be reading it.
 
-**Areas has a settled migration spec and is ready to write**:
-[`scopes/areas-and-tags.md §3.3`](scopes/areas-and-tags.md) — one `0040` migration
-carrying the `areas` table, `area_id` on tasks/lists/notes/habits, the behaviour
-flags (`shared`, `default_private`, `show_on_today`) that nothing reads until much
-later, and `list_items.tags`. It is written to land in this window precisely
-because of the rule above, and its §9 records every open question as answered —
-there is nothing left to decide before writing it.
+**Areas: done.** [`0040_areas.sql`](../supabase/migrations/0040_areas.sql) landed
+exactly as [`scopes/areas-and-tags.md §3.3`](scopes/areas-and-tags.md) specified —
+the `areas` table, `area_id` on tasks/lists/notes/habits, the behaviour flags
+(`shared`, `default_private`, `show_on_today`), `list_items.tags`, the backfill
+and the `merge_area` RPC, in one migration. That is the whole point of the rule
+above working as intended: the remaining areas work (phase 5, tags) is UI with no
+migration in front of it, so it can take as long as it likes.
 (It supersedes `scopes/task-areas.md`, which is the file the original line here
 was reaching for.)
 

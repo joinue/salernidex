@@ -45,6 +45,7 @@ zero-setup dev/preview fallback, not the primary target.
 
 **The spine**
 
+- **Areas — the lens** — one exclusive partition (Work / Home / the band) set once in the shell and applied to Today, Tasks, Projects, Reminders, Lists and Notes, persisted per member. Managed rows with icon, colour, order, merge (a `security definer` RPC, because a merge is repoints-then-delete and the outbox can't make that atomic), archive and delete-that-unfiles-rather-than-deletes. Three behaviour flags do the work the filter can't: `shared` scopes the lens to a household, `default_private` starts new items in it private, and **`show_on_today` is the one that keeps work off a Saturday** — it runs through `buildAttention` *and* a server port in the Edge Function, with parity suites pinning the two implementations together ([`lib/areas.js`](src/lib/areas.js), [`areas.ts`](supabase/functions/send-reminders/areas.ts); migration `0040`). Search deliberately ignores the lens and names each result's area instead. Design and every decision behind it: [`docs/scopes/areas-and-tags.md`](docs/scopes/areas-and-tags.md).
 - **Today hub** — greeting, To-do (due/overdue + deferred), **Check in**, Dates (birthdays + key dates), and recent activity (collapsible on a phone).
 - **Quick Find** — keyboard-driven search across everything, with match highlighting ([`QuickFind`](src/components/shell/QuickFind.jsx), [`lib/quickFind.js`](src/lib/quickFind.js)). *Previously listed here as unbuilt "Things polish" — it shipped.* Coverage is the contract, not the ranking, and [`quickFind.test.js`](src/lib/quickFind.test.js) pins it: every entity type, every index page, every create action.
 - **Activity feed** — unified household log (touchpoints + task completions + habit check-ins + lists) at `#/activity` ([`lib/activity.js`](src/lib/activity.js)).
@@ -64,7 +65,7 @@ zero-setup dev/preview fallback, not the primary target.
 ### 🟡 Partial
 
 - **Reminder go-live** — the sweep is scheduled and running, but one dead June subscription still fails every send, and `pushToSubs()` doesn't prune on Apple's `400 VapidPkHashMismatch`, so dead subscriptions accumulate. [next-steps §1b](docs/next-steps.md).
-- **Task areas** — the front door exists (area pills + filter in Tasks, picker in the form) but not the managed table, counts, or per-area behavior. [`docs/scopes/task-areas.md`](docs/scopes/task-areas.md).
+- **Tags** — the primitive is everywhere (`TagInput` across five forms) but the *namespace* isn't: task tags, note tags, people tags and org tags are four private lists, so the same word on a task and a note has no relationship. Phase 5 of [`docs/scopes/areas-and-tags.md`](docs/scopes/areas-and-tags.md) §4 scopes the fix — one flat household namespace, a shared autocomplete source, lowercase-on-write and a tag page. `list_items.tags` shipped with `0040` and nothing reads it yet.
 - **Real-usage hardening** — the live stack runs end to end, but RLS and realtime want more day-to-day, multi-account mileage.
 - **Branding / final polish** — ongoing, not a final pass.
 

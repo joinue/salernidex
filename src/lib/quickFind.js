@@ -55,12 +55,22 @@ export const TYPE_LABELS = {
 }
 const TYPE_RANK = Object.keys(TYPE_LABELS)
 
-// Each entry: { key, type, id?, route?, action?, title, sub, fields: [[text, weight]] }
+// Each entry: { key, type, id?, route?, action?, title, sub, area?, fields: [[text, weight]] }
 // `key` is stable across sessions — it's what recents store.
 export function buildIndex(data) {
   const entries = []
   const add = (e) =>
     entries.push({ ...e, key: `${e.type}:${e.id || e.route || e.action || e.title}` })
+
+  // Search deliberately ignores the lens (docs/scopes/areas-and-tags.md §3.6):
+  // searching MEANS you don't know where the thing is, so scoping it is how a
+  // search returns nothing and the data looks lost. `area` is the other half of
+  // that decision — a result from outside the area you're working in has to say
+  // so, or the global search reads as a broken filter instead of a deliberate
+  // one. Only the three things that can be filed carry it; nothing writes
+  // habits.area_id, and people and orgs have no area by design (§3.2).
+  const areasById = new Map((data.areas || []).map((a) => [a.id, a]))
+  const areaFor = (row) => (row.area_id && areasById.get(row.area_id)) || null
 
   for (const n of NAV)
     add({
@@ -120,6 +130,7 @@ export function buildIndex(data) {
       type: project ? 'project' : 'task',
       id: t.id,
       parentId: parent?.id || null,
+      area: areaFor(t),
       title: t.title || 'Untitled',
       sub: parent ? `In ${parent.title}` : dueLabel(t.due_date) || (project ? 'Project' : 'Task'),
       fields: [
@@ -139,6 +150,7 @@ export function buildIndex(data) {
       type: 'list',
       id: l.id,
       icon: l.icon,
+      area: areaFor(l),
       title: l.name || 'Untitled',
       sub: open ? `${open} item${open === 1 ? '' : 's'} left` : 'List',
       // Item text indexed too, so "milk" finds Groceries.
@@ -154,6 +166,7 @@ export function buildIndex(data) {
     add({
       type: 'note',
       id: n.id,
+      area: areaFor(n),
       title,
       sub: 'Note',
       fields: [
