@@ -1,32 +1,55 @@
 /* ---------- icon picker ---------- */
 
-/* "See more" toggle and the expandable full-catalog panel. */
+/* The row of glyph buttons — in the form, and again in the catalog sheet.
+   These two lived in features/lists.css: three features render the picker and
+   none of them owns it, so a change for one silently moved the other two. */
+.icon-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.icon-pick {
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+  border-radius: 12px;
+  background: var(--fill);
+  transition:
+    box-shadow 120ms ease,
+    transform 100ms ease;
+}
+
+.icon-pick.on {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.icon-pick:active {
+  transform: scale(0.92);
+}
+
+/* Opens the full catalog. A sheet, not a panel that unfolds in place — see
+   IconPicker.jsx for the four things that went wrong when it was the latter. */
 .icon-more {
   font-size: 20px;
   color: var(--text-2);
 }
 
-.icon-more-panel {
-  margin-top: 10px;
-  border: 1px solid var(--fill);
-  border-radius: 14px;
-  padding: 10px;
-  background: var(--surface);
-}
+/* ---------- the catalog sheet ---------- */
 
-.icon-search {
-  width: 100%;
-  margin-bottom: 10px;
-}
-
-.icon-grid-scroll {
-  max-height: 220px;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+/* A grid here, where the compact row is a wrapping flex line. 76 glyphs left-
+   packed with a ragged right edge read as a spill; even columns read as a
+   catalog. auto-fill sizes the columns to the sheet, so it's 6 across on a
+   375px phone and more on a tablet without a breakpoint saying so. */
+.icon-catalog .icon-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  justify-items: center;
+  gap: 8px;
 }
 
 .icon-group + .icon-group {
-  margin-top: 12px;
+  margin-top: 16px;
 }
 
 .icon-group-label {
@@ -35,7 +58,7 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-3);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .icon-empty {

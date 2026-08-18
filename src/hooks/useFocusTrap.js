@@ -23,6 +23,15 @@ const FOCUSABLE = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',')
 
+// Controls that open the software keyboard when they take focus.
+const TEXT_ENTRY = 'textarea, [contenteditable=""], [contenteditable="true"], input'
+const NO_KEYBOARD = ['button', 'checkbox', 'radio', 'submit', 'reset', 'file', 'color', 'range']
+
+function opensKeyboard(el) {
+  if (!el.matches(TEXT_ENTRY)) return false
+  return el.tagName !== 'INPUT' || !NO_KEYBOARD.includes(el.type)
+}
+
 function focusable(root) {
   return [...root.querySelectorAll(FOCUSABLE)].filter(
     // offsetParent is null for display:none; a zero-size box is a visually
@@ -43,12 +52,23 @@ export function useFocusTrap(ref, { enabled = true } = {}) {
 
     // Don't steal focus from a field the overlay itself autoFocused — the New
     // task sheet focuses its title input on desktop, and that should win.
+    //
+    // And where the overlay *hasn't* asked, the fallback must not land on a
+    // text field, because on a phone that summons the keyboard the instant the
+    // sheet opens and covers the thing you just opened. `focusOnDesktop` is the
+    // rule ("we don't auto-focus a sheet's first field on phones") and every
+    // form honours it — but the fallback here was quietly undoing it for any
+    // sheet whose first control happens to be an input, which is most of them.
+    // Wanting the keyboard is what autoFocus is for; the branch below then
+    // never runs.
     if (!root.contains(document.activeElement)) {
       const first = focusable(root)[0]
-      if (first) first.focus()
+      if (first && !opensKeyboard(first)) first.focus()
       else {
+        // The dialog itself: screen readers announce its label, Tab walks into
+        // the content from the top, and no keyboard appears uninvited.
         root.setAttribute('tabindex', '-1')
-        root.focus()
+        root.focus({ preventScroll: true })
       }
     }
 

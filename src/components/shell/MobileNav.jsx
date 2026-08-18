@@ -18,6 +18,8 @@ import NavSheet from './NavSheet'
 import { useLongPress } from '../../hooks/useLongPress'
 import { useKeyboardOpen } from '../../hooks/useKeyboardOpen'
 import { useViewportSettled } from '../../hooks/useViewportSettled'
+import { useSelectionActive } from '../../hooks/useSelection'
+import { useOverlayOpen } from '../../hooks/useScrollLock'
 import { ACTION, MENU, INSIGHTS, DESTINATIONS, barFor } from '../../lib/nav'
 import NAV_ICONS from './navIcons'
 
@@ -71,11 +73,33 @@ export default function MobileNav({ route, active, adds, badge = 0, counts = {},
   // the page as Safari pans (see useKeyboardOpen). Standing down also hands the
   // freed height to whatever composer you're typing into.
   const keyboardOpen = useKeyboardOpen()
-  // And it doesn't paint at all until the window has settled on its height: on
-  // a cold start the browser lays out first for chrome it isn't showing, so a
-  // bar anchored to the bottom appears high and drops a frame later. Fading in
-  // once the floor is final costs a beat nobody sees and removes the jump.
+  // Second reason to stand down, and the one that was a shipped bug: while a
+  // surface is selecting, the SelectionBar occupies this bar's exact rectangle —
+  // same `bottom`, same z-layer — and because the tab bar renders after <main>
+  // it won every hit test. All five selection actions were dead on a phone,
+  // cancel included, with no way out but navigating away. Stacking was never the
+  // intent; replacing was. See docs/records/mobile-audit.md (P0).
+  const selecting = useSelectionActive()
+  const standDown = keyboardOpen || selecting
+  // Withheld — present in the layout, simply not painted — for the two reasons
+  // the bar's *floor* can't be trusted rather than its contents.
+  //
+  // On a cold start the browser lays out first for chrome it isn't showing, so
+  // a bar anchored to the bottom appears high and drops a frame later; fading
+  // in once the floor is final costs a beat nobody sees.
+  //
+  // And while an overlay is open the floor genuinely moves: the scroll lock
+  // freezes the document, and browsers respond to a page that can no longer
+  // scroll by changing what "the bottom of the viewport" means (see
+  // useOverlayOpen). The pill is under a backdrop for the whole of it, so not
+  // painting it is free — and it's the only thing that works, because the
+  // alternative is holding a position that no longer exists.
+  //
+  // Deliberately not `tucked`: that slides the bar off the bottom edge, which
+  // is motion, and motion is the entire complaint. This is opacity only.
   const settled = useViewportSettled()
+  const covered = useOverlayOpen()
+  const withheld = !settled || covered
   const close = () => setSheet(false)
   const pick = (fn) => () => {
     close()
@@ -167,14 +191,17 @@ export default function MobileNav({ route, active, adds, badge = 0, counts = {},
   return (
     <>
       <nav
-        className={`tabbar ${keyboardOpen ? 'tucked' : ''} ${settled ? '' : 'settling'}`}
+        className={`tabbar ${standDown ? 'tucked' : ''} ${withheld ? 'withheld' : ''}`}
         // "Main" would overclaim: this is the way onward from this page, and the
         // complete list of destinations lives behind ☰.
         aria-label="Page navigation"
         // Hidden chrome must leave the a11y tree and the focus order too, or an
         // iPad hardware keyboard tabs into five invisible destinations. `inert`
         // does both; React 18 needs it as an empty string rather than a bool.
-        inert={keyboardOpen ? '' : undefined}
+        // Withheld counts as hidden: an invisible bar behind a sheet's backdrop
+        // is the same trap, and the sheet's own focus trap only covers the
+        // keyboard case.
+        inert={standDown || withheld ? '' : undefined}
       >
         {slots.map(slot)}
       </nav>

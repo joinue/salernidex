@@ -349,30 +349,9 @@
   margin-bottom: 14px;
 }
 
-.icon-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.icon-pick {
-  width: 44px;
-  height: 44px;
-  font-size: 22px;
-  border-radius: 12px;
-  background: var(--fill);
-  transition:
-    box-shadow 120ms ease,
-    transform 100ms ease;
-}
-
-.icon-pick.on {
-  box-shadow: 0 0 0 2px var(--accent);
-}
-
-.icon-pick:active {
-  transform: scale(0.92);
-}
+/* The icon picker's own styles (.icon-row, .icon-pick) used to sit here. They
+   belong to a primitive three features share, so they now live in
+   primitives/icon-picker.css. */
 
 /* ---------- meal plan (lists.kind = 'meal_plan') ---------- */
 

@@ -833,82 +833,89 @@ export default function ListDetail({ data, listId, onBack, onEdit, onOpenNote, o
       {/* Add dock sits at the bottom, within thumb reach while shopping. On
           mobile it sticks just above the tab bar; suggestions grow upward from
           the input so the field itself never moves.
-          Hidden while selecting: the selection bar occupies that space, and
-          adding a new item is not a thing you're doing mid-selection. */}
-      <div className="list-add-dock" hidden={sel.selecting}>
-        {!grocery && !meal && (
-          <button className="text-btn add-section-btn" onClick={addSection}>
-            <Plus size={14} /> Add section
-          </button>
-        )}
-        {/* Which day the next meal lands on. A scrolling row rather than a date
+
+          Unmounted while selecting — not `hidden` — because the dock's own
+          `display` rule wins against the [hidden] attribute, so it stayed on
+          screen and covered all five selection actions (audit:mobile modes
+          pass). Adding an item isn't something you do mid-selection anyway. */}
+      {!sel.selecting && (
+        <div className="list-add-dock">
+          {!grocery && !meal && (
+            <button className="text-btn add-section-btn" onClick={addSection}>
+              <Plus size={14} /> Add section
+            </button>
+          )}
+          {/* Which day the next meal lands on. A scrolling row rather than a date
             input: planning a week is seven taps, and a native picker for each
             one would be seven sheets. */}
-        {meal && (
-          <div className="meal-day-picker" role="radiogroup" aria-label="Day">
-            {windowDays(todayISO).map((iso) => (
-              <button
-                key={iso}
-                type="button"
-                role="radio"
-                aria-checked={iso === addDay}
-                className={`chip ${iso === addDay ? 'accent' : ''}`}
-                onClick={() => setPickedDay(iso)}
-              >
-                {dayChipLabel(iso, todayISO)}
-              </button>
-            ))}
-          </div>
-        )}
-        {/* A listbox's children have to be options — as plain buttons they were
+          {meal && (
+            <div className="meal-day-picker" role="radiogroup" aria-label="Day">
+              {windowDays(todayISO).map((iso) => (
+                <button
+                  key={iso}
+                  type="button"
+                  role="radio"
+                  aria-checked={iso === addDay}
+                  className={`chip ${iso === addDay ? 'accent' : ''}`}
+                  onClick={() => setPickedDay(iso)}
+                >
+                  {dayChipLabel(iso, todayISO)}
+                </button>
+              ))}
+            </div>
+          )}
+          {/* A listbox's children have to be options — as plain buttons they were
             announced as an empty list. Kept as <button> for the tap behavior,
             relabelled so AT sees the choices. */}
-        {suggestions.length > 0 && (
-          <div className="list-suggest" role="listbox" aria-label="Suggestions">
-            {suggestions.map((s) => (
-              <button
-                key={s.norm}
-                type="button"
-                role="option"
-                aria-selected="false"
-                className="list-suggest-item"
-                onClick={() => pickSuggestion(s)}
-              >
-                <Plus size={14} className="list-suggest-plus" />
-                <span className="list-suggest-text">{s.text}</span>
-                {grocery && s.category && <span className="list-suggest-aisle">{s.category}</span>}
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="list-add">
-          <input
-            ref={inputRef}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder={
-              meal
-                ? `What's for ${dayLabel(addDay, todayISO).toLowerCase()}?`
-                : kindOf(list).addPlaceholder
-            }
-            aria-label={`${kindOf(list).addPlaceholder.replace(/…$/, '')} to ${list.name}`}
-            enterKeyHint="done"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                add()
+          {suggestions.length > 0 && (
+            <div className="list-suggest" role="listbox" aria-label="Suggestions">
+              {suggestions.map((s) => (
+                <button
+                  key={s.norm}
+                  type="button"
+                  role="option"
+                  aria-selected="false"
+                  className="list-suggest-item"
+                  onClick={() => pickSuggestion(s)}
+                >
+                  <Plus size={14} className="list-suggest-plus" />
+                  <span className="list-suggest-text">{s.text}</span>
+                  {grocery && s.category && (
+                    <span className="list-suggest-aisle">{s.category}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="list-add">
+            <input
+              ref={inputRef}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder={
+                meal
+                  ? `What's for ${dayLabel(addDay, todayISO).toLowerCase()}?`
+                  : kindOf(list).addPlaceholder
               }
-            }}
-          />
-          <button
-            className="list-add-btn"
-            onClick={add}
-            aria-label={meal ? 'Add meal' : 'Add item'}
-          >
-            <Plus size={20} />
-          </button>
+              aria-label={`${kindOf(list).addPlaceholder.replace(/…$/, '')} to ${list.name}`}
+              enterKeyHint="done"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  add()
+                }
+              }}
+            />
+            <button
+              className="list-add-btn"
+              onClick={add}
+              aria-label={meal ? 'Add meal' : 'Add item'}
+            >
+              <Plus size={20} />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {sel.selecting && (
         <SelectionBar

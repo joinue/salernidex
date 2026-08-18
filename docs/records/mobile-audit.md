@@ -1,11 +1,32 @@
 # Mobile UI/UX + feature audit — 2026-08-18
 
-> **Record** — true on its date, against `main` @ `ad3c356`. **Unlike the other
-> two reviews in this folder, nothing below has been acted on.** `ui-ux-review.md`
-> and `cross-surface-review.md` both record work that shipped in the same session;
-> this one records findings that are still open, so it reads as a to-do list until
-> a later session says otherwise. Update this header when that happens rather than
-> editing the findings.
+> **Record** — findings true on 2026-08-18 against `main` @ `ad3c356`. The
+> findings below are left exactly as written; this header carries what has since
+> been done, per the instruction the original version of it gave.
+>
+> **Acted on (2026-08-18, same day):** items 1 and 2 of the recommended order.
+>
+> - **P0, multi-select unusable on a phone — fixed.** `MobileNav` now stands
+>   down on selection the same way it does for the software keyboard, so the bar
+>   genuinely replaces the tab bar rather than stacking under it. Two further
+>   occlusions surfaced while verifying and were fixed with it: List detail's add
+>   dock stayed on screen (`hidden` loses to the dock's own `display` rule, so it
+>   is unmounted now) and the bar's own actions **overflowed at 393px** — 419px of
+>   content in a 369px bar — which flex resolved by laying "All" on top of the
+>   cancel button. Actions go icon-only below 520px.
+> - **P1, the audit only inspected resting state — fixed.** `mobile-audit.mjs`
+>   has a modes pass that enters selection on Tasks, Notes and List detail and
+>   hit-tests every action with `elementFromPoint`. Verified against the bug:
+>   reverting the `MobileNav` change reproduces this record's exact finding
+>   (20 issues, `"Done selecting" → tab`), and restoring it returns to clean.
+>   A mode it cannot enter counts as a failure rather than a skip, so this cannot
+>   quietly decay back into a resting-state-only audit.
+>
+> **Still open:** everything in Parts 2–4 — the contrast tokens, the `rem`
+> migration, reduced-motion, the nav orphans, the mobile lens, the offline
+> indicator, and the `ROADMAP.md` / `next-steps.md` re-stamp. Items 3–7 of the
+> recommended order stand as written.
+>
 > See [`docs/README.md`](../README.md) for how the docs are organized.
 
 Audited 2026-08-18 against `main` @ `ad3c356`, demo data, headless Chrome at
@@ -100,6 +121,57 @@ List detail, snooze sheets, and the note formatting bar.
 **Fix.** Add a modes pass — for each route that has one, enter the mode, re-run
 the existing occlusion check, exit. Do this *second*, not last: it is what stops
 the class from recurring, and it validates the P0 fix.
+
+### P2 — The tab pill moves twice, and neither move is its own fault — FIXED
+
+[`tabbar.css:6`](../../src/styles/shell/tabbar.css#L6) ·
+[`useScrollLock.js`](../../src/hooks/useScrollLock.js) ·
+[`useViewportSettled.js`](../../src/hooks/useViewportSettled.js)
+
+Reported from a device, not from a script, and for the reason above: both are
+transient, and both are about the *viewport* rather than the layout. The pill is
+`position: fixed` against a floor built from `env(safe-area-inset-bottom)`, and
+that floor is not a constant — the browser revises it, twice, for reasons that
+have nothing to do with this app.
+
+**Opening a sheet moved it.** Every overlay takes a scroll lock, and on a phone
+that lock pins the body (`scroller.js`) so the document can no longer scroll.
+Browsers answer that by changing what the bottom of the viewport means: iOS
+Safari brings its toolbar back out — which flips `env(safe-area-inset-bottom)`
+between 0 and ~34px, an 18px step through `--tabbar-inset` — and a desktop
+window narrow enough to be on the phone shell loses its scrollbar and widens by
+8px. Every overlay did this; the right-hand nav drawer is just the one that
+covers 310px and leaves the pill on screen to be watched.
+
+**Launching the installed app moved it.** `black-translucent`
+([`index.html:17`](../../index.html#L17)) makes the iOS web view full-bleed, but
+WebKit lays the page out once *before* applying that, against a rectangle inset
+for chrome the app doesn't have — so the pill draws high and drops when the
+correction lands, which reads exactly like the app leaving room for a URL bar.
+`useViewportSettled` existed to cover this and missed, because it waited on
+`window` `resize` and WebKit reports the correction on `visualViewport`, if at
+all: iOS can defer it as far as the first touch.
+
+**Fix.** Three parts, because the floor can't be held still and shouldn't be.
+
+1. Don't paint the pill while the page is covered. `useScrollLock` now publishes
+   the lock as a subscribable signal (`useOverlayOpen`) and `MobileNav` withholds
+   the bar on it — opacity and `inert`, not `tucked`, since a slide off the edge
+   is motion and motion is the complaint. Behind a backdrop this costs nothing.
+2. `useViewportSettled` watches `visualViewport` resize as well as `window`, so
+   the launch correction is seen where it is actually reported.
+3. `.tabbar` transitions `bottom`. `CAP` still bounds how long the bar can be
+   withheld — a bar that never arrives is worse than one that arrives 18px low —
+   so a correction landing after the fade glides rather than teleports. That tail
+   is unavoidable: if iOS defers the truth to the first touch, no amount of
+   waiting produces it sooner.
+
+Covered by `MobileNav.test.jsx` for the overlay half. The launch half is not
+testable in jsdom and wants a device check — the open question is whether
+`visualViewport` reports the true screen height at launch while `innerHeight` is
+still stale. If it does, anchoring the pill to the measured band
+([`useVisualBandBottom`](../../src/hooks/useKeyboardOpen.js#L96), already used by
+the notes toolbar) removes the guess entirely instead of smoothing it.
 
 ---
 

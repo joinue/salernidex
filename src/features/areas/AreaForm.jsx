@@ -83,7 +83,10 @@ export default function AreaForm({ area, onSave, onClose }) {
               setError(null)
             }}
             placeholder="Work"
-            ref={focusOnDesktop}
+            // `ref={focusOnDesktop}` — what this was — hands React a ref
+            // callback that ignores its node and returns a boolean, so the
+            // field was never focused anywhere. Every other form calls it.
+            autoFocus={focusOnDesktop()}
             required
           />
         </div>

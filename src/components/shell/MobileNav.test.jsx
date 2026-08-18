@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MobileNav from './MobileNav'
 
@@ -93,6 +93,35 @@ describe('MobileNav', () => {
     }
     await user.click(within(drawer).getByText('Notes'))
     expect(a.go).toHaveBeenCalledWith('notes')
+  })
+
+  // The pill can't be held still while a sheet is open: the sheet takes a scroll
+  // lock, the lock freezes the document, and the browser answers a page that can
+  // no longer scroll by revising what the bottom of the viewport means — Safari
+  // brings its toolbar back and flips env(safe-area-inset-bottom). So it isn't
+  // painted for the duration, which costs nothing behind a backdrop. The drawer
+  // is the case that made it visible; it only covers 310px and leaves the pill
+  // in plain sight.
+  it('withholds the bar while a sheet is over it, and gives it back after', async () => {
+    const user = userEvent.setup()
+    setup('tasks')
+    const nav = bar()
+    // It starts withheld too — the launch half of the same flag — so wait for
+    // the window to settle before asserting the overlay moved it.
+    await waitFor(() => expect(nav).not.toHaveClass('withheld'))
+
+    await user.click(within(nav).getByLabelText('All destinations'))
+    const drawer = await screen.findByRole('dialog', { name: 'Go to' })
+    expect(nav).toHaveClass('withheld')
+    // Not `tucked`. That slides the bar off the bottom edge, which is motion,
+    // and motion is the entire complaint.
+    expect(nav).not.toHaveClass('tucked')
+    // An invisible bar behind a backdrop must leave the focus order with it.
+    expect(nav).toHaveAttribute('inert')
+
+    await user.click(within(drawer).getByText('Close menu'))
+    await waitFor(() => expect(nav).not.toHaveClass('withheld'))
+    expect(nav).not.toHaveAttribute('inert')
   })
 
   it('sends the red attention count to Today and nowhere else', () => {

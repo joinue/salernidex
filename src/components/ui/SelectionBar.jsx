@@ -25,7 +25,11 @@ export default function SelectionBar({
   return (
     <div className="selection-bar" role="toolbar" aria-label="Selection actions">
       <div className="selection-bar-lead">
-        <IconButton icon={X} label="Done selecting" onClick={onCancel} />
+        {/* `lg` — 44px painted, not the 32px default leaning on .tap-target's
+            invisible extension. This is the way OUT of the mode; it is the one
+            control here that must never be a near-miss, and audit:mobile's
+            modes pass caught it missing on list detail. */}
+        <IconButton icon={X} label="Done selecting" size="lg" onClick={onCancel} />
         {/* Announced politely so a screen reader hears the running count
             without the whole bar being re-read on every tick. */}
         <span className="selection-bar-count" aria-live="polite">
@@ -34,7 +38,7 @@ export default function SelectionBar({
       </div>
       <div className="selection-bar-actions">
         {onToggleAll && (
-          <button type="button" className="text-btn" onClick={onToggleAll}>
+          <button type="button" className="text-btn selection-bar-all" onClick={onToggleAll}>
             {allSelected ? 'None' : 'All'}
           </button>
         )}

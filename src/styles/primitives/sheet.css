@@ -12,9 +12,15 @@
 }
 
 .sheet {
+  /* Published so a sticky child can cancel the padding back out — a sticky
+     offset resolves against the scroller's CONTENT edge, so the gutter is
+     already baked into it. Same reason .modal publishes --modal-pad-*, and the
+     same arithmetic the layout rule in CONVENTIONS.md is about. */
+  --sheet-pad-x: 12px;
+  --sheet-pad-t: 6px;
   background: var(--surface);
   border-radius: 16px 16px 0 0;
-  padding: 6px 12px calc(16px + env(safe-area-inset-bottom));
+  padding: var(--sheet-pad-t) var(--sheet-pad-x) calc(16px + env(safe-area-inset-bottom));
   animation: sheet-up 300ms cubic-bezier(0.32, 0.72, 0, 1);
   overscroll-behavior: contain;
   /* Never let a tall sheet (e.g. the people filter's stack of selects) grow past
@@ -70,6 +76,47 @@
   letter-spacing: 0.4px;
   color: var(--text-2);
   padding: 4px 12px 8px;
+}
+
+/* A search field pinned to the top of a sheet's scroller (the icon catalog).
+   Sticky rather than in flow because the field and the results it filters have
+   to be on screen together: with the keyboard up the sheet is only as tall as
+   what's left above it, and a field that scrolls away takes with it the ability
+   to correct a typo.
+
+   Full-bleed the way .sheet-foot is — the negative side margins cancel the
+   sheet's gutters so rows passing underneath are covered rather than showing
+   through, and the padding puts the gutter back inside the band. */
+.sheet-search {
+  position: sticky;
+  /* Not `top: 0`: that resolves against the content edge and parks the band a
+     gutter's width down the sheet, leaving a strip of glyphs sliding past in
+     the gap above it. Cancel the padding out and the band puts it back as its
+     own, so the field sits in the same place pinned or not. */
+  top: calc(-1 * var(--sheet-pad-t));
+  z-index: 1;
+  margin: 0 calc(-1 * var(--sheet-pad-x)) 4px;
+  padding: calc(var(--sheet-pad-t) + 2px) var(--sheet-pad-x) 8px;
+  background: var(--surface);
+}
+
+/* On mobile, responsive.css gives .search-wrap a whole page treatment: sticky,
+   painted in --bg, with a negative offset that parks its padding off the top of
+   the screen. That's right for the People and Relationships indexes and wrong
+   in all three ways here — the band is the sticky one, a second sticky layer
+   inside it fights for the same edge, and --bg is the colour of the screen
+   *behind* this sheet, which is why the strip read as a seam across it.
+
+   Kept `relative`, though: the magnifying glass is absolutely positioned
+   against the wrapper, and letting it escape to the band instead would set it
+   12px from the band's edge rather than 12px inside the field. */
+.sheet-search .search-wrap {
+  position: relative;
+  top: auto;
+  z-index: auto;
+  background: none;
+  margin: 0;
+  padding: 0;
 }
 
 .sheet-item {
@@ -132,6 +179,11 @@
 }
 
 .sheet.side-right {
+  /* Restated through the same variables rather than as a fresh shorthand: the
+     sticky children below cancel these out, and two of them reading a gutter
+     the panel no longer has is how a band ends up 2px off. */
+  --sheet-pad-x: 10px;
+  --sheet-pad-t: calc(8px + env(safe-area-inset-top));
   width: min(310px, 84vw);
   max-height: none;
   /* Its own scroller, and the close button parks at the bottom of it — so the
@@ -139,7 +191,7 @@
   display: flex;
   flex-direction: column;
   border-radius: 16px 0 0 16px;
-  padding: calc(8px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom));
+  padding: var(--sheet-pad-t) var(--sheet-pad-x) calc(10px + env(safe-area-inset-bottom));
   animation: drawer-in 300ms cubic-bezier(0.32, 0.72, 0, 1);
   /* Vertical panning belongs to the browser here; Sheet.jsx picks the sideways
      drag out itself by requiring the gesture to be more horizontal than
@@ -167,8 +219,8 @@
 .sheet-foot {
   position: sticky;
   bottom: calc(-1 * (10px + env(safe-area-inset-bottom)));
-  margin: auto -10px calc(-1 * (10px + env(safe-area-inset-bottom)));
-  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  margin: auto calc(-1 * var(--sheet-pad-x)) calc(-1 * (10px + env(safe-area-inset-bottom)));
+  padding: 8px var(--sheet-pad-x) calc(8px + env(safe-area-inset-bottom));
   background: var(--surface);
   border-top: 0.5px solid var(--separator);
 }

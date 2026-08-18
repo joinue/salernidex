@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import haptics from '../lib/haptics'
+import { isSelectionActive, setSelectionActive, subscribeSelectionMode } from '../lib/selectionMode'
+
+// Whether ANY surface is selecting — for chrome that has to stand down while it
+// is. Read by MobileNav the same way it reads the software keyboard.
+export function useSelectionActive() {
+  return useSyncExternalStore(subscribeSelectionMode, isSelectionActive, () => false)
+}
 
 // Selection mode, shared by every surface that has one.
 //
@@ -34,6 +41,22 @@ export function useSelection(ids) {
     // `key` is the contents; `ids` is only its carrier.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
+
+  // Announce the mode to the app chrome. Done here rather than left to each
+  // view because the tab bar has to stand down while a selection bar is up —
+  // they occupy the same rectangle — and a per-view opt-in is a step the next
+  // surface to adopt selection would forget. See lib/selectionMode.
+  const token = useRef(null)
+  if (token.current === null) token.current = Symbol('selection')
+  useEffect(() => {
+    setSelectionActive(token.current, selecting)
+  }, [selecting])
+  // Unmounting mid-selection (a route change, an edge-swipe back) has to clear
+  // it too, or the tab bar stays hidden on the page you land on.
+  useEffect(() => {
+    const mine = token.current
+    return () => setSelectionActive(mine, false)
+  }, [])
 
   const exit = useCallback(() => {
     setSelecting(false)

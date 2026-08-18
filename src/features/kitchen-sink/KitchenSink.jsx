@@ -7,6 +7,7 @@ import Chip from '../../components/ui/Chip'
 import EmptyState from '../../components/ui/EmptyState'
 import Field from '../../components/ui/Field'
 import IconButton from '../../components/ui/IconButton'
+import IconPicker from '../../components/ui/IconPicker'
 import SectionLabel from '../../components/ui/SectionLabel'
 import Segmented from '../../components/ui/Segmented'
 import StatTile, { StatGrid } from '../../components/ui/StatTile'
@@ -31,6 +32,7 @@ export default function KitchenSink() {
   const [sheet, setSheet] = useState(false)
   const [drawer, setDrawer] = useState(false)
   const [tier, setTier] = useState('')
+  const [icon, setIcon] = useState('')
   const [modal, setModal] = useState(false)
   const confirm = useConfirm()
 
@@ -137,6 +139,16 @@ export default function KitchenSink() {
           onChange={() => {}}
           options={[{ value: 'x', label: 'Truncates rather than pushing the chevron off' }]}
         />
+      </Card>
+
+      <SectionLabel>Icon picker</SectionLabel>
+      <Card padded>
+        <IconPicker value={icon} onChange={setIcon} />
+        <p className="muted ks-note">
+          The compact row, plus “⋯” for the full catalog. The catalog opens as its own sheet rather
+          than unfolding here — a scrolling grid with a search field in it, nested inside a
+          scrolling form sheet, is the shape the keyboard has nowhere to go.
+        </p>
       </Card>
 
       <SectionLabel>Fields</SectionLabel>

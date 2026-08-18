@@ -279,6 +279,106 @@ for (const state of expanded) {
   }
 }
 
+// ---- modes -----------------------------------------------------------------
+//
+// Everything above inspects a route at rest, or one tap into it. Neither ever
+// enters a MODE — and that blind spot shipped a P0: multi-select's bar and the
+// tab bar resolved to the identical rectangle, so all five actions were dead on
+// a phone, cancel included. This audit existed precisely to catch "the floating
+// tab pill sitting on top of a control the user is meant to tap", and could not
+// see it, because nothing here had ever turned selection on.
+//
+// The check is hit-testing rather than geometry. Two fixed elements overlapping
+// is not the bug; the bug is a control you cannot tap, and elementFromPoint is
+// the only thing that answers that — it accounts for z-index, paint order,
+// pointer-events and opacity at once, which comparing rectangles does not.
+const reachability = () =>
+  page.evaluate(() => {
+    const bar = document.querySelector('.selection-bar')
+    if (!bar) return { missing: true, dead: [] }
+    const dead = []
+    for (const b of bar.querySelectorAll('button')) {
+      const r = b.getBoundingClientRect()
+      if (!r.width || !r.height) continue
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+      const lands = hit && (hit === b || b.contains(hit) || hit.contains(b))
+      if (lands) continue
+      const name = (b.getAttribute('aria-label') || b.textContent || 'button').trim().slice(0, 34)
+      const blocker = hit ? hit.closest('[class]')?.className || hit.tagName : 'nothing'
+      dead.push(`"${name}" → ${blocker}`)
+    }
+    return { missing: false, dead }
+  })
+
+const modes = [
+  {
+    name: '/tasks selection mode',
+    go: async () => {
+      await page.goto(`${BASE}/#/tasks`)
+      await page.waitForTimeout(600)
+      await page.getByRole('button', { name: 'Select tasks' }).click()
+      await page.waitForSelector('.selection-bar', { timeout: 4000 })
+      await page.waitForTimeout(400)
+    },
+  },
+  {
+    name: '/list/<id> selection mode',
+    go: async () => {
+      await page.goto(`${BASE}/#/lists`)
+      await page.waitForTimeout(500)
+      await page.locator('.list-row').first().click()
+      await page.waitForTimeout(700)
+      await page.getByRole('button', { name: 'Select', exact: true }).click()
+      await page.waitForSelector('.selection-bar', { timeout: 4000 })
+      await page.waitForTimeout(400)
+    },
+  },
+  {
+    // On a phone the notebook's Select lives inside the "Sort and layout" sheet,
+    // because the toolbar's own row is a horizontal scroller and a button in it
+    // clipped the tag chips' tap targets. So this walk has to open the sheet
+    // first — which is itself worth auditing, being another mode.
+    name: '/notes selection mode',
+    go: async () => {
+      await page.goto(`${BASE}/#/notes`)
+      await page.waitForTimeout(600)
+      await page.getByRole('button', { name: 'Sort and layout' }).click()
+      await page.waitForTimeout(400)
+      await page.getByRole('button', { name: 'Select', exact: true }).click()
+      await page.waitForSelector('.selection-bar', { timeout: 4000 })
+      await page.waitForTimeout(400)
+    },
+  },
+]
+
+for (const mode of modes) {
+  try {
+    await mode.go()
+  } catch {
+    // Not silently skipped: a mode this walk can no longer reach is either a
+    // renamed control or a broken one, and both want a human. Counting it as a
+    // failure is what stops this from quietly reverting to a resting-state-only
+    // audit, which is the whole finding.
+    console.log(`\n${mode.name}\n  COULD NOT ENTER — control renamed, or the mode is broken.`)
+    failures += 1
+    continue
+  }
+  const { missing, dead } = await reachability()
+  const r = await audit()
+  const small = [...new Set(r.small)]
+  const occ = [...new Set(r.occluded)]
+  const lines = []
+  if (missing) lines.push('  NO SELECTION BAR after entering the mode')
+  if (dead.length) lines.push('  UNREACHABLE ACTION:\n    ' + dead.join('\n    '))
+  if (occ.length) lines.push('  OCCLUDED CONTROL:\n    ' + occ.join('\n    '))
+  if (small.length) lines.push('  UNDER 44px:\n    ' + small.join('\n    '))
+  if (lines.length) {
+    console.log(`\n${mode.name}`)
+    console.log(lines.join('\n'))
+    failures += (missing ? 1 : 0) + dead.length + occ.length + small.length
+  }
+}
+
 await browser.close()
 console.log(
   failures ? `\n${failures} issue(s).` : '\nClean: no occluded controls, no target under 44px.',

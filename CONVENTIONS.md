@@ -165,6 +165,38 @@ where the sheet is. Use `SelectRow` there — it shows the current value and
 drills into a list, so the options are always the topmost surface. A plain
 `<select>` is still right in a full-height form, where nothing is underneath it.
 
+## A sheet's second surface drills in; it doesn't unfold
+
+The same rule one level up. When something inside a sheet needs *its own* space —
+a catalog to browse, a list to filter, anything with a search field — give it
+its own sheet. Don't expand a panel in place.
+
+An unfolding panel puts a scroller inside a scroller, and on a phone the
+keyboard settles the argument badly:
+
+- The two scrollers chain. Flicking past the end of the inner one drags the
+  sheet.
+- The inner one's height was decided before the keyboard existed. Focus a field
+  and the sheet shrinks to the band above the keyboard, so the panel is what
+  gets cut — while it's the part being typed at.
+- The panel's arrival shoves everything below it down the form, mid-task.
+- A field inside the form element means the keyboard's Go key submits the form.
+  Searching for an icon created the area.
+
+A drilled-in `Sheet` has one scroller, rests on the keyboard (it clamps itself
+to the visual viewport), leaves the form behind it untouched, and — being
+portaled to `<body>` — isn't inside the `<form>` at all. `IconPicker` is the
+worked example; `SelectRow` is the same move for a dropdown.
+
+Inside one, a search field goes in a `.sheet-search` band: sticky, so the field
+and the results it filters stay on screen together once there's only a keyboard's
+worth of room left.
+
+**Nothing auto-focuses a field on a phone.** `autoFocus={focusOnDesktop()}`, and
+`useFocusTrap`'s fallback deliberately lands on the dialog rather than on the
+first text input, so a sheet never summons the keyboard over the thing you just
+opened. Wanting it up is what `autoFocus` is for.
+
 ## Testing
 
 - **Node 22+** (`.node-version`, `engines`). `push.test.js` and

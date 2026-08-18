@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { useSelection } from './useSelection'
+import { isSelectionActive, resetSelectionMode } from '../lib/selectionMode'
 
 vi.mock('../lib/haptics', () => ({ default: { light: vi.fn(), success: vi.fn() } }))
 
@@ -108,5 +109,32 @@ describe('useSelection', () => {
     const { result } = renderHook(() => useSelection(ids))
     act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
     expect(result.current.selecting).toBe(false)
+  })
+})
+
+describe('the app chrome knows when a surface is selecting', () => {
+  // The tab bar has to stand down while a selection bar is up — they occupy the
+  // same rectangle, and the P0 in docs/records/mobile-audit.md was every action
+  // dead on a phone because it didn't. Registration lives in the hook rather
+  // than in each view precisely so the next surface can't forget it.
+  beforeEach(() => resetSelectionMode())
+
+  it('announces the mode while selecting', () => {
+    const { result } = renderHook(() => useSelection(ids))
+    expect(isSelectionActive()).toBe(false)
+    act(() => result.current.enter('a'))
+    expect(isSelectionActive()).toBe(true)
+    act(() => result.current.exit())
+    expect(isSelectionActive()).toBe(false)
+  })
+
+  it('clears it when the surface unmounts mid-selection', () => {
+    // A route change or an edge-swipe back leaves selection mode without
+    // exiting it. The tab bar must not stay hidden on the page you land on.
+    const { result, unmount } = renderHook(() => useSelection(ids))
+    act(() => result.current.enter('a'))
+    expect(isSelectionActive()).toBe(true)
+    unmount()
+    expect(isSelectionActive()).toBe(false)
   })
 })

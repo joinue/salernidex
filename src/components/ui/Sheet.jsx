@@ -30,6 +30,22 @@ import haptics from '../../lib/haptics'
 const DISMISS_PX = 110 // travel before a release dismisses
 const DISMISS_V = 0.5 // …or a flick this fast, away from the anchored edge (px/ms)
 
+// Send the software keyboard away with the sheet rather than after it. A sheet
+// dismissed while a field inside it still has focus slides off and leaves the
+// keyboard sitting over whatever was underneath, which then has to shuffle back
+// up on its own a moment later — two movements where there should be one.
+//
+// Focus moves to the sheet element, not to nothing: a plain blur() would land
+// focus on <body>, and useFocusTrap only restores focus to whatever opened the
+// sheet if focus is still inside it on unmount. Keeping it on the dialog closes
+// the keyboard and keeps that return path.
+function dropKeyboard(el) {
+  const active = document.activeElement
+  if (!el || !active || active === el || !el.contains(active)) return
+  el.setAttribute('tabindex', '-1')
+  el.focus({ preventScroll: true })
+}
+
 export default function Sheet({ title, onClose, children, side = 'bottom' }) {
   const drawer = side === 'right'
   const sheetRef = useRef(null)
@@ -54,7 +70,11 @@ export default function Sheet({ title, onClose, children, side = 'bottom' }) {
   // Escape closes, as it does in Modal. Without it a keyboard or switch-control
   // user can only leave a sheet by finding the backdrop.
   useEffect(() => {
-    const onKey = (e) => e.key === 'Escape' && onClose()
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return
+      dropKeyboard(sheetRef.current)
+      onClose()
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
@@ -67,7 +87,26 @@ export default function Sheet({ title, onClose, children, side = 'bottom' }) {
     measure()
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
-  }, [children])
+
+    // `viewport` is a dependency rather than another listener, and that
+    // distinction is the whole fix.
+    //
+    // iOS never fires `resize` for the keyboard — only the *visual* viewport
+    // shrinks, and the overlay is clamped to that, so the sheet gets shorter
+    // without this hearing about it at all. It then keeps touch-action:none
+    // while newly overflowing: a sheet you cannot scroll for exactly as long as
+    // the keyboard is up, which is when it's shortest and needs it most.
+    //
+    // Subscribing to visualViewport here looks like the answer and isn't. That
+    // listener runs during the event, alongside the one in useVisualViewport
+    // that produces the overlay's new height — so it measures the sheet at the
+    // height it is about to stop being, sees no overflow, and changes nothing.
+    // Depending on the value instead runs the measurement after React has
+    // applied it, which is the only moment the DOM can answer the question.
+    //
+    // `children` covers content that changes under the same keyboard: typing in
+    // the icon catalog's search swaps six groups for a handful of matches.
+  }, [children, viewport])
 
   // Travel along the sheet's own axis: down for a bottom sheet, right for the
   // drawer. Everything below is written once in terms of "away from the edge
@@ -78,6 +117,7 @@ export default function Sheet({ title, onClose, children, side = 'bottom' }) {
   const dismiss = () => {
     if (closing) return
     setClosing(true)
+    dropKeyboard(sheetRef.current)
     haptics.light()
     setY(span())
     setTimeout(onClose, 220)
@@ -163,7 +203,10 @@ export default function Sheet({ title, onClose, children, side = 'bottom' }) {
         backdropDown.current = e.target === e.currentTarget
       }}
       onPointerUp={(e) => {
-        if (backdropDown.current && e.target === e.currentTarget) onClose()
+        if (backdropDown.current && e.target === e.currentTarget) {
+          dropKeyboard(sheetRef.current)
+          onClose()
+        }
         backdropDown.current = false
       }}
     >

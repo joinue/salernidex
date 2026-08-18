@@ -21,15 +21,32 @@
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
   transition:
     transform var(--dur-3) var(--ease-ios),
+    /* `bottom` moves on its own, without a class changing, because it is built
+       from env(safe-area-inset-bottom) (see --tabbar-inset) and the browser
+       revises that under us: iOS Safari flips it as its toolbar folds and
+       unfolds with the scroll, and an installed PWA gets it wrong at launch and
+       corrects late — sometimes not until the first touch. None of those are
+       avoidable from here, so the pill follows the floor instead of teleporting
+       to it. A correction that arrives after the bar is already visible reads as
+       the bar keeping up with the chrome rather than as a glitch. */
+      bottom var(--dur-3) var(--ease-ios),
     opacity var(--dur-2) ease;
 }
 
-/* Held back for the moment after launch while the window is still settling on
-   its height — see useViewportSettled. The pill is bottom-anchored, so it is
-   drawn against that floor and would otherwise appear high and drop into place.
+/* Present in the layout, deliberately not painted. Two things ask for this and
+   they want the same treatment (see MobileNav):
+
+   Launch — the window is still settling on its height (useViewportSettled). The
+   pill is bottom-anchored, so it is drawn against that floor and would
+   otherwise appear high and drop into place.
+
+   Covered — an overlay holds a scroll lock, which freezes the document, which
+   makes the browser change what the bottom of the viewport means
+   (useOverlayOpen). The pill is behind a backdrop for the duration.
+
    Opacity only, deliberately: `.tucked` owns the transform, and a fade is what
    makes the arrival read as the app coming up rather than as a correction. */
-.tabbar.settling {
+.tabbar.withheld {
   opacity: 0;
   pointer-events: none;
 }
