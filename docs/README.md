@@ -62,6 +62,20 @@ they describe futures, and the present moves.
   which keeps its reasoning and widens its scope — and which shipped, so this
   file is history rather than a plan. *Read it only for the reasoning; two of
   its names have since changed (see its own banner).*
+- [`scopes/house-calendar.md`](scopes/house-calendar.md) — the 2026-08-18 scope
+  for owning the household's *when* and publishing it outward as a per-member
+  `.ics` feed, rather than reading anyone's calendar in. Splits "calendar" into
+  two features and shows only one of them is ours to build: **reading** needs
+  native EventKit and stays deferred, **publishing** needs no native code at all
+  and is how Cozi/Maple/Skylight actually work. Adds three fields
+  (`on_calendar`, `scheduled_at`, a per-member feed token), an Akiflow-style
+  manual time-block for deadline tasks, and the rule that resolves the
+  personal-vs-shared question without a new sharing concept: **privacy decides
+  who receives an item, assignee decides what it's called.** Seven phases, an
+  explicit decline list (Motion-style auto-scheduling, two-way sync, an `events`
+  table), and four open questions in §9. *Nothing shipped.* **Note its header:
+  it records two stale claims in ROADMAP and `next-steps.md` — migrations are at
+  `0042`, and per-member timezone shipped as `0036`.*
 - [`scopes/competitive-superlist.md`](scopes/competitive-superlist.md) — the
   2026-08-13 read of Superlist v1.56: the full feature diff, four candidates
   worth building (offline writes, attachments, multi-select, calendar in
