@@ -6,6 +6,10 @@
 > §4 is two product questions that need an answer before they can be scoped;
 > §5 is the list of things deliberately **not** taken, recorded so they don't
 > get re-litigated every time someone reads a review.
+>
+> **Amended 2026-08-18** — item 12 (live presence) was one decline covering two
+> different features. It has been split: viewer presence stays declined, errand
+> co-presence is now planned. See §5.
 
 The ask: *"Superlist is a Things competitor. Besides AI, what do they have that
 we don't?"*
@@ -44,7 +48,7 @@ recognition, not a model.
 | 9 | MCP server (assistants read/write tasks directly) | None | **Defer** — cheap, but wants a stable public API first |
 | 10 | Native macOS, Windows, iOS, Android + home/lock-screen widgets | PWA; native iOS decided but unstarted | Already [next-steps §3](../next-steps.md) |
 | 11 | User-chosen sort per list (alpha / created / due / priority / assignee) | Fixed policy per bucket + manual drag order ([`TasksView.jsx:187-240`](../../src/features/tasks/TasksView.jsx#L187-L240)) | **Decline** — see §5 |
-| 12 | Live presence — avatars showing who's in a list now | Realtime re-hydration, no presence | **Decline** — §5 |
+| 12 | Live presence — avatars showing who's in a list now | Realtime re-hydration, no presence | **Split** (2026-08-18) — viewer presence declined, errand co-presence **build**; §5 |
 | 13 | Cross-app activity heatmap | Habit insights only ([`HabitInsightsView`](../../src/features/habits/HabitInsightsView.jsx)) | Low value; note it and move on |
 | 14 | Voice capture → task | Natural-language quick-add ([`lib/taskParse.js`](../../src/lib/taskParse.js)), typed | Cheap once native; Web Speech API on iOS Safari is not worth it |
 | 15 | Copy-as-Markdown, copy link to a single item | Hash routing exists; no per-item share affordance | Falls out of §3c for free |
@@ -64,12 +68,20 @@ hats — *coordinating strangers who don't share a data boundary.* A household i
 that correctly. Reading those four as "gaps" would import a permissions model we
 deliberately don't need.
 
+*Amended 2026-08-18:* that reading was right about item 12 as Superlist ships it
+and wrong about the half of it a household actually wants. It holds for who is
+*looking* at a list. It does not reach two people in different places working the
+same errand, which is a data boundary they already share. §5 has the split.
+
 ---
 
-## 3. The four worth building
+## 3. The five worth building
 
 Ranked. Each is scoped the same way: what exists, what changes, where it gets
-hard, what it costs.
+hard, what it costs. **3e was added 2026-08-18** out of the item 12 split; it is
+the only one of the five that came from asking what a *household* wants rather
+than from the diff with Superlist, which is also why it's the only one they have
+no version of.
 
 ### 3a. Durable offline writes — **already the recommended next step**
 
@@ -140,6 +152,55 @@ anything else in §3. **On iOS, EventKit gives it to us for the price of a
 permission prompt** — which argues for deferring this to the native app rather
 than building an OAuth stack for the web.
 
+### 3e. Errand co-presence — *"Sam is shopping this list now"*
+
+Added 2026-08-18 out of the item 12 split. Not viewer presence; see §5 for the
+line between them, which is load-bearing and easy to erase by accident.
+
+**What exists.** Sync, not collaboration. [`useData`](../../src/hooks/useData.js)
+puts one channel on `postgres_changes` across all of `public`, debounces 250ms,
+then refetches **all 13 tables**. It converges, and it has none of the three
+properties this needs: a row change carries **no attribution** (the refetch
+can't say who), the DB holds only committed facts so there is **no in-flight
+signal**, and it is the **wrong carrier for anything chatty** — every event
+costs a 13-table refetch on every other member's client.
+
+The durable half of the same coordination problem already shipped: a one-tap
+claim on Today writes the existing `tasks.assignee`, so "I've got this" survives
+a pocketed phone and routes through `buildAttention` like any other assignment.
+This is the *ephemeral* half, and it should stay ephemeral — the two are not
+alternatives.
+
+**The change.** A second Realtime channel, `household:<id>`, carrying
+`broadcast` only and never touching the database. Two signals, both scoped to
+work actually in progress: a list being shopped (who, and the check-off count
+moving), and a task being done right now. It rides the existing websocket —
+`connect-src ... wss://*.supabase.co` is already in [`_headers`](../../public/_headers),
+so there is no CSP or infrastructure change at all.
+
+**Where it gets hard.** Five places. **It must not ride the `postgres_changes`
+path** — the debounced refetch is exactly what this exists to avoid, and wiring
+it there would make the feature its own performance bug. **Ephemeral state
+lies**: a broadcast dies with the tab, so it needs a TTL and an honest "gone"
+state, and it must never be drawn in a way that reads as durable truth — the
+claim chip is the durable surface, this one is a hint. **Privacy** — a private
+list must not announce itself, which means [`lib/privacy.js`](../../src/lib/privacy.js)
+gates the send, not just the render. **Demo mode has no realtime**, and
+[`CONVENTIONS.md`](../../CONVENTIONS.md) requires every feature to be visible
+there because it's how the app gets reviewed — so it needs a demo path or it is
+invisible in the one place it gets looked at. **The lens** — a broadcast about a
+list in an area you're not looking at should not pull you out of it.
+
+**Why it's worth it.** It's the one genuinely unserved thing in this document.
+Live shared-list *sync* is table stakes — Cozi, AnyList, OurGroceries and Apple
+Reminders all have it, and so do we. None of them says anyone is **at the shop**.
+The value doesn't scale with collaborator count, which is why §5 declined it for
+Superlist's shape; it scales with **physical separation**, which is the ordinary
+condition of a household and the reason the original decline didn't reach it.
+
+**Cost.** Medium. No migration and no new dependency — the cost is the five
+constraints above, of which the demo path and the privacy gate are most of it.
+
 ---
 
 ## 4. Two open product questions
@@ -186,7 +247,13 @@ Recorded with reasons so a future reader doesn't rediscover them as gaps.
 - **User-chosen sort.** Our fixed per-bucket ordering is a deliberate
   Things-style opinion — the app decides what's next so the user doesn't
   maintain a sort preference. Revisit only if real usage produces a complaint.
-- **Live presence.** Meaningful at ten collaborators, noise at three.
+- **Viewer presence.** Avatars saying who is *looking* at a list — item 12 as
+  Superlist ships it. Meaningful at ten collaborators, noise at three. Three
+  people do not need to know which page the other two are on, and §2's reading
+  holds: this is team software's answer to coordinating people who don't share a
+  data boundary. **Still declined**, and [§3e](#3e-errand-co-presence--sam-is-shopping-this-list-now)
+  is not a door back to it — errand co-presence draws on a list being *worked*,
+  never a general "who's here" indicator, on any screen.
 - **Per-seat pricing.** Their model is $10/user/month. A household product
   prices per household; the entitlement design in
   [next-steps §3](../next-steps.md) already assumes that.
