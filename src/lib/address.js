@@ -16,6 +16,25 @@ export function formatAddress({ street, city, state, zip, country } = {}) {
     .join(', ')
 }
 
+// An address, opened in Google Maps. Null when there's nothing to look up, so
+// a caller can decide between a link and a plain row the same way `websiteUrl`
+// lets one decide (lib/orgs.js) — an <a> with no href is still focusable and
+// still looks tappable, which is worse than not being a link at all.
+//
+// The documented `?api=1` search form rather than a bare `maps.google.com/?q=`:
+// it is the URL Google guarantees, and on a phone it hands off to the Maps app
+// when it's installed instead of opening a web map inside the browser.
+//
+// A search, not a `dir` directions link. We store one canonical string and no
+// coordinates (see formatAddress above), and directions from an unknown origin
+// would make the phone ask where you're starting from before it can show you
+// anything. Searching lands on the pin, where "Directions" is one tap away.
+export function mapsUrl(address) {
+  const q = (address || '').trim()
+  if (!q) return null
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`
+}
+
 const EMPTY = { street: '', city: '', state: '', zip: '', country: '' }
 
 export function parseAddress(value) {

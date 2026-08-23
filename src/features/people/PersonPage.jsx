@@ -22,6 +22,7 @@ import {
 } from 'react-feather'
 import { downloadVcf } from '../../lib/vcard'
 import { socialUrl } from '../../lib/contactChannels'
+import { mapsUrl } from '../../lib/address'
 import {
   PRIVACY_LABELS,
   KEEP_IN_TOUCH_LABELS,
@@ -378,14 +379,23 @@ export default function PersonPage({
                 </div>
               )
             })}
+            {/* The address was the one contact detail that wasn't actionable —
+                email, phone and every social link have been anchors for a while.
+                Same row, same shape, just openable, so nobody has to select and
+                copy a street address on a phone to find out where it is. */}
             {person.address && (
-              <div className="value-row">
+              <a
+                className="value-row"
+                href={mapsUrl(person.address)}
+                target="_blank"
+                rel="noreferrer"
+              >
                 <MapPin size={18} />
                 <span className="v-col">
                   <span className="v-label">Address</span>
                   <span className="v-value">{person.address}</span>
                 </span>
-              </div>
+              </a>
             )}
             {person.birthday && (
               <div className="value-row">

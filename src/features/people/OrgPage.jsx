@@ -23,6 +23,7 @@ import {
   affiliationDetail,
 } from '../../lib/orgs'
 import { downloadVcf } from '../../lib/vcard'
+import { mapsUrl } from '../../lib/address'
 import {
   followUp,
   followUpLabel,
@@ -267,14 +268,17 @@ export default function OrgPage({
                 </span>
               </a>
             )}
+            {/* Openable, matching the phone / email / website rows above it and
+                the same row on a person. An org address is the one people
+                actually navigate to. */}
             {org.address && (
-              <div className="value-row">
+              <a className="value-row" href={mapsUrl(org.address)} target="_blank" rel="noreferrer">
                 <MapPin size={18} />
                 <span className="v-col">
                   <span className="v-label">Address</span>
                   <span className="v-value">{org.address}</span>
                 </span>
-              </div>
+              </a>
             )}
           </div>
         </>

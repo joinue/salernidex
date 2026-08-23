@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatAddress, parseAddress } from './address'
+import { formatAddress, parseAddress, mapsUrl } from './address'
 
 describe('formatAddress', () => {
   it('joins parts into one Maps-friendly string', () => {
@@ -56,5 +56,38 @@ describe('round-trip', () => {
     ]) {
       expect(formatAddress(parseAddress(s))).toBe(s)
     }
+  })
+})
+
+describe('mapsUrl', () => {
+  it('builds a Google Maps search link for an address', () => {
+    expect(mapsUrl('123 Main St, Springfield, IL 62704, USA')).toBe(
+      'https://www.google.com/maps/search/?api=1&query=123%20Main%20St%2C%20Springfield%2C%20IL%2062704%2C%20USA',
+    )
+  })
+  it('encodes characters that would otherwise break the query', () => {
+    // '#' truncates a URL at the fragment and '&' would start a new parameter —
+    // both appear in real addresses ("Apt #3", "Smith & Co Building").
+    const url = mapsUrl('Apt #3 Smith & Co, Springfield')
+    expect(url).toContain('%233')
+    expect(url).toContain('%26')
+    expect(url.split('?')[1].split('&').length).toBe(2) // api=1 + query, nothing injected
+  })
+  it('is null when there is nothing to look up, so callers can skip the link', () => {
+    expect(mapsUrl('')).toBe(null)
+    expect(mapsUrl('   ')).toBe(null)
+    expect(mapsUrl(null)).toBe(null)
+    expect(mapsUrl(undefined)).toBe(null)
+  })
+  it('trims, so a stray space does not become a link to nowhere', () => {
+    expect(mapsUrl('  10 Downing St, London  ')).toBe(
+      'https://www.google.com/maps/search/?api=1&query=10%20Downing%20St%2C%20London',
+    )
+  })
+  it('round-trips whatever formatAddress produced', () => {
+    const addr = formatAddress({ street: '500 Oak Ave', city: 'Austin', state: 'TX', zip: '78701' })
+    expect(mapsUrl(addr)).toBe(
+      'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr),
+    )
   })
 })
